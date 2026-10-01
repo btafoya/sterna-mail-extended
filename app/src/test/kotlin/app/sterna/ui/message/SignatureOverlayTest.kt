@@ -7,14 +7,16 @@ import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.jmap.model.Email
+import java.io.File
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * What the reader changes once the S/MIME check laid over a body it already shows answers
- * ([overlayCrypto]), and the words it puts under an S/MIME verdict ([signatureLine]).
+ * ([overlayCrypto]), and the words its signature sheet uses for an S/MIME verdict ([signatureExplanation]).
  * `SmimeReadPathTest` in `core/data` produces the results fed here from real messages; this runs the
  * decision the ViewModel takes on them, and `SmimeOverlayCallSiteTest` pins that it takes it.
  */
@@ -52,40 +54,45 @@ class SignatureOverlayTest {
     }
 
     @Test fun `an S-MIME verdict is never worded with an OpenPGP key`() {
-        val keyLines = setOf(
-            R.string.message_pgp_sig_valid,
-            R.string.message_pgp_sig_unconfirmed,
-            R.string.message_pgp_sig_missing_key,
-            R.string.message_pgp_sig_expired,
-            R.string.message_pgp_sig_mismatch,
+        val smimeStates = listOf(
+            PgpSignatureState.VALID_CONFIRMED,
+            PgpSignatureState.VALID_UNCONFIRMED,
+            PgpSignatureState.SENDER_MISMATCH,
+            PgpSignatureState.KEY_MISSING,
+            PgpSignatureState.INVALID,
+            PgpSignatureState.KEY_EXPIRED,
         )
-        mapOf(
-            PgpSignatureState.VALID_CONFIRMED to R.string.message_smime_sig_valid,
-            PgpSignatureState.VALID_UNCONFIRMED to R.string.message_smime_sig_unconfirmed,
-            PgpSignatureState.KEY_MISSING to R.string.message_smime_sig_missing_certificate,
-            PgpSignatureState.KEY_EXPIRED to R.string.message_smime_sig_expired,
-            PgpSignatureState.SENDER_MISMATCH to R.string.message_smime_sig_mismatch,
-        ).forEach { (state, line) ->
-            assertEquals("$state", line, signatureLine(state, smime = true))
-            assertFalse("$state names a key", (signatureLine(state, smime = true) ?: 0) in keyLines)
+        val found = smimeStates.flatMap { state ->
+            val ex = signatureExplanation(state, smime = true)
+            assertNotNull("$state", ex)
+            listOf(ex!!.checked, ex.unchecked, ex.meaning, ex.technical).map(::englishOf)
+                .filter { Regex("(?i)\\bkeys?\\b|OpenPGP").containsMatchIn(it) }
+                .map { "$state: $it" }
         }
-        assertEquals(R.string.message_pgp_sig_invalid, signatureLine(PgpSignatureState.INVALID, smime = true))
-        assertNull(signatureLine(PgpSignatureState.NONE, smime = true))
+        assertEquals(emptyList<String>(), found)
+        assertNull(signatureExplanation(PgpSignatureState.NONE, smime = true))
     }
 
     @Test fun `an OpenPGP verdict keeps its own lines`() {
-        mapOf(
-            PgpSignatureState.VALID_CONFIRMED to R.string.message_pgp_sig_valid,
-            PgpSignatureState.VALID_UNCONFIRMED to R.string.message_pgp_sig_unconfirmed,
-            PgpSignatureState.KEY_MISSING to R.string.message_pgp_sig_missing_key,
-            PgpSignatureState.INVALID to R.string.message_pgp_sig_invalid,
-            PgpSignatureState.KEY_REVOKED to R.string.message_pgp_sig_revoked,
-            PgpSignatureState.KEY_EXPIRED to R.string.message_pgp_sig_expired,
-            PgpSignatureState.INSECURE to R.string.message_pgp_sig_insecure,
-            PgpSignatureState.SENDER_MISMATCH to R.string.message_pgp_sig_mismatch,
-        ).forEach { (state, line) ->
-            assertEquals("$state", line, signatureLine(state, smime = false))
+        val states = PgpSignatureState.entries.filter { it != PgpSignatureState.NONE }
+        val technical = states.map { state ->
+            val ex = signatureExplanation(state, smime = false)
+            assertNotNull("$state", ex)
+            ex!!.technical
         }
-        assertNull(signatureLine(PgpSignatureState.NONE, smime = false))
+        assertEquals("each OpenPGP verdict has its own technical line", states.size, technical.toSet().size)
+        val smimeTechnical = PgpSignatureState.entries.mapNotNull { signatureExplanation(it, smime = true)?.technical }
+        assertEquals(emptyList<Int>(), technical.filter { it in smimeTechnical })
+        technical.map(::englishOf).forEach { assertTrue(it, it.startsWith("OpenPGP")) }
+        assertNull(signatureExplanation(PgpSignatureState.NONE, smime = false))
+    }
+
+    private fun englishOf(id: Int): String {
+        val name = R.string::class.java.fields.first { it.type == Int::class.java && it.getInt(null) == id }.name
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }
+            .first { File(it, "app/src/main/res/values/strings.xml").isFile }
+        return Regex("""<string name="$name"[^>]*>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
+            .find(File(root, "app/src/main/res/values/strings.xml").readText())
+            ?.groupValues?.get(1) ?: error("$name is not in values/strings.xml")
     }
 }

@@ -37,22 +37,147 @@ private fun pendingLook(kind: CryptoKind): PgpLook =
  *  armour is counted sealed because an inline signed message cannot be told from an encrypted one here. */
 private fun wearsLock(kind: CryptoKind): Boolean = kind != CryptoKind.PGP_SIGNED
 
+/** Drawn by the screen as `VerifiedUser`, `GppMaybe` and `GppBad`. */
+internal enum class SignatureIcon { VERIFIED, MAYBE, BAD }
+
+/** Drawn by the screen as `primary`, `tertiary`, `onSurfaceVariant` and `error`. */
+internal enum class SignatureTone { PRIMARY, TERTIARY, MUTED, ERROR }
+
+/** The verdict line, formatted with the signer, and the seal drawn beside it. */
+internal data class SignatureLook(@StringRes val line: Int, val icon: SignatureIcon, val tone: SignatureTone)
+
 /**
- * The one-line verdict under a signature, formatted with the signer. An S/MIME signer is a certificate: the
- * OpenPGP lines about a key to confirm, fetch or renew would name something it does not have.
+ * One table for OpenPGP and S/MIME alike: the header seal and the status card both read it, so they cannot
+ * disagree. The first line never names a key or a certificate, which is what lets the two systems share it;
+ * the mechanism is named once, in [signatureExplanation]'s technical line. The tones are a public promise:
+ * only a confirmed sender gets the verified seal and the primary tone.
  */
-@StringRes
-internal fun signatureLine(sig: PgpSignatureState, smime: Boolean): Int? = when (sig) {
+internal fun signatureLook(state: PgpSignatureState): SignatureLook? = when (state) {
     PgpSignatureState.NONE -> null
-    PgpSignatureState.VALID_CONFIRMED -> if (smime) R.string.message_smime_sig_valid else R.string.message_pgp_sig_valid
+    PgpSignatureState.VALID_CONFIRMED ->
+        SignatureLook(R.string.message_sig_verified, SignatureIcon.VERIFIED, SignatureTone.PRIMARY)
     PgpSignatureState.VALID_UNCONFIRMED ->
-        if (smime) R.string.message_smime_sig_unconfirmed else R.string.message_pgp_sig_unconfirmed
-    PgpSignatureState.KEY_MISSING ->
-        if (smime) R.string.message_smime_sig_missing_certificate else R.string.message_pgp_sig_missing_key
-    PgpSignatureState.INVALID -> R.string.message_pgp_sig_invalid
-    PgpSignatureState.KEY_REVOKED -> R.string.message_pgp_sig_revoked
-    PgpSignatureState.KEY_EXPIRED -> if (smime) R.string.message_smime_sig_expired else R.string.message_pgp_sig_expired
-    PgpSignatureState.INSECURE -> R.string.message_pgp_sig_insecure
+        SignatureLook(R.string.message_sig_unconfirmed, SignatureIcon.MAYBE, SignatureTone.TERTIARY)
     PgpSignatureState.SENDER_MISMATCH ->
-        if (smime) R.string.message_smime_sig_mismatch else R.string.message_pgp_sig_mismatch
+        SignatureLook(R.string.message_sig_mismatch, SignatureIcon.MAYBE, SignatureTone.TERTIARY)
+    PgpSignatureState.KEY_MISSING ->
+        SignatureLook(R.string.message_sig_missing, SignatureIcon.MAYBE, SignatureTone.MUTED)
+    PgpSignatureState.INVALID -> SignatureLook(R.string.message_sig_invalid, SignatureIcon.BAD, SignatureTone.ERROR)
+    PgpSignatureState.KEY_EXPIRED -> SignatureLook(R.string.message_sig_expired, SignatureIcon.BAD, SignatureTone.ERROR)
+    PgpSignatureState.KEY_REVOKED -> SignatureLook(R.string.message_sig_revoked, SignatureIcon.BAD, SignatureTone.ERROR)
+    PgpSignatureState.INSECURE -> SignatureLook(R.string.message_sig_insecure, SignatureIcon.BAD, SignatureTone.ERROR)
+}
+
+/** The signature sheet's three paragraphs, in reading order, and the one technical line under them. */
+internal data class SignatureExplanation(
+    @StringRes val checked: Int,
+    @StringRes val unchecked: Int,
+    @StringRes val meaning: Int,
+    @StringRes val technical: Int,
+)
+
+/**
+ * What the signature sheet says about [state]. Null for [PgpSignatureState.NONE], and for the verdicts the
+ * S/MIME engine never gives (revoked, insecure): a sheet for them would explain a check that never ran.
+ *
+ * Words the engines cannot back are left out on purpose. OpenPGP [PgpSignatureState.INVALID] also stands
+ * for every result OpenKeychain adds later, so it stays generic. S/MIME [PgpSignatureState.VALID_UNCONFIRMED]
+ * is both an untrusted issuer and a certificate not meant for mail, which the engine does not tell apart, so
+ * one text covers both. OpenPGP never says the signer owns the sender's address: OpenKeychain
+ * confirms the key even when it could not compare the address. An expired signature still matches the message,
+ * and says so.
+ */
+internal fun signatureExplanation(state: PgpSignatureState, smime: Boolean): SignatureExplanation? =
+    if (smime) smimeExplanation(state) else openPgpExplanation(state)
+
+private fun openPgpExplanation(state: PgpSignatureState): SignatureExplanation? = when (state) {
+    PgpSignatureState.NONE -> null
+    PgpSignatureState.VALID_CONFIRMED -> SignatureExplanation(
+        R.string.signature_ex_confirmed_checked_pgp,
+        R.string.signature_ex_confirmed_unchecked_pgp,
+        R.string.signature_ex_confirmed_meaning,
+        R.string.signature_tech_pgp_confirmed,
+    )
+    PgpSignatureState.VALID_UNCONFIRMED -> SignatureExplanation(
+        R.string.signature_ex_intact,
+        R.string.signature_ex_unconfirmed_unchecked_pgp,
+        R.string.signature_ex_unconfirmed_meaning,
+        R.string.signature_tech_pgp_unconfirmed,
+    )
+    PgpSignatureState.SENDER_MISMATCH -> SignatureExplanation(
+        R.string.signature_ex_mismatch_checked,
+        R.string.signature_ex_mismatch_unchecked,
+        R.string.signature_ex_mismatch_meaning,
+        R.string.signature_tech_pgp_mismatch,
+    )
+    PgpSignatureState.KEY_MISSING -> SignatureExplanation(
+        R.string.signature_ex_missing_checked,
+        R.string.signature_ex_missing_unchecked_pgp,
+        R.string.signature_ex_missing_meaning,
+        R.string.signature_tech_pgp_missing,
+    )
+    PgpSignatureState.INVALID -> SignatureExplanation(
+        R.string.signature_ex_invalid_checked,
+        R.string.signature_ex_invalid_unchecked,
+        R.string.signature_ex_invalid_meaning,
+        R.string.signature_tech_pgp_invalid,
+    )
+    PgpSignatureState.KEY_EXPIRED -> SignatureExplanation(
+        R.string.signature_ex_intact,
+        R.string.signature_ex_expired_unchecked_pgp,
+        R.string.signature_ex_expired_meaning,
+        R.string.signature_tech_pgp_expired,
+    )
+    PgpSignatureState.KEY_REVOKED -> SignatureExplanation(
+        R.string.signature_ex_revoked_checked,
+        R.string.signature_ex_revoked_unchecked,
+        R.string.signature_ex_revoked_meaning,
+        R.string.signature_tech_pgp_revoked,
+    )
+    PgpSignatureState.INSECURE -> SignatureExplanation(
+        R.string.signature_ex_insecure_checked,
+        R.string.signature_ex_insecure_unchecked,
+        R.string.signature_ex_insecure_meaning,
+        R.string.signature_tech_pgp_insecure,
+    )
+}
+
+private fun smimeExplanation(state: PgpSignatureState): SignatureExplanation? = when (state) {
+    PgpSignatureState.NONE, PgpSignatureState.KEY_REVOKED, PgpSignatureState.INSECURE -> null
+    PgpSignatureState.VALID_CONFIRMED -> SignatureExplanation(
+        R.string.signature_ex_confirmed_checked_smime,
+        R.string.signature_ex_confirmed_unchecked_smime,
+        R.string.signature_ex_confirmed_meaning,
+        R.string.signature_tech_smime_confirmed,
+    )
+    PgpSignatureState.VALID_UNCONFIRMED -> SignatureExplanation(
+        R.string.signature_ex_intact_for_sender,
+        R.string.signature_ex_unconfirmed_unchecked_smime,
+        R.string.signature_ex_unconfirmed_meaning,
+        R.string.signature_tech_smime_unconfirmed,
+    )
+    PgpSignatureState.SENDER_MISMATCH -> SignatureExplanation(
+        R.string.signature_ex_mismatch_checked,
+        R.string.signature_ex_mismatch_unchecked,
+        R.string.signature_ex_mismatch_meaning,
+        R.string.signature_tech_smime_mismatch,
+    )
+    PgpSignatureState.KEY_MISSING -> SignatureExplanation(
+        R.string.signature_ex_missing_checked,
+        R.string.signature_ex_missing_unchecked_smime,
+        R.string.signature_ex_missing_meaning,
+        R.string.signature_tech_smime_missing,
+    )
+    PgpSignatureState.INVALID -> SignatureExplanation(
+        R.string.signature_ex_invalid_checked,
+        R.string.signature_ex_invalid_unchecked,
+        R.string.signature_ex_invalid_meaning,
+        R.string.signature_tech_smime_invalid,
+    )
+    PgpSignatureState.KEY_EXPIRED -> SignatureExplanation(
+        R.string.signature_ex_intact,
+        R.string.signature_ex_expired_unchecked_smime,
+        R.string.signature_ex_expired_meaning,
+        R.string.signature_tech_smime_expired,
+    )
 }

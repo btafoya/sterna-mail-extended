@@ -576,6 +576,7 @@ private fun MainNavHost(
                             nav.navigate("compose?to=${Uri.encode(address)}")
                         }
                     },
+                    signatureSheet = inboxViewModel.signatureSheet,
                 )
             }
         }

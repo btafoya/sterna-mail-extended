@@ -3,13 +3,17 @@ package app.sterna.ui.message
 import app.sterna.BuildConfig
 import app.sterna.appLocale
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.GppMaybe
 import androidx.compose.material.icons.filled.VerifiedUser
 import app.sterna.core.data.mail.UnsubscribeAction
 import app.sterna.core.data.mail.UnsubscribeOptions
 import app.sterna.core.data.mail.preferredAction
 import app.sterna.core.data.text.attachmentFileName
 import app.sterna.core.data.text.safeFileName
-import app.sterna.core.data.pgp.PgpSignatureState
+import app.sterna.core.data.mail.MessageCrypto
+import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -125,7 +129,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -216,6 +222,10 @@ private const val FORCE_SOFTWARE_LAYER = false
  */
 val LocalNavTransitionActive = compositionLocalOf { false }
 
+private val LocalSignatureSheet = staticCompositionLocalOf<SignatureSheetOpen> {
+    error("SignatureSheetOpen is provided by MessageScreen")
+}
+
 /**
  * The identity of a pager entry, (email id, owning account), as one string. Same-server accounts
  * under a single login can hold messages with identical ids (#31), so the pager identifies entries
@@ -244,6 +254,7 @@ fun MessageScreen(
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
+    signatureSheet: SignatureSheetOpen,
     /** Composed in the reading pane beside the list (#103): no back arrow, the system Back and
      *  the actions suffice, as on Gmail's tablet layout, and nothing else changes. */
     paneMode: Boolean = false,
@@ -251,51 +262,75 @@ fun MessageScreen(
      *  the only moment the pane's anchor follows the pager. Null on the full-screen route. */
     onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
-    when {
-        listSource != null -> {
-            val items = listSource.collectAsLazyPagingItems()
-            // The pager pages over a sticky merge of the live flow: rows removed while reading keep
-            // their slot for the whole session. Following the live removals would re-bind the
-            // settled page to the next row, under the unread filter, read-on-settle removed the
-            // row, the next unread slid in and got marked read too, cascading through every one.
-            val liveEntries = items.itemSnapshotList.items.map { it.email.id to it.email.accountId }
-            var entries by remember { mutableStateOf(listOf<Pair<String, String?>>()) }
-            // Identified by (account, id), never by the bare id: two accounts of one login can list
-            // a message under the same server id (#31), and a bare key would swallow the second row
-            // in the merge below.
-            entries = MessagePaging.mergeEntries(entries, liveEntries, ::pagerKey)
-            if (entries.isEmpty()) {
-                // The shared paged flow replays its cached pages within a frame or two; show a
-                // brief loader until the entry list is known so the pager opens on the right page.
-                MessageLoadingScaffold(onBack, paneMode)
-            } else {
-                // Resolve the opening page once: by the anchor's key when it's in the loaded
-                // window (robust to the list having shifted), else the tapped index.
-                val initialPage = remember {
+    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet) {
+        when {
+            listSource != null -> {
+                val items = listSource.collectAsLazyPagingItems()
+                // The pager pages over a sticky merge of the live flow: rows removed while reading keep
+                // their slot for the whole session. Following the live removals would re-bind the
+                // settled page to the next row, under the unread filter, read-on-settle removed the
+                // row, the next unread slid in and got marked read too, cascading through every one.
+                val liveEntries = items.itemSnapshotList.items.map { it.email.id to it.email.accountId }
+                var entries by remember { mutableStateOf(listOf<Pair<String, String?>>()) }
+                // Identified by (account, id), never by the bare id: two accounts of one login can list
+                // a message under the same server id (#31), and a bare key would swallow the second row
+                // in the merge below.
+                entries = MessagePaging.mergeEntries(entries, liveEntries, ::pagerKey)
+                if (entries.isEmpty()) {
+                    // The shared paged flow replays its cached pages within a frame or two; show a
+                    // brief loader until the entry list is known so the pager opens on the right page.
+                    MessageLoadingScaffold(onBack, paneMode)
+                } else {
+                    // Resolve the opening page once: by the anchor's key when it's in the loaded
+                    // window (robust to the list having shifted), else the tapped index.
+                    val initialPage = remember {
+                        MessagePaging.resolveInitialPage(
+                            entries.map(::pagerKey),
+                            pagerKey(anchorEmailId to anchorAccountId),
+                            initialIndex,
+                        )
+                    }
+                    val liveIndexById = liveEntries.withIndex().associate { (i, e) -> pagerKey(e) to i }
+                    MessagePager(
+                        pageCount = entries.size,
+                        initialPage = initialPage,
+                        // Indexing the paged items near the end triggers paging, so older entries swipe
+                        // in as on scroll; the entry's index in the live list can trail its sticky index
+                        // once rows have been removed, hence the id→live-index lookup.
+                        entryAt = { i ->
+                            entries.getOrNull(i)?.also { entry ->
+                                // Guard the index against the live count: deleting from the reader
+                                // invalidates the paged flow, and the item provider re-runs this lambda
+                                // during drainChanges, before recomposition rebuilds liveIndexById,
+                                // while the presenter is transiently empty (#13).
+                                liveIndexById[pagerKey(entry)]
+                                    ?.takeIf { it < items.itemCount }
+                                    ?.let { liveIndex -> items[liveIndex] }
+                            }
+                        },
+                        onBack = onBack,
+                        onReply = onReply,
+                        onDelete = onDelete,
+                        onArchive = onArchive,
+                        onMove = onMove,
+                        onComposeTo = onComposeTo,
+                        paneMode = paneMode,
+                        onPageSettled = onPageSettled,
+                    )
+                }
+            }
+            !searchResults.isNullOrEmpty() -> {
+                val initialPage = remember(searchResults) {
                     MessagePaging.resolveInitialPage(
-                        entries.map(::pagerKey),
+                        searchResults.map { pagerKey(it.id to it.accountId) },
                         pagerKey(anchorEmailId to anchorAccountId),
                         initialIndex,
                     )
                 }
-                val liveIndexById = liveEntries.withIndex().associate { (i, e) -> pagerKey(e) to i }
                 MessagePager(
-                    pageCount = entries.size,
+                    pageCount = searchResults.size,
                     initialPage = initialPage,
-                    // Indexing the paged items near the end triggers paging, so older entries swipe
-                    // in as on scroll; the entry's index in the live list can trail its sticky index
-                    // once rows have been removed, hence the id→live-index lookup.
-                    entryAt = { i ->
-                        entries.getOrNull(i)?.also { entry ->
-                            // Guard the index against the live count: deleting from the reader
-                            // invalidates the paged flow, and the item provider re-runs this lambda
-                            // during drainChanges, before recomposition rebuilds liveIndexById,
-                            // while the presenter is transiently empty (#13).
-                            liveIndexById[pagerKey(entry)]
-                                ?.takeIf { it < items.itemCount }
-                                ?.let { liveIndex -> items[liveIndex] }
-                        }
-                    },
+                    entryAt = { i -> searchResults.getOrNull(i)?.let { it.id to it.accountId } },
                     onBack = onBack,
                     onReply = onReply,
                     onDelete = onDelete,
@@ -306,19 +341,42 @@ fun MessageScreen(
                     onPageSettled = onPageSettled,
                 )
             }
-        }
-        !searchResults.isNullOrEmpty() -> {
-            val initialPage = remember(searchResults) {
-                MessagePaging.resolveInitialPage(
-                    searchResults.map { pagerKey(it.id to it.accountId) },
-                    pagerKey(anchorEmailId to anchorAccountId),
-                    initialIndex,
+            // Opened from an unfolded conversation: page over that conversation only, on a snapshot of
+            // what it showed, so the pager cannot run past its first or last message (#13).
+            !threadEntries.isNullOrEmpty() -> {
+                val initialPage = remember(threadEntries) {
+                    // By the pair like the other three branches. A conversation's members are all one
+                    // account's, so this is defence in depth rather than a second #92, but a wrongly
+                    // keyed conversation fails to find the anchor and falls back to the tapped index,
+                    // instead of matching a foreign message that happens to share the id.
+                    MessagePaging.resolveInitialPage(
+                        threadEntries.map(::pagerKey),
+                        pagerKey(anchorEmailId to anchorAccountId),
+                        initialIndex,
+                    )
+                }
+                MessagePager(
+                    pageCount = threadEntries.size,
+                    initialPage = initialPage,
+                    entryAt = { i -> threadEntries.getOrNull(i) },
+                    // A conversation has a known, small number of messages, so the reader can say where
+                    // in it you are, and offer the two chevrons for people who don't swipe.
+                    showPosition = true,
+                    onBack = onBack,
+                    onReply = onReply,
+                    onDelete = onDelete,
+                    onArchive = onArchive,
+                    onMove = onMove,
+                    onComposeTo = onComposeTo,
+                    paneMode = paneMode,
+                    onPageSettled = onPageSettled,
                 )
             }
-            MessagePager(
-                pageCount = searchResults.size,
-                initialPage = initialPage,
-                entryAt = { i -> searchResults.getOrNull(i)?.let { it.id to it.accountId } },
+            // No list context: a lone message (e.g. opened from global search).
+            else -> MessagePager(
+                pageCount = 1,
+                initialPage = 0,
+                entryAt = { anchorEmailId to anchorAccountId },
                 onBack = onBack,
                 onReply = onReply,
                 onDelete = onDelete,
@@ -329,51 +387,6 @@ fun MessageScreen(
                 onPageSettled = onPageSettled,
             )
         }
-        // Opened from an unfolded conversation: page over that conversation only, on a snapshot of
-        // what it showed, so the pager cannot run past its first or last message (#13).
-        !threadEntries.isNullOrEmpty() -> {
-            val initialPage = remember(threadEntries) {
-                // By the pair like the other three branches. A conversation's members are all one
-                // account's, so this is defence in depth rather than a second #92, but a wrongly
-                // keyed conversation fails to find the anchor and falls back to the tapped index,
-                // instead of matching a foreign message that happens to share the id.
-                MessagePaging.resolveInitialPage(
-                    threadEntries.map(::pagerKey),
-                    pagerKey(anchorEmailId to anchorAccountId),
-                    initialIndex,
-                )
-            }
-            MessagePager(
-                pageCount = threadEntries.size,
-                initialPage = initialPage,
-                entryAt = { i -> threadEntries.getOrNull(i) },
-                // A conversation has a known, small number of messages, so the reader can say where
-                // in it you are, and offer the two chevrons for people who don't swipe.
-                showPosition = true,
-                onBack = onBack,
-                onReply = onReply,
-                onDelete = onDelete,
-                onArchive = onArchive,
-                onMove = onMove,
-                onComposeTo = onComposeTo,
-                paneMode = paneMode,
-                onPageSettled = onPageSettled,
-            )
-        }
-        // No list context: a lone message (e.g. opened from global search).
-        else -> MessagePager(
-            pageCount = 1,
-            initialPage = 0,
-            entryAt = { anchorEmailId to anchorAccountId },
-            onBack = onBack,
-            onReply = onReply,
-            onDelete = onDelete,
-            onArchive = onArchive,
-            onMove = onMove,
-            onComposeTo = onComposeTo,
-            paneMode = paneMode,
-            onPageSettled = onPageSettled,
-        )
     }
 }
 
@@ -2010,6 +2023,8 @@ private fun MessageHeader(
     // Tapping the sender opens a panel with every participant (From / To / Cc) and per-contact
     // actions. To/Cc live on the full body, so they populate once it has loaded.
     var showParticipants by remember(msg.id) { mutableStateOf(false) }
+    val signatureSheet = LocalSignatureSheet.current
+    val signatureOpenFor by signatureSheet.openFor.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxWidth()) {
         // The full subject, wrapping. The toolbar can only show a truncated single line (it shares its
         // width with the action icons), so the complete text lives here (#44).
@@ -2085,15 +2100,22 @@ private fun MessageHeader(
                         modifier = Modifier.size(18.dp),
                     )
                 }
-                val sig = decrypted?.signature
-                if (sig != null && sig != PgpSignatureState.NONE) {
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        Icons.Filled.VerifiedUser,
-                        contentDescription = stringResource(R.string.a11y_pgp_signature),
-                        tint = signatureTint(sig),
-                        modifier = Modifier.size(18.dp),
-                    )
+                val seal = decrypted?.signature?.let(::signatureLook)
+                if (decrypted != null && seal != null) {
+                    // 36 dp, under the 40 dp row: a taller seal landing late would change the header height.
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable(role = Role.Button) { signatureSheet.open(msg.id, msg.header.accountId) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            seal.icon.vector(),
+                            contentDescription = stringResource(seal.line, decrypted.signatureUserId ?: "?"),
+                            tint = seal.tone.color(),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
             // Flagged star and an attachment paperclip, mirroring the message-list row.
@@ -2119,7 +2141,7 @@ private fun MessageHeader(
         // OpenPGP status card: locked/unlock prompt, progress, verdict, or failure.
         if (crypto != CryptoUiState.None) {
             HorizontalDivider()
-            PgpStatusCard(crypto, onCryptoAction)
+            PgpStatusCard(crypto, onCryptoAction, onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) })
         }
         if (full != null) {
             val attachments = full.fileAttachmentParts()
@@ -2172,6 +2194,10 @@ private fun MessageHeader(
             )
         }
         HorizontalDivider()
+    }
+    val explained = (crypto as? CryptoUiState.Decrypted)?.result
+    if (SignatureSheetOpen.shows(signatureOpenFor, msg.id, msg.header.accountId) && explained != null && signatureLook(explained.signature) != null) {
+        SignatureSheet(explained, onDismiss = signatureSheet::close)
     }
     if (showParticipants) {
         ParticipantsSheet(
@@ -2567,31 +2593,80 @@ private fun AttachmentSection(
     }
 }
 
-/** Badge tint for an OpenPGP signature verdict. */
-@Composable
-private fun signatureTint(state: PgpSignatureState): androidx.compose.ui.graphics.Color =
-    when (state) {
-        PgpSignatureState.VALID_CONFIRMED -> MaterialTheme.colorScheme.primary
-        PgpSignatureState.VALID_UNCONFIRMED,
-        PgpSignatureState.SENDER_MISMATCH,
-        -> MaterialTheme.colorScheme.tertiary
-        PgpSignatureState.KEY_MISSING -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.error
-    }
+private fun SignatureIcon.vector(): ImageVector = when (this) {
+    SignatureIcon.VERIFIED -> Icons.Filled.VerifiedUser
+    SignatureIcon.MAYBE -> Icons.Filled.GppMaybe
+    SignatureIcon.BAD -> Icons.Filled.GppBad
+}
 
-/** One-line human verdict for an OpenPGP or S/MIME signature. */
 @Composable
-private fun signatureSummary(sig: PgpSignatureState, signer: String?, smime: Boolean): String? =
-    signatureLine(sig, smime)?.let { stringResource(it, signer ?: "?") }
+private fun SignatureTone.color(): Color = when (this) {
+    SignatureTone.PRIMARY -> MaterialTheme.colorScheme.primary
+    SignatureTone.TERTIARY -> MaterialTheme.colorScheme.tertiary
+    SignatureTone.MUTED -> MaterialTheme.colorScheme.onSurfaceVariant
+    SignatureTone.ERROR -> MaterialTheme.colorScheme.error
+}
+
+/** A sheet and never an unfolding card: the card's height keys the body load (see [ImagesStrip]). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SignatureSheet(result: MessageCrypto.Decrypted, onDismiss: () -> Unit) {
+    val look = signatureLook(result.signature) ?: return
+    val explanation = signatureExplanation(result.signature, result.smime)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.signature_sheet_title), style = MaterialTheme.typography.titleLarge)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(look.icon.vector(), contentDescription = null, tint = look.tone.color(), modifier = Modifier.size(24.dp))
+                Text(
+                    stringResource(look.line, result.signatureUserId ?: "?"),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = look.tone.color(),
+                )
+            }
+            if (explanation != null) {
+                SignatureParagraph(R.string.signature_sheet_checked, explanation.checked)
+                SignatureParagraph(R.string.signature_sheet_unchecked, explanation.unchecked)
+                SignatureParagraph(R.string.signature_sheet_meaning, explanation.meaning)
+                Text(
+                    stringResource(explanation.technical),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SignatureParagraph(@StringRes label: Int, @StringRes body: Int) {
+    Column {
+        Text(stringResource(label), style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(body), style = MaterialTheme.typography.bodyMedium)
+    }
+}
 
 /**
  * The OpenPGP status strip above the body: unlock prompt / progress while decrypting, then the verdict
  * or the failure with a retry. Compact, one row plus an optional action button.
  */
 @Composable
-private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
+private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit, onExplainSignature: () -> Unit) {
+    val verdict = (crypto as? CryptoUiState.Decrypted)?.result?.signature?.let(::signatureLook)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (verdict != null) Modifier.clickable(role = Role.Button, onClick = onExplainSignature) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -2634,17 +2709,21 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                 }
             }
             is CryptoUiState.Decrypted -> {
-                val sig = crypto.result.signature
-                Icon(
-                    if (crypto.result.wasEncrypted) Icons.Filled.Lock else Icons.Filled.VerifiedUser,
-                    contentDescription = null,
-                    tint = if (crypto.result.wasEncrypted) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        signatureTint(sig)
-                    },
-                    modifier = Modifier.size(20.dp),
-                )
+                if (crypto.result.wasEncrypted) {
+                    Icon(
+                        Icons.Filled.Lock,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                } else if (verdict != null) {
+                    Icon(
+                        verdict.icon.vector(),
+                        contentDescription = null,
+                        tint = verdict.tone.color(),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
                 Column(Modifier.weight(1f)) {
                     if (crypto.result.wasEncrypted) {
                         Text(
@@ -2652,11 +2731,11 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit) {
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    signatureSummary(sig, crypto.result.signatureUserId, crypto.result.smime)?.let { summary ->
+                    if (verdict != null) {
                         Text(
-                            text = summary,
+                            text = stringResource(verdict.line, crypto.result.signatureUserId ?: "?"),
                             style = MaterialTheme.typography.bodySmall,
-                            color = signatureTint(sig),
+                            color = verdict.tone.color(),
                         )
                     }
                 }
