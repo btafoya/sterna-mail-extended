@@ -1010,6 +1010,13 @@ fun InboxScreen(
                     onLongClick = {
                         if (expandable) viewModel.enterSelectionThread(email) else viewModel.enterSelection(email)
                     },
+                    onMonogramClick = when (monogramTapAction(isLocalDraftRow(email.id), selectionActive, expandable)) {
+                        MonogramTap.NONE -> null
+                        MonogramTap.ENTER_THREAD -> { { viewModel.enterSelectionThread(email) } }
+                        MonogramTap.ENTER_ROW -> { { viewModel.enterSelection(email) } }
+                        MonogramTap.TOGGLE_THREAD -> { { viewModel.toggleSelectThread(email) } }
+                        MonogramTap.TOGGLE_ROW -> { { viewModel.toggleSelect(email) } }
+                    },
                     // The star is a gesture too, on every row, and reachable by TalkBack (#95):
                     // toggleFlag over a local id touches no row at all on IMAP and raises "Action
                     // failed" on JMAP. A local draft gets no star rather than a dead one.
@@ -2005,6 +2012,8 @@ private fun SwipeableEmailRow(
     onClick: () -> Unit,
     // Nullable so inline conversation children can omit long-press selection and the star.
     onLongClick: (() -> Unit)? = null,
+    // Null leaves the initials inert, the tap falls through to the row.
+    onMonogramClick: (() -> Unit)? = null,
     onToggleFavourite: (() -> Unit)? = null,
     selected: Boolean,
     /** The message open in the reading pane beside the list (#103). */
@@ -2321,6 +2330,7 @@ private fun SwipeableEmailRow(
                 selected = selected,
                 current = current,
                 onLongClick = onLongClick,
+                onMonogramClick = onMonogramClick,
                 unread = unread,
                 threadCount = threadCount,
                 threadExpandable = threadExpandable,
@@ -2502,6 +2512,20 @@ internal fun searchHitTapAction(hitRole: String?): RowTap =
  */
 internal fun childTapAction(childRole: String?): RowTap = rowTapAction(localDraft = false, selectionActive = false, expandable = false, fromSearch = false, rowRole = childRole, hitRole = null)
 
+/** What a tap on a row's initials does: they select, they never open. */
+internal enum class MonogramTap { NONE, ENTER_THREAD, ENTER_ROW, TOGGLE_THREAD, TOGGLE_ROW }
+
+/**
+ * Outside a selection the long-press, inside it the row's own tap: `toggleSelect*` never makes the
+ * selection active and `enterSelection*` replace the whole of it, so neither serves both states.
+ * A local draft gets [MonogramTap.NONE]: the tap falls through to the row, which edits it.
+ */
+internal fun monogramTapAction(localDraft: Boolean, selectionActive: Boolean, expandable: Boolean): MonogramTap = when {
+    localDraft -> MonogramTap.NONE
+    selectionActive -> if (expandable) MonogramTap.TOGGLE_THREAD else MonogramTap.TOGGLE_ROW
+    else -> if (expandable) MonogramTap.ENTER_THREAD else MonogramTap.ENTER_ROW
+}
+
 /** The string resource shown on the swipe background for [action] on [email] (0 = none). */
 private fun swipeActionLabel(action: SwipeAction, email: Email, unarchiveContext: Boolean, trashContext: Boolean): Int = when (action) {
     SwipeAction.NONE -> 0
@@ -2625,6 +2649,11 @@ private fun ThreadChildren(
                             // Children join multi-select like top-level rows.
                             onClick = { if (selectionActive) onToggleSelectChild(child) else onOpenChild(child) },
                             onLongClick = { onEnterSelectionChild(child) },
+                            onMonogramClick = when (monogramTapAction(isLocalDraftRow(child.id), selectionActive, expandable = false)) {
+                                MonogramTap.ENTER_ROW -> { { onEnterSelectionChild(child) } }
+                                MonogramTap.TOGGLE_ROW -> { { onToggleSelectChild(child) } }
+                                else -> null
+                            },
                             // Children carry the same star and attachment indicator as top-level
                             // rows, so the unfolded preview matches the collapsed one.
                             onToggleFavourite = { onToggleChildFavourite(child) },

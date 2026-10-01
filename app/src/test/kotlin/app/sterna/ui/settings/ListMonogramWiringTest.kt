@@ -377,9 +377,11 @@ class ListMonogramWiringTest {
         /** The guard, the monogram, the spacer, the closing brace, in this order, or not at all. */
         val EXPECTED_ROW_BLOCK = listOf(
             "if (LocalListMonogram.current) {",
-            "Monogram(",
+            "RowMonogram(",
             "seed = (recipient ?: email.from.firstOrNull())?.email ?: senderName,",
             "label = recipient?.display() ?: senderName,",
+            "selected = selected,",
+            "onClick = onMonogramClick,",
             ")",
             "Spacer(Modifier.width(12.dp))",
             "}",

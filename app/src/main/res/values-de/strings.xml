@@ -1081,6 +1081,8 @@
     <string name="inbox_folder_collapse">Ordner zuklappen</string>
     <string name="a11y_favourite">Markierung hinzufügen</string>
     <string name="a11y_unfavourite">Markierung entfernen</string>
+    <string name="a11y_select">Auswählen</string>
+    <string name="a11y_deselect">Auswahl aufheben</string>
     <string name="a11y_has_attachment">Hat einen Anhang</string>
     <string name="draft_label">Entwurf</string>
     <string name="local_draft_not_uploaded">Nicht hochgeladen</string>

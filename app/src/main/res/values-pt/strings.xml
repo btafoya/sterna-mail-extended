@@ -1090,6 +1090,8 @@
     <string name="inbox_folder_collapse">Recolher pasta</string>
     <string name="a11y_favourite">Adicionar estrela</string>
     <string name="a11y_unfavourite">Remover estrela</string>
+    <string name="a11y_select">Selecionar</string>
+    <string name="a11y_deselect">Desmarcar</string>
     <string name="a11y_has_attachment">Tem um anexo</string>
     <string name="draft_label">Rascunho</string>
     <string name="local_draft_not_uploaded">Não carregado</string>

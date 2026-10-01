@@ -293,6 +293,8 @@
     <string name="inbox_unflag">取消星标</string>
     <string name="a11y_favourite">添加星标</string>
     <string name="a11y_unfavourite">移除星标</string>
+    <string name="a11y_select">选择</string>
+    <string name="a11y_deselect">取消选择</string>
     <string name="a11y_has_attachment">包含附件</string>
     <string name="draft_label">草稿</string>
     <string name="local_draft_not_uploaded">未上传</string>

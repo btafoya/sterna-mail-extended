@@ -138,4 +138,35 @@ class RowTapActionTest {
     fun `a child of unknown role opens`() {
         assertEquals(RowTap.OPEN, childTapAction(null))
     }
+
+    @Test
+    fun `outside a selection the initials of a conversation select the whole thread`() {
+        assertEquals(MonogramTap.ENTER_THREAD, monogramTapAction(localDraft = false, selectionActive = false, expandable = true))
+    }
+
+    @Test
+    fun `outside a selection the initials of a flat row select that row`() {
+        assertEquals(MonogramTap.ENTER_ROW, monogramTapAction(localDraft = false, selectionActive = false, expandable = false))
+    }
+
+    @Test
+    fun `during a selection the initials of a conversation toggle the whole thread`() {
+        assertEquals(MonogramTap.TOGGLE_THREAD, monogramTapAction(localDraft = false, selectionActive = true, expandable = true))
+    }
+
+    @Test
+    fun `during a selection the initials of a flat row toggle that row`() {
+        assertEquals(MonogramTap.TOGGLE_ROW, monogramTapAction(localDraft = false, selectionActive = true, expandable = false))
+    }
+
+    @Test
+    fun `the initials of a local draft have no gesture of their own, in or out of a selection`() {
+        for (selectionActive in listOf(false, true)) for (expandable in listOf(false, true)) {
+            assertEquals(
+                "selectionActive=$selectionActive expandable=$expandable",
+                MonogramTap.NONE,
+                monogramTapAction(localDraft = true, selectionActive = selectionActive, expandable = expandable),
+            )
+        }
+    }
 }

@@ -144,6 +144,7 @@ fun EmailListItem(
     // The message open in the reading pane beside the list, on a wide window (#103).
     current: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    onMonogramClick: (() -> Unit)? = null,
     // In conversation view: the thread's unread state and how many of its messages are in the
     // viewed folder(s), the pill shows this in-view count.
     unread: Boolean = !email.isSeen,
@@ -247,9 +248,11 @@ fun EmailListItem(
         // outside, its 12 dp would add to the Row's own start padding and leave a dead band at the
         // start of every row. Read here rather than passed in, so all three call sites follow it.
         if (LocalListMonogram.current) {
-            Monogram(
+            RowMonogram(
                 seed = (recipient ?: email.from.firstOrNull())?.email ?: senderName,
                 label = recipient?.display() ?: senderName,
+                selected = selected,
+                onClick = onMonogramClick,
             )
             Spacer(Modifier.width(12.dp))
         }

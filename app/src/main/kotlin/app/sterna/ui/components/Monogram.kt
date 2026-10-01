@@ -25,7 +25,7 @@ fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: 
     val background = color ?: monogramColor(seed, MaterialTheme.colorScheme.monogramRamps())
     Box(
         modifier = modifier
-            .size(40.dp)
+            .size(MonogramSize)
             .clip(CircleShape)
             .background(background),
         contentAlignment = Alignment.Center,
@@ -38,6 +38,8 @@ fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: 
         )
     }
 }
+
+internal val MonogramSize = 40.dp
 
 /** One accent family of the active palette: the tone it fills a container with, and the tone on it. */
 internal data class ToneRamp(val container: Color, val onContainer: Color)

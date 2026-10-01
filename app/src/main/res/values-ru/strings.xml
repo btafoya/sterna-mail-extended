@@ -1108,6 +1108,8 @@
     <string name="inbox_folder_collapse">Свернуть папку</string>
     <string name="a11y_favourite">Пометить</string>
     <string name="a11y_unfavourite">Снять пометку</string>
+    <string name="a11y_select">Выбрать</string>
+    <string name="a11y_deselect">Отменить выбор</string>
     <string name="a11y_has_attachment">Есть вложение</string>
     <string name="draft_label">Черновик</string>
     <string name="local_draft_not_uploaded">Не загружено</string>

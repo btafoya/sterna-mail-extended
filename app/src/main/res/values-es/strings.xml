@@ -1088,6 +1088,8 @@
     <string name="inbox_folder_collapse">Contraer carpeta</string>
     <string name="a11y_favourite">Destacar</string>
     <string name="a11y_unfavourite">Quitar destacado</string>
+    <string name="a11y_select">Seleccionar</string>
+    <string name="a11y_deselect">Deseleccionar</string>
     <string name="a11y_has_attachment">Tiene un archivo adjunto</string>
     <string name="draft_label">Borrador</string>
     <string name="local_draft_not_uploaded">Sin subir</string>

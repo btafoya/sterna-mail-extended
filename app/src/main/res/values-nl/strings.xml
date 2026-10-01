@@ -1084,6 +1084,8 @@
     <string name="inbox_folder_collapse">Map samenvouwen</string>
     <string name="a11y_favourite">Ster toevoegen</string>
     <string name="a11y_unfavourite">Ster verwijderen</string>
+    <string name="a11y_select">Selecteren</string>
+    <string name="a11y_deselect">Deselecteren</string>
     <string name="a11y_has_attachment">Heeft een bijlage</string>
     <string name="draft_label">Concept</string>
     <string name="local_draft_not_uploaded">Niet geüpload</string>

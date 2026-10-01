@@ -1105,6 +1105,8 @@
     <string name="inbox_folder_collapse">Zwiń folder</string>
     <string name="a11y_favourite">Oznacz</string>
     <string name="a11y_unfavourite">Usuń oznaczenie</string>
+    <string name="a11y_select">Zaznacz</string>
+    <string name="a11y_deselect">Odznacz</string>
     <string name="a11y_has_attachment">Zawiera załącznik</string>
     <string name="draft_label">Wersja robocza</string>
     <string name="local_draft_not_uploaded">Nie przesłano</string>

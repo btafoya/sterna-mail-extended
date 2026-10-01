@@ -1094,6 +1094,8 @@
     <string name="inbox_folder_collapse">Réduire le dossier</string>
     <string name="a11y_favourite">Suivre le message</string>
     <string name="a11y_unfavourite">Ne plus suivre le message</string>
+    <string name="a11y_select">Sélectionner</string>
+    <string name="a11y_deselect">Désélectionner</string>
     <string name="a11y_has_attachment">Contient une pièce jointe</string>
     <string name="draft_label">Brouillon</string>
     <string name="local_draft_not_uploaded">Non téléversé</string>

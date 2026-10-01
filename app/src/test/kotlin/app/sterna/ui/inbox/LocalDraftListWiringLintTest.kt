@@ -154,6 +154,42 @@ class LocalDraftListWiringLintTest {
     }
 
     @Test
+    fun `the initials ask monogramTapAction and act on each answer`() {
+        val row = codeLines(INBOX_SCREEN).map { it.trim() }
+        val rowAt = row.indexOfFirst { it.startsWith("onMonogramClick = when (") }
+        assertEquals(
+            "emailRow's initials must be wired by monogramTapAction over this row's own flags. Found:",
+            "onMonogramClick = when (monogramTapAction(isLocalDraftRow(email.id), selectionActive, expandable)) {",
+            row.getOrNull(rowAt),
+        )
+        assertEquals(
+            listOf(
+                "MonogramTap.NONE -> null",
+                "MonogramTap.ENTER_THREAD -> { { viewModel.enterSelectionThread(email) } }",
+                "MonogramTap.ENTER_ROW -> { { viewModel.enterSelection(email) } }",
+                "MonogramTap.TOGGLE_THREAD -> { { viewModel.toggleSelectThread(email) } }",
+                "MonogramTap.TOGGLE_ROW -> { { viewModel.toggleSelect(email) } }",
+            ),
+            functionBody(INBOX_SCREEN, "onMonogramClick = when (monogramTapAction(isLocalDraftRow(email.id)"),
+        )
+        val childOpener = "onMonogramClick = when (monogramTapAction(isLocalDraftRow(child.id), selectionActive, expandable = false)) {"
+        assertTrue("ThreadChildren's initials must ask monogramTapAction for the child itself", row.contains(childOpener))
+        assertEquals(
+            listOf(
+                "MonogramTap.ENTER_ROW -> { { onEnterSelectionChild(child) } }",
+                "MonogramTap.TOGGLE_ROW -> { { onToggleSelectChild(child) } }",
+                "else -> null",
+            ),
+            functionBody(INBOX_SCREEN, childOpener),
+        )
+        assertEquals(
+            "SwipeableEmailRow must hand its initials' callback on to EmailListItem:",
+            listOf("onMonogramClick = onMonogramClick,"),
+            row.filter { it.startsWith("onMonogramClick = onMonogramClick") },
+        )
+    }
+
+    @Test
     fun `the swipe is refused where the gesture is armed, not after the row has flown off`() {
         // The most expensive line of this branch.
         assertEquals(

@@ -296,6 +296,8 @@
     <string name="inbox_unflag">Unstar</string>
     <string name="a11y_favourite">Add star</string>
     <string name="a11y_unfavourite">Remove star</string>
+    <string name="a11y_select">Select</string>
+    <string name="a11y_deselect">Deselect</string>
     <string name="a11y_has_attachment">Has attachment</string>
     <string name="draft_label">Draft</string>
     <string name="local_draft_not_uploaded">Not uploaded</string>
