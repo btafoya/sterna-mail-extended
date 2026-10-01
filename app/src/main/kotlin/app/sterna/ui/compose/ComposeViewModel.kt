@@ -87,6 +87,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -360,6 +362,14 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     val fromOptions: StateFlow<List<FromOption>> = _fromOptions.asStateFlow()
     private val _selectedFrom = MutableStateFlow<FromOption?>(null)
     val selectedFrom: StateFlow<FromOption?> = _selectedFrom.asStateFlow()
+
+    val attachmentsTotal: StateFlow<AttachmentsTotal?> =
+        combine(_selectedFrom, _attachments) { from, parts ->
+            val sender = (from?.accountId ?: accountId)?.let { store.credentials(it) } ?: store.load()
+            attachmentsTotal(parts.map { it.size }, sendingAttachmentsLimit(repo.cachedJmapSession(), sender))
+        }
+            .flowOn(Dispatchers.IO)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     /**
      * Switch the sending identity, and report what that asks of the body's signature (D5), or null.

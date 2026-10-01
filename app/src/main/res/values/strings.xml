@@ -25,6 +25,8 @@
     <string name="compose_remove">Remove</string>
     <string name="compose_remove_recipient">Remove %1$s</string>
     <string name="compose_attachment_fallback">attachment</string>
+    <string name="compose_attachments_total">Total attachments: %1$s</string>
+    <string name="compose_attachments_total_of">Total attachments: %1$s of %2$s</string>
     <string name="compose_body_placeholder">Compose email</string>
     <string name="compose_format_bold">Bold</string>
     <string name="compose_format_italic">Italic</string>
@@ -403,6 +405,18 @@
     <string name="list_to_recipients">To: %1$s</string>
     <string name="message_attachments">Attachments (%1$d)</string>
     <string name="message_attachment_fallback">attachment</string>
+    <string name="attachment_kind_image">Image</string>
+    <string name="attachment_kind_pdf">PDF</string>
+    <string name="attachment_kind_audio">Audio</string>
+    <string name="attachment_kind_video">Video</string>
+    <string name="attachment_kind_archive">Archive</string>
+    <string name="attachment_kind_text">Text</string>
+    <string name="attachment_kind_document">Document</string>
+    <string name="attachment_kind_spreadsheet">Spreadsheet</string>
+    <string name="attachment_kind_presentation">Presentation</string>
+    <string name="attachment_kind_message">Email</string>
+    <string name="attachment_kind_calendar">Event</string>
+    <string name="attachment_kind_contact">Contact</string>
     <!-- Participants panel (tap the sender in the email view) -->
     <string name="message_participants_title">Participants</string>
     <string name="participants_from">From</string>

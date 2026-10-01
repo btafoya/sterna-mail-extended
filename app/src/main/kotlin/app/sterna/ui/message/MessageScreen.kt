@@ -175,6 +175,8 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
+import app.sterna.ui.attachmentLook
+import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.LoadingRing
@@ -2443,6 +2445,7 @@ private fun AttachmentSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         attachments.forEach { att ->
+            val look = attachmentLook(att)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2451,7 +2454,7 @@ private fun AttachmentSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    Icons.Filled.AttachFile,
+                    look.icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 12.dp).size(20.dp),
@@ -2463,8 +2466,7 @@ private fun AttachmentSection(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val meta = listOfNotNull(formatSize(att.size).takeIf { it.isNotEmpty() }, att.type)
-                        .joinToString(" · ")
+                    val meta = attachmentMeta(look.label, att.size)
                     if (meta.isNotEmpty()) {
                         Text(
                             text = meta,
@@ -3110,13 +3112,6 @@ private fun formatEventWhen(event: ParsedEvent): String {
         end.format(eventDateTimeFormatter)
     }
     return "$startStr – $endStr"
-}
-
-private fun formatSize(bytes: Long): String = when {
-    bytes <= 0 -> ""
-    bytes < 1024 -> "$bytes B"
-    bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-    else -> "%.1f MB".format(bytes / 1024.0 / 1024.0)
 }
 
 /**

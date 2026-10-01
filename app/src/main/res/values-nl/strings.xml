@@ -25,6 +25,8 @@
     <string name="compose_remove">Verwijderen</string>
     <string name="compose_remove_recipient">%1$s verwijderen</string>
     <string name="compose_attachment_fallback">bijlage</string>
+    <string name="compose_attachments_total">Bijlagen totaal: %1$s</string>
+    <string name="compose_attachments_total_of">Bijlagen totaal: %1$s van %2$s</string>
     <string name="compose_body_placeholder">E-mail opstellen</string>
     <string name="compose_format_bold">Vet</string>
     <string name="compose_format_italic">Cursief</string>
@@ -258,6 +260,18 @@
     <string name="list_to_recipients">Aan: %1$s</string>
     <string name="message_attachments">Bijlagen (%1$d)</string>
     <string name="message_attachment_fallback">bijlage</string>
+    <string name="attachment_kind_image">Afbeelding</string>
+    <string name="attachment_kind_pdf">PDF</string>
+    <string name="attachment_kind_audio">Audio</string>
+    <string name="attachment_kind_video">Video</string>
+    <string name="attachment_kind_archive">Archief</string>
+    <string name="attachment_kind_text">Tekst</string>
+    <string name="attachment_kind_document">Document</string>
+    <string name="attachment_kind_spreadsheet">Spreadsheet</string>
+    <string name="attachment_kind_presentation">Presentatie</string>
+    <string name="attachment_kind_message">E-mail</string>
+    <string name="attachment_kind_calendar">Afspraak</string>
+    <string name="attachment_kind_contact">Contact</string>
     <string name="message_participants_title">Deelnemers</string>
     <string name="participants_from">Van</string>
     <string name="participants_to">Aan</string>

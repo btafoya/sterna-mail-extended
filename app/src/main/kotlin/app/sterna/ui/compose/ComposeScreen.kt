@@ -165,6 +165,9 @@ import app.sterna.container
 import app.sterna.contacts.AndroidContacts
 import app.sterna.util.isValidEmail
 import app.sterna.ui.FORCE_ONBOARDING_PREVIEW
+import app.sterna.ui.attachmentLook
+import app.sterna.ui.attachmentMeta
+import app.sterna.ui.formatSize
 import app.sterna.ui.rememberMotionEnabled
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.drawTern
@@ -208,6 +211,7 @@ fun ComposeScreen(
     val forwardedPreview by viewModel.forwardedPreview.collectAsStateWithLifecycle()
     val attachments by viewModel.attachments.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
+    val attachmentsTotal by viewModel.attachmentsTotal.collectAsStateWithLifecycle()
     val fromOptions by viewModel.fromOptions.collectAsStateWithLifecycle()
     val selectedFrom by viewModel.selectedFrom.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
@@ -1466,19 +1470,48 @@ fun ComposeScreen(
                                 .padding(horizontal = 16.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.AttachFile, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                            Text(
-                                text = att.name ?: stringResource(R.string.compose_attachment_fallback),
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { viewModel.removeAttachment(att) }) {
-                                Text(stringResource(R.string.compose_remove))
+                            val look = attachmentLook(att)
+                            Icon(look.icon, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                            // weight(1f) and one ellipsized line: a long name shortens instead of
+                            // pushing the cross off the screen.
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = att.name ?: stringResource(R.string.compose_attachment_fallback),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                val meta = attachmentMeta(look.label, att.size)
+                                if (meta.isNotEmpty()) {
+                                    Text(
+                                        text = meta,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { viewModel.removeAttachment(att) }) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = stringResource(R.string.compose_remove),
+                                )
                             }
                         }
                     }
+                }
+                attachmentsTotal?.let { total ->
+                    Text(
+                        text = if (total.limit != null) {
+                            stringResource(R.string.compose_attachments_total_of, formatSize(total.sum), formatSize(total.limit))
+                        } else {
+                            stringResource(R.string.compose_attachments_total, formatSize(total.sum))
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (total.over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
                 }
             }
             attachmentStatus?.let {

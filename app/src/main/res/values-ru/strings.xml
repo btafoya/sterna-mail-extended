@@ -25,6 +25,8 @@
     <string name="compose_remove">Убрать</string>
     <string name="compose_remove_recipient">Убрать %1$s</string>
     <string name="compose_attachment_fallback">вложение</string>
+    <string name="compose_attachments_total">Всего вложений: %1$s</string>
+    <string name="compose_attachments_total_of">Всего вложений: %1$s из %2$s</string>
     <string name="compose_body_placeholder">Напишите письмо</string>
     <string name="compose_format_bold">Жирный</string>
     <string name="compose_format_italic">Курсив</string>
@@ -258,6 +260,18 @@
     <string name="list_to_recipients">Кому: %1$s</string>
     <string name="message_attachments">Вложения (%1$d)</string>
     <string name="message_attachment_fallback">вложение</string>
+    <string name="attachment_kind_image">Изображение</string>
+    <string name="attachment_kind_pdf">PDF</string>
+    <string name="attachment_kind_audio">Аудио</string>
+    <string name="attachment_kind_video">Видео</string>
+    <string name="attachment_kind_archive">Архив</string>
+    <string name="attachment_kind_text">Текст</string>
+    <string name="attachment_kind_document">Документ</string>
+    <string name="attachment_kind_spreadsheet">Таблица</string>
+    <string name="attachment_kind_presentation">Презентация</string>
+    <string name="attachment_kind_message">Письмо</string>
+    <string name="attachment_kind_calendar">Событие</string>
+    <string name="attachment_kind_contact">Контакт</string>
     <string name="message_participants_title">Участники</string>
     <string name="participants_from">От</string>
     <string name="participants_to">Кому</string>

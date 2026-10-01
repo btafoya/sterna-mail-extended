@@ -16,14 +16,14 @@ fun attachmentMimeType(declared: String?, name: String?, lookup: (String) -> Str
 }
 
 /** No parameter and no case, both because an Intent type carrying either matches no activity. */
-private fun essenceOf(type: String?): String =
+internal fun essenceOf(type: String?): String =
     type.orEmpty().substringBefore(';').trim().lowercase()
 
 /**
  * What follows the last dot, or null when it is not a file type. Trimmed and folded first: a JMAP
  * server hands the name over raw, and the framework's table answers no key that is padded or shouted.
  */
-private fun extensionOf(name: String?): String? =
+internal fun extensionOf(name: String?): String? =
     name.orEmpty().trim().substringAfterLast('.', "").lowercase().takeIf { EXTENSION.matches(it) }
 
 /** Deliberately closed, and not a setting: a type this list does not name is a type we believe. */

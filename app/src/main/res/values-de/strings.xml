@@ -25,6 +25,8 @@
     <string name="compose_remove">Entfernen</string>
     <string name="compose_remove_recipient">%1$s entfernen</string>
     <string name="compose_attachment_fallback">Anhang</string>
+    <string name="compose_attachments_total">Anhänge gesamt: %1$s</string>
+    <string name="compose_attachments_total_of">Anhänge gesamt: %1$s von %2$s</string>
     <string name="compose_body_placeholder">E-Mail verfassen</string>
     <string name="compose_format_bold">Fett</string>
     <string name="compose_format_italic">Kursiv</string>
@@ -258,6 +260,18 @@
     <string name="list_to_recipients">An: %1$s</string>
     <string name="message_attachments">Anhänge (%1$d)</string>
     <string name="message_attachment_fallback">Anhang</string>
+    <string name="attachment_kind_image">Bild</string>
+    <string name="attachment_kind_pdf">PDF</string>
+    <string name="attachment_kind_audio">Audio</string>
+    <string name="attachment_kind_video">Video</string>
+    <string name="attachment_kind_archive">Archiv</string>
+    <string name="attachment_kind_text">Text</string>
+    <string name="attachment_kind_document">Dokument</string>
+    <string name="attachment_kind_spreadsheet">Tabelle</string>
+    <string name="attachment_kind_presentation">Präsentation</string>
+    <string name="attachment_kind_message">E-Mail</string>
+    <string name="attachment_kind_calendar">Termin</string>
+    <string name="attachment_kind_contact">Kontakt</string>
     <string name="message_participants_title">Teilnehmer</string>
     <string name="participants_from">Von</string>
     <string name="participants_to">An</string>

@@ -133,9 +133,14 @@ class ComposeOpenAttachmentWiringTest {
             row.take(8),
         )
         assertEquals(
-            "Lines found:",
-            listOf("TextButton(onClick = { viewModel.removeAttachment(att) }) {"),
-            row.filter { "TextButton(" in it },
+            "Remove must be its own IconButton, a target distinct from the row's tap. Lines found:",
+            listOf("IconButton(onClick = { viewModel.removeAttachment(att) }) {"),
+            row.filter { "removeAttachment(" in it },
+        )
+        assertEquals(
+            "the cross must be spoken as compose_remove, since its label is no longer on screen. Lines found:",
+            listOf("Icons.Filled.Close,", "contentDescription = stringResource(R.string.compose_remove),"),
+            row.filter { "Icons.Filled.Close" in it || "R.string.compose_remove" in it },
         )
     }
 

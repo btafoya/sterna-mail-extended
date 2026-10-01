@@ -217,4 +217,65 @@ class JmapSessionTest {
         assertEquals(null, noAccountHasContacts.contactsAccountId())
         assertEquals(null, serverWithoutContacts.contactsAccountId())
     }
+
+    private fun sessionWithMailAccount(mail: String) = JmapSession(
+        apiUrl = "https://mail.example.com/jmap/api/",
+        capabilities = mapOf(
+            Jmap.CORE_CAPABILITY to Json.parseToJsonElement("""{"maxSizeUpload": 1000}""").jsonObject,
+        ),
+        accounts = mapOf(
+            "a" to JmapAccount(
+                name = "me@example.com",
+                accountCapabilities = mapOf(Jmap.MAIL_CAPABILITY to Json.parseToJsonElement(mail).jsonObject),
+            ),
+            "b" to JmapAccount(
+                name = "shared@example.com",
+                accountCapabilities = mapOf(
+                    Jmap.MAIL_CAPABILITY to Json.parseToJsonElement("""{"maxSizeAttachmentsPerEmail": 777}""").jsonObject,
+                ),
+            ),
+        ),
+        primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "a"),
+    )
+
+    @Test fun maxSizeAttachmentsPerEmail_readsTheAskedAccountsMailCapability() {
+        val session = sessionWithMailAccount("""{"maxSizeAttachmentsPerEmail": 50000000}""")
+
+        assertEquals(50_000_000L, session.maxSizeAttachmentsPerEmail("a"))
+        assertEquals(777L, session.maxSizeAttachmentsPerEmail("b"))
+    }
+
+    @Test fun maxSizeAttachmentsPerEmail_isNullWhenTheAccountDoesNotAdvertiseIt_evenWithAMaxSizeUpload() {
+        assertEquals(null, sessionWithMailAccount("{}").maxSizeAttachmentsPerEmail("a"))
+    }
+
+    @Test fun maxSizeAttachmentsPerEmail_isNullForAnUnknownAccount() {
+        assertEquals(null, sessionWithMailAccount("""{"maxSizeAttachmentsPerEmail": 5}""").maxSizeAttachmentsPerEmail("zz"))
+    }
+
+    @Test fun maxSizeAttachmentsPerEmail_isNullForANonNumericOrNonPositiveValue() {
+        assertEquals(null, sessionWithMailAccount("""{"maxSizeAttachmentsPerEmail": "big"}""").maxSizeAttachmentsPerEmail("a"))
+        assertEquals(null, sessionWithMailAccount("""{"maxSizeAttachmentsPerEmail": {}}""").maxSizeAttachmentsPerEmail("a"))
+        assertEquals(null, sessionWithMailAccount("""{"maxSizeAttachmentsPerEmail": 0}""").maxSizeAttachmentsPerEmail("a"))
+    }
+
+    @Test fun maxSizeAttachmentsPerEmail_parsesFromSessionJson() {
+        val json = Json { ignoreUnknownKeys = true }
+        val session = json.decodeFromString(
+            JmapSession.serializer(),
+            """
+            {
+              "apiUrl": "https://mail.example.com/jmap/api/",
+              "capabilities": { "${Jmap.MAIL_CAPABILITY}": {} },
+              "primaryAccounts": { "${Jmap.MAIL_CAPABILITY}": "a" },
+              "accounts": {
+                "a": { "name": "me@example.com",
+                       "accountCapabilities": { "${Jmap.MAIL_CAPABILITY}": { "maxSizeAttachmentsPerEmail": 50000000 } } }
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(50_000_000L, session.maxSizeAttachmentsPerEmail("a"))
+    }
 }
