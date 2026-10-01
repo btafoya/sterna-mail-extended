@@ -1,0 +1,11 @@
+Search now lives in the list's search bar, with filter chips, a Filters sheet and recent searches.
+
+Filter rules can take several conditions and actions, and any Sieve script on the account can be opened.
+
+Signed S/MIME messages are checked and show a seal.
+
+Snooze to a day and time you pick, save all attachments into a folder, and see a small preview of attached images.
+
+IMAP accounts can send with a separate SMTP login.
+
+Settings can be searched.

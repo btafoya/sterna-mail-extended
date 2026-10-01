@@ -1,0 +1,11 @@
+La recherche passe dans la barre de la liste, avec des puces de filtre, un panneau Filtres et les recherches récentes.
+
+Une règle de filtre prend plusieurs conditions et actions, et tout script Sieve du compte s'ouvre.
+
+Les messages S/MIME signés sont vérifiés et portent un sceau.
+
+Mise en attente à l'heure choisie, pièces jointes enregistrées d'un coup dans un dossier, aperçu des images jointes.
+
+Login SMTP séparé pour les comptes IMAP.
+
+Recherche dans les réglages.

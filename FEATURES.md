@@ -221,7 +221,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   block as a rule written by hand, editable as text. Rules are reordered by dragging
   or with Up and Down, since the server applies them from top to bottom. Each rule
   is saved to the server from its own editor, in place: the rest of the script is
-  kept, and Sterna's own auto-reply keeps skipping the senders you send to the Trash.
+  kept, and on an IMAP account Sterna's own auto-reply keeps skipping the senders
+  its rules send to the Trash.
   Saving activates the script only when none is active or
   the active one is the server's auto-reply, after a warning.
 - ✅ Calendar invites: the first event of a `.ics` shown as a card above the body,
