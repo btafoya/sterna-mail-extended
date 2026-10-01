@@ -120,6 +120,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
@@ -451,6 +452,9 @@ fun ComposeScreen(
     var to by rememberSaveable { mutableStateOf("") }
     var cc by rememberSaveable { mutableStateOf("") }
     var bcc by rememberSaveable { mutableStateOf("") }
+    // Read by the chips' labels and accessibility only, see `chipLabel`. Nothing clears it: a reopened
+    // draft starts it empty and its chips show their addresses.
+    var recipientNames by rememberSaveable(stateSaver = recipientNamesSaver) { mutableStateOf(emptyMap<String, String>()) }
     // Like the body, the subject carries its caret (a TextFieldValue, not a bare String) so a tap
     // before its first character can put the cursor at the very start (#26).
     var subject by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue()) }
@@ -1395,6 +1399,7 @@ fun ComposeScreen(
             val onScreen = { recipientsOnScreen(to, cc, bcc) }
             val suggestRecipients: (String) -> Unit = { viewModel.suggest(it, onScreen()) }
             val recipientFieldFocused: (String) -> Unit = { viewModel.recipientFieldFocused(it, onScreen()) }
+            val namePicked: (ContactSuggestion) -> Unit = { recipientNames = recipientNamesWithPick(recipientNames, it) }
             RecipientChipsField(
                 label = stringResource(R.string.compose_to),
                 value = to,
@@ -1409,6 +1414,8 @@ fun ComposeScreen(
                 // focuses the first field it left empty (#83).
                 autoFocus = initialFocus == ComposeFocus.RECIPIENTS,
                 missingKey = missingKeyFor,
+                names = recipientNames,
+                onNamePicked = namePicked,
                 trailing = {
                     IconButton(onClick = { expanded = !expanded }) {
                         Icon(
@@ -1424,10 +1431,12 @@ fun ComposeScreen(
                 RecipientChipsField(
                     stringResource(R.string.compose_cc), cc, { cc = it }, suggestions,
                     suggestRecipients, recipientFieldFocused, viewModel::clearSuggestions, missingKey = missingKeyFor,
+                    names = recipientNames, onNamePicked = namePicked,
                 )
                 RecipientChipsField(
                     stringResource(R.string.compose_bcc), bcc, { bcc = it }, suggestions,
                     suggestRecipients, recipientFieldFocused, viewModel::clearSuggestions, missingKey = missingKeyFor,
+                    names = recipientNames, onNamePicked = namePicked,
                 )
             }
             // Subject has no fixed label: the localized string is the in-field placeholder, so the
@@ -1798,6 +1807,10 @@ private fun RecipientChipsField(
     trailing: (@Composable () -> Unit)? = null,
     /** When encrypting, flags a recipient with no available public key. */
     missingKey: (String) -> Boolean = { false },
+    /** The composer's name book, keyed by `recipientNameKey`. */
+    names: Map<String, String>,
+    /** A contact was picked from the menu, before its address is added. */
+    onNamePicked: (ContactSuggestion) -> Unit,
 ) {
     val (chips, input) = splitRecipients(value)
 
@@ -1885,7 +1898,7 @@ private fun RecipientChipsField(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        chips.first(),
+                        chipLabel(chips.first(), names),
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1914,6 +1927,8 @@ private fun RecipientChipsField(
                 chips.forEachIndexed { index, chip ->
                     // Invalid address or (while encrypting) no key for it: flagged.
                     val valid = isValidEmail(chip) && !missingKey(chip)
+                    val shown = chipLabel(chip, names)
+                    val spoken = chipDescription(chip, names)
                     InputChip(
                         selected = false,
                         // A tap hands the address back as plain text (#94): it leaves the chip row for
@@ -1927,15 +1942,26 @@ private fun RecipientChipsField(
                             onClearSuggestions()
                             runCatching { focus.requestFocus() }
                         },
-                        label = { Text(chip, maxLines = 1) },
+                        // `FlowRow` gives a chip the whole line, so only a chip wider than the line gets a
+                        // label narrower than its text; soft-wrapped, `maxLines = 1` would keep the first
+                        // word and drop the rest with no mark.
+                        label = { Text(shown, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
+                        modifier = if (spoken == null) Modifier else Modifier.semantics { contentDescription = spoken },
+                        // The cross is only 16dp; the box around it is the tap target, so a tap that
+                        // misses the glyph by a few dp removes the chip instead of opening it for editing.
+                        // It stays the chip's height, or the chip itself would grow to 48dp.
                         trailingIcon = {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = stringResource(R.string.compose_remove),
+                            val removeLabel = stringResource(R.string.compose_remove_recipient, shown)
+                            Box(
+                                contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(16.dp)
-                                    .clickable { onValueChange(rebuild(chips.filterIndexed { i, _ -> i != index }, input)) },
-                            )
+                                    .widthIn(min = 48.dp)
+                                    .height(InputChipDefaults.Height)
+                                    .clickable(role = Role.Button) { onValueChange(rebuild(chips.filterIndexed { i, _ -> i != index }, input)) }
+                                    .semantics { contentDescription = removeLabel },
+                            ) {
+                                Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
                         },
                         colors = if (valid) {
                             InputChipDefaults.inputChipColors()
@@ -2025,6 +2051,7 @@ private fun RecipientChipsField(
             fieldBottomPx = fieldBottomPx,
             windowHeightPx = windowHeightPx,
             onPick = { contact ->
+                onNamePicked(contact)
                 onValueChange(rebuild(chips + contact.email, ""))
                 onClearSuggestions()
             },

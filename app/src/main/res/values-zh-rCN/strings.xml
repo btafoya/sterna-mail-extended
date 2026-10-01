@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">显示抄送/密送</string>
     <string name="compose_hide_cc_bcc">隐藏抄送/密送</string>
     <string name="compose_remove">移除</string>
+    <string name="compose_remove_recipient">移除 %1$s</string>
     <string name="compose_attachment_fallback">附件</string>
     <string name="compose_body_placeholder">撰写邮件</string>
     <string name="compose_format_bold">粗体</string>

@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Mostrar Cc/Cco</string>
     <string name="compose_hide_cc_bcc">Ocultar Cc/Cco</string>
     <string name="compose_remove">Remover</string>
+    <string name="compose_remove_recipient">Remover %1$s</string>
     <string name="compose_attachment_fallback">anexo</string>
     <string name="compose_body_placeholder">Escreva o e-mail</string>
     <string name="compose_format_bold">Negrito</string>

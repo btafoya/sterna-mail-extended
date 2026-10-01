@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Show Cc/Bcc</string>
     <string name="compose_hide_cc_bcc">Hide Cc/Bcc</string>
     <string name="compose_remove">Remove</string>
+    <string name="compose_remove_recipient">Remove %1$s</string>
     <string name="compose_attachment_fallback">attachment</string>
     <string name="compose_body_placeholder">Compose email</string>
     <string name="compose_format_bold">Bold</string>

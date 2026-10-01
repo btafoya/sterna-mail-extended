@@ -153,14 +153,21 @@ class RecipientSuggestionsWiringTest {
         assertEquals(listOf("if (!wasFocused) onFocused(input)", "wasFocused = true"), screen.subList(focus + 1, focus + 3))
     }
 
-    @Test fun `the composer draws its menu through the shared one, and a pick adds a chip`() {
+    @Test fun `the composer draws its menu through the shared one, and a pick names the chip then adds its address`() {
         assertEquals(1, screen.count { it.startsWith("RecipientSuggestionMenu(") })
         assertEquals(0, screen.count { it.startsWith("Popup(") })
         val call = block(screen, "RecipientSuggestionMenu(", parens = true)
-        assertTrue(
-            "the composer's pick must still commit the address as a chip and retire the menu. Call was:\n" +
-                call.joinToString("\n"),
-            call.containsAll(listOf("onValueChange(rebuild(chips + contact.email, \"\"))", "onClearSuggestions()")),
+        assertEquals(
+            "the composer's pick must hand the contact to the name book, then commit the address, never the " +
+                "name, as a chip and retire the menu. Call was:\n" + call.joinToString("\n"),
+            listOf(
+                "onPick = { contact ->",
+                "onNamePicked(contact)",
+                "onValueChange(rebuild(chips + contact.email, \"\"))",
+                "onClearSuggestions()",
+                "},",
+            ),
+            block(call, "onPick = {"),
         )
         assertTrue("visible = expanded," in call)
     }

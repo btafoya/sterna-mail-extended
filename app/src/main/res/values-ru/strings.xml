@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Показать копию/скрытую копию</string>
     <string name="compose_hide_cc_bcc">Скрыть копию/скрытую копию</string>
     <string name="compose_remove">Убрать</string>
+    <string name="compose_remove_recipient">Убрать %1$s</string>
     <string name="compose_attachment_fallback">вложение</string>
     <string name="compose_body_placeholder">Напишите письмо</string>
     <string name="compose_format_bold">Жирный</string>

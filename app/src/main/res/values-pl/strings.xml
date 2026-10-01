@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Pokaż DW/UDW</string>
     <string name="compose_hide_cc_bcc">Ukryj DW/UDW</string>
     <string name="compose_remove">Usuń</string>
+    <string name="compose_remove_recipient">Usuń %1$s</string>
     <string name="compose_attachment_fallback">załącznik</string>
     <string name="compose_body_placeholder">Napisz wiadomość</string>
     <string name="compose_format_bold">Pogrubienie</string>

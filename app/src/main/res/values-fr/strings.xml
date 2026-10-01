@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Afficher Cc/Cci</string>
     <string name="compose_hide_cc_bcc">Masquer Cc/Cci</string>
     <string name="compose_remove">Retirer</string>
+    <string name="compose_remove_recipient">Retirer %1$s</string>
     <string name="compose_attachment_fallback">pièce jointe</string>
     <string name="compose_body_placeholder">Rédigez votre message</string>
     <string name="compose_format_bold">Gras</string>

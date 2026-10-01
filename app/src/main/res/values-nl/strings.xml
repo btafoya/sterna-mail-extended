@@ -23,6 +23,7 @@
     <string name="compose_show_cc_bcc">Cc/Bcc tonen</string>
     <string name="compose_hide_cc_bcc">Cc/Bcc verbergen</string>
     <string name="compose_remove">Verwijderen</string>
+    <string name="compose_remove_recipient">%1$s verwijderen</string>
     <string name="compose_attachment_fallback">bijlage</string>
     <string name="compose_body_placeholder">E-mail opstellen</string>
     <string name="compose_format_bold">Vet</string>
