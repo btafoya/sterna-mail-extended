@@ -98,17 +98,16 @@ class EmailListItemBackgroundWiringTest {
     }
 
     /**
-     * Mutation 5: what "unread" means to a caller that does not say, `SearchScreen.kt` is the
-     * only one, and with the default at `false` its results lose the background and the bold
-     * weight, while the inbox, which passes the flag explicitly, keeps looking right. Nothing else
-     * would have gone red.
+     * Mutation 5: what "unread" means to a caller that does not say. With the default at `false`
+     * such a caller's rows lose the background and the bold weight, while the inbox, which passes
+     * the flag explicitly, keeps looking right. Nothing else would go red.
      */
     @Test fun `unread defaults to the message's own seen flag`() {
         assertEquals(
             "EmailListItem's 'unread' parameter must default to '$expectedUnreadDefault'. It is " +
-                "read three times for the bold weight and once for the background, and the only " +
-                "caller that omits it is the search results list — pinned at 'false' that list " +
-                "shows no unread state at all, with every other rule in this repo green.",
+                "read three times for the bold weight and once for the background, and a caller that " +
+                "omits it, pinned at 'false', shows no unread state at all, with every other rule " +
+                "in this repo green.",
             1,
             codeLines().count { it == expectedUnreadDefault },
         )

@@ -2,6 +2,7 @@ package app.sterna.core.data.mail
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.sql.Connection
@@ -99,6 +100,8 @@ class LocalSearchFolderFilterSqlTest {
                     "accountIds" -> ps.setString(i + 1, accountScope[account++])
                     "accountScopeCount" -> ps.setInt(i + 1, accountScope.size)
                     "limit" -> ps.setInt(i + 1, limit)
+                    "unreadOnly", "flaggedOnly", "attachmentOnly" -> ps.setInt(i + 1, 0)
+                    "sinceMillis", "untilMillis" -> ps.setNull(i + 1, java.sql.Types.BIGINT)
                     else -> error("Unexpected parameter ':$name' in EmailFtsDao.search")
                 }
             }
@@ -266,6 +269,39 @@ class LocalSearchFolderFilterSqlTest {
 
         assertEquals(listOf("a1"), search("token*", accountScope = listOf("accA", "accB")))
         assertEquals(listOf("a1", "b1"), indexedIds("token*"))
+    }
+
+    @Test fun theScopeChipDecidesWhichAccountsHitsComeBack() {
+        folder("mb-inbox", role = "inbox", accountId = "accA")
+        folder("mb-inbox", role = "inbox", accountId = "accB")
+        index("a1", "mb-inbox", accountId = "accA")
+        index("b1", "mb-inbox", accountId = "accB")
+        val configured = listOf("accA", "accB")
+
+        assertEquals(
+            "'This account' must not answer with the other account's mail",
+            listOf("a1"),
+            search("token*", accountScope = localSearchAccounts(configured, listOf("accA"))!!),
+        )
+        assertEquals(listOf("b1"), search("token*", accountScope = localSearchAccounts(configured, listOf("accB"))!!))
+        assertEquals(
+            listOf("a1", "b1"),
+            search("token*", accountScope = localSearchAccounts(configured, configured)!!).sorted(),
+        )
+    }
+
+    @Test fun aScopeWithNoConfiguredAccountLeftAnswersNothingRatherThanEveryAccount() {
+        assertNull(
+            "an empty list would reach the DAO and search every account",
+            localSearchAccounts(listOf("accA", "accB"), emptyList()),
+        )
+        assertNull(localSearchAccounts(listOf("accA"), listOf("accGone")))
+        assertEquals(listOf("accA"), localSearchAccounts(listOf("accA", "accB"), listOf("accGone", "accA")))
+    }
+
+    @Test fun anUnreadableAccountListStillLeavesTheScopeToTheDao() {
+        assertEquals(listOf("accA"), localSearchAccounts(emptyList(), listOf("accA")))
+        assertEquals(emptyList<String>(), localSearchAccounts(emptyList(), emptyList()))
     }
 
     @Test fun anEmptyIndexSimplyAnswersNothing() {

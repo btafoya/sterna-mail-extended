@@ -207,29 +207,6 @@ class UnreadViewWiringLintTest {
         )
     }
 
-    /**
-     * The search field's hint says what the search covers. In this view it covers the whole account
-     */
-    @Test
-    fun `the search hint names the view, not the folder last visited`() {
-        val block = searchScopeLabel()
-        assertEquals(
-            "The hint's arms must be the title's arms: the unread view first (it selects no folder " +
-                "either, so it falls through to the folder name otherwise), then the unified inbox, " +
-                "then the folder by its role. Compared as whole conditions. Conditions found were:" +
-                "\n${ifConditions(block).joinToString("\n")}",
-            listOf("ui.unreadView", "ui.unified"),
-            ifConditions(block),
-        )
-        assertEquals(
-            "Each arm must name its own scope, and the unread one reuses the title's string — no " +
-                "eleventh translation for the same word. Compared as whole calls, " +
-                "in source order. Calls found were:\n${scopeCalls(block).joinToString("\n")}",
-            EXPECTED_SEARCH_SCOPE_CALLS,
-            scopeCalls(block),
-        )
-    }
-
     // -- reading the source ------------------------------------------------------------------------
 
     /** The `NavigationDrawerItem(...)` call that selects the unread view, whole. */
@@ -292,27 +269,6 @@ class UnreadViewWiringLintTest {
         check(at >= 0) { "the browse toolbar has no actions block:\n$bar" }
         return balancedFrom(bar, at)
     }
-
-    /**
-     * The `val scopeLabel = …` statement of the search bar, up to the statement that follows it.
-     */
-    private fun searchScopeLabel(): String {
-        val text = codeText(INBOX_SCREEN)
-        val start = text.indexOf("val scopeLabel")
-        val end = text.indexOf("val focusManager", start + 1)
-        check(start >= 0 && end > start) {
-            "InboxScreen.kt is expected to build the search field's hint in a local named " +
-                "'scopeLabel', followed by 'val focusManager' — this rule reads the text between " +
-                "them. Found scopeLabel at $start, focusManager at $end."
-        }
-        return text.substring(start, end)
-    }
-
-    /** The scope-naming calls of [block], whole, in source order. */
-    private fun scopeCalls(block: String): List<String> =
-        Regex("""\b(stringResource|mailboxDisplayName)\s*\(""").findAll(block)
-            .map { callAt(block, it.range.first) }
-            .toList()
 
     /** Every `if` condition in [block], whole, in source order. */
     private fun ifConditions(block: String): List<String> =
@@ -507,13 +463,6 @@ class UnreadViewWiringLintTest {
             "BackHandler(enabled = backAction == InboxBackAction.CLOSE_DETAIL) { viewModel.closePane() }",
             "BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }",
             "BackHandler(enabled = backAction == InboxBackAction.SHOW_INBOX) { viewModel.showInbox() }",
-        )
-
-        /** The search hint's three scopes, in source order. */
-        private val EXPECTED_SEARCH_SCOPE_CALLS = listOf(
-            "stringResource(R.string.inbox_unread_view)",
-            "stringResource(R.string.inbox_all_inboxes)",
-            "mailboxDisplayName(searchRole, ui.mailboxName)",
         )
 
         private const val INBOX_SCREEN_PATH =

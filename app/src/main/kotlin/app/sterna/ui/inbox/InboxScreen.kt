@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +80,8 @@ import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -199,10 +202,18 @@ import app.sterna.ui.showsRecipients
 import app.sterna.ui.showsRecipientsInThread
 import app.sterna.ui.search.SearchCount
 import app.sterna.ui.search.SearchDisplay
+import app.sterna.ui.search.SearchFieldInputChip
+import app.sterna.ui.search.SearchFilterSheet
 import app.sterna.ui.search.SearchHistoryRows
+import app.sterna.ui.search.SearchToggle
+import app.sterna.ui.search.has
+import app.sterna.ui.search.searchAsked
 import app.sterna.ui.search.searchCount
 import app.sterna.ui.search.searchDisplay
+import app.sterna.ui.search.searchFieldChips
 import app.sterna.ui.search.searchResultKey
+import app.sterna.ui.search.searchTerms
+import app.sterna.ui.search.searchToggleLabel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import kotlin.math.abs
@@ -227,8 +238,6 @@ fun InboxScreen(
     onEditDraft: (emailId: String, accountId: String?) -> Unit,
     onOpenSettings: () -> Unit,
     onManageFolders: () -> Unit,
-    /** Advanced search, carrying whatever is already typed in the search bar so it isn't retyped. */
-    onOpenSearch: (query: String) -> Unit,
     onOpenScheduled: () -> Unit,
     onOpenSnoozed: () -> Unit,
     onOpenOutbox: () -> Unit,
@@ -260,6 +269,7 @@ fun InboxScreen(
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
     // Saveable, so a rotation does not close the picker.
     var showMoveSheet by rememberSaveable { mutableStateOf(false) }
+    var showSearchFilters by rememberSaveable { mutableStateOf(false) }
     var showCreateFolder by remember { mutableStateOf(false) }
     var folderToRename by remember { mutableStateOf<Mailbox?>(null) }
     var folderToDelete by remember { mutableStateOf<Mailbox?>(null) }
@@ -353,6 +363,11 @@ fun InboxScreen(
         // so a rotation keeps what was typed.
         var moveQuery by rememberSaveable { mutableStateOf("") }
         MoveFolderSheet(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })
+    }
+
+    // A sheet is a window of its own: system Back dismisses it before CLOSE_SEARCH is asked.
+    if (showSearchFilters && ui.searching) {
+        SearchFilterSheet(ui.searchCriteria, ui.searchNames, viewModel, onDismiss = { showSearchFilters = false })
     }
 
     // Create folder.
@@ -618,7 +633,7 @@ fun InboxScreen(
     // Newly arrived mail is prepended above the viewport: LazyColumn anchors the scroll to the
     // row that was first before. If the list was already at the very top and no drag/fling is in flight,
     // follow it up to reveal the arrival; anywhere below, never move the user.
-    val searchActive = ui.searching && ui.searchQuery.isNotBlank()
+    val searchActive = searchAsked(ui.searching, ui.searchCriteria)
     LaunchedEffect(ui.selectedMailboxId, ui.unified, searchActive) {
         if (searchActive) return@LaunchedEffect
         var prevKey: String? = null
@@ -689,6 +704,12 @@ fun InboxScreen(
                 } else if (ui.searching) {
                     val focusRequester = remember { FocusRequester() }
                     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+                    // A press and not a focus change: the request above runs again on every return
+                    // from a message, and would put the suggestions back over the results unasked.
+                    val fieldInteractions = remember { MutableInteractionSource() }
+                    LaunchedEffect(fieldInteractions) {
+                        fieldInteractions.interactions.collect { if (it is PressInteraction.Release) viewModel.tapSearchField() }
+                    }
                     TopAppBar(
                         navigationIcon = {
                             IconButton(onClick = { viewModel.setSearchActive(false) }) {
@@ -696,26 +717,13 @@ fun InboxScreen(
                             }
                         },
                         title = {
-                            val searchRole = ui.mailboxes
-                                .firstOrNull { it.id == ui.selectedMailboxId }?.role
-                            // The hint says what the search covers. In the unread view that is the
-                            // whole account, while ui.mailboxName still holds the Inbox's name.
-                            // Same string as the title, no eleventh translation of the same word.
-                            val scopeLabel = if (ui.unreadView) {
-                                stringResource(R.string.inbox_unread_view)
-                            } else if (ui.unified) {
-                                stringResource(R.string.inbox_all_inboxes)
-                            } else {
-                                mailboxDisplayName(searchRole, ui.mailboxName)
-                            }
                             val focusManager = LocalFocusManager.current
                             // The input stays single-line (a filled TextField can't grow past the
-                            // app bar's height without clipping), but the hint is drawn as a
-                            // separate Text behind it so a long folder name wraps to two lines.
+                            // app bar's height without clipping); the hint is a separate Text behind it.
                             Box(Modifier.fillMaxWidth()) {
                                 if (ui.searchQuery.isEmpty()) {
                                     Text(
-                                        stringResource(R.string.inbox_search_in, scopeLabel),
+                                        stringResource(R.string.inbox_search),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 2,
@@ -739,6 +747,7 @@ fun InboxScreen(
                                         focusedIndicatorColor = Color.Transparent,
                                         unfocusedIndicatorColor = Color.Transparent,
                                     ),
+                                    interactionSource = fieldInteractions,
                                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                                 )
                             }
@@ -749,8 +758,11 @@ fun InboxScreen(
                                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.inbox_clear))
                                 }
                             }
-                            IconButton(onClick = { onOpenSearch(ui.searchQuery) }) {
-                                Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.search_advanced_toggle))
+                            IconButton(onClick = { showSearchFilters = true }) {
+                                val fieldCount = searchFieldChips(ui.searchCriteria, ui.searchNames).size
+                                BadgedBox(badge = { if (fieldCount > 0) Badge { Text("$fieldCount") } }) {
+                                    Icon(Icons.Filled.Tune, contentDescription = stringResource(R.string.search_filters))
+                                }
                             }
                         },
                     )
@@ -925,6 +937,7 @@ fun InboxScreen(
         ) { padding ->
             // One row renderer, shared by the search list and the paged browse list. Takes the row
             // modifier so the caller can pass `animateItem()` from its own LazyItemScope.
+            val searchWords = remember(ui.searchQuery) { searchTerms(ui.searchQuery) }
             val emailRow: @Composable (InboxRow, Modifier, Boolean, Int, Boolean) -> Unit = { row, rowModifier, animateEntry, entryIndex, fromSearch ->
                 val email = row.email
                 val ownerAccount = if (rowsNameTheirAccount(ui)) accounts.firstOrNull { it.id == email.accountId } else null
@@ -964,6 +977,7 @@ fun InboxScreen(
                     // second chip says the draft has not reached the server yet (#95).
                     showNotUploadedBadge = isLocalDraftRow(email.id),
                     excerpt = if (fromSearch) ui.searchExcerpts[searchResultKey(email)] else null,
+                    searchTerms = if (fromSearch) searchWords else emptyList(),
                     showDraftBadge = if (fromSearch) email.isDraft else showsDraftBadge(
                         isDraft = email.isDraft,
                         accountId = email.accountId,
@@ -1146,7 +1160,7 @@ fun InboxScreen(
             filterChipRow(
                 unreadView = ui.unreadView,
                 selectionActive = selectionActive,
-                queryTyped = ui.searching && ui.searchQuery.isNotBlank(),
+                searching = ui.searching,
                 toggles = ui.filterToggles,
             )?.let { row ->
                 FilterChipRow(
@@ -1166,6 +1180,35 @@ fun InboxScreen(
                     },
                 )
             }
+            if (ui.searching) {
+                val scopeChip = if (searchScopeChipShown(accounts.size)) {
+                    // Always drawn selected: one of its two values is always in force.
+                    listOf(
+                        FilterChipEntry(
+                            label = stringResource(searchScopeLabel(ui.searchScope)),
+                            selected = true,
+                            enabled = !selectionActive,
+                            onClick = { viewModel.toggleSearchScope() },
+                        ),
+                    )
+                } else {
+                    emptyList()
+                }
+                FilterChipRow(
+                    entries = scopeChip + SearchToggle.entries.map { toggle ->
+                        FilterChipEntry(
+                            label = stringResource(searchToggleLabel(toggle)),
+                            selected = ui.searchCriteria.has(toggle),
+                            enabled = !selectionActive,
+                            onClick = { viewModel.toggleSearchCriterion(toggle) },
+                        )
+                    },
+                ) {
+                    searchFieldChips(ui.searchCriteria, ui.searchNames).forEach { chip ->
+                        SearchFieldInputChip(chip, enabled = !selectionActive, onRemove = { viewModel.removeSearchCriterion(chip.field) })
+                    }
+                }
+            }
             val historyFocus = LocalFocusManager.current
             val pickSuggestion: (String) -> Unit = { text ->
                 historyFocus.clearFocus()
@@ -1174,7 +1217,12 @@ fun InboxScreen(
             // Typing: the kept searches that match sit above the live results, never in their
             // place. An empty field gets the whole list instead, inside the list area below.
             if (ui.searching && ui.searchQuery.isNotBlank()) {
-                SearchHistoryRows(searchSuggestions, onRun = pickSuggestion)
+                SearchHistoryRows(
+                    searchSuggestions,
+                    onRun = pickSuggestion,
+                    onRemove = viewModel::removeFromSearchHistory,
+                    onClear = viewModel::clearSearchHistory,
+                )
             }
             PullToRefreshBox(
                 // The display, not the truth: fed ui.refreshing the tern lit the instant refresh()
@@ -1197,7 +1245,7 @@ fun InboxScreen(
                     )
                 },
             ) {
-                val searchActive = ui.searching && ui.searchQuery.isNotBlank()
+                val searchActive = searchAsked(ui.searching, ui.searchCriteria)
                 val refreshLoading = listRows.loadState.refresh is LoadState.Loading
                 // Paging keeps presenting the PREVIOUS selection's snapshot until the new PagingData
                 // inserts its first page. Without this guard the rows branch draws another folder's
@@ -1289,11 +1337,14 @@ fun InboxScreen(
                         SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))
                         // Found nothing, but didn't get to the end (a leg failed, or its cap): that
                         // has not proven there is nothing, and "try other words" would send the user
-                        // rewording a query that never fully ran. Same wording as the search screen.
+                        // rewording a query that never fully ran.
                         SearchDisplay.INCOMPLETE_EMPTY -> EmptyState(
                             art = EmptyArt.SEARCH,
-                            title = stringResource(R.string.search_incomplete),
+                            title = stringResource(if (localLegAnswers(ui.searchCriteria)) R.string.search_incomplete else R.string.search_needs_server),
                             modifier = Modifier.align(Alignment.Center),
+                            action = {
+                                Button(onClick = viewModel::retrySearchServer) { Text(stringResource(R.string.inbox_retry)) }
+                            },
                         )
                         SearchDisplay.EMPTY -> EmptyState(
                             art = EmptyArt.SEARCH,
@@ -1306,6 +1357,8 @@ fun InboxScreen(
                         SearchHistoryRows(
                             searchSuggestions,
                             onRun = pickSuggestion,
+                            onRemove = viewModel::removeFromSearchHistory,
+                            onClear = viewModel::clearSearchHistory,
                             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                         )
                     // !staleRows: these rows may still be the PREVIOUS selection's, and drawing
@@ -1947,6 +2000,7 @@ private fun SwipeableEmailRow(
      *  false, like [EmailListItem]'s own parameter: no other list has such rows in it. */
     showNotUploadedBadge: Boolean = false,
     excerpt: String? = null,
+    searchTerms: List<String> = emptyList(),
     onSwipe: (SwipeAction) -> Unit,
     onClick: () -> Unit,
     // Nullable so inline conversation children can omit long-press selection and the star.
@@ -2278,6 +2332,7 @@ private fun SwipeableEmailRow(
                 showDraftBadge = showDraftBadge,
                 showNotUploadedBadge = showNotUploadedBadge,
                 excerpt = excerpt,
+                searchTerms = searchTerms,
             )
         }
     }

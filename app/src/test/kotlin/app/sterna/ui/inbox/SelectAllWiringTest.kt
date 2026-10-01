@@ -43,7 +43,7 @@ class SelectAllWiringTest {
             "selectAllKeys(...) must be handed exactly these arguments, whole. Arguments were:\n$call",
             listOf(
                 "searching = search.active",
-                "query = search.query",
+                "criteria = search.criteria",
                 "results = search.results?.map { it.emailKey() }",
                 "loading = search.loading",
                 "complete = search.complete",
@@ -107,11 +107,11 @@ class SelectAllWiringTest {
         val declaration = lines.take(at).indexOfLast { it.startsWith("val searchActive") }
         assertTrue("no 'val searchActive' declared above the list's search branch", declaration >= 0)
         assertEquals(
-            "the searchActive the list branches on must be exactly 'ui.searching && " +
-                "ui.searchQuery.isNotBlank()' — selectAllKeys runs that predicate and nothing else. " +
+            "the searchActive the list branches on must be exactly 'searchAsked(ui.searching, " +
+                "ui.searchCriteria)' — selectAllKeys runs that predicate and nothing else. " +
                 "An extra conjunct here (say '&& !selectionActive') makes the screen draw one list " +
                 "while Select all takes another, which is #126 with the roles swapped.",
-            "val searchActive = ui.searching && ui.searchQuery.isNotBlank()",
+            "val searchActive = searchAsked(ui.searching, ui.searchCriteria)",
             lines[declaration],
         )
     }

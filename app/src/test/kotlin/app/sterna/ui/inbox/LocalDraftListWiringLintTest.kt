@@ -269,7 +269,7 @@ class LocalDraftListWiringLintTest {
                 "viewModelScope.launch {",
                 "val all = selectAllKeys(",
                 "searching = search.active,",
-                "query = search.query,",
+                "criteria = search.criteria,",
                 "results = search.results?.map { it.emailKey() },",
                 "loading = search.loading,",
                 "complete = search.complete,",

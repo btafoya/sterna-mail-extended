@@ -801,13 +801,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Rechercher</string>
-    <string name="search_field_label">Rechercher dans les e-mails</string>
-    <string name="search_idle_hint">Recherchez dans tous vos messages.</string>
     <string name="search_history_recent">Recherche récente</string>
-    <string name="search_failed">Échec de la recherche : %1$s</string>
-    <string name="search_no_results">Aucun résultat pour « %1$s ».</string>
-    <string name="search_no_results_generic">Aucun message correspondant.</string>
+    <string name="search_history_header">Recherches récentes</string>
+    <string name="search_history_remove">Retirer %1$s des recherches récentes</string>
     <string name="search_incomplete">Recherche interrompue avant la fin. Affinez les filtres ou réessayez.</string>
     <string name="search_still_running">Recherche en cours</string>
     <plurals name="search_result_count">
@@ -822,14 +818,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s : %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Filtres avancés</string>
+    <string name="search_to_or_cc">À ou Cc</string>
+    <string name="search_since">Depuis le</string>
+    <string name="search_until">Jusqu\'au</string>
+    <string name="search_filters">Filtres</string>
+    <string name="search_apply">Appliquer</string>
+    <string name="search_clear_all">Tout effacer</string>
+    <string name="search_needs_server">La recherche par À ou Cc passe par le serveur. Connectez-vous et réessayez.</string>
     <string name="search_from">Expéditeur</string>
-    <string name="search_recipient">Destinataire</string>
     <string name="search_subject">Objet</string>
-    <string name="search_after">Après le</string>
-    <string name="search_before">Avant le</string>
     <string name="search_date_any">Indifférent</string>
-    <string name="search_button">Rechercher</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail est verrouillé</string>
@@ -912,7 +910,8 @@
     <string name="compose_forgot_attachment_message">Votre message mentionne une pièce jointe, mais vous n\'en avez ajouté aucune.</string>
     <string name="compose_forgot_attachment_send">Envoyer quand même</string>
     <string name="compose_forgot_attachment_back">Revenir en arrière</string>
-    <string name="inbox_search_in">Rechercher dans %1$s</string>
+    <string name="search_scope_this_account">Ce compte</string>
+    <string name="search_scope_all_accounts">Tous les comptes</string>
     <string name="inbox_scheduled">Programmés</string>
     <string name="scheduled_title">Programmés</string>
     <string name="scheduled_empty">Aucun message programmé.</string>

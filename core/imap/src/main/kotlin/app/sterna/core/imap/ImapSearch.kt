@@ -14,6 +14,7 @@ data class ImapSearchCriteria(
     val recipient: String = "",
     val subject: String = "",
     val flagged: Boolean = false,
+    val unread: Boolean = false,
     val afterMillis: Long? = null,
     val beforeMillis: Long? = null,
 )
@@ -41,6 +42,7 @@ fun buildImapSearch(criteria: ImapSearchCriteria): ImapSearchCommand {
     val text = criteria.text.trim()
 
     if (criteria.flagged) keys += "FLAGGED"
+    if (criteria.unread) keys += "UNSEEN"
     if (from.isNotEmpty()) keys += "FROM ${quote(from)}"
     if (recipient.isNotEmpty()) keys += "OR TO ${quote(recipient)} CC ${quote(recipient)}"
     if (subject.isNotEmpty()) keys += "SUBJECT ${quote(subject)}"

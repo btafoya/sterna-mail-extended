@@ -325,7 +325,6 @@ class LoadingRingTest {
         const val LOADING_RING = "app/src/main/kotlin/app/sterna/ui/components/LoadingRing.kt"
         const val MESSAGE_SCREEN = "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt"
         const val INBOX_SCREEN = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
-        const val SEARCH_SCREEN = "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt"
         const val FILTERS_SCREEN = "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"
         const val SETTINGS_SCREEN = "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"
         const val CONNECT_SCREEN = "app/src/main/kotlin/app/sterna/ui/connect/ConnectScreen.kt"
@@ -432,16 +431,6 @@ class LoadingRingTest {
                 INBOX_SCREEN,
                 "the inbox's paging-append footer, while the server page loads",
                 "LoadingRing(Modifier.size(28.dp), strokeWidth = 2.dp)",
-            ),
-            RingSite(
-                SEARCH_SCREEN,
-                "the search screen, while the search runs",
-                "is SearchState.Searching -> LoadingRing(Modifier.align(Alignment.Center))",
-            ),
-            RingSite(
-                SEARCH_SCREEN,
-                "the search screen's SPINNER result display",
-                "SearchDisplay.SPINNER -> LoadingRing(Modifier.align(Alignment.Center))",
             ),
             RingSite(
                 FILTERS_SCREEN,

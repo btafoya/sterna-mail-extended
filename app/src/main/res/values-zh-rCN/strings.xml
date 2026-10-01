@@ -160,7 +160,8 @@
     <string name="inbox_unarchive">取消归档</string>
     <string name="inbox_archive">归档</string>
     <string name="inbox_close_search">关闭搜索</string>
-    <string name="inbox_search_in">搜索 %1$s</string>
+    <string name="search_scope_this_account">此账户</string>
+    <string name="search_scope_all_accounts">所有账户</string>
     <string name="inbox_clear">清除</string>
     <string name="inbox_menu">菜单</string>
     <string name="filter_unread">未读</string>
@@ -998,13 +999,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">搜索</string>
-    <string name="search_field_label">搜索邮件</string>
-    <string name="search_idle_hint">搜索您的所有邮件。</string>
     <string name="search_history_recent">最近的搜索</string>
-    <string name="search_failed">搜索失败：%1$s</string>
-    <string name="search_no_results">没有“%1$s”的搜索结果。</string>
-    <string name="search_no_results_generic">没有匹配的邮件。</string>
+    <string name="search_history_header">最近搜索</string>
+    <string name="search_history_remove">从最近搜索中移除 %1$s</string>
     <string name="search_incomplete">搜索未完成即已停止。请优化筛选条件或重试。</string>
     <string name="search_still_running">搜索仍在进行中</string>
     <plurals name="search_result_count">
@@ -1015,14 +1012,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s：%2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">高级筛选</string>
+    <string name="search_to_or_cc">收件人或抄送</string>
+    <string name="search_since">起始</string>
+    <string name="search_until">截至</string>
+    <string name="search_filters">筛选</string>
+    <string name="search_apply">应用</string>
+    <string name="search_clear_all">全部清除</string>
+    <string name="search_needs_server">按收件人或抄送搜索需要连接服务器。请连接后重试。</string>
     <string name="search_from">发件人</string>
-    <string name="search_recipient">收件人</string>
     <string name="search_subject">主题</string>
-    <string name="search_after">之后</string>
-    <string name="search_before">之前</string>
     <string name="search_date_any">任意</string>
-    <string name="search_button">搜索</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail 已锁定</string>

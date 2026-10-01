@@ -801,13 +801,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Cerca</string>
-    <string name="search_field_label">Cerca nella posta</string>
-    <string name="search_idle_hint">Cerca in tutta la tua posta.</string>
     <string name="search_history_recent">Ricerca recente</string>
-    <string name="search_failed">Ricerca non riuscita: %1$s</string>
-    <string name="search_no_results">Nessun risultato per \"%1$s\".</string>
-    <string name="search_no_results_generic">Nessun messaggio corrispondente.</string>
+    <string name="search_history_header">Ricerche recenti</string>
+    <string name="search_history_remove">Rimuovi %1$s dalle ricerche recenti</string>
     <string name="search_incomplete">Ricerca interrotta prima della fine. Affina i filtri o riprova.</string>
     <string name="search_still_running">Ricerca ancora in corso</string>
     <plurals name="search_result_count">
@@ -822,14 +818,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s: %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Filtri avanzati</string>
+    <string name="search_to_or_cc">A o Cc</string>
+    <string name="search_since">Dal</string>
+    <string name="search_until">Fino al</string>
+    <string name="search_filters">Filtri</string>
+    <string name="search_apply">Applica</string>
+    <string name="search_clear_all">Cancella tutto</string>
+    <string name="search_needs_server">La ricerca per A o Cc richiede il server. Connettiti e riprova.</string>
     <string name="search_from">Da</string>
-    <string name="search_recipient">Destinatario</string>
     <string name="search_subject">Oggetto</string>
-    <string name="search_after">Dopo</string>
-    <string name="search_before">Prima</string>
     <string name="search_date_any">Qualsiasi</string>
-    <string name="search_button">Cerca</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail è bloccato</string>
@@ -908,7 +906,8 @@
     <string name="compose_forgot_attachment_message">Il tuo messaggio menziona un allegato, ma non ne hai aggiunto nessuno.</string>
     <string name="compose_forgot_attachment_send">Invia comunque</string>
     <string name="compose_forgot_attachment_back">Torna indietro</string>
-    <string name="inbox_search_in">Cerca in %1$s</string>
+    <string name="search_scope_this_account">Questo account</string>
+    <string name="search_scope_all_accounts">Tutti gli account</string>
     <string name="inbox_scheduled">Programmati</string>
     <string name="scheduled_title">Programmati</string>
     <string name="scheduled_empty">Nessun messaggio programmato.</string>

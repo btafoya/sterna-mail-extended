@@ -977,6 +977,7 @@ internal fun SearchQuery.toImapCriteria() = ImapSearchCriteria(
     recipient = recipient,
     subject = subject,
     flagged = flagged,
+    unread = unread,
     afterMillis = afterMillis,
     beforeMillis = beforeMillis,
 )

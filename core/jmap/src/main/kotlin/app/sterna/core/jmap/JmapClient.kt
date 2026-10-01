@@ -2869,9 +2869,10 @@ internal fun searchFilter(query: SearchQuery, excludeMailboxIds: List<String> = 
     }
     if (query.subject.isNotBlank()) conditions.add { put("subject", query.subject.trim()) }
     if (query.hasAttachment) conditions.add { put("hasAttachment", true) }
-    // RFC 8621 §4.4.1 `hasKeyword`, with the IMAP `\Flagged` flag under its JMAP name `$flagged`
-    // (RFC 8621 §4.1.1), escaped here because Kotlin would otherwise read it as a template.
+    // RFC 8621 §4.4.1 names keyword conditions `hasKeyword` and `notKeyword` only, with IMAP flags under
+    // their JMAP names (§4.1.1), escaped here because Kotlin would otherwise read `$` as a template.
     if (query.flagged) conditions.add { put("hasKeyword", "\$flagged") }
+    if (query.unread) conditions.add { put("notKeyword", "\$seen") }
     query.afterMillis?.let { ms -> conditions.add { put("after", jmapUtcDate(ms)) } }
     query.beforeMillis?.let { ms -> conditions.add { put("before", jmapUtcDate(ms)) } }
     // Exclude Trash/Junk exactly as the IMAP walk skips them (parity across servers): a message

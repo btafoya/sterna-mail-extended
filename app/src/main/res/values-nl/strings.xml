@@ -801,13 +801,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Zoeken</string>
-    <string name="search_field_label">E-mail doorzoeken</string>
-    <string name="search_idle_hint">Doorzoek al je e-mail.</string>
     <string name="search_history_recent">Recente zoekopdracht</string>
-    <string name="search_failed">Zoeken mislukt: %1$s</string>
-    <string name="search_no_results">Geen resultaten voor \"%1$s\".</string>
-    <string name="search_no_results_generic">Geen overeenkomende berichten.</string>
+    <string name="search_history_header">Recente zoekopdrachten</string>
+    <string name="search_history_remove">%1$s uit recente zoekopdrachten verwijderen</string>
     <string name="search_incomplete">Zoekopdracht voortijdig gestopt. Verfijn de filters of probeer opnieuw.</string>
     <string name="search_still_running">Zoekopdracht loopt nog</string>
     <plurals name="search_result_count">
@@ -820,14 +816,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s: %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Geavanceerde filters</string>
+    <string name="search_to_or_cc">Aan of Cc</string>
+    <string name="search_since">Sinds</string>
+    <string name="search_until">Tot en met</string>
+    <string name="search_filters">Filters</string>
+    <string name="search_apply">Toepassen</string>
+    <string name="search_clear_all">Alles wissen</string>
+    <string name="search_needs_server">Zoeken op Aan of Cc gaat via de server. Maak verbinding en probeer het opnieuw.</string>
     <string name="search_from">Van</string>
-    <string name="search_recipient">Ontvanger</string>
     <string name="search_subject">Onderwerp</string>
-    <string name="search_after">Na</string>
-    <string name="search_before">Voor</string>
     <string name="search_date_any">Alle</string>
-    <string name="search_button">Zoeken</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail is vergrendeld</string>
@@ -906,7 +904,8 @@
     <string name="compose_forgot_attachment_message">Je bericht vermeldt een bijlage, maar je hebt er geen toegevoegd.</string>
     <string name="compose_forgot_attachment_send">Toch verzenden</string>
     <string name="compose_forgot_attachment_back">Terug</string>
-    <string name="inbox_search_in">Zoeken in %1$s</string>
+    <string name="search_scope_this_account">Dit account</string>
+    <string name="search_scope_all_accounts">Alle accounts</string>
     <string name="inbox_scheduled">Gepland</string>
     <string name="scheduled_title">Gepland</string>
     <string name="scheduled_empty">Geen geplande berichten.</string>

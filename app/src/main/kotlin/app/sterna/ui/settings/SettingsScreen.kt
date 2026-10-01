@@ -25,6 +25,7 @@ import app.sterna.ui.inbox.OPEN_ON_INBOX
 import app.sterna.ui.inbox.OPEN_ON_UNIFIED
 import app.sterna.ui.inbox.openOnOptions
 import app.sterna.ui.inbox.openOnShown
+import app.sterna.ui.search.ClearSearchHistoryDialog
 import app.sterna.widget.AllInboxesView
 import app.sterna.ui.components.accountColorOf
 import androidx.compose.foundation.layout.Arrangement
@@ -1140,21 +1141,12 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
         }
     }
     if (confirmClearHistory) {
-        AlertDialog(
-            onDismissRequest = { confirmClearHistory = false },
-            title = { Text(stringResource(R.string.settings_search_history_clear_dialog_title)) },
-            text = { Text(stringResource(R.string.settings_search_history_clear_dialog_body)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmClearHistory = false
-                        viewModel.clearSearchHistory()
-                    },
-                ) { Text(stringResource(R.string.settings_clear), color = MaterialTheme.colorScheme.error) }
+        ClearSearchHistoryDialog(
+            onConfirm = {
+                confirmClearHistory = false
+                viewModel.clearSearchHistory()
             },
-            dismissButton = {
-                TextButton(onClick = { confirmClearHistory = false }) { Text(stringResource(R.string.settings_cancel)) }
-            },
+            onDismiss = { confirmClearHistory = false },
         )
     }
 }

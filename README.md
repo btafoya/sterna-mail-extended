@@ -117,8 +117,9 @@ Running your own server, with a free certificate or one you issued yourself? See
 - Configurable swipe actions, star, archive & delete with undo, multi-select
   bulk actions, snooze, report spam, empty trash (with undo), sort, and
   unread-only, starred-only and has-attachment filters
-- Search-as-you-type (server-side + instant local results) with advanced filters
-  (from, recipient, subject, has-attachment, date); Trash and Spam are left out
+- Search-as-you-type (server-side + instant local results) with filters as chips
+  under the search bar (unread, starred, has-attachment, from, recipient in To or
+  Cc, subject, date); Trash and Spam are left out
 - Calendar invites preview as an event card; one tap adds them to your calendar
   app (no calendar permission needed)
 

@@ -475,7 +475,7 @@ class RecipientMenuFitTest {
             File(root, "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt")
         }
         val SEARCH_SCREEN: File by lazy {
-            File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt")
+            File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchFilterSheet.kt")
         }
         val SUGGESTION_MENU: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/compose/RecipientSuggestionMenu.kt")

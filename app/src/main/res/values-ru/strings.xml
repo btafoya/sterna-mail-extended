@@ -801,13 +801,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Поиск</string>
-    <string name="search_field_label">Поиск в почте</string>
-    <string name="search_idle_hint">Поиск по всей вашей почте.</string>
     <string name="search_history_recent">Недавний запрос</string>
-    <string name="search_failed">Ошибка поиска: %1$s</string>
-    <string name="search_no_results">Ничего не найдено по запросу «%1$s».</string>
-    <string name="search_no_results_generic">Нет подходящих писем.</string>
+    <string name="search_history_header">Недавние запросы</string>
+    <string name="search_history_remove">Убрать %1$s из недавних запросов</string>
     <string name="search_incomplete">Поиск остановлен до завершения. Уточните фильтры или повторите попытку.</string>
     <string name="search_still_running">Поиск ещё выполняется</string>
     <plurals name="search_result_count">
@@ -824,14 +820,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s: %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Расширенные фильтры</string>
+    <string name="search_to_or_cc">Кому или копия</string>
+    <string name="search_since">С</string>
+    <string name="search_until">По</string>
+    <string name="search_filters">Фильтры</string>
+    <string name="search_apply">Применить</string>
+    <string name="search_clear_all">Очистить всё</string>
+    <string name="search_needs_server">Поиск по полям «Кому» и «Копия» идёт только на сервере. Подключитесь и повторите попытку.</string>
     <string name="search_from">Отправитель</string>
-    <string name="search_recipient">Получатель</string>
     <string name="search_subject">Тема</string>
-    <string name="search_after">После</string>
-    <string name="search_before">До</string>
     <string name="search_date_any">Любая</string>
-    <string name="search_button">Найти</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail заблокирован</string>
@@ -918,7 +916,8 @@
     <string name="compose_forgot_attachment_message">В вашем сообщении упоминается вложение, но вы его не добавили.</string>
     <string name="compose_forgot_attachment_send">Всё равно отправить</string>
     <string name="compose_forgot_attachment_back">Вернуться</string>
-    <string name="inbox_search_in">Поиск в %1$s</string>
+    <string name="search_scope_this_account">Эта учётная запись</string>
+    <string name="search_scope_all_accounts">Все учётные записи</string>
     <!-- Deliberately not "Отложенные" like scheduled_title: the same menu also lists
          the snoozed messages, which are the ones really called "Отложенные" in Russian. -->
     <string name="inbox_scheduled">Запланированные</string>

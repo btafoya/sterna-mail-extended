@@ -10,6 +10,7 @@ data class SearchQuery(
     val subject: String = "",
     val hasAttachment: Boolean = false,
     val flagged: Boolean = false,
+    val unread: Boolean = false,
     val afterMillis: Long? = null,
     val beforeMillis: Long? = null,
 ) {
@@ -17,5 +18,5 @@ data class SearchQuery(
     // my starred mail), and treating it as empty would leave the Search button doing nothing.
     fun isEmpty(): Boolean =
         text.isBlank() && from.isBlank() && recipient.isBlank() && subject.isBlank() &&
-            !hasAttachment && !flagged && afterMillis == null && beforeMillis == null
+            !hasAttachment && !flagged && !unread && afterMillis == null && beforeMillis == null
 }

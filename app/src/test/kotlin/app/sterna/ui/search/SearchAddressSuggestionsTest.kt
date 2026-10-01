@@ -1,5 +1,6 @@
 package app.sterna.ui.search
 
+import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import app.sterna.contacts.ContactSuggestion
@@ -13,6 +14,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -126,6 +128,101 @@ class SearchAddressSuggestionsTest {
             SearchQuery(from = "an", recipient = "bob@b.org"),
             query.withAddress(AddressField.RECIPIENT, ContactSuggestion("bob@b.org", "Bob")),
         )
+    }
+
+    private val jeanne = ContactSuggestion("j.dupont@exemple.org", "Jeanne Dupont")
+
+    @Test fun `a picked contact sends its address and shows its name, in From and in To or Cc`() {
+        for (field in AddressField.entries) {
+            val query = SearchQuery().withAddress(field, jeanne)
+            val names = AddressNames().picked(field, jeanne)
+
+            assertEquals("$field sends", "j.dupont@exemple.org", query.address(field))
+            assertEquals("$field shows", "Jeanne Dupont", names.shown(field, query))
+            assertEquals("$field names", PickedName("j.dupont@exemple.org", "Jeanne Dupont"), names.of(field))
+        }
+        assertEquals(
+            "a pick in To or Cc leaves From's name",
+            "Ann A",
+            AddressNames(from = PickedName("ann@a.org", "Ann A")).picked(AddressField.RECIPIENT, jeanne)
+                .shown(AddressField.FROM, SearchQuery(from = "ann@a.org")),
+        )
+    }
+
+    @Test fun `a contact without a name shows its address`() {
+        for (name in listOf(null, "", "   ")) {
+            val bare = ContactSuggestion("j.dupont@exemple.org", name)
+            val query = SearchQuery().withAddress(AddressField.FROM, bare)
+            val names = AddressNames(from = PickedName("old@exemple.org", "Old")).picked(AddressField.FROM, bare)
+
+            assertNull("name '$name'", names.from)
+            assertEquals("name '$name'", "j.dupont@exemple.org", names.shown(AddressField.FROM, query))
+        }
+    }
+
+    private val picked = PickedName("j.dupont@exemple.org", "Jeanne Dupont")
+
+    @Test fun `the first change of a field showing a name gives back the address, and the keystroke is not taken`() {
+        for (received in listOf("Jeanne Dupon", "Jeanne Dupontx", "")) {
+            assertEquals(
+                "'$received'",
+                AddressEdit("j.dupont@exemple.org", null),
+                addressEdited(shownBefore = "Jeanne Dupont", received = received, picked = picked, criterion = "j.dupont@exemple.org"),
+            )
+        }
+    }
+
+    @Test fun `once the address is back, the field edits the criterion itself`() {
+        assertEquals(
+            AddressEdit("j.dupont@exemple.or", null),
+            addressEdited(shownBefore = "j.dupont@exemple.org", received = "j.dupont@exemple.or", picked = null, criterion = "j.dupont@exemple.org"),
+        )
+        assertEquals(
+            "a name standing for another address is no name shown: the keystroke is taken",
+            AddressEdit("bob@b.or", null),
+            addressEdited(shownBefore = "bob@b.org", received = "bob@b.or", picked = picked, criterion = "bob@b.org"),
+        )
+        assertEquals(
+            "no change keeps the name",
+            AddressEdit("j.dupont@exemple.org", picked),
+            addressEdited(shownBefore = "Jeanne Dupont", received = "Jeanne Dupont", picked = picked, criterion = "j.dupont@exemple.org"),
+        )
+    }
+
+    @Test fun `a name equal to its address is no name, so an edit is never swallowed`() {
+        assertNull(AddressNames().picked(AddressField.FROM, ContactSuggestion("j.dupont@exemple.org", "j.dupont@exemple.org")).from)
+    }
+
+    @Test fun `a name never stands for another address`() {
+        val names = AddressNames().picked(AddressField.FROM, jeanne)
+        val query = SearchQuery().withAddress(AddressField.FROM, jeanne)
+        val other = query.copy(from = "bob@b.org")
+
+        assertEquals("bob@b.org", names.shown(AddressField.FROM, other))
+        assertEquals(AddressNames(), names.keptFor(other))
+        assertEquals(names, names.keptFor(query))
+    }
+
+    @Test fun `Apply sends the fields' addresses, never the names they show`() {
+        val names = AddressNames(from = picked, recipient = PickedName("sam@c.org", "Sam Roy"))
+        val sheet = sheetFields("j.dupont@exemple.org", "sam@c.org", "Q3", 1L, 2L, names)
+
+        assertEquals(
+            SearchQuery(from = "j.dupont@exemple.org", recipient = "sam@c.org", subject = "Q3", afterMillis = 1L, beforeMillis = 2L),
+            sheet.query,
+        )
+        assertEquals(names, sheet.names)
+        assertEquals(
+            "a name no longer standing for its field is not handed over",
+            AddressNames(from = picked),
+            sheetFields("j.dupont@exemple.org", "other@c.org", "", null, null, names).names,
+        )
+    }
+
+    @Test fun `the sheet's names survive a rotation, each with its own address`() {
+        val names = AddressNames(from = PickedName("ann@a.org", "Ann A"), recipient = PickedName("j.dupont@exemple.org", "Jeanne Dupont"))
+        val saved = with(AddressNamesSaver) { SaverScope { true }.save(names) }!!
+        assertEquals(names, AddressNamesSaver.restore(saved))
     }
 
     @Test fun `after a pick the cursor sits at the end of the address, and typing keeps its own cursor`() {

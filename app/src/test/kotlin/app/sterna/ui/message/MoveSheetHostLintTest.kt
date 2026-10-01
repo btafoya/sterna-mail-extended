@@ -97,6 +97,7 @@ class MoveSheetHostLintTest {
 
     @Test fun `every fresh reading gesture clears the move sheet before the reader is shown`() {
         val lines = codeLines(read(STERNA_APP))
+        // A search result is a row of the list, opened through the same `onOpenEmail` with `fromSearch`.
         for (start in listOf(
             "onOpenEmail = { id, accountId, index, fromSearch ->",
             "onOpenThreadMessage = { id, accountId, threadKey, index ->",
@@ -106,11 +107,6 @@ class MoveSheetHostLintTest {
             val pane = block.indexOf("if (readingPane) inboxViewModel.openInPane(anchor)")
             assertTrue("a row tapped in the list ($start) must clear the move sheet before the reader opens. Block: $block", clear in 0 until pane)
         }
-        val search = block(lines, "onOpenEmail = { id, accountId ->")
-        assertTrue(
-            "a search result opened is a fresh reading and must clear the move sheet first. Block: $search",
-            search.indexOf("inboxViewModel.startFreshReading()") in 0 until search.indexOfFirst { it.startsWith("nav.navigate(\"message/") },
-        )
         val notification = block(lines, "LaunchedEffect(pendingEmailOpen) {")
         assertTrue(
             "a tapped notification is a fresh reading, in the pane or on the route, held until the list " +
@@ -130,7 +126,6 @@ class MoveSheetHostLintTest {
             listOf(
                 "if (listViewModel != null) listViewModel.startFreshReading() else pendingFreshReading = true",
                 "list.startFreshReading()",
-                "inboxViewModel.startFreshReading()",
                 "inboxViewModel.startFreshReading()",
                 "inboxViewModel.startFreshReading()",
             ),

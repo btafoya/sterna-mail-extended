@@ -176,7 +176,7 @@ class ComposeScreenIncognitoTest {
     @Test fun `a wrapper that spans another screen is reported`() {
         val block = wrapperBlocks(FIXTURE_WRAPS_SEARCH_TOO).single()
         val caught = OFF_LIMITS.filter { screen -> block.any { screen in FIXTURE_WRAPS_SEARCH_TOO[it] } }
-        assertEquals(listOf("SearchScreen("), caught)
+        assertEquals(listOf("SearchFilterSheet("), caught)
     }
 
     // --- the decisions ---------------------------------------------------------------------------
@@ -294,7 +294,7 @@ class ComposeScreenIncognitoTest {
 
         /** Screens whose keyboard must keep its memory. Search is the bench witness. */
         val OFF_LIMITS = listOf(
-            "SearchScreen(", "SettingsScreen(", "ConnectScreen(", "InboxScreen(", "MessageScreen(",
+            "SearchFilterSheet(", "SettingsScreen(", "ConnectScreen(", "InboxScreen(", "MessageScreen(",
             "OutboxScreen(", "SternaApp(", "NavHost(",
         )
 
@@ -392,7 +392,7 @@ class ComposeScreenIncognitoTest {
             |}
             |composable("search") {
             |    IncognitoKeyboard {
-            |        SearchScreen()
+            |        SearchFilterSheet()
             |    }
             |}
         """.trimMargin().lines()
@@ -402,7 +402,7 @@ class ComposeScreenIncognitoTest {
             |IncognitoKeyboard {
             |    ComposeScreen(
             |    )
-            |    SearchScreen(
+            |    SearchFilterSheet(
             |    )
             |}
         """.trimMargin().lines()

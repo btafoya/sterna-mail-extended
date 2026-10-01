@@ -69,6 +69,23 @@ class SearchHistoryRepositoryTest {
         }
     }
 
+    @Test fun `removing a search takes it out whatever its case or accents, and leaves the rest`() = runBlocking {
+        withRepository { history ->
+            history.record("impots")
+            history.record("facture")
+            history.record("loyer")
+            history.remove("Facture")
+            assertEquals(
+                "the cross on \"Facture\" must take away the kept \"facture\", folded as record folds",
+                listOf("loyer", "impots"),
+                history.entries.first(),
+            )
+            switch.value = false
+            history.remove("LOYER")
+            assertEquals(listOf("impots"), history.entries.first())
+        }
+    }
+
     @Test fun `the searches survive the store being reopened`() = runBlocking {
         val file = File(tmp.root, "search_history.preferences_pb")
         withRepository(file) { it.record("loyer") }

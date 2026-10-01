@@ -51,6 +51,32 @@ class SearchHistoryTest {
         assertEquals(listOf("Q20") + (1..19).map { "q$it" }, after)
     }
 
+    // -- removing ------------------------------------------------------------------------------
+
+    @Test fun `removing an entry keeps the others in their order`() {
+        assertEquals(listOf("loyer", "impots"), withoutSearch(listOf("loyer", "facture", "impots"), "facture"))
+    }
+
+    @Test fun `removing ignores case and accents, as recording does`() {
+        assertEquals(listOf("loyer"), withoutSearch(listOf("facture", "loyer"), "Facture"))
+        assertEquals(listOf("loyer"), withoutSearch(listOf("Hélène", "loyer"), "HELENE"))
+        assertEquals(listOf("loyer"), withoutSearch(listOf("loyer", "Ecologie"), "écologie"))
+        assertEquals(emptyList<String>(), withoutSearch(listOf("Анна"), "анна"))
+    }
+
+    @Test fun `removing a search not kept changes nothing`() {
+        val history = listOf("facture", "loyer")
+        assertEquals(history, withoutSearch(history, "factures"))
+        assertEquals(history, withoutSearch(history, "fac"))
+        assertEquals(history, withoutSearch(history, ""))
+        assertEquals(emptyList<String>(), withoutSearch(emptyList(), "facture"))
+    }
+
+    @Test fun `removing after a respelt search takes the latest spelling away`() {
+        val after = withoutSearch(withSearch(listOf("loyer", "facture"), "FACTURE"), "facture")
+        assertEquals(listOf("loyer"), after)
+    }
+
     // -- proposing -----------------------------------------------------------------------------
 
     private val kept = listOf(

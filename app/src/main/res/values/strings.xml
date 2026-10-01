@@ -160,7 +160,8 @@
     <string name="inbox_unarchive">Unarchive</string>
     <string name="inbox_archive">Archive</string>
     <string name="inbox_close_search">Close search</string>
-    <string name="inbox_search_in">Search %1$s</string>
+    <string name="search_scope_this_account">This account</string>
+    <string name="search_scope_all_accounts">All accounts</string>
     <string name="inbox_clear">Clear</string>
     <string name="inbox_menu">Menu</string>
     <!-- Short labels of the list's filter chips, also used by the advanced search: keep them to a word or two. -->
@@ -1004,13 +1005,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Search</string>
-    <string name="search_field_label">Search mail</string>
-    <string name="search_idle_hint">Search across all your mail.</string>
     <string name="search_history_recent">Recent search</string>
-    <string name="search_failed">Search failed: %1$s</string>
-    <string name="search_no_results">No results for \"%1$s\".</string>
-    <string name="search_no_results_generic">No matching messages.</string>
+    <string name="search_history_header">Recent searches</string>
+    <string name="search_history_remove">Remove %1$s from recent searches</string>
     <string name="search_incomplete">Search stopped before the end. Refine the filters or try again.</string>
     <string name="search_still_running">Search still running</string>
     <plurals name="search_result_count">
@@ -1023,14 +1020,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s: %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Advanced filters</string>
+    <string name="search_to_or_cc">To or Cc</string>
+    <string name="search_since">Since</string>
+    <string name="search_until">Until</string>
+    <string name="search_filters">Filters</string>
+    <string name="search_apply">Apply</string>
+    <string name="search_clear_all">Clear all</string>
+    <string name="search_needs_server">Searching by To or Cc needs the server. Connect and try again.</string>
     <string name="search_from">From</string>
-    <string name="search_recipient">Recipient</string>
     <string name="search_subject">Subject</string>
-    <string name="search_after">After</string>
-    <string name="search_before">Before</string>
     <string name="search_date_any">Any</string>
-    <string name="search_button">Search</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail is locked</string>

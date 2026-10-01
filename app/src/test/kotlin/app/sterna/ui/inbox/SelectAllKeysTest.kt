@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import app.sterna.core.data.mail.EmailKey
+import app.sterna.core.jmap.model.SearchQuery
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -17,7 +18,8 @@ class SelectAllKeysTest {
         results: List<EmailKey>?,
         loading: Boolean = false,
         complete: Boolean = true,
-    ) = selectAllKeys(searching, query, results, loading, complete, folder)
+        criteria: SearchQuery = SearchQuery(text = query),
+    ) = selectAllKeys(searching, criteria, results, loading, complete, folder)
 
     @Test
     fun `outside a search, select all is the folder`() {
@@ -55,6 +57,11 @@ class SelectAllKeysTest {
             hits.toSet(),
             keys(searching = true, query = "invoice", results = hits, loading = true, complete = false),
         )
+    }
+
+    @Test
+    fun `a search of chips alone showing results selects exactly those results`() {
+        assertEquals(hits.toSet(), keys(searching = true, query = "", results = hits, criteria = SearchQuery(unread = true)))
     }
 
     @Test

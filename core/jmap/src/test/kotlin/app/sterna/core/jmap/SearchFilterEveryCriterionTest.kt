@@ -55,6 +55,22 @@ class SearchFilterEveryCriterionTest {
         assertEquals("""{"hasKeyword":"${'$'}flagged"}""", filter(SearchQuery(flagged = true)))
     }
 
+    @Test fun `an unread tick alone becomes a notKeyword seen condition`() {
+        assertEquals("""{"notKeyword":"${'$'}seen"}""", filter(SearchQuery(unread = true)))
+    }
+
+    @Test fun `an unread tick alone is a search, not an empty query`() {
+        assertFalse(SearchQuery(unread = true).isEmpty())
+    }
+
+    @Test fun `an unread tick alone keeps the Trash and Junk exclusion`() {
+        assertEquals(
+            """{"operator":"AND","conditions":[{"notKeyword":"${'$'}seen"},""" +
+                """{"inMailboxOtherThan":["trash-id","junk-id"]}]}""",
+            searchFilter(SearchQuery(unread = true), listOf("trash-id", "junk-id")).toString(),
+        )
+    }
+
     @Test fun `a start date alone becomes an after bound in UTC`() {
         assertEquals("""{"after":"2026-06-01T00:00:00Z"}""", filter(SearchQuery(afterMillis = june1)))
     }
@@ -66,13 +82,13 @@ class SearchFilterEveryCriterionTest {
     // ---- the witness: a criterion left alone contributes nothing ----
 
     /**
-     * The witness for all seven at once.
+     * The witness for all of them at once.
      */
     @Test fun `criteria left at their default put no condition in the filter`() {
         val onlyText = filter(SearchQuery(text = "invoice"))
 
         assertEquals("""{"text":"invoice"}""", onlyText)
-        listOf("from", "to", "cc", "subject", "hasAttachment", "hasKeyword", "after", "before")
+        listOf("from", "to", "cc", "subject", "hasAttachment", "hasKeyword", "notKeyword", "after", "before")
             .forEach { property ->
                 assertFalse("an untouched criterion emitted a $property condition", onlyText.contains(property))
             }
@@ -87,19 +103,21 @@ class SearchFilterEveryCriterionTest {
             subject = "facture",
             hasAttachment = true,
             flagged = true,
+            unread = true,
             afterMillis = june1,
             beforeMillis = june15End,
         )
-        assertEquals(8, conditions(full).size)
+        assertEquals(9, conditions(full).size)
 
-        assertEquals(7, conditions(full.copy(flagged = false)).size)
-        assertEquals(7, conditions(full.copy(hasAttachment = false)).size)
-        assertEquals(7, conditions(full.copy(recipient = "")).size)
-        assertEquals(7, conditions(full.copy(afterMillis = null)).size)
-        assertEquals(7, conditions(full.copy(beforeMillis = null)).size)
-        assertEquals(7, conditions(full.copy(text = "")).size)
-        assertEquals(7, conditions(full.copy(from = "")).size)
-        assertEquals(7, conditions(full.copy(subject = "")).size)
+        assertEquals(8, conditions(full.copy(flagged = false)).size)
+        assertEquals(8, conditions(full.copy(unread = false)).size)
+        assertEquals(8, conditions(full.copy(hasAttachment = false)).size)
+        assertEquals(8, conditions(full.copy(recipient = "")).size)
+        assertEquals(8, conditions(full.copy(afterMillis = null)).size)
+        assertEquals(8, conditions(full.copy(beforeMillis = null)).size)
+        assertEquals(8, conditions(full.copy(text = "")).size)
+        assertEquals(8, conditions(full.copy(from = "")).size)
+        assertEquals(8, conditions(full.copy(subject = "")).size)
     }
 
     // ---- crossed criteria ----
@@ -149,6 +167,7 @@ class SearchFilterEveryCriterionTest {
             subject = "facture",
             hasAttachment = true,
             flagged = true,
+            unread = true,
             afterMillis = june1,
             beforeMillis = june15End,
         )

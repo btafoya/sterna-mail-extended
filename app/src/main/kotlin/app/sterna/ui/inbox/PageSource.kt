@@ -122,14 +122,14 @@ internal data class QuickFilter(val criterion: ListCriterion, val checked: Boole
 
 internal data class QuickFilterRow(val filters: List<QuickFilter>, val enabled: Boolean)
 
-/** Null once a query is typed (results ignore the toggles); inert under a selection (`selectAll`, #126). */
+/** Null while the search bar is open, whose own chips take this row's place; inert under a selection (`selectAll`, #126). */
 internal fun filterChipRow(
     unreadView: Boolean,
     selectionActive: Boolean,
-    queryTyped: Boolean,
+    searching: Boolean,
     toggles: ListFilter,
 ): QuickFilterRow? {
-    if (queryTyped) return null
+    if (searching) return null
     return QuickFilterRow(
         filters = offeredCriteria(unreadView).map { QuickFilter(it, toggles.has(it)) },
         enabled = !selectionActive,

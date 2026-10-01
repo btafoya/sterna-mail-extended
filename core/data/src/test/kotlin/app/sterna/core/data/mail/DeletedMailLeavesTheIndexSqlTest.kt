@@ -205,6 +205,8 @@ class DeletedMailLeavesTheIndexSqlTest {
                     "accountIds" -> ps.setString(i + 1, accountScope[account++])
                     "accountScopeCount" -> ps.setInt(i + 1, accountScope.size)
                     "limit" -> ps.setInt(i + 1, limit)
+                    "unreadOnly", "flaggedOnly", "attachmentOnly" -> ps.setInt(i + 1, 0)
+                    "sinceMillis", "untilMillis" -> ps.setNull(i + 1, java.sql.Types.BIGINT)
                     else -> error("Unexpected parameter ':$name' in EmailFtsDao.search")
                 }
             }

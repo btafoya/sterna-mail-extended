@@ -28,9 +28,9 @@ class FilterEntryWiringLintTest {
         val calls = Regex("""\bfilterChipRow\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
         assertEquals(
             "The row must be asked with the screen's own view flag (no Unread chip in the unread " +
-                "view), the selection (chips inert while selectAll reads the filter) and the typed " +
-                "query (search results are not filtered by the toggles). 'queryTyped = ui.searching' " +
-                "compiles and hides the chips over the empty search field, whose list they still filter. " +
+                "view), the selection (chips inert while selectAll reads the filter) and the open " +
+                "search bar, whose own row takes this one's place: one row of chips at a time, and " +
+                "search results are not filtered by these toggles. " +
                 "Calls found were:\n${calls.joinToString("\n")}",
             listOf(EXPECTED_ROW_QUESTION),
             calls,
@@ -46,8 +46,28 @@ class FilterEntryWiringLintTest {
                 "the when compiles, and a chip then lies about the list. 'enabled = true' compiles " +
                 "and lets a chip change what a selection covers. Calls found were:" +
                 "\n${calls.joinToString("\n")}",
-            listOf(EXPECTED_ROW_DRAWN),
+            listOf(EXPECTED_ROW_DRAWN, EXPECTED_SEARCH_ROW_DRAWN),
             calls,
+        )
+    }
+
+    @Test
+    fun `the scope chip comes first, flips the scope it shows, and only from two accounts on`() {
+        val text = codeText(INBOX_SCREEN)
+        val at = text.indexOf("val scopeChip = ")
+        check(at >= 0) { "InboxScreen.kt no longer builds the search row's scope chip in a local named scopeChip" }
+        val condition = callAt(text, text.indexOf("if (", at))
+        val entry = callAt(text, text.indexOf("FilterChipEntry(", at))
+        assertEquals(
+            "Shown on searchScopeChipShown of the account count, drawn with the label of the scope " +
+                "in force, and flipping that scope: a chip naming one scope while the legs ask the " +
+                "other is the lie this chip exists to end.",
+            listOf(
+                "if (searchScopeChipShown(accounts.size))",
+                "FilterChipEntry( label = stringResource(searchScopeLabel(ui.searchScope)), selected = true, " +
+                    "enabled = !selectionActive, onClick = { viewModel.toggleSearchScope() }, )",
+            ),
+            listOf(condition, entry),
         )
     }
 
@@ -187,7 +207,7 @@ class FilterEntryWiringLintTest {
     companion object {
         private const val EXPECTED_ROW_QUESTION =
             "filterChipRow( unreadView = ui.unreadView, selectionActive = selectionActive, " +
-                "queryTyped = ui.searching && ui.searchQuery.isNotBlank(), toggles = ui.filterToggles, )"
+                "searching = ui.searching, toggles = ui.filterToggles, )"
 
         private const val EXPECTED_ROW_DRAWN =
             "FilterChipRow( entries = row.filters.map { filter -> FilterChipEntry( " +
@@ -196,6 +216,11 @@ class FilterEntryWiringLintTest {
                 "ListCriterion.UNREAD -> viewModel.toggleUnreadOnly() " +
                 "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly() " +
                 "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment() } }, ) }, )"
+
+        private const val EXPECTED_SEARCH_ROW_DRAWN =
+            "FilterChipRow( entries = scopeChip + SearchToggle.entries.map { toggle -> FilterChipEntry( " +
+                "label = stringResource(searchToggleLabel(toggle)), selected = ui.searchCriteria.has(toggle), " +
+                "enabled = !selectionActive, onClick = { viewModel.toggleSearchCriterion(toggle) }, ) }, )"
 
         private val EXPECTED_BODY_LINES = listOf(
             "val matched = scene.activeFilters.map { stringResource(filterLabel(it)) }" +

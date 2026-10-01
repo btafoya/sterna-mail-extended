@@ -29,6 +29,18 @@ fun withSearch(history: List<String>, typed: String): List<String> {
 }
 
 /**
+ * [history] without [entry], matched folded exactly as [withSearch] folds, so the cross on a
+ * suggestion also takes away a kept spelling that differs only by case or accents: [withSearch]
+ * never keeps two of those, and one left behind would come straight back as the same suggestion.
+ * The others keep their order. A blank or absent entry changes nothing.
+ */
+fun withoutSearch(history: List<String>, entry: String): List<String> {
+    val removed = folded(entry.trim())
+    if (removed.isEmpty()) return history
+    return history.filterNot { kept -> folded(kept) == removed }
+}
+
+/**
  * What to offer under a search field holding [typed]: the most recent searches when it is blank,
  * otherwise the few in which a word starts with what is typed, case and accents ignored. The
  * search being typed is not offered back to itself.

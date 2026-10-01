@@ -47,6 +47,11 @@ class SearchCriteriaOnTheWireTest {
         assertEquals("FLAGGED", keys(SearchQuery(flagged = true)))
     }
 
+    @Test fun `an unread tick alone reaches the wire as a bare UNSEEN key`() {
+        assertEquals("UNSEEN", keys(SearchQuery(unread = true)))
+        assertFalse(SearchQuery(unread = true).requiresLocalScan())
+    }
+
     @Test fun `a start date alone reaches the wire as SINCE`() {
         assertEquals("SINCE 1-Jun-2026", keys(SearchQuery(afterMillis = june1)))
     }
@@ -64,7 +69,7 @@ class SearchCriteriaOnTheWireTest {
     // ---- the witness: an untouched criterion sends no key ----
 
     /**
-     * The witness for all seven at once. Without it every assertion above passes on a build that
+     * The witness for all of them at once. Without it every assertion above passes on a build that
      * appends its key unconditionally, and a search would then be permanently filtered by a
      * criterion the user never set, quietly returning a fraction of what matches.
      */
@@ -72,7 +77,7 @@ class SearchCriteriaOnTheWireTest {
         val onlyText = keys(SearchQuery(text = "invoice"))
 
         assertEquals("""TEXT "invoice"""", onlyText)
-        listOf("FROM", "TO", "CC", "OR", "SUBJECT", "FLAGGED", "SINCE", "BEFORE", "ALL").forEach { key ->
+        listOf("FROM", "TO", "CC", "OR", "SUBJECT", "FLAGGED", "UNSEEN", "SINCE", "BEFORE", "ALL").forEach { key ->
             assertFalse("an untouched criterion sent a $key key", onlyText.contains(key))
         }
     }
@@ -85,11 +90,12 @@ class SearchCriteriaOnTheWireTest {
             recipient = "team@masto.top",
             subject = "facture",
             flagged = true,
+            unread = true,
             afterMillis = june1,
             beforeMillis = june15End,
         )
         assertEquals(
-            """FLAGGED FROM "alex@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
+            """FLAGGED UNSEEN FROM "alex@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
                 """SUBJECT "facture" SINCE 1-Jun-2026 BEFORE 16-Jun-2026 TEXT "invoice"""",
             keys(full),
         )
@@ -153,6 +159,7 @@ class SearchCriteriaOnTheWireTest {
             SearchQuery(recipient = "team@masto.top"),
             SearchQuery(subject = "facture"),
             SearchQuery(flagged = true),
+            SearchQuery(unread = true),
             SearchQuery(afterMillis = june1),
             SearchQuery(beforeMillis = june15End),
             SearchQuery(

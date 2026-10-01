@@ -53,6 +53,11 @@ class SearchHistoryRepository internal constructor(
         dataStore.edit { it[KEY_SEARCHES] = encodeSearchHistory(withSearch(decodeSearchHistory(it[KEY_SEARCHES]), typed)) }
     }
 
+    /** Takes [entry] out of the list, the setting off or on, like [clear]. */
+    suspend fun remove(entry: String) {
+        dataStore.edit { it[KEY_SEARCHES] = encodeSearchHistory(withoutSearch(decodeSearchHistory(it[KEY_SEARCHES]), entry)) }
+    }
+
     suspend fun clear() {
         dataStore.edit { it.remove(KEY_SEARCHES) }
     }

@@ -66,7 +66,6 @@ class MoveFilterWiringLintTest {
     @Test fun `the query is held INSIDE each screen's if, so it never survives a reopening`() {
         for ((screen, call) in listOf(
             INBOX_SCREEN to "MoveFolderSheet(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })",
-            SEARCH_SCREEN to "MoveFolderSheet(inbox, accounts, selectedKeys, currentMailboxId = null, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })",
         )) {
             assertEquals(
                 "${screen.name} must hold the query inside `if (showMoveSheet)`: hoisted above it, " +
@@ -153,7 +152,6 @@ class MoveFilterWiringLintTest {
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
         val MOVE_SHEET: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
-        val SEARCH_SCREEN: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt") }
         val MESSAGE_SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
         }

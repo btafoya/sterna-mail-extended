@@ -801,13 +801,9 @@
     <string name="connect_security_starttls">STARTTLS</string>
 
     <!-- Search -->
-    <string name="search_title">Buscar</string>
-    <string name="search_field_label">Buscar en el correo</string>
-    <string name="search_idle_hint">Busca en todo tu correo.</string>
     <string name="search_history_recent">Búsqueda reciente</string>
-    <string name="search_failed">La búsqueda falló: %1$s</string>
-    <string name="search_no_results">Sin resultados para \"%1$s\".</string>
-    <string name="search_no_results_generic">No hay mensajes que coincidan.</string>
+    <string name="search_history_header">Búsquedas recientes</string>
+    <string name="search_history_remove">Quitar %1$s de las búsquedas recientes</string>
     <string name="search_incomplete">La búsqueda se detuvo antes de terminar. Ajusta los filtros o inténtalo de nuevo.</string>
     <string name="search_still_running">La búsqueda continúa</string>
     <plurals name="search_result_count">
@@ -822,14 +818,16 @@
     </plurals>
     <string name="search_criteria_pair">%1$s: %2$s</string>
     <string name="search_criteria_pair_date">%1$s %2$s</string>
-    <string name="search_advanced_toggle">Filtros avanzados</string>
+    <string name="search_to_or_cc">Para o CC</string>
+    <string name="search_since">Desde</string>
+    <string name="search_until">Hasta</string>
+    <string name="search_filters">Filtros</string>
+    <string name="search_apply">Aplicar</string>
+    <string name="search_clear_all">Borrar todo</string>
+    <string name="search_needs_server">La búsqueda por Para o CC necesita el servidor. Conéctate y vuelve a intentarlo.</string>
     <string name="search_from">De</string>
-    <string name="search_recipient">Destinatario</string>
     <string name="search_subject">Asunto</string>
-    <string name="search_after">Después de</string>
-    <string name="search_before">Antes de</string>
     <string name="search_date_any">Cualquiera</string>
-    <string name="search_button">Buscar</string>
 
     <!-- App lock -->
     <string name="lock_title">Sterna Mail está bloqueado</string>
@@ -908,7 +906,8 @@
     <string name="compose_forgot_attachment_message">Tu mensaje menciona un archivo adjunto, pero no has añadido ninguno.</string>
     <string name="compose_forgot_attachment_send">Enviar de todos modos</string>
     <string name="compose_forgot_attachment_back">Volver</string>
-    <string name="inbox_search_in">Buscar en %1$s</string>
+    <string name="search_scope_this_account">Esta cuenta</string>
+    <string name="search_scope_all_accounts">Todas las cuentas</string>
     <string name="inbox_scheduled">Programados</string>
     <string name="scheduled_title">Programados</string>
     <string name="scheduled_empty">No hay mensajes programados.</string>

@@ -132,38 +132,24 @@ class SearchHistoryWiringTest {
         assertEquals(listOf("recordSearch()"), inVm)
     }
 
-    // -- the advanced screen ---------------------------------------------------------------------
+    // -- what never keeps a search -----------------------------------------------------------------
 
-    @Test fun `every advanced search keeps its text, and a replay after process death does not`() {
+    @Test fun `a search replayed after process death, or opened from a sender, is not kept`() {
         assertEquals(
-            listOf(
-                "fun search() {",
-                "_form.value = _form.value.afterSearch()",
-                "persist()",
-                "val text = _form.value.query.text",
-                "viewModelScope.launch { searchHistory.record(text) }",
-                "run(_form.value.query)",
-                "}",
-            ),
-            functionBody(SEARCH_VM, "fun search() {"),
-        )
-        assertEquals(
-            "search() is the only place this screen keeps a search: `run` also replays the " +
-                "criteria restored after a process death, which the user did not search again",
+            "recordSearch is the only place the bar keeps a search: the restore in `init` and " +
+                "openSearchFrom run criteria the user did not search again",
             1,
-            codeLines(SEARCH_VM).count { "searchHistory.record" in it },
+            codeLines(INBOX_VM).count { "searchHistory.record" in it },
         )
-    }
-
-    @Test fun `a suggestion on the advanced screen fills the text field and searches`() {
         assertEquals(
             listOf(
-                "fun searchFromHistory(text: String) {",
-                "updateQuery(_form.value.query.copy(text = text))",
-                "search()",
+                "fun openSearchFrom(address: String) {",
+                "clearSelection()",
+                "setSearchActive(true)",
+                "barSearch.ask(SearchQuery(from = address), AddressNames())",
                 "}",
             ),
-            functionBody(SEARCH_VM, "fun searchFromHistory(text: String) {"),
+            functionBody(INBOX_VM, "fun openSearchFrom(address: String) {"),
         )
     }
 
@@ -253,14 +239,75 @@ class SearchHistoryWiringTest {
             "enabled = !searchHistoryEmpty," in code,
         )
         val confirm = code.indexOf("viewModel.clearSearchHistory()")
-        val dialog = code.subList(0, maxOf(confirm, 0)).lastIndexOf("AlertDialog(")
-        assertTrue(
-            "the clear must be the confirm button of its own dialog, not a direct tap",
-            confirm > 0 && dialog >= 0 &&
-                "title = { Text(stringResource(R.string.settings_search_history_clear_dialog_title)) }," in code.subList(dialog, confirm) &&
-                "confirmButton = {" in code.subList(dialog, confirm),
+        assertEquals(
+            "the clear must be the confirm of the shared dialog, not a direct tap",
+            listOf("ClearSearchHistoryDialog(", "onConfirm = {", "confirmClearHistory = false", "viewModel.clearSearchHistory()"),
+            if (confirm >= 3) code.subList(confirm - 3, confirm + 1) else code,
         )
         assertEquals(1, code.count { "viewModel.clearSearchHistory()" in it })
+    }
+
+    @Test fun `the one clear dialog asks with its title and confirms with its confirm button`() {
+        val body = functionBody(ROWS, "fun ClearSearchHistoryDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {")
+        assertEquals(
+            listOf(
+                "AlertDialog(",
+                "onDismissRequest = onDismiss,",
+                "title = { Text(stringResource(R.string.settings_search_history_clear_dialog_title)) },",
+                "text = { Text(stringResource(R.string.settings_search_history_clear_dialog_body)) },",
+                "confirmButton = {",
+                "TextButton(onClick = onConfirm) {",
+            ),
+            body.subList(1, minOf(7, body.size)),
+        )
+        assertEquals(
+            "a second copy of the dialog would drift from this one",
+            listOf("SearchHistoryRows.kt"),
+            sourceFiles("app/src/main/kotlin")
+                .filter { f -> codeLines(f).any { "settings_search_history_clear_dialog_title" in it } }
+                .map { it.name },
+        )
+    }
+
+    // -- the bar's recent searches: header, cross, and a tap that brings them back ---------------
+
+    @Test fun `the bar's Clear goes through the shared dialog, and nothing else clears`() {
+        val rows = functionBody(ROWS, "fun SearchHistoryRows(")
+        assertEquals(
+            listOf("ClearSearchHistoryDialog(", "onConfirm = {", "confirmClear = false", "onClear()"),
+            rows.indexOf("onClear()").let { if (it >= 3) rows.subList(it - 3, it + 1) else rows },
+        )
+        assertEquals(1, rows.count { "onClear" in it && "onClear: () -> Unit" !in it })
+        assertEquals(
+            listOf("fun clearSearchHistory() {", "viewModelScope.launch { searchHistory.clear() }", "}"),
+            functionBody(INBOX_VM, "fun clearSearchHistory() {"),
+        )
+        assertEquals(
+            listOf("viewModelScope.launch { searchHistory.remove(text) }"),
+            codeLines(INBOX_VM).filter { "searchHistory.remove" in it },
+        )
+    }
+
+    @Test fun `both places the bar shows its recent searches can remove one and clear them`() {
+        val code = codeLines(INBOX_SCREEN)
+        assertEquals(2, code.count { it.startsWith("SearchHistoryRows(") })
+        assertEquals(2, code.count { it == "onRemove = viewModel::removeFromSearchHistory," })
+        assertEquals(2, code.count { it == "onClear = viewModel::clearSearchHistory," })
+    }
+
+    @Test fun `a tap on the field brings the suggestions back, a focus request does not`() {
+        val code = codeLines(INBOX_SCREEN)
+        assertEquals(
+            "only a press on the field may reopen them: the bar requests focus by itself on every " +
+                "return from a message",
+            listOf("fieldInteractions.interactions.collect { if (it is PressInteraction.Release) viewModel.tapSearchField() }"),
+            code.filter { "tapSearchField" in it },
+        )
+        assertEquals(listOf("interactionSource = fieldInteractions,"), code.filter { "= fieldInteractions" in it })
+        assertEquals(
+            listOf("fun tapSearchField() {", "searchState.value = afterFieldTap(searchState.value)", "}"),
+            functionBody(INBOX_VM, "fun tapSearchField() {"),
+        )
     }
 
     // -- reading the files -----------------------------------------------------------------------
@@ -302,7 +349,7 @@ class SearchHistoryWiringTest {
         }
         val INBOX_VM: File by lazy { File(root, "$UI/inbox/InboxViewModel.kt") }
         val INBOX_SCREEN: File by lazy { File(root, "$UI/inbox/InboxScreen.kt") }
-        val SEARCH_VM: File by lazy { File(root, "$UI/search/SearchViewModel.kt") }
+        val ROWS: File by lazy { File(root, "$UI/search/SearchHistoryRows.kt") }
         val ACCOUNTS_VM: File by lazy { File(root, "$UI/settings/AccountsViewModel.kt") }
         val SETTINGS_VM: File by lazy { File(root, "$UI/settings/SettingsViewModel.kt") }
         val SETTINGS_SCREEN: File by lazy { File(root, "$UI/settings/SettingsScreen.kt") }

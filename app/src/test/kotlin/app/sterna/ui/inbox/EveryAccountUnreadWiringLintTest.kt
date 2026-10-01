@@ -53,13 +53,42 @@ class EveryAccountUnreadWiringLintTest {
     }
 
     @Test
-    fun `the search of every account's unread view searches every account`() {
+    fun `both legs of the search ask the accounts of the scope chip, never of the view`() {
         assertEquals(
-            "searchAccounts() must ask showsEveryAccount: 'is Sel.Unified' sends the search of the " +
-                "unread view of every account to the current account's server alone.",
-            "private fun searchAccounts(): List<AccountCredentials> = " +
-                "if (showsEveryAccount(selection.value)) store.allCredentials() else listOfNotNull(store.load())",
-            codeLines().dropWhile { !it.startsWith("private fun searchAccounts()") }.take(2).joinToString(" "),
+            "searchAccounts() must resolve the chip's scope with accountsInScope: reading " +
+                "showsEveryAccount(selection.value) here again sends 'This account' from 'All inboxes' " +
+                "to every account's server. The view only picks the value the chip opens with.",
+            "private fun searchAccounts(scope: SearchScope): List<AccountCredentials> = " +
+                "accountsInScope(scope, store::allCredentials, store::load)",
+            codeLines().dropWhile { !it.startsWith("private fun searchAccounts(") }.take(2).joinToString(" "),
+        )
+        assertEquals(
+            "Both legs must take the scope they were asked under and hand it to searchAccounts: the " +
+                "local one too, or the index answers from every account under 'This account'. Whole " +
+                "lines, arguments included.",
+            listOf(
+                "local = { criteria, scope -> repo.searchIndex(criteria, searchAccounts(scope).map { it.id }) },",
+                "server = { criteria, scope -> repo.search(searchAccounts(scope), criteria, SERVER_SEARCH_LIMIT) },",
+            ),
+            codeLines().filter { it.startsWith("local = { criteria") || it.startsWith("server = { criteria") },
+        )
+        assertEquals(
+            "The crawl walks the accounts of the scope it was launched for.",
+            listOf("searchAccounts(scope).forEach { runCatching { repo.syncSearchIndex(it, onPage = refresh) } }"),
+            codeLines().filter { "repo.syncSearchIndex(" in it },
+        )
+    }
+
+    @Test
+    fun `the search opens on the scope of the view it is opened from`() {
+        assertEquals(
+            "The bar opens on initialSearchScope of the selection in hand; a process death restores " +
+                "the scope kept, the view deciding only when none was.",
+            listOf(
+                "fun setSearchActive(active: Boolean) = openSearch(active, initialSearchScope(selection.value))",
+                "openSearch(true, savedSearchScope(read) ?: initialSearchScope(selection.value))",
+            ),
+            codeLines().filter { "initialSearchScope(" in it },
         )
     }
 

@@ -20,7 +20,7 @@ class FilterChipRowTest {
                 ),
                 enabled = true,
             ),
-            filterChipRow(unreadView = false, selectionActive = false, queryTyped = false, toggles = ListFilter(flaggedOnly = true)),
+            filterChipRow(unreadView = false, selectionActive = false, searching = false, toggles = ListFilter(flaggedOnly = true)),
         )
     }
 
@@ -36,7 +36,7 @@ class FilterChipRowTest {
             filterChipRow(
                 unreadView = true,
                 selectionActive = false,
-                queryTyped = false,
+                searching = false,
                 toggles = ListFilter(unreadOnly = true, withAttachment = true),
             ),
         )
@@ -58,21 +58,21 @@ class FilterChipRowTest {
             filterChipRow(
                 unreadView = false,
                 selectionActive = true,
-                queryTyped = false,
+                searching = false,
                 toggles = ListFilter(unreadOnly = true, withAttachment = true),
             ),
         )
     }
 
     @Test
-    fun `a typed query takes the chips away, an empty search field keeps them`() {
+    fun `an open search bar takes the list's chips away, its own row stands in their place`() {
         assertNull(
-            "Search results are not filtered by the toggles: a chip over them would promise a " +
-                "filter that does not apply.",
-            filterChipRow(unreadView = false, selectionActive = false, queryTyped = true, toggles = ListFilter(flaggedOnly = true)),
+            "One row of chips at a time: the search's row carries its own Unread, Starred and " +
+                "Has attachment, and search results are not filtered by the list's toggles.",
+            filterChipRow(unreadView = false, selectionActive = false, searching = true, toggles = ListFilter(flaggedOnly = true)),
         )
         assertEquals(
-            filterChipRow(unreadView = false, selectionActive = false, queryTyped = false, toggles = ListFilter.NONE),
+            filterChipRow(unreadView = false, selectionActive = false, searching = false, toggles = ListFilter.NONE),
             QuickFilterRow(
                 listOf(
                     QuickFilter(ListCriterion.UNREAD, false),

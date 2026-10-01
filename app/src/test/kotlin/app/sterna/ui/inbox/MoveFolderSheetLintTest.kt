@@ -6,18 +6,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
- * Source lint, because the three screens need an `Application` and Room. What the sheet shows is
- * executed in [MoveSuggestionsTest]; what is read here is that the three screens open the one
- * sheet, that the reader keeps no copy of it, and that the list screens' open sheet survives a
- * rotation.
+ * Source lint, because the two screens need an `Application` and Room. What the sheet shows is
+ * executed in [MoveSuggestionsTest]; what is read here is that the list (its search results
+ * included) and the reader open the one sheet, that the reader keeps no copy of it, and that the
+ * list's open sheet survives a rotation.
  */
 class MoveFolderSheetLintTest {
 
     /** The reader's sheet is not here: a rotation can swap its host, see `MoveSheetHostLintTest`. */
-    @Test fun `an open sheet and its query survive a rotation, in the two list screens`() {
+    @Test fun `an open sheet and its query survive a rotation, in the list and its search results`() {
         for ((screen, open) in listOf(
             INBOX_SCREEN to "var showMoveSheet by rememberSaveable { mutableStateOf(false) }",
-            SEARCH_SCREEN to "var showMoveSheet by rememberSaveable { mutableStateOf(false) }",
         )) {
             val name = open.substringAfter("var ").substringBefore(" by")
             assertEquals(
@@ -34,7 +33,7 @@ class MoveFolderSheetLintTest {
     }
 
     @Test fun `a sheet restored without its selection is closed, not drawn empty`() {
-        for (screen in listOf(INBOX_SCREEN, SEARCH_SCREEN)) {
+        for (screen in listOf(INBOX_SCREEN)) {
             val lines = codeLines(screen)
             val guard = "if (showMoveSheet && selectedKeys.isEmpty()) showMoveSheet = false"
             assertEquals(
@@ -51,8 +50,8 @@ class MoveFolderSheetLintTest {
         }
     }
 
-    @Test fun `the three screens open the one sheet, under their own flag`() {
-        for ((screen, flag) in listOf(INBOX_SCREEN to "if (showMoveSheet) {", SEARCH_SCREEN to "if (showMoveSheet) {", MESSAGE_SCREEN to "if (movePicker) {")) {
+    @Test fun `the two screens open the one sheet, under their own flag`() {
+        for ((screen, flag) in listOf(INBOX_SCREEN to "if (showMoveSheet) {", MESSAGE_SCREEN to "if (movePicker) {")) {
             val lines = codeLines(screen)
             val opens = lines.indices.filter { lines[it].startsWith("MoveFolderSheet(") }
             assertEquals("${screen.name} must call MoveFolderSheet exactly once", 1, opens.size)
@@ -130,7 +129,6 @@ class MoveFolderSheetLintTest {
                 ?: error("cannot locate the repo root from ${File("").absolutePath}")
         }
         val INBOX_SCREEN: File by lazy { File(root, "$UI/inbox/InboxScreen.kt") }
-        val SEARCH_SCREEN: File by lazy { File(root, "$UI/search/SearchScreen.kt") }
         val MESSAGE_SCREEN: File by lazy { File(root, "$UI/message/MessageScreen.kt") }
         val MOVE_SHEET: File by lazy { File(root, "$UI/inbox/MoveFolderSheet.kt") }
         val PICKER_ROWS: File by lazy { File(root, "$UI/inbox/FolderPickerRows.kt") }

@@ -6,8 +6,8 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, the last resort: neither the composer's nor the search screen's ViewModel and screen
- * are instantiable on the JVM. It pins the arguments they hand the recipient menu: the sender read
+ * Source lint, the last resort: neither the composer's nor the inbox's ViewModel, which holds the
+ * search's Filters sheet, nor their screens are instantiable on the JVM. It pins the arguments they hand the recipient menu: the sender read
  * from the picked "From" without decrypting any credential, local sources only, the server book fed
  * whatever the contacts setting, her own addresses from every account, the chips of all three
  * fields, the menu retired on a sender switch, and one shared `Popup` for both screens. What the menu
@@ -28,8 +28,8 @@ class RecipientSuggestionsWiringTest {
     private val viewModel: List<String> by lazy { source("ComposeViewModel.kt") }
     private val screen: List<String> by lazy { source("ComposeScreen.kt") }
     private val menu: List<String> by lazy { source("RecipientSuggestionMenu.kt") }
-    private val searchViewModel: List<String> by lazy { source("SearchViewModel.kt", dir = "search") }
-    private val searchScreen: List<String> by lazy { source("SearchScreen.kt", dir = "search") }
+    private val searchViewModel: List<String> by lazy { source("InboxViewModel.kt", dir = "inbox") }
+    private val searchScreen: List<String> by lazy { source("SearchFilterSheet.kt", dir = "search") }
 
     /** The lines from the one starting with [start] to where its braces close, or its parentheses too with [parens]. */
     private fun block(code: List<String>, start: String, parens: Boolean = false): List<String> {
@@ -201,7 +201,7 @@ class RecipientSuggestionsWiringTest {
             searchViewModel.filter { "AndroidContacts" in it && !it.startsWith("import ") },
         )
         assertEquals(
-            "the search screen never asks for the contacts permission",
+            "the search's Filters sheet never asks for the contacts permission",
             emptyList<String>(),
             (searchViewModel + searchScreen).filter { "permission" in it.lowercase() },
         )
@@ -210,8 +210,32 @@ class RecipientSuggestionsWiringTest {
     @Test fun `in search the menu shows under the focused field only, and a pick goes through the replacing one`() {
         assertEquals(1, searchScreen.count { it.startsWith("RecipientSuggestionMenu(") })
         assertEquals(
-            listOf("onPick = { contact -> viewModel.pickAddress(field, contact) },"),
+            listOf(
+                "onPick = { picked(AddressField.FROM, it) },",
+                "onPick = { picked(AddressField.RECIPIENT, it) },",
+                "onPick = onPick,",
+            ),
             searchScreen.filter { it.startsWith("onPick =") },
+        )
+        assertEquals(
+            listOf(
+                "fun picked(field: AddressField, contact: ContactSuggestion) {",
+                "val next = viewModel.pickAddress(field, contact, draft)",
+                "from = next.from",
+                "recipient = next.recipient",
+                "named = named.picked(field, contact)",
+                "}",
+            ),
+            block(searchScreen, "fun picked("),
+        )
+        assertEquals(
+            listOf(
+                "val applied = sheetFields(from, recipient, subject, since, until, named)",
+                "val draft = applied.query",
+                "onValueChange = { edited(AddressField.FROM, it) },",
+                "onValueChange = { edited(AddressField.RECIPIENT, it) },",
+            ),
+            searchScreen.filter { it.startsWith("val applied =") || it.startsWith("val draft =") || it.startsWith("onValueChange = { edited(") },
         )
         assertEquals(
             listOf(
@@ -221,7 +245,12 @@ class RecipientSuggestionsWiringTest {
             searchScreen.filter { it.startsWith("suggestions = suggestionsUnder(") },
         )
         assertEquals(
-            listOf("internal fun pickAddress(field: AddressField, contact: ContactSuggestion) {", "updateQuery(_form.value.query.withAddress(field, contact))", "addresses.picked()", "}"),
+            listOf(
+                "internal fun pickAddress(field: AddressField, contact: ContactSuggestion, sheet: SearchQuery): SearchQuery {",
+                "addresses.picked()",
+                "return sheet.withAddress(field, contact)",
+                "}",
+            ),
             block(searchViewModel, "internal fun pickAddress("),
         )
     }

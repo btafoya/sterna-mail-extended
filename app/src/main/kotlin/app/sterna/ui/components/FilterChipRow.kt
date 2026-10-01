@@ -26,12 +26,13 @@ data class FilterChipEntry(
     val onClick: () -> Unit,
 )
 
-/** A row of toggle chips that scrolls sideways when the labels outgrow the width. */
+/** A row of toggle chips, then [trailing], that scrolls sideways when it outgrows the width. */
 @Composable
 fun FilterChipRow(
     entries: List<FilterChipEntry>,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+    trailing: @Composable () -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -54,5 +55,6 @@ fun FilterChipRow(
                 },
             )
         }
+        trailing()
     }
 }

@@ -1,6 +1,7 @@
 package app.sterna.ui.search
 
 import app.sterna.core.data.mail.MailSearchResult
+import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.Email
 import app.sterna.ui.components.rowPreviewText
 import app.sterna.ui.inbox.SearchUi
@@ -12,7 +13,7 @@ import java.io.File
 
 /**
  * The passage a server search found, from the repository's answer to the line under a result, on
- * both screens that draw server results: the search screen and the inbox's search bar.
+ * the one surface that draws server results, the inbox's search bar.
  */
 class SearchExcerptOnScreenTest {
 
@@ -31,13 +32,14 @@ class SearchExcerptOnScreenTest {
         assertEquals(2, byKey.size)
     }
 
-    @Test fun `a new query in the inbox bar drops the previous query's excerpts`() {
-        val searched = SearchUi(active = true, query = "invoice", excerpts = mapOf("accA|M42" to "the invoice"))
+    @Test fun `new criteria in the inbox bar drop the previous search's excerpts, a chip alone included`() {
+        val searched = SearchUi(active = true, criteria = SearchQuery(text = "invoice"), excerpts = mapOf("accA|M42" to "the invoice"))
 
-        val next = searched.forQuery("receipt")
-
+        val next = searched.forCriteria(SearchQuery(text = "receipt"))
         assertEquals("receipt", next.query)
         assertTrue(next.excerpts.isEmpty())
+
+        assertTrue(searched.forCriteria(SearchQuery(text = "invoice", unread = true)).excerpts.isEmpty())
     }
 
     @Test fun `closing the inbox bar leaves no excerpt behind`() {
@@ -59,27 +61,32 @@ class SearchExcerptOnScreenTest {
 
     // ---- the wiring the JVM cannot run: the ViewModels and the composables ----
 
-    @Test fun `the search screen's results carry the excerpts of the answer they come from`() {
-        val vm = read("app/src/main/kotlin/app/sterna/ui/search/SearchViewModel.kt")
-        assertTrue(vm.contains("SearchState.Results(query, result.emails, result.complete, excerptsByResultKey(result))"))
-    }
-
-    @Test fun `the inbox bar takes the server leg's excerpts and resets them with each query`() {
+    @Test fun `the inbox bar takes the server leg's excerpts and resets them with each change of criteria`() {
+        val run = read("app/src/main/kotlin/app/sterna/ui/inbox/BarSearch.kt")
+        val body = run.substring(run.indexOf("fun ask("), run.indexOf("suspend fun refreshLocal("))
+        assertEquals("both branches of ask start from forCriteria", 2, Regex("""state\.value\.forCriteria\(criteria\)""").findAll(body).count())
+        assertTrue(body.contains("excerpts = excerptsByResultKey(found),"))
         val vm = read("app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
-        val body = vm.substring(vm.indexOf("fun setSearchQuery("), vm.indexOf("private fun searchAccounts("))
-        assertEquals("both branches of setSearchQuery start from forQuery", 2, Regex("""searchState\.value\.forQuery\(query\)""").findAll(body).count())
-        assertTrue(body.contains("excerpts = excerptsByResultKey(server)"))
         assertTrue(vm.contains("searchExcerpts = search.excerpts,"))
     }
 
-    @Test fun `both screens hand each row its own excerpt, and the row draws it in the preview slot`() {
-        val screen = read("app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt")
-        assertTrue(screen.contains("excerpt = s.excerpts[searchResultKey(email)],"))
+    @Test fun `the bar hands each row its own excerpt, and the row draws it in the preview slot`() {
         val inbox = read("app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt")
         assertTrue(inbox.contains("excerpt = if (fromSearch) ui.searchExcerpts[searchResultKey(email)] else null,"))
         assertTrue(inbox.contains("excerpt = excerpt,"))
         val row = read("app/src/main/kotlin/app/sterna/ui/components/EmailListItem.kt")
         assertTrue(row.contains("rowPreviewText(email.preview, excerpt)?.let"))
+    }
+
+    @Test fun `the bar's words reach every search row, and only search rows, and the row highlights them`() {
+        val inbox = read("app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt")
+        assertTrue(inbox.contains("val searchWords = remember(ui.searchQuery) { searchTerms(ui.searchQuery) }"))
+        assertTrue(inbox.contains("searchTerms = if (fromSearch) searchWords else emptyList(),"))
+        assertTrue(inbox.contains("searchTerms = searchTerms,"))
+        val row = read("app/src/main/kotlin/app/sterna/ui/components/EmailListItem.kt")
+        assertTrue(row.contains("searchTerms: List<String> = emptyList(),"))
+        assertTrue(row.contains("highlightTerms(preview, searchTerms, SpanStyle(color = accent, fontWeight = FontWeight.Bold))"))
+        assertTrue(row.contains("text = shown,"))
     }
 
     private fun read(relative: String): String {

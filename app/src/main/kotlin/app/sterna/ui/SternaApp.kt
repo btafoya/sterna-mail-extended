@@ -74,7 +74,6 @@ import app.sterna.ui.scheduled.ScheduledSendsScreen
 import app.sterna.ui.scheduled.draftsLandingAccountSwitch
 import app.sterna.ui.sender.MailBySenderScreen
 import app.sterna.ui.snoozed.SnoozedScreen
-import app.sterna.ui.search.SearchScreen
 import app.sterna.ui.onboarding.WelcomeScreen
 import app.sterna.ui.settings.FolderManagementScreen
 import app.sterna.ui.settings.SettingsScreen
@@ -436,8 +435,6 @@ private fun MainNavHost(
                 },
                 onOpenSettings = { entry.navigateOnce { nav.navigate("settings") } },
                 onManageFolders = { entry.navigateOnce { nav.navigate("folders?accountId=${Uri.encode(currentAccountId)}") } },
-                // The words already typed in the search bar travel with the navigation.
-                onOpenSearch = { q -> entry.navigateOnce { nav.navigate("search?q=${Uri.encode(q)}") } },
                 onOpenScheduled = { entry.navigateOnce { nav.navigate("scheduled") } },
                 onOpenSnoozed = { entry.navigateOnce { nav.navigate("snoozed") } },
                 onOpenOutbox = { entry.navigateOnce { nav.navigate("outbox") } },
@@ -652,33 +649,6 @@ private fun MainNavHost(
             }
         }
         composable(
-            route = "search?q={q}&from={from}",
-            // Read straight from the entry's SavedStateHandle, so both survive a process death.
-            // Each fills its field; neither runs the search.
-            arguments = listOf(
-                navArgument("q") { type = NavType.StringType; nullable = true; defaultValue = null },
-                navArgument("from") { type = NavType.StringType; nullable = true; defaultValue = null },
-            ),
-        ) { entry ->
-            val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
-            val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
-            SearchScreen(
-                onBack = { entry.navigateOnce { nav.popBackStack() } },
-                onOpenEmail = { id, accountId ->
-                    entry.navigateOnce {
-                        inboxViewModel.startFreshReading()
-                        nav.navigate("message/${Uri.encode(id)}?accountId=${Uri.encode(accountId.orEmpty())}")
-                    }
-                },
-                onEditDraft = { id, accountId ->
-                    entry.navigateOnce {
-                        nav.navigate("compose?draftId=${Uri.encode(id)}&accountId=${Uri.encode(accountId.orEmpty())}")
-                    }
-                },
-                inbox = inboxViewModel,
-            )
-        }
-        composable(
             route = "settings?accountId={accountId}",
             arguments = listOf(
                 navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -755,10 +725,17 @@ private fun MainNavHost(
             )
         }
         composable("bysender") { entry ->
+            val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
+            val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
             MailBySenderScreen(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
+                // The address becomes the search's From, in the list's own search bar, which lives
+                // on the inbox entry: its ViewModel keeps the criteria across a process death.
                 onOpenSearch = { from ->
-                    entry.navigateOnce { nav.navigate("search?from=${Uri.encode(from)}") }
+                    entry.navigateOnce {
+                        inboxViewModel.openSearchFrom(from)
+                        nav.popBackStack("inbox", inclusive = false)
+                    }
                 },
             )
         }

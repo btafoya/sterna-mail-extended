@@ -36,7 +36,6 @@ import app.sterna.core.data.mail.ImapMailService
 import app.sterna.core.data.mail.InboxRow
 import app.sterna.core.data.mail.ListFilter
 import app.sterna.core.data.mail.MailRepository
-import app.sterna.core.data.mail.MailSearchResult
 import app.sterna.core.data.mail.UidValidity
 import app.sterna.core.data.mail.deleteDestroysMessage
 import app.sterna.core.data.mail.emailKey
@@ -48,18 +47,34 @@ import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.send.SendOutbox
 import app.sterna.ui.NotificationFolderSwitch
+import app.sterna.contacts.AndroidContacts
+import app.sterna.contacts.ContactSuggestion
+import app.sterna.ui.compose.RecipientSuggester
+import app.sterna.ui.compose.ownAddresses
 import app.sterna.ui.message.MoveSheetOpen
 import app.sterna.ui.message.SignatureSheetOpen
-import app.sterna.ui.search.CriteriaResults
+import app.sterna.ui.search.AddressField
+import app.sterna.ui.search.AddressNames
+import app.sterna.ui.search.AddressSuggestions
 import app.sterna.ui.snoozed.pendingSnoozes
 import app.sterna.ui.search.SearchDisplay
-import app.sterna.ui.search.excerptsByResultKey
+import app.sterna.ui.search.SearchField
+import app.sterna.ui.search.SearchToggle
+import app.sterna.ui.search.afterFieldTap
 import app.sterna.ui.search.barSuggestions
-import app.sterna.ui.search.forQuery
-import app.sterna.ui.search.searchComplete
+import app.sterna.ui.search.loadSearchRecipientPool
+import app.sterna.ui.search.savedSearch
+import app.sterna.ui.search.savedSearchActive
+import app.sterna.ui.search.savedSearchCriteria
+import app.sterna.ui.search.savedSearchNames
+import app.sterna.ui.search.savedSearchScope
+import app.sterna.ui.search.searchAsked
 import app.sterna.ui.search.searchDisplay
+import app.sterna.ui.search.withAddress
+import app.sterna.ui.search.withFieldsOf
 import app.sterna.widget.AllInboxesView
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -71,6 +86,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -132,7 +148,13 @@ data class MailUi(
     val offline: Boolean = false,
     /** Inline search-on-the-list state. */
     val searching: Boolean = false,
+    /** The words of the search bar, [searchCriteria]'s text. */
     val searchQuery: String = "",
+    /** Everything the search asks, its words, chips and sheet fields. */
+    val searchCriteria: SearchQuery = SearchQuery(),
+    /** The names the address criteria show in place of their addresses. */
+    val searchNames: AddressNames = AddressNames(),
+    val searchScope: SearchScope = SearchScope.THIS_ACCOUNT,
     val searchLoading: Boolean = false,
     val sortOrder: SortOrder = SortOrder.DATE_DESC,
     /** The filters as the user set them; the list shows [listFilter] of them. */
@@ -164,21 +186,6 @@ private data class Base(
     /** Folded in after the five-flow combine below, from [refreshIndicatorVisibility]. */
     val showRefreshIndicator: Boolean = false,
 )
-
-internal data class SearchUi(
-    val active: Boolean = false,
-    val query: String = "",
-    val results: List<Email>? = null,
-    val loading: Boolean = false,
-    /** False when the server leg stopped short, its cap, or an account that failed and was
-     *  dropped. The count then says "at least N" (see [app.sterna.core.data.mail.MailSearchResult]). */
-    val complete: Boolean = true,
-    val excerpts: Map<String, String> = emptyMap(),
-    val typing: Boolean = false,
-)
-
-/** Typing pause before the (unioned-in) server full-text search fires; local FTS has no debounce. */
-private const val SERVER_SEARCH_DEBOUNCE_MS = 350L
 
 /** Max hits requested from the server search (per query). */
 private const val SERVER_SEARCH_LIMIT = 200
@@ -217,7 +224,8 @@ private const val SIGNATURE_SHEET = "signatureSheet.openFor"
 
 /**
  * Built by the framework through `SavedStateViewModelFactory`. The handle is the "inbox" entry's
- * own and survives process death; it carries the pane's anchor (#103) and the reader's open sheets.
+ * own and survives process death; it carries the reading pane's anchor (#103), the open search
+ * and the reader's open sheets.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModel(
@@ -641,7 +649,7 @@ class InboxViewModel(
     }
 
     // ---- search-results snapshot patching ----
-    // Static snapshots, the bar's and the advanced search's: every removal goes through [SelectionSources].
+    // Static snapshots, the bar's among them: every removal goes through [SelectionSources].
     private val searchRemoved = RemovedRows()
 
     /** Remove [keys] from the search-results snapshots, stashing them for a possible Undo. */
@@ -850,7 +858,6 @@ class InboxViewModel(
 
     /** Above [selectionActive], whose initializer reads it. */
     private val sources = SelectionSources(barResults)
-    private var searchJob: Job? = null
 
     /** Seeds the local full-text index from cache when a search opens; the first query joins it. */
     private var indexJob: Job? = null
@@ -871,10 +878,6 @@ class InboxViewModel(
 
     val selectionActive: StateFlow<Boolean> =
         combine(_selectionActive, sources.origin) { active, origin -> selectionShownOn(active, origin, SelectionOrigin.LIST) }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    val shownSelectionActive: StateFlow<Boolean> =
-        combine(_selectionActive, sources.origin) { active, origin -> selectionShownOn(active, origin, SelectionOrigin.CRITERIA) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
@@ -1153,6 +1156,9 @@ class InboxViewModel(
             offline = !online,
             searching = search.active,
             searchQuery = search.query,
+            searchCriteria = search.criteria,
+            searchNames = search.names,
+            searchScope = search.scope,
             searchLoading = search.loading,
             sortOrder = sortOrder,
             filterToggles = toggles,
@@ -2380,7 +2386,7 @@ class InboxViewModel(
         viewModelScope.launch {
             val all = selectAllKeys(
                 searching = search.active,
-                query = search.query,
+                criteria = search.criteria,
                 results = search.results?.map { it.emailKey() },
                 loading = search.loading,
                 complete = search.complete,
@@ -2389,28 +2395,6 @@ class InboxViewModel(
             // All by hand: a folder read holds only the viewed folders, which no rule spares, nor a search.
             writeTicks(SelectionTicks(all))
         }
-    }
-
-    /** Idempotent: a rotation re-attaches the same instance. */
-    fun attachShownResults(results: CriteriaResults) {
-        sources.attach(results)
-        results.whenGone {
-            if (sources.detach(results)) clearSelection()
-        }
-    }
-
-    /** A long press on an advanced search result. The origin first: the keys' collectors read it. */
-    fun enterShownSelection(email: Email) {
-        if (isLocalDraftRow(email.id)) return
-        sources.startOn(SelectionOrigin.CRITERIA)
-        enterSelection(email)
-    }
-
-    fun selectAllShown() {
-        sources.startOn(SelectionOrigin.CRITERIA)
-        _selectionActive.value = true
-        val all = sources.shownKeys()
-        writeTicks(SelectionTicks(all))
     }
 
     fun clearSelection() {
@@ -3203,10 +3187,24 @@ class InboxViewModel(
 
     // ---- inline search ----
 
-    fun setSearchActive(active: Boolean) {
-        searchJob?.cancel()
+    private val barSearch = BarSearch(
+        scope = viewModelScope,
+        state = searchState,
+        removed = searchRemoved,
+        indexReady = { indexJob?.join() },
+        local = { criteria, scope -> repo.searchIndex(criteria, searchAccounts(scope).map { it.id }) },
+        server = { criteria, scope -> repo.search(searchAccounts(scope), criteria, SERVER_SEARCH_LIMIT) },
+    )
+
+    /** The reach of the last crawl launched, so that widening the scope crawls the other accounts. */
+    private var crawlScope: SearchScope? = null
+
+    fun setSearchActive(active: Boolean) = openSearch(active, initialSearchScope(selection.value))
+
+    private fun openSearch(active: Boolean, scope: SearchScope) {
+        barSearch.cancel()
         searchRemoved.clear()
-        searchState.value = if (active) SearchUi(active = true) else SearchUi()
+        searchState.value = if (active) SearchUi(active = true, scope = scope) else SearchUi()
         if (!active) {
             // Deliberately don'T cancel the crawl: on a large mailbox it needs to run to completion,
             // and it is throttled + idempotent. Only the live query stops here.
@@ -3216,78 +3214,59 @@ class InboxViewModel(
         // mailbox's headers into the index in the background. The crawl walks newest→oldest and
         // merges after each page; merges only ever add, so nothing flickers away.
         indexJob = viewModelScope.launch { runCatching { repo.seedIndexFromCache() } }
-        // Guard against a second concurrent crawl if search is reopened while one is still running.
-        if (crawlJob?.isActive == true) return
+        crawlSearchIndex(scope)
+    }
+
+    /**
+     * No second crawl beside one in flight that already covers [scope]; one that does not is
+     * chained after it, never run beside it. `syncSearchIndex` skips an account crawled within its TTL.
+     */
+    private fun crawlSearchIndex(scope: SearchScope) {
+        val covered = crawlScope == SearchScope.ALL_ACCOUNTS || scope == SearchScope.THIS_ACCOUNT
+        if (crawlJob?.isActive == true && covered) return
+        val before = crawlJob
+        crawlScope = scope
         crawlJob = viewModelScope.launch {
-            val refresh: suspend () -> Unit = {
-                searchState.value.query.takeIf { it.isNotBlank() }?.let { q ->
-                    val local = runCatching { repo.searchIndex(q) }.getOrNull()
-                    if (local != null && searchState.value.query == q) {
-                        searchState.value = searchState.value.copy(
-                            results = mergeHits(searchState.value.results.orEmpty(), local),
-                        )
-                    }
-                }
-            }
-            searchAccounts().forEach { runCatching { repo.syncSearchIndex(it, onPage = refresh) } }
+            before?.join()
+            val refresh: suspend () -> Unit = { barSearch.refreshLocal() }
+            searchAccounts(scope).forEach { runCatching { repo.syncSearchIndex(it, onPage = refresh) } }
             refresh()
         }
     }
 
+    /** The scope chip: relaunched like a chip, the server leg after the same pause. */
+    fun toggleSearchScope() {
+        val scope = searchState.value.scope.flipped()
+        barSearch.scope(scope)
+        if (scope == SearchScope.ALL_ACCOUNTS) crawlSearchIndex(scope)
+    }
+
+    /** The words of the bar, the chips and the sheet's fields kept. */
     fun setSearchQuery(query: String) {
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            searchState.value = searchState.value.forQuery(query).copy(results = null, loading = false)
-            return
-        }
-        searchState.value = searchState.value.forQuery(query).copy(loading = true, complete = true)
-        searchJob = viewModelScope.launch {
-            // 1) Local FTS first: instant on every keystroke, offline, accent-folded, prefix-matched
-            //    ("eco*" finds écologie/écologique/…), over the header index of the whole mailbox.
-            indexJob?.join()
-            // A failed local index gets the same treatment as a failed server leg below: a leg of
-            // the answer that didn't run. A locked or damaged FTS table (the ground of #71) dropped
-            // every hit only this index finds, in silence, under a count calling itself a total.
-            var localComplete = true
-            val local = runCatching { repo.searchIndex(query) }.getOrElse { error ->
-                if (error is CancellationException) throw error
-                localComplete = false
-                emptyList()
-            }
-            if (searchState.value.query != query) return@launch
-            searchState.value = searchState.value.copy(
-                results = local.filterNot { it.emailKey() in searchRemoved },
-                loading = true,
-                complete = localComplete,
-            )
-            // 2) Server full-text after a short typing pause: the server's index sees message bodies
-            //    and the whole archive. Union only, server hits can add to what's shown, never
-            //    remove it; cancellation plus the current-query check discard stale responses.
-            delay(SERVER_SEARCH_DEBOUNCE_MS)
-            // A failed server leg (or one that dropped an unreachable account) must not pass for
-            // a complete answer: the count says "at least N" instead of a total it can't back.
-            val server = runCatching {
-                repo.search(searchAccounts(), SearchQuery(text = query), SERVER_SEARCH_LIMIT)
-            }.getOrElse { error ->
-                if (error is CancellationException) throw error
-                MailSearchResult(emptyList(), complete = false)
-            }
-            if (searchState.value.query == query) {
-                searchState.value = searchState.value.copy(
-                    results = mergeHits(searchState.value.results.orEmpty(), server.emails),
-                    loading = false,
-                    // Both legs must have run to the end for this to be a total; a good server
-                    // answer doesn't undo a local index that fell over.
-                    complete = searchComplete(local = localComplete, server = server.complete),
-                    excerpts = excerptsByResultKey(server),
-                )
-            }
-        }
+        barSearch.ask(searchState.value.criteria.copy(text = query), searchState.value.names)
     }
 
     fun typeSearchQuery(query: String) {
         setSearchQuery(query)
         searchState.value = searchState.value.copy(typing = true)
+    }
+
+    fun toggleSearchCriterion(toggle: SearchToggle) = barSearch.toggle(toggle)
+
+    fun retrySearchServer() = barSearch.retryServer()
+
+    fun removeSearchCriterion(field: SearchField) = barSearch.remove(field)
+
+    /** The Filters sheet's Apply and Clear all: its five fields and their names, over the words and chips of now. */
+    fun applySearchFields(sheet: SearchQuery, names: AddressNames) {
+        barSearch.ask(searchState.value.criteria.withFieldsOf(sheet), names)
+    }
+
+    /** "Search this sender" from the mail-by-sender screen: the bar opens with From set, alone. */
+    fun openSearchFrom(address: String) {
+        clearSelection()
+        setSearchActive(true)
+        barSearch.ask(SearchQuery(from = address), AddressNames())
     }
 
     fun recordSearch() {
@@ -3302,22 +3281,86 @@ class InboxViewModel(
         recordSearch()
     }
 
+    fun tapSearchField() {
+        searchState.value = afterFieldTap(searchState.value)
+    }
+
+    fun removeFromSearchHistory(text: String) {
+        viewModelScope.launch { searchHistory.remove(text) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistory.clear() }
+    }
+
     val searchSuggestions: StateFlow<List<String>> =
         combine(searchHistory.offered, searchState, selectionActive) { kept, search, selecting ->
             barSuggestions(kept, search, selecting)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** The accounts the current view searches over: all of them in a view of every account. */
-    private fun searchAccounts(): List<AccountCredentials> =
-        if (showsEveryAccount(selection.value)) store.allCredentials() else listOfNotNull(store.load())
+    private fun searchAccounts(scope: SearchScope): List<AccountCredentials> =
+        accountsInScope(scope, store::allCredentials, store::load)
 
-    /** Union of two hit lists (by account+id), newest first. Rows the user just removed stay out:
-     *  the FTS index and the server both still know an evicted message (see [searchRemoved]). */
-    private fun mergeHits(a: List<Email>, b: List<Email>): List<Email> =
-        (a + b).distinctBy { it.accountId to it.id }
-            .filterNot { it.emailKey() in searchRemoved }
-            // receivedAt is an ISO-8601 UTC string, so lexicographic sort == chronological.
-            .sortedByDescending { it.receivedAt ?: "" }
+    // ---- the Filters sheet's address suggestions ----
+
+    private val contactsEnabled =
+        settings.contactSuggestions.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val recipients = RecipientSuggester(
+        scope = viewModelScope,
+        sender = { null },
+        loadPool = {
+            loadSearchRecipientPool(
+                accountIds = store.accounts().map { it.id },
+                sent = repo.sending::sentContacts,
+                received = repo.sending::receivedContacts,
+                serverBook = repo.accounts::serverBook,
+                device = if (contactsEnabled.value) {
+                    { withContext(Dispatchers.IO) { AndroidContacts.all(getApplication()) } }
+                } else {
+                    null
+                },
+                selves = ownAddresses(store.accounts(), store::identities),
+            )
+        },
+        work = Dispatchers.Default,
+    )
+    private val addresses = AddressSuggestions(recipients)
+    internal val addressSuggestions: StateFlow<List<ContactSuggestion>> = addresses.suggestions
+    internal val addressFocus: StateFlow<AddressField?> = addresses.focused
+
+    internal fun addressFocused(field: AddressField, value: String) = addresses.focusGained(field, value)
+
+    internal fun addressTyped(field: AddressField, value: String) = addresses.typed(field, value)
+
+    internal fun addressLeft(field: AddressField) = addresses.focusLost(field)
+
+    /** A pick fills the sheet's field; the search runs at Apply, like the field typed by hand. */
+    internal fun pickAddress(field: AddressField, contact: ContactSuggestion, sheet: SearchQuery): SearchQuery {
+        addresses.picked()
+        return sheet.withAddress(field, contact)
+    }
+
+    internal fun dismissAddressSuggestions() = addresses.picked()
+
+    private val addressSourcesFollowed: Job =
+        viewModelScope.launch { contactsEnabled.drop(1).collect { addresses.sourcesChanged() } }
+
+    /**
+     * Not an `init`, which the lints hold to one, and last in the class so every field above is set:
+     * a search open when the process died opens again and runs its criteria again, rather than come
+     * back to a bar with no results. Then every change of the search is written back.
+     */
+    private val searchKept: Job = viewModelScope.launch {
+        val read: (String) -> Any? = { savedState[it] }
+        if (savedSearchActive(read)) {
+            openSearch(true, savedSearchScope(read) ?: initialSearchScope(selection.value))
+            barSearch.ask(savedSearchCriteria(read), savedSearchNames(read))
+        }
+        searchState.collect { search ->
+            savedSearch(search.active, search.criteria, search.scope, search.names).forEach { (key, value) -> savedState[key] = value }
+        }
+    }
 
     private data class Status(val refreshing: Boolean, val error: String?)
 
@@ -3413,14 +3456,14 @@ internal fun folderRolesFlow(
 
 internal fun selectAllKeys(
     searching: Boolean,
-    query: String,
+    criteria: SearchQuery,
     results: List<EmailKey>?,
     loading: Boolean,
     complete: Boolean,
     folderKeys: List<EmailKey>,
 ): Set<EmailKey> {
     val shown = results.orEmpty()
-    val onScreen = searching && query.isNotBlank() &&
+    val onScreen = searchAsked(searching, criteria) &&
         searchDisplay(shown.size, loading, complete) == SearchDisplay.RESULTS
     return if (onScreen) shown.toSet() else folderKeys.toSet()
 }

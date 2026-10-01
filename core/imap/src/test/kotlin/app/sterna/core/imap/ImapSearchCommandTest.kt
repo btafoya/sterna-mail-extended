@@ -82,6 +82,20 @@ class ImapSearchCommandTest {
     }
 
     @Test
+    fun `unread alone becomes a bare UNSEEN key`() {
+        val command = buildImapSearch(ImapSearchCriteria(unread = true))
+        assertEquals("UNSEEN", command.keys)
+        assertFalse(command.needsUtf8)
+    }
+
+    @Test
+    fun `an unticked unread switch emits no UNSEEN key`() {
+        val command = keys(ImapSearchCriteria(from = "alex@masto.top", unread = false))
+        assertEquals("""FROM "alex@masto.top"""", command)
+        assertFalse(command.contains("UNSEEN"))
+    }
+
+    @Test
     fun `after becomes SINCE with an english day-month-year date`() {
         assertEquals("SINCE 1-Jun-2026", keys(ImapSearchCriteria(afterMillis = dayMillis(2026, 6, 1))))
     }
@@ -108,6 +122,7 @@ class ImapSearchCommandTest {
                 recipient = "team@masto.top",
                 subject = "Half written",
                 flagged = true,
+                unread = true,
                 afterMillis = dayMillis(2026, 6, 1),
                 beforeMillis = endOfDayMillis(2026, 6, 15),
             ),
@@ -144,12 +159,13 @@ class ImapSearchCommandTest {
                 recipient = "team@masto.top",
                 subject = "facture",
                 flagged = true,
+                unread = true,
                 afterMillis = dayMillis(2026, 6, 1),
                 beforeMillis = endOfDayMillis(2026, 6, 15),
             ),
         )
         assertEquals(
-            """FLAGGED FROM "alex@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
+            """FLAGGED UNSEEN FROM "alex@masto.top" OR TO "team@masto.top" CC "team@masto.top" """ +
                 """SUBJECT "facture" SINCE 1-Jun-2026 BEFORE 16-Jun-2026 TEXT "invoice"""",
             command.keys,
         )

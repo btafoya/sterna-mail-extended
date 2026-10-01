@@ -51,12 +51,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.jmap.model.Email
+import app.sterna.ui.search.highlightTerms
 import app.sterna.util.MailDates
 import kotlinx.coroutines.delay
 
@@ -166,6 +168,7 @@ fun EmailListItem(
     // Whether to mark the row as a draft this phone is still holding for the server (#95).
     showNotUploadedBadge: Boolean = false,
     excerpt: String? = null,
+    searchTerms: List<String> = emptyList(),
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
@@ -308,8 +311,12 @@ fun EmailListItem(
             }
             if (previewLines > 0) {
                 rowPreviewText(email.preview, excerpt)?.let { preview ->
+                    val accent = MaterialTheme.colorScheme.primary
+                    val shown = remember(preview, searchTerms, accent) {
+                        highlightTerms(preview, searchTerms, SpanStyle(color = accent, fontWeight = FontWeight.Bold))
+                    }
                     Text(
-                        text = preview,
+                        text = shown,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = previewLines,

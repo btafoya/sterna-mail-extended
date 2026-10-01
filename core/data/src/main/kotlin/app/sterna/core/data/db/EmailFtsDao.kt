@@ -89,6 +89,11 @@ interface EmailFtsDao {
             "fromName, fromEmail, seen, flagged, hasAttachment " +
             "FROM email_fts WHERE email_fts MATCH :match " +
             "AND (:accountScopeCount = 0 OR email_fts.accountId IN (:accountIds)) " +
+            "AND (:unreadOnly = 0 OR email_fts.seen = 0) " +
+            "AND (:flaggedOnly = 0 OR email_fts.flagged = 1) " +
+            "AND (:attachmentOnly = 0 OR email_fts.hasAttachment = 1) " +
+            "AND (:sinceMillis IS NULL OR email_fts.sortKey >= :sinceMillis) " +
+            "AND (:untilMillis IS NULL OR email_fts.sortKey <= :untilMillis) " +
             "AND NOT EXISTS (SELECT 1 FROM mailboxes " +
             "WHERE mailboxes.id = email_fts.mailboxId AND mailboxes.accountId = email_fts.accountId " +
             "AND LOWER(TRIM(COALESCE(mailboxes.role, ''))) IN (:excludedRoles)) " +
@@ -96,6 +101,37 @@ interface EmailFtsDao {
     )
     suspend fun search(
         match: String,
+        unreadOnly: Boolean,
+        flaggedOnly: Boolean,
+        attachmentOnly: Boolean,
+        sinceMillis: Long?,
+        untilMillis: Long?,
+        excludedRoles: Collection<String>,
+        accountIds: Collection<String>,
+        accountScopeCount: Int,
+        limit: Int,
+    ): List<FtsHit>
+
+    @Query(
+        "SELECT emailId, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
+            "fromName, fromEmail, seen, flagged, hasAttachment " +
+            "FROM email_fts WHERE (:accountScopeCount = 0 OR email_fts.accountId IN (:accountIds)) " +
+            "AND (:unreadOnly = 0 OR email_fts.seen = 0) " +
+            "AND (:flaggedOnly = 0 OR email_fts.flagged = 1) " +
+            "AND (:attachmentOnly = 0 OR email_fts.hasAttachment = 1) " +
+            "AND (:sinceMillis IS NULL OR email_fts.sortKey >= :sinceMillis) " +
+            "AND (:untilMillis IS NULL OR email_fts.sortKey <= :untilMillis) " +
+            "AND NOT EXISTS (SELECT 1 FROM mailboxes " +
+            "WHERE mailboxes.id = email_fts.mailboxId AND mailboxes.accountId = email_fts.accountId " +
+            "AND LOWER(TRIM(COALESCE(mailboxes.role, ''))) IN (:excludedRoles)) " +
+            "ORDER BY sortKey DESC LIMIT :limit",
+    )
+    suspend fun searchWithoutWords(
+        unreadOnly: Boolean,
+        flaggedOnly: Boolean,
+        attachmentOnly: Boolean,
+        sinceMillis: Long?,
+        untilMillis: Long?,
         excludedRoles: Collection<String>,
         accountIds: Collection<String>,
         accountScopeCount: Int,

@@ -66,10 +66,15 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ In the unified inbox, search covers every account and merges the results.
 - ✅ On JMAP accounts, each server search result shows the passage of the message
   that contains the search term instead of its first lines.
-- ✅ Advanced filters: from, subject, has attachment, date, starred only.
-- ✅ Recent searches: the words you searched for are suggested again, in the search
-  bar and on the advanced search screen. The list stays on the device, and it can be
-  turned off or cleared in Privacy & security.
+- ✅ The searched words are highlighted in each result's preview or passage. When
+  nothing was found and the server search could not finish, the search says so and
+  offers Retry.
+- ✅ Search filters as chips under the search bar: unread, starred and has attachment
+  in one tap, and from, recipient (To or Cc), subject and a date range from the
+  filters sheet. Each filter in use shows as a chip that removes it in one tap.
+- ✅ Recent searches: the words you searched for are suggested again in the search
+  bar. The list stays on the device, and it can be turned off or cleared in
+  Privacy & security.
 - ✅ Unified inbox across accounts, date-sorted, each row naming its account.
 - ✅ An Unread entry in the folder drawer: the account's unread mail from every folder
   it shows, except Trash, Junk, Sent and Drafts. Opened from All inboxes, it covers

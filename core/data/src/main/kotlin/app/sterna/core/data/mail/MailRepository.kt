@@ -21,6 +21,7 @@ import app.sterna.core.data.filter.ScriptSnapshot
 import app.sterna.core.data.filter.SieveParse
 import app.sterna.core.data.filter.SieveScript
 import app.sterna.core.data.db.AccountMailboxRole
+import app.sterna.core.data.db.CachedPreview
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.EmailBodyDao
@@ -232,6 +233,19 @@ internal fun idsAlreadyIn(rows: List<EmailEntity>, ids: Set<String>, mailboxId: 
  *  (#187): `@Upsert` replaces the whole row, so `preview = null` would blank the column. */
 internal fun keepingCachedPreviews(rows: List<EmailEntity>, cached: Map<String, String>): List<EmailEntity> =
     rows.map { row -> if (row.preview != null) row else cached[row.id]?.let { row.copy(preview = it) } ?: row }
+
+/** IMAP search hits with the opening line the cache holds for each, asked of [cachedPreviews] once
+ *  per numbering: a line cached under another `uidValidity` belongs to another message (#99). */
+internal suspend fun withCachedSearchPreviews(
+    hits: List<EmailEntity>,
+    cachedPreviews: suspend (ids: List<String>, uidValidity: Long?) -> List<CachedPreview>,
+): List<EmailEntity> {
+    val filled = hits.groupBy { it.uidValidity }.flatMap { (numbering, rows) ->
+        val cached = byIdsChunked(rows.map { it.id }) { chunk -> cachedPreviews(chunk, numbering) }
+        keepingCachedPreviews(rows, cached.associate { it.id to it.preview })
+    }.associateBy { it.id }
+    return hits.map { filled[it.id] ?: it }
+}
 
 /** How a confirmed batch `UID MOVE` splits, see [imapMoveOutcome]. */
 internal data class ImapMoveOutcome(
@@ -1779,19 +1793,17 @@ class MailRepository(
         if (!failed) lastIndexAt[credentials.id] = now
     }
 
-    /** Local full-text search over [syncSearchIndex]'s index, capped at [limit]. [NOT_SEARCHED_ROLES]
+    /** Local search over [syncSearchIndex]'s index, capped at [limit], by [ftsMatch] and [query]'s flags and dates, in the accounts of [scope]; its [SearchQuery.recipient] is not in the index. [NOT_SEARCHED_ROLES]
      *  only sees rows labelled with an excluded folder; `EmailDao` un-indexes the rest. */
-    suspend fun searchIndex(query: String, limit: Int = LOCAL_SEARCH_LIMIT): List<Email> {
-        val match = ftsMatch(query) ?: return emptyList()
-        val accountIds = accountStore.accounts().map { it.id }
-        return emailFtsDao.search(match, NOT_SEARCHED_ROLES, accountIds, accountIds.size, limit)
-            .map { it.toEmail() }
-    }
-
-    private fun ftsMatch(query: String): String? {
-        val tokens = query.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }
-        if (tokens.isEmpty()) return null
-        return tokens.joinToString(" ") { "$it*" }
+    suspend fun searchIndex(query: SearchQuery, scope: Collection<String>, limit: Int = LOCAL_SEARCH_LIMIT): List<Email> {
+        val match = ftsMatch(query)
+        val accountIds = localSearchAccounts(accountStore.accounts().map { it.id }, scope) ?: return emptyList()
+        val hits = if (match != null) {
+            emailFtsDao.search(match, query.unread, query.flagged, query.hasAttachment, query.afterMillis, query.beforeMillis, NOT_SEARCHED_ROLES, accountIds, accountIds.size, limit)
+        } else {
+            emailFtsDao.searchWithoutWords(query.unread, query.flagged, query.hasAttachment, query.afterMillis, query.beforeMillis, NOT_SEARCHED_ROLES, accountIds, accountIds.size, limit)
+        }
+        return hits.map { it.toEmail() }
     }
 
     /**
@@ -3889,7 +3901,9 @@ class MailRepository(
             if (folders.isEmpty()) return MailSearchResult(emptyList(), complete = false)
             val hits = imap.search(credentials, folders, query.toImapCriteria(), query.requiresLocalScan(), limit)
             return MailSearchResult(
-                emails = hits.messages.map { it.toEmail() },
+                emails = withCachedSearchPreviews(hits.messages) { ids, numbering ->
+                    emailDao.cachedPreviews(credentials.id, ids, numbering)
+                }.map { it.toEmail() },
                 complete = imapSearchComplete(known, hits.complete, hits.messages.size, limit),
             )
         }
