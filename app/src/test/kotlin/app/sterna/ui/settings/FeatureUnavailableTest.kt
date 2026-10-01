@@ -49,13 +49,13 @@ class FeatureUnavailableTest {
         assertEquals(R.string.settings_vacation_unsupported, vacationUnavailableText(state.unavailableCause))
     }
 
-    @Test fun `an unreachable filter service is never worded as a server without filters`() {
+    @Test fun `an unreachable filter service is never worded as a server without filters, the port on the second line`() {
         listOf(FiltersError.LOAD, FiltersError.SAVE, FiltersError.ACTIVATE).forEach { kind ->
             assertEquals(
                 "$kind: a refused connection, a timeout or a firewall on port 4190 must say Sterna " +
-                    "could not reach the service, not that the server has no filters",
-                R.string.settings_filters_sieve_unreachable,
-                filtersErrorText(kind, ManageSieveException.Kind.UNREACHABLE),
+                    "could not reach the service, and leave the protocol and the port to the greyed line",
+                FiltersErrorLines(R.string.settings_filters_unreachable, detailRes = R.string.settings_filters_unreachable_detail),
+                filtersErrorLines(kind, ManageSieveException.Kind.UNREACHABLE, "ManageSieve connection failed"),
             )
         }
     }
@@ -63,31 +63,50 @@ class FeatureUnavailableTest {
     @Test fun `a filter service without a secure connection says the password was not sent`() {
         listOf(FiltersError.LOAD, FiltersError.SAVE, FiltersError.ACTIVATE).forEach { kind ->
             assertEquals(
-                R.string.settings_filters_sieve_insecure,
-                filtersErrorText(kind, ManageSieveException.Kind.INSECURE),
+                FiltersErrorLines(R.string.settings_filters_sieve_insecure),
+                filtersErrorLines(kind, ManageSieveException.Kind.INSECURE, "the server does not offer STARTTLS"),
             )
         }
     }
 
-    @Test fun `a refusal and a failure outside ManageSieve keep the generic error of their gesture`() {
-        assertEquals(R.string.settings_vacation_load_error, filtersErrorText(FiltersError.LOAD, ManageSieveException.Kind.REFUSED))
-        assertEquals(R.string.settings_vacation_save_error, filtersErrorText(FiltersError.SAVE, ManageSieveException.Kind.REFUSED))
-        assertEquals(R.string.settings_vacation_load_error, filtersErrorText(FiltersError.LOAD, null))
-        assertEquals(R.string.settings_vacation_save_error, filtersErrorText(FiltersError.SAVE, null))
+    @Test fun `a refusal and a failure outside ManageSieve keep the sentence of their gesture, the detail under it`() {
+        listOf(ManageSieveException.Kind.REFUSED, null).forEach { sieveKind ->
+            assertEquals(
+                FiltersErrorLines(R.string.settings_filters_load_error, detail = "offline"),
+                filtersErrorLines(FiltersError.LOAD, sieveKind, "offline"),
+            )
+            assertEquals(
+                FiltersErrorLines(R.string.settings_filters_save_error, detail = "line 3: unknown extension"),
+                filtersErrorLines(FiltersError.SAVE, sieveKind, "line 3: unknown extension"),
+            )
+            assertEquals(
+                "a failed activation says so, never \"Couldn't save\": nothing was written",
+                FiltersErrorLines(R.string.settings_filters_activate_error, detail = "NO"),
+                filtersErrorLines(FiltersError.ACTIVATE, sieveKind, "NO"),
+            )
+        }
         assertEquals(
-            "a failed activation says so, never \"Couldn't save\": nothing was written",
-            R.string.settings_filters_activate_error,
-            filtersErrorText(FiltersError.ACTIVATE, ManageSieveException.Kind.REFUSED),
+            "a blank detail draws no second line",
+            FiltersErrorLines(R.string.settings_filters_save_error),
+            filtersErrorLines(FiltersError.SAVE, null, "  "),
         )
-        assertEquals(R.string.settings_filters_activate_error, filtersErrorText(FiltersError.ACTIVATE, null))
     }
 
     @Test fun `a text left open has its own sentence, whatever ManageSieve kind an earlier failure left`() {
         (ManageSieveException.Kind.values().toList() + null).forEach { sieveKind ->
             assertEquals(
                 "TEXT_UNCUT / $sieveKind",
-                R.string.settings_filters_text_uncut,
-                filtersErrorText(FiltersError.TEXT_UNCUT, sieveKind),
+                FiltersErrorLines(R.string.settings_filters_text_uncut),
+                filtersErrorLines(FiltersError.TEXT_UNCUT, sieveKind, "a rule edited as text leaves a bracket open"),
+            )
+        }
+    }
+
+    @Test fun `a change refused because the filters changed elsewhere says so, whatever an earlier failure left`() {
+        (ManageSieveException.Kind.values().toList() + null).forEach { sieveKind ->
+            assertEquals(
+                FiltersErrorLines(R.string.settings_filters_changed_elsewhere),
+                filtersErrorLines(FiltersError.CHANGED, sieveKind, "the filter script changed on the server"),
             )
         }
     }
@@ -106,13 +125,16 @@ class FeatureUnavailableTest {
             "line 3: unknown extension",
             saved.errorDetail,
         )
-        assertEquals(R.string.settings_vacation_save_error, filtersErrorText(saved.errorKind!!, saved.errorSieveKind))
+        assertEquals(
+            FiltersErrorLines(R.string.settings_filters_save_error, detail = "line 3: unknown extension"),
+            filtersErrorLines(saved.errorKind!!, saved.errorSieveKind, saved.errorDetail),
+        )
 
         val unreachable = ManageSieveException("ManageSieve connection failed", ManageSieveException.Kind.UNREACHABLE)
         val loaded = filtersFailedState(FiltersUiState(loading = false), FiltersError.LOAD, unreachable)
         assertEquals(
-            R.string.settings_filters_sieve_unreachable,
-            filtersErrorText(loaded.errorKind!!, loaded.errorSieveKind),
+            R.string.settings_filters_unreachable,
+            filtersErrorLines(loaded.errorKind!!, loaded.errorSieveKind, loaded.errorDetail).sentence,
         )
 
         val other = filtersFailedState(FiltersUiState(), FiltersError.LOAD, IOException("offline"))
@@ -177,19 +199,16 @@ class FeatureUnavailableTest {
         assertEquals(R.string.settings_vacation_load_error, vacationErrorText(VacationError.LOAD, offline.errorSieveKind))
     }
 
-    @Test fun `the responder and the filters word the same ManageSieve failure alike`() {
+    @Test fun `the responder and the filters read the same failure alike, each in its own words`() {
         val kinds = ManageSieveException.Kind.values().toList() + null
-        listOf(
-            FiltersError.LOAD to VacationError.LOAD,
-            FiltersError.SAVE to VacationError.SAVE,
-        ).forEach { (filters, vacation) ->
-            kinds.forEach { sieveKind ->
-                assertEquals(
-                    "$vacation / $sieveKind",
-                    filtersErrorText(filters, sieveKind),
-                    vacationErrorText(vacation, sieveKind),
-                )
-            }
+        kinds.forEach { sieveKind ->
+            val filters = filtersErrorLines(FiltersError.SAVE, sieveKind, "x").sentence
+            val vacation = vacationErrorText(VacationError.SAVE, sieveKind)
+            assertEquals(
+                "$sieveKind: an unreachable or insecure service is worded as such on both screens, or on neither",
+                vacation == R.string.settings_vacation_save_error,
+                filters == R.string.settings_filters_save_error,
+            )
         }
         assertEquals(
             "a date check never reached the server: a kind left from an earlier failure must not word it",
@@ -212,7 +231,7 @@ class FeatureUnavailableTest {
 
     // -- the resources ----------------------------------------------------------------------------
 
-    @Test fun `the filters no longer blame the account type, the responder still does, in ten languages`() {
+    @Test fun `the filters strings are all there in ten languages, and none that nothing draws any more`() {
         val files = RES.listFiles().orEmpty()
             .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) }
             .map { File(it, "strings.xml") }
@@ -225,36 +244,52 @@ class FeatureUnavailableTest {
             ),
             files.map { it.parentFile.name },
         )
+        val english = strings(File(RES, "values/strings.xml"))
         val wrong = files.flatMap { file ->
-            val keys = Regex("<string\\s+name=\"([^\"]+)\"").findAll(file.readText()).map { it.groupValues[1] }.toSet()
-            listOfNotNull(
-                "settings_filters_imap_account still present".takeIf { "settings_filters_imap_account" in keys },
-                "settings_vacation_imap_account missing".takeIf { "settings_vacation_imap_account" !in keys },
-                "settings_filters_sieve_unreachable missing".takeIf { "settings_filters_sieve_unreachable" !in keys },
-                "settings_filters_sieve_insecure missing".takeIf { "settings_filters_sieve_insecure" !in keys },
-                "settings_filters_text_uncut missing".takeIf { "settings_filters_text_uncut" !in keys },
-            ).map { "${file.parentFile.name}: $it" }
+            val texts = strings(file)
+            val keys = texts.keys
+            (
+                REQUIRED.filter { it !in keys }.map { "$it missing" } +
+                    GONE.filter { it in keys }.map { "$it still present" } +
+                    // A translation that is the English text word for word is no translation; the
+                    // protocol line may read the same, "port" being "port" in more than one language.
+                    REQUIRED.filter { file.parentFile.name != "values" && it in keys && texts[it] == english[it] && it != "settings_filters_unreachable_detail" }
+                        .map { "$it is the English text" }
+                ).map { "${file.parentFile.name}: $it" }
         }
         assertEquals(emptyList<String>(), wrong)
-        val withDetail = files.filter { file ->
-            Regex("<string\\s+name=\"settings_filters_text_uncut\">(.*?)</string>")
-                .find(file.readText())?.groupValues?.get(1).orEmpty().contains('%')
+        val withPlaceholder = files.flatMap { file ->
+            NO_PLACEHOLDER.filter { strings(file)[it].orEmpty().contains('%') }.map { "${file.parentFile.name}/$it" }
         }
         assertEquals(
-            "settings_filters_text_uncut is drawn without a detail: a placeholder would show as is",
+            "these sentences are drawn without an argument, the detail going to the line under them: a placeholder would show as is",
             emptyList<String>(),
-            withDetail.map { it.parentFile.name },
+            withPlaceholder,
         )
     }
 
+    @Test fun `Sieve and the port are only ever on the second line`() {
+        val locales = RES.listFiles().orEmpty()
+            .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) && File(it, "strings.xml").isFile }
+        assertEquals(10, locales.size)
+        val offenders = locales
+            .flatMap { dir ->
+                val texts = strings(File(dir, "strings.xml"))
+                FIRST_LINE.filter { key -> texts[key].orEmpty().let { "Sieve" in it || "4190" in it } }.map { "${dir.name}/$it" }
+            }
+        assertEquals(emptyList<String>(), offenders)
+        locales.forEach { dir ->
+            val detail = strings(File(dir, "strings.xml"))["settings_filters_unreachable_detail"].orEmpty()
+            assertTrue("${dir.name}: the protocol and the port stay as they are: \"$detail\"", "ManageSieve" in detail && "4190" in detail)
+        }
+    }
+
     @Test fun `the unreachable sentence claims nothing about what the server supports`() {
-        val text = Regex("<string\\s+name=\"settings_filters_sieve_unreachable\">(.*?)</string>")
-            .find(File(RES, "values/strings.xml").readText())?.groupValues?.get(1).orEmpty()
-        assertTrue("no English settings_filters_sieve_unreachable", text.isNotBlank())
+        val text = strings(File(RES, "values/strings.xml"))["settings_filters_unreachable"].orEmpty()
+        assertTrue("no English settings_filters_unreachable", text.isNotBlank())
         listOf("support", "not available", "doesn").forEach {
             assertFalse("'$it' in \"$text\": a firewall or the network can be the cause", it in text.lowercase())
         }
-        assertTrue("the port and the protocol name stay as they are: \"$text\"", "ManageSieve" in text && "4190" in text)
     }
 
     // -- the wiring, read as text -------------------------------------------------------------
@@ -285,24 +320,33 @@ class FeatureUnavailableTest {
 
     @Test fun `the filters ViewModel words each failure in its own function, through the pure decision`() {
         assertEquals(
-            "the body of 'fun load()' must record its failure as exactly this one line, the kind " +
-                "of that gesture and no other",
-            listOf("_state.update { filtersFailedState(it.copy(loading = false), FiltersError.LOAD, t) }"),
-            DeclarationSource.functionBody(FILTERS_VM, "fun load()").filter { "filtersFailedState(" in it },
+            "the body of 'fun load()' must record its failure as exactly this one line, through the " +
+                "fold executed in FiltersSaveGateTest",
+            listOf("_state.update { filtersLoadFailed(it, t) }"),
+            DeclarationSource.functionBody(FILTERS_VM, "fun load()").filter { "filtersFailedState(" in it || "filtersLoadFailed(" in it },
+        )
+        assertTrue(
+            "…which words it as LOAD",
+            "filtersFailedState(state.copy(loading = false, retry = null), FiltersError.LOAD, failure)" in text(FILTERS_GATE),
         )
         // The save's failure goes through filtersSaveFailed, executed in FiltersTextRulesTest, which
         // keeps the edits on screen: pinned here is that it is the save's only fold, and what it folds.
+        val write = DeclarationSource.functionBody(FILTERS_VM, "private fun write(change: FiltersChange)")
         assertEquals(
-            "the body of 'fun save()' must record its failures through filtersSaveFailed only, in " +
+            "the body of the write must record its failures through filtersWriteFailed only, in " +
                 "the catch that also takes a text that cannot be cut",
-            listOf("_state.update { filtersSaveFailed(it, t) }"),
-            DeclarationSource.functionBody(FILTERS_VM, "fun save()").filter { "filtersSaveFailed(" in it || "filtersFailedState(" in it },
+            listOf("_state.update { filtersWriteFailed(it, change, t) }"),
+            write.filter { "filtersSaveFailed(" in it || "filtersFailedState(" in it || "filtersWriteFailed(" in it },
         )
         assertEquals(
-            "in 'fun save()', a text filtersWrite cannot cut must throw SieveTextUncut: it is the only " +
-                "failure filtersSaveFailed words as TEXT_UNCUT",
-            listOf("val write = filtersWrite(base, edited) ?: throw SieveTextUncut()"),
-            DeclarationSource.functionBody(FILTERS_VM, "fun save()").filter { "filtersWrite(" in it },
+            "a text filtersWrite cannot cut must throw SieveTextUncut, the only failure filtersSaveFailed " +
+                "words as TEXT_UNCUT; a block gone is thrown as a script changed, which reads it again",
+            listOf(
+                "val write = when (val plan = filtersWrite(base, change)) {",
+                "FiltersWritePlan.TextUncut -> throw SieveTextUncut()",
+                "FiltersWritePlan.BlockGone -> throw FilterScriptChangedException()",
+            ),
+            write.filter { "filtersWrite(" in it || "FiltersWritePlan.TextUncut" in it || "FiltersWritePlan.BlockGone" in it },
         )
         assertTrue(
             "filtersSaveFailed must clear nothing but the spinner; the kind it picks is executed in FiltersTextRulesTest",
@@ -372,31 +416,37 @@ class FeatureUnavailableTest {
         )
         val filters = text(FILTERS_SCREEN)
         assertTrue(
-            "FiltersScreen's load error must keep Retry and word its sentence as " +
-                "stringResource(filtersErrorText(FiltersError.LOAD, state.errorSieveKind), state.errorDetail)",
+            "FiltersScreen's load error must keep Retry and word its lines as " +
+                "filtersErrorLines(FiltersError.LOAD, state.errorSieveKind, state.errorDetail)",
             Regex(
                 "state\\.errorKind\\s*==\\s*FiltersError\\.LOAD\\s*->\\s*FiltersNote\\(\\s*" +
-                    "stringResource\\(filtersErrorText\\(FiltersError\\.LOAD, state\\.errorSieveKind\\), state\\.errorDetail\\),\\s*" +
+                    "filtersErrorLines\\(FiltersError\\.LOAD, state\\.errorSieveKind, state\\.errorDetail\\),\\s*" +
                     "onRetry\\s*=\\s*viewModel::load,",
             ).containsMatchIn(filters),
         )
-        assertTrue(
-            "FiltersScreen's line above Save must draw the SAVE kind with its detail, the TEXT_UNCUT kind " +
-                "without one, the ACTIVATE kind with its detail, and nothing for LOAD or no error, as one when over state.errorKind",
-            Regex(
-                "when\\s*\\(state\\.errorKind\\)\\s*\\{\\s*" +
-                    "FiltersError\\.SAVE\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.SAVE, state\\.errorSieveKind\\), state\\.errorDetail\\)\\s*" +
-                    "FiltersError\\.TEXT_UNCUT\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.TEXT_UNCUT, state\\.errorSieveKind\\)\\)\\s*" +
-                    "FiltersError\\.ACTIVATE\\s*->\\s*stringResource\\(filtersErrorText\\(FiltersError\\.ACTIVATE, state\\.errorSieveKind\\), state\\.errorDetail\\)\\s*" +
-                    "FiltersError\\.LOAD,\\s*null\\s*->\\s*null\\s*" +
-                    "\\}\\?\\.let\\s*\\{\\s*message\\s*->\\s*Text\\(\\s*message,",
-            ).containsMatchIn(filters),
+        assertEquals(
+            "the failure of a write is drawn from the state's own kind, LOAD left to the whole-screen note",
+            listOf(
+                "val kind = state.errorKind?.takeIf { it != FiltersError.LOAD } ?: return",
+                "val lines = filtersErrorLines(kind, state.errorSieveKind, state.errorDetail)",
+            ),
+            DeclarationSource.functionBody(FILTERS_SCREEN, "private fun FiltersErrorBlock(state: FiltersUiState)")
+                .filter { "state.errorKind" in it || "filtersErrorLines(" in it },
+        )
+        assertEquals(
+            "…and it is drawn on the list, in both editors, where a refused Save leaves the user, and in the reorder mode, where a refused move does",
+            4,
+            DeclarationSource.kotlinLines(FILTERS_SCREEN).count { it == "FiltersErrorBlock(state)" },
         )
         assertFalse(
-            "no generic error sentence may be named in FiltersScreen outside filtersErrorText",
-            "settings_vacation_load_error" in filters || "settings_vacation_save_error" in filters,
+            "no error sentence may be named in FiltersScreen outside filtersErrorLines",
+            listOf("settings_vacation_load_error", "settings_vacation_save_error", "settings_filters_load_error", "settings_filters_save_error")
+                .any { it in filters },
         )
     }
+
+    private fun strings(file: File): Map<String, String> =
+        Regex("<string\\s+name=\"([^\"]+)\">(.*?)</string>").findAll(file.readText()).associate { it.groupValues[1] to it.groupValues[2] }
 
     /** Comment lines dropped whole: a false match is a false failure, not a false pass. */
     private fun text(file: File): String = file.readLines()
@@ -418,7 +468,64 @@ class FeatureUnavailableTest {
         val SETTINGS_SCREEN: File by lazy { File(root, "$SETTINGS_DIR/SettingsScreen.kt") }
         val FILTERS_SCREEN: File by lazy { File(root, "$SETTINGS_DIR/FiltersScreen.kt") }
         val VACATION_VM: File by lazy { File(root, "$SETTINGS_DIR/VacationViewModel.kt") }
+        val FILTERS_GATE: File by lazy { File(root, "$SETTINGS_DIR/FiltersSaveGate.kt") }
         val FILTERS_VM: File by lazy { File(root, "$SETTINGS_DIR/FiltersViewModel.kt") }
         val RES: File by lazy { File(root, "app/src/main/res") }
+
+        val REQUIRED = listOf(
+            "settings_vacation_imap_account",
+            "settings_filters_summary",
+            "settings_filters_advanced",
+            "settings_filters_text_rule",
+            "settings_filters_bulwark_rule",
+            "settings_filters_edit_text",
+            "settings_filters_text_help",
+            "settings_filters_text_uncut",
+            "settings_filters_unreachable",
+            "settings_filters_unreachable_detail",
+            "settings_filters_sieve_insecure",
+            "settings_filters_load_error",
+            "settings_filters_save_error",
+            "settings_filters_changed_elsewhere",
+            "settings_filters_activate_error",
+            "settings_filters_saved",
+            "settings_filters_restart",
+            "settings_filters_discard_title",
+            "settings_filters_keep_editing",
+            "settings_filters_delete_title",
+            "settings_filters_delete_body",
+            "settings_filters_delete_confirm",
+        )
+
+        val GONE = listOf("settings_filters_imap_account", "settings_filters_text_edit_title")
+
+        val NO_PLACEHOLDER = listOf(
+            "settings_filters_text_uncut",
+            "settings_filters_unreachable",
+            "settings_filters_load_error",
+            "settings_filters_save_error",
+            "settings_filters_changed_elsewhere",
+            "settings_filters_activate_error",
+        )
+
+        /** Every filters string drawn as a first line: the hub, the list, the editors, the errors' sentences. */
+        val FIRST_LINE = listOf(
+            "settings_filters_summary",
+            "settings_filters_advanced",
+            "settings_filters_text_rule",
+            "settings_filters_bulwark_rule",
+            "settings_filters_edit_text",
+            "settings_filters_text_help",
+            "settings_filters_text_uncut",
+            "settings_filters_unreachable",
+            "settings_filters_load_error",
+            "settings_filters_save_error",
+            "settings_filters_changed_elsewhere",
+            "settings_filters_activate_error",
+            "settings_filters_restart",
+            "settings_filters_empty",
+            "settings_filters_add",
+            "settings_filters_not_running",
+        )
     }
 }

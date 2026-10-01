@@ -88,8 +88,8 @@ class FilterRulesReadTest {
     @Test fun `formRulesWrite goes over the opened script, by the ids the list kept, empty rules dropped`() {
         val text = fixture("roundcube")
         val opened = loadedFilterRules("roundcube", text)
-        val boss = opened.scriptRules.filterIsInstance<ScriptRule.Form>().single()
-        val write = formRulesWrite(opened, listOf(boss.id, null), listOf(boss.rule, FilterRule()))
+        val forms = opened.scriptRules.filterIsInstance<ScriptRule.Form>()
+        val write = formRulesWrite(opened, forms.map { it.id } + null, forms.map { it.rule } + FilterRule())
         assertEquals("roundcube", write.name)
         assertEquals(ScriptSnapshot("roundcube", text), write.read)
         assertEquals("the rule read, unchanged, is not written a second time", text, write.script.emit())
@@ -104,9 +104,9 @@ class FilterRulesReadTest {
         assertFalse("a script that cuts into blocks takes a sender block", state.foreignActiveScript)
         assertFalse(state.scriptUnreadable)
         assertEquals("bulwark", state.scriptName)
-        assertEquals(listOf("Newsletters", "Boss", "Roundcube one"), state.rules.map { it.name })
+        assertEquals(listOf("Newsletters", "Boss", "Roundcube one", "Roundcube two"), state.rules.map { it.name })
         assertEquals(
-            listOf("Big or invoice" to true, "Sleeping" to true, "Roundcube two" to false),
+            listOf("Big or invoice" to true, "Sleeping" to true),
             state.scriptRules.filterIsInstance<ScriptRule.Text>().map { it.name to it.lockedByBulwark },
         )
         assertEquals(text, state.scriptToEdit.emit())
@@ -146,20 +146,27 @@ class FilterRulesReadTest {
     @Test fun `the form list edits its rules in the script, the blocks it never showed untouched`() {
         val text = fixture("roundcube")
         val base = loadedFilterRules("roundcube", text).scriptToEdit
-        val boss = base.rules.filterIsInstance<ScriptRule.Form>().single()
+        val forms = base.rules.filterIsInstance<ScriptRule.Form>()
+        val boss = forms.single { it.name == "boss" }
+        val others = forms - boss
         val added = FilterRule(name = "new", value = "x@example.com", moveTo = "Box")
-        val edited = withFormRules(base, listOf(boss.id, null), listOf(boss.rule.copy(value = "chief@example.com"), added)).emit()
+        val kept = others.map { it.rule }
+        val edited = withFormRules(
+            base,
+            others.map { it.id } + boss.id + null,
+            kept + boss.rule.copy(value = "chief@example.com") + added,
+        ).emit()
         assertTrue(edited, edited.contains("# rule:[Spam]\nif header :contains \"subject\" \"[SPAM]\"\n{\n\tfileinto \"Junk\";\n\tstop;\n}\n"))
         assertTrue(edited, edited.contains(text.substring(text.indexOf("# rule:[either]"), text.indexOf("# rule:[away]"))))
         assertTrue(edited, edited.contains(text.substring(text.indexOf("# rule:[away]"))))
         val reread = loadedFilterRules("roundcube", edited)
-        assertEquals(listOf(boss.rule.copy(value = "chief@example.com"), added), reread.rules)
+        assertEquals(listOf(kept[0], boss.rule.copy(value = "chief@example.com"), kept[1], added), reread.rules)
         assertEquals(base.rules.size + 1, reread.scriptRules.size)
 
-        val removed = withFormRules(base, emptyList(), emptyList()).emit()
+        val removed = withFormRules(base, others.map { it.id }, kept).emit()
         assertFalse(removed, removed.contains("boss@example.com"))
         assertEquals(text.replace("# rule:[boss]\nif address :is \"from\" \"boss@example.com\"\n{\n\taddflag \"\\\\Flagged\";\n}\n", ""), removed)
-        assertEquals("nothing changed, nothing rewritten", text, withFormRules(base, listOf(boss.id), listOf(boss.rule)).emit())
+        assertEquals("nothing changed, nothing rewritten", text, withFormRules(base, forms.map { it.id }, forms.map { it.rule }).emit())
     }
 
     // ---- the wiring, read out of the shipped source: a last resort, not the proof ----

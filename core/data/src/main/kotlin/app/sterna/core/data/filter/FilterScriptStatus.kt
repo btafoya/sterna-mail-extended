@@ -155,14 +155,14 @@ fun rulesAreNotRunning(warning: FilterScriptWarning?): Boolean = warning == Filt
  * How many of [rules] actually filter mail: enabled, and with something to match on. Same predicate
  * as the one [SieveCodec.generate] emits Sieve for.
  */
-fun enabledRuleCount(rules: List<FilterRule>): Int = rules.count { it.enabled && it.value.isNotBlank() }
+fun enabledRuleCount(rules: List<FilterRule>): Int = rules.count { it.isRunnable }
 
 /** [enabledRuleCount] of the script [text], each block the form cannot show counted; a Bulwark entry without one is not. */
 fun enabledRuleCount(text: String): Int {
     val script = (SieveScript.parse(text) as? SieveParse.Readable)?.script ?: return 0
     return script.rules.count {
         when (it) {
-            is ScriptRule.Form -> it.rule.enabled && it.rule.value.isNotBlank()
+            is ScriptRule.Form -> it.rule.isRunnable
             is ScriptRule.Text -> it.text.isNotBlank()
         }
     }

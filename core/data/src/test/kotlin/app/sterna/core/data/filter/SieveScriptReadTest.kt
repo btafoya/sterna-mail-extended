@@ -80,24 +80,33 @@ class SieveScriptReadTest {
 
     @Test fun `address and header tests on the four fields are form rules, with the word they were written with`() {
         assertEquals(
-            FormBlock(FilterRule(field = RuleField.CC, match = RuleMatch.IS, value = "x", moveTo = "A", markRead = true), "address", null),
+            FormBlock(FilterRule(field = RuleField.CC, match = RuleMatch.IS, value = "x", moveTo = "A", markRead = true), listOf("address"), null),
             recognizeForm("if address :is \"CC\" \"x\" {\n    addflag \"\\\\Seen\";\n    fileinto \"A\";\n}"),
         )
         assertEquals(
-            FormBlock(FilterRule(field = RuleField.FROM, value = "x", flag = true), "header", null),
+            FormBlock(FilterRule(field = RuleField.FROM, value = "x", flag = true), listOf("header"), null),
             recognizeForm("if header :contains \"From\" \"x\" { addflag \"\\\\Flagged\"; }"),
         )
     }
 
-    @Test fun `a body with stop is text, not a form rule`() {
-        assertEquals(null, recognizeForm("if header :contains \"subject\" \"x\" {\n    fileinto \"A\";\n    stop;\n}"))
-        assertEquals(null, recognizeForm("if header :contains \"subject\" \"x\" {\n    stop;\n}"))
+    @Test fun `a body ending in stop is a form rule, a stop before anything is text`() {
+        assertEquals(
+            listOf(Action.MoveTo("A"), Action.Stop),
+            recognizeForm("if header :contains \"subject\" \"x\" {\n    fileinto \"A\";\n    stop;\n}")?.rule?.actions,
+        )
+        assertEquals(listOf(Action.Stop), recognizeForm("if header :contains \"subject\" \"x\" {\n    stop;\n}")?.rule?.actions)
+        assertEquals(null, recognizeForm("if header :contains \"subject\" \"x\" {\n    stop;\n    fileinto \"A\";\n}"))
+        assertEquals(null, recognizeForm("if header :contains \"subject\" \"x\" {\n    stop;\n    stop;\n}"))
     }
 
     @Test fun `anything else in the body is text`() {
         listOf(
-            "fileinto :copy \"A\";",
             "fileinto \"A\"; fileinto \"B\";",
+            "fileinto :copy \"A\" \"B\";",
+            "fileinto :flags \"x\" \"A\";",
+            "discard;",
+            "reject \"no\";",
+            "addflag [\"\\\\Seen\", \"\\\\Flagged\"];",
             "addflag \"\\\\Seen\"; addflag \"\\\\Seen\";",
             "addflag \"\$label1\";",
             "keep;",
@@ -114,6 +123,14 @@ class SieveScriptReadTest {
             "anyof(header :is \"subject\" \"x\", true)",
             "allof(header :is \"subject\" \"x\")",
             "not header :is \"subject\" \"x\"",
+            "not size :over 5M",
+            "size :over 1500",
+            "size :over 5X",
+            "body :contains \"x\"",
+            "body :raw :contains \"x\"",
+            "address :contains \"list-id\" \"x\"",
+            "allof(anyof(header :is \"subject\" \"x\", header :is \"subject\" \"y\"))",
+            "allof(true, header :is \"subject\" \"x\")",
         ).forEach { test -> assertEquals(test, null, recognizeForm("if $test { keep; }".replace("keep;", ""))) }
         assertEquals(null, recognizeForm("if header :is \"subject\" \"x\" { } else { }"))
     }
@@ -121,15 +138,15 @@ class SieveScriptReadTest {
     @Test fun `the guard of allof(T, G) is kept verbatim, and allof(false, T) is a disabled rule`() {
         val guard = "not spamtest :percent :value \"ge\" :comparator \"i;ascii-numeric\" \"50\""
         assertEquals(
-            FormBlock(FilterRule(value = "news@", moveTo = "Archive"), "header", guard),
+            FormBlock(FilterRule(value = "news@", moveTo = "Archive"), listOf("header"), guard),
             recognizeForm("if allof(header :contains \"From\" \"news@\", $guard) {\n    fileinto \"Archive\";\n}"),
         )
         assertEquals(
-            FormBlock(FilterRule(enabled = false, value = "x"), "address", null),
+            FormBlock(FilterRule(enabled = false, value = "x"), listOf("address"), null),
             recognizeForm("if allof(false, address :contains \"from\" \"x\") {\n}"),
         )
         assertEquals(
-            FormBlock(FilterRule(enabled = false, value = "x"), "address", "true, true"),
+            FormBlock(FilterRule(enabled = false, value = "x"), listOf("address"), "true, true"),
             recognizeForm("if allof (false, address :contains \"from\" \"x\", true, true) {\n}"),
         )
     }
@@ -150,15 +167,31 @@ class SieveScriptReadTest {
     @Test fun `the fixtures read as the rules their clients show`() {
         assertEquals(
             listOf(
-                ScriptRule.Text(1, "Spam", "# rule:[Spam]\nif header :contains \"subject\" \"[SPAM]\"\n{\n\tfileinto \"Junk\";\n\tstop;\n}", false),
+                ScriptRule.Form(
+                    1,
+                    FilterRule(
+                        name = "Spam",
+                        conditions = listOf(Condition(ConditionField.SUBJECT, RuleMatch.CONTAINS, "[SPAM]")),
+                        actions = listOf(Action.MoveTo("Junk"), Action.Stop),
+                    ),
+                ),
                 ScriptRule.Form(2, FilterRule(name = "boss", match = RuleMatch.IS, value = "boss@example.com", flag = true)),
+                ScriptRule.Form(
+                    3,
+                    FilterRule(
+                        name = "either",
+                        mode = RuleMode.ANY,
+                        conditions = listOf(
+                            Condition(ConditionField.FROM, RuleMatch.IS, "a@example.com"),
+                            Condition(ConditionField.SUBJECT, RuleMatch.CONTAINS, "urgent"),
+                        ),
+                        actions = listOf(Action.MoveTo("Work")),
+                    ),
+                ),
             ),
-            readable(fixture("roundcube")).rules.take(2),
+            readable(fixture("roundcube")).rules.take(3),
         )
-        assertEquals(
-            listOf("either" to false, "away" to false),
-            readable(fixture("roundcube")).rules.drop(2).map { it.name to (it is ScriptRule.Form) },
-        )
+        assertEquals(listOf("away" to false), readable(fixture("roundcube")).rules.drop(3).map { it.name to (it is ScriptRule.Form) })
         val nomarker = readable(fixture("f148-nomarker")).rules.single() as ScriptRule.Form
         assertEquals(
             FilterRule(name = "ecrit a la main, sans marqueur Sterna", field = RuleField.SUBJECT, value = "banc", moveTo = "Archive"),
@@ -212,17 +245,32 @@ class SieveScriptReadTest {
         assertEquals(
             listOf(
                 FilterRule(name = "Newsletters", value = "news@", moveTo = "Archive"),
-                FilterRule(name = "Boss", field = RuleField.SUBJECT, match = RuleMatch.IS, value = "URGENT", markRead = true, flag = true),
+                FilterRule(
+                    name = "Boss",
+                    conditions = listOf(Condition(ConditionField.SUBJECT, RuleMatch.IS, "URGENT")),
+                    actions = listOf(Action.Star, Action.MarkRead),
+                ),
             ),
             rules.take(2).map { (it as ScriptRule.Form).rule },
         )
+        assertEquals("Bulwark's own rules are marked as such", listOf(true, true), rules.take(2).map { (it as ScriptRule.Form).bulwark })
         assertEquals(
             listOf("Big or invoice" to true, "Sleeping" to true),
             rules.subList(2, 4).map { it.name to (it as ScriptRule.Text).lockedByBulwark },
         )
         assertEquals("", (rules[3] as ScriptRule.Text).text)
         assertEquals(FilterRule(name = "Roundcube one", field = RuleField.SUBJECT, value = "roundcube", moveTo = "Archive"), (rules[4] as ScriptRule.Form).rule)
-        assertEquals("Roundcube two" to false, rules[5].name to (rules[5] as ScriptRule.Text).lockedByBulwark)
+        // The one rule of this fixture the richer form now shows: an external block ending in `stop`.
+        // "Big or invoice" and "Sleeping" stay locked: `discard` is no action of the form.
+        assertEquals(
+            FilterRule(
+                name = "Roundcube two",
+                conditions = listOf(Condition(ConditionField.SUBJECT, RuleMatch.CONTAINS, "rc2")),
+                actions = listOf(Action.MoveTo("Archive"), Action.Stop),
+            ),
+            (rules[5] as ScriptRule.Form).rule,
+        )
+        assertEquals(listOf(false, false), rules.drop(4).map { (it as ScriptRule.Form).bulwark })
         assertEquals(6, rules.size)
     }
 

@@ -16,7 +16,16 @@ sealed interface ScriptRule {
     val id: Int
     val name: String
 
-    data class Form(override val id: Int, val rule: FilterRule) : ScriptRule {
+    /**
+     * [handCondition]: the block also tests something the form cannot show, kept as written. [bulwark]:
+     * Bulwark regenerates it from its JSON, so it holds only what [BulwarkFormat.holds] says.
+     */
+    data class Form(
+        override val id: Int,
+        val rule: FilterRule,
+        val handCondition: Boolean = false,
+        val bulwark: Boolean = false,
+    ) : ScriptRule {
         override val name: String get() = rule.name
     }
 
@@ -61,7 +70,7 @@ class SieveScript internal constructor(
                 for (entry in entries) {
                     val simple = BulwarkFormat.simpleRule(entry.json)
                     add(
-                        simple?.let { ScriptRule.Form(entry.id, it) } ?: ScriptRule.Text(
+                        simple?.let { ScriptRule.Form(entry.id, it, bulwark = true) } ?: ScriptRule.Text(
                             id = entry.id,
                             name = BulwarkFormat.name(entry.json),
                             text = entry.blockId?.let { b -> commandOrNull(b)?.let { source(it) } }.orEmpty(),
@@ -73,7 +82,10 @@ class SieveScript internal constructor(
                     when (seg) {
                         is Unwritten -> add(ScriptRule.Form(seg.id, seg.rule))
                         is Command -> if (seg.id !in owned && seg.id != responder && seg.keyword != "require") {
-                            add(seg.form?.let { ScriptRule.Form(seg.id, it.rule) } ?: ScriptRule.Text(seg.id, ruleName(seg.header), source(seg), false))
+                            add(
+                                seg.form?.let { ScriptRule.Form(seg.id, it.rule, handCondition = it.guard != null) }
+                                    ?: ScriptRule.Text(seg.id, ruleName(seg.header), source(seg), false),
+                            )
                         }
                         is Gap -> Unit
                     }
@@ -91,13 +103,19 @@ class SieveScript internal constructor(
         val i = s.indexOf(id)
         val c = s.segments[i] as Command
         val old = requireNotNull(c.form) { "rule $id is Sieve text" }
-        val word = old.word.takeIf { it == "header" || rule.field != RuleField.SUBJECT } ?: defaultWord(rule.field)
-        val sameBlock = old.rule.copy(name = "") == rule.copy(name = "")
-        val statement = if (sameBlock) c.statement else formStatement(rule, word, old.guard, c.indent, lineEnding, actionOrder(c.statement))
+        // `conditionTest` uses an `address` or `header` only where it applies.
+        val pairs = pairedConditions(old.rule.conditions, rule.conditions)
+        val words = rule.conditions.mapIndexed { k, cond ->
+            pairs[k]?.let { old.words.getOrNull(it) }?.takeIf { it == "address" || it == "header" } ?: defaultWord(cond.field)
+        }
+        val order = actionOrder(c.statement)
+        val kept = keptStop(rule, order)
+        val sameBlock = old.rule.copy(name = "") == kept.copy(name = "")
+        val statement = if (sameBlock) c.statement else formStatement(kept, words, old.guard, c.indent, lineEnding, order)
         val header = if (old.rule.name == rule.name) c.header else renamedHeader(c.header, rule.name, c.indent, lineEnding)
-        val updated = c.copy(header = header, statement = statement, form = FormBlock(rule, word, old.guard))
+        val updated = c.copy(header = header, statement = statement, form = FormBlock(kept, words, old.guard))
         return s.copy(segments = s.segments.replaced(i, updated))
-            .requiring(if (sameBlock) emptySet() else capabilitiesOf(rule))
+            .requiring(if (sameBlock) emptySet() else capabilitiesOf(kept))
     }
 
     /** [rule] added after the last block, or as a Bulwark entry when the script's Bulwark JSON is readable. */
@@ -144,6 +162,97 @@ class SieveScript internal constructor(
     }
 
     /**
+     * The rule [id] placed just before the rule [before] of [rules], or after the last one when null;
+     * null when that place is refused. A block moves with the comments glued above it, its name among
+     * them; a marker glued there stays, with what is above it. Refused: a Bulwark rule among the
+     * others or the reverse, a place inside a Nextcloud region or a block out of one, a place above
+     * the first `require`, and a move across Bulwark's separator, the auto-reply's marker or its block.
+     */
+    fun move(id: Int, before: Int?): SieveScript? {
+        if (id == before) return null
+        val s = migrated()
+        val order = s.rules.map { it.id }
+        if (id !in order || (before != null && before !in order)) return null
+        val rest = order - id
+        val at = before?.let(rest::indexOf) ?: rest.size
+        val landed = rest.take(at) + id + rest.drop(at)
+        if (landed == order) return s
+        if (s.entryIndex(id) != null) return s.bulwarkMoved(landed)
+        if (before != null && s.entryIndex(before) != null) return null
+        return s.blockMoved(id, before)
+    }
+
+    /** Bulwark's blocks keep their places in the script and take the order of [landed]'s entries. */
+    private fun bulwarkMoved(landed: List<Int>): SieveScript? {
+        val byId = entries.associateBy { it.id }
+        val moved = landed.take(entries.size).map { byId[it] ?: return null }
+        val slots = entries.mapNotNull { it.blockId }.map(::indexOf)
+        val blocks = moved.mapNotNull { it.blockId }.map { (segments[indexOf(it)] as Command).cut().second }
+        var segs = segments
+        slots.forEachIndexed { k, at ->
+            val kept = (segments[at] as Command).cut().first
+            val block = blocks[k].copy(header = kept + blocks[k].header)
+            segs = segs.replaced(at, if (at == segments.lastIndex) block else ended(block))
+        }
+        return copy(segments = withMetadata(segs, moved), entries = moved)
+    }
+
+    private fun blockMoved(id: Int, before: Int?): SieveScript? {
+        val target = before ?: rules.lastOrNull { it.id != id && entryIndex(it.id) == null }?.id ?: return null
+        var segs = segments.opened(id)
+        val whole = segs.size
+        if (before != null) segs = segs.opened(before)
+        fun at(block: Int) = segs.indexOfFirst { it is Command && it.id == block }
+        val from = at(id)
+        // Below the markers glued above [before] first, as its name is; above them when that place
+        // is refused, as before a Nextcloud region whose opening marker [before] carries.
+        val to = (
+            if (before == null) {
+                (at(target) + 1).takeIf { movable(segs, from, it) }
+            } else {
+                val under = at(before)
+                when {
+                    movable(segs, from, under) -> under
+                    segs.size > whole && movable(segs, from, under - 1) -> under - 1
+                    else -> null
+                }
+            }
+            ) ?: return null
+        fun blank(i: Int) = (segs.getOrNull(i) as? Gap)?.text?.isBlank() == true
+        val gapAt = when {
+            blank(from - 1) -> from - 1
+            blank(from + 1) -> from + 1
+            else -> null
+        }
+        val block = ended(segs[from] as Command)
+        val gap = gapAt?.let { segs[it] }
+        val taken = setOfNotNull(from, gapAt)
+        val left = segs.filterIndexed { i, _ -> i !in taken }
+        val into = to - taken.count { it < to }
+        // Between two rules the blank line follows the block, after the last one it precedes it.
+        val unit = if (before != null) listOfNotNull(block, gap) else listOfNotNull(gap, block)
+        val head = left.take(into)
+        val lead = head.joinToString("") { it.text }.let { if (it.isNotEmpty() && !it.endsWith("\n")) listOf(Gap(lineEnding)) else emptyList() }
+        return copy(segments = head + lead + unit + left.drop(into))
+    }
+
+    /** Whether the block at [from] may be inserted before the segment [to] of [segs]. */
+    private fun movable(segs: List<Segment>, from: Int, to: Int): Boolean {
+        fun inNextcloud(n: Int) = segs.take(n).sumOf { seg -> linesIn(seg).count(::isNextcloudMarker) } % 2 == 1
+        if (inNextcloud(from) || inNextcloud(to)) return false
+        val require = segs.indexOfFirst { it is Command && it.keyword == "require" }
+        if (require >= 0 && to <= require) return false
+        val separator = segs.indexOfFirst { seg -> linesIn(seg).any(::isBulwarkExternalSeparator) }
+        if (separator >= 0 && (from > separator) != (to > separator)) return false
+        val responder = responderOf(segs)
+        val barriers = listOfNotNull(responder?.marker?.segment, responder?.blockId?.let { b -> segs.indexOfFirst { it is Command && it.id == b } })
+        return barriers.all { b -> (from < b) == (to <= b) }
+    }
+
+    /** A block taken from the end of a script, where its last line may have no line ending, set before something else. */
+    private fun ended(c: Command): Command = if (c.text.endsWith("\n")) c else c.copy(trailer = c.trailer + lineEnding)
+
+    /**
      * The script with its auto-reply written as [vacation], or removed when null: the marker glued
      * above its block, so a client that keeps only commented blocks keeps it too.
      */
@@ -152,8 +261,10 @@ class SieveScript internal constructor(
         var segs = s.segments
         val found = responderOf(segs)
         val marker = vacation?.let { SieveCodec.vacationMarkerLine(it) + lineEnding }
-        val active = s.rules.filterIsInstance<ScriptRule.Form>().map { it.rule }.filter { it.enabled && it.value.isNotBlank() }
-        val block = vacation?.takeIf { it.isEnabled }?.let { SieveCodec.vacationToSieve(it, active, lineEnding) }
+        val active = s.rules.filterIsInstance<ScriptRule.Form>().filter { it.rule.isRunnable }
+        val block = vacation?.takeIf { it.isEnabled }?.let { v ->
+            SieveCodec.vacationToSieve(v, active.map { it.rule }, lineEnding, active.map { s.writtenTest(it.id) })
+        }
         var next = s.nextId
         if (found?.blockId != null) {
             val i = segs.indexOfFirst { it is Command && it.id == found.blockId }
@@ -179,6 +290,21 @@ class SieveScript internal constructor(
             if (vacation.fromDate != null || vacation.toDate != null) addAll(listOf("date", "relational"))
         }
         return s.copy(segments = segs, nextId = next).requiring(needs)
+    }
+
+    /**
+     * The test the block of rule [id] runs, words and guard as written, what the auto-reply leaves out;
+     * null when an `anyof` cannot hold it, a comment or a text literal in it, and the block is not left out.
+     */
+    private fun writtenTest(id: Int): String? {
+        val blockId = entries.firstOrNull { it.id == id }?.let { it.blockId ?: return null } ?: id
+        val c = commandOrNull(blockId) ?: return null
+        val toks = sieveTokens(c.statement) ?: return null
+        val open = toks.indexOfFirst { it.isPunct('{') }
+        if (open < 2 || !toks[0].isWord("if")) return null
+        val test = toks.subList(1, open)
+        if (test.any { it.kind == TokenKind.COMMENT || it.kind == TokenKind.LITERAL }) return null
+        return c.statement.substring(test.first().start, test.last().end)
     }
 
     // ---- V1 migration and the require line, applied before any edit ----
@@ -241,14 +367,14 @@ class SieveScript internal constructor(
         Command(nextId, emptyList(), "", "require [${capabilities.joinToString(", ") { "\"$it\"" }}];", lineEnding)
 
     private fun newFormCommand(id: Int, rule: FilterRule): Command {
-        val word = defaultWord(rule.field)
+        val words = rule.conditions.map { defaultWord(it.field) }
         return Command(
             id = id,
             header = renamedHeader(emptyList(), rule.name, "", lineEnding),
             indent = "",
-            statement = formStatement(rule, word, null, "", lineEnding),
+            statement = formStatement(rule, words, null, "", lineEnding),
             trailer = lineEnding,
-            form = FormBlock(rule, word, null),
+            form = FormBlock(rule, words, null),
         )
     }
 
@@ -259,6 +385,7 @@ class SieveScript internal constructor(
         val rule = edited.copy(name = flatName(edited.name))
         val entry = entries[index]
         val oldRule = requireNotNull(BulwarkFormat.simpleRule(entry.json)) { "rule ${entry.id} is managed by Bulwark" }
+        require(BulwarkFormat.holds(rule)) { "Bulwark's JSON cannot hold $rule" }
         val json = BulwarkFormat.updated(entry.json, rule)
         var segs = segments
         var blockId = entry.blockId
@@ -286,6 +413,7 @@ class SieveScript internal constructor(
 
     private fun bulwarkAdded(added: FilterRule, bulwarkId: String): SieveScript {
         val rule = added.copy(name = flatName(added.name))
+        require(BulwarkFormat.holds(rule)) { "Bulwark's JSON cannot hold $rule" }
         val json = BulwarkFormat.created(bulwarkId, rule)
         var next = nextId
         val entryId = next++
@@ -536,6 +664,24 @@ class SieveScript internal constructor(
         }
 
         private fun <T> List<T>.replaced(index: Int, value: T): List<T> = toMutableList().also { it[index] = value }
+
+        /** A line that holds a place in the script rather than naming a block: it never moves with one. */
+        private fun isPlaceMarker(line: String) =
+            isNextcloudMarker(line) || isBulwarkExternalSeparator(line) || isRulesMarker(line) || isVacationMarker(line)
+
+        /** The header lines down to the last place marker among them, and the block with the comments glued below it. */
+        private fun Command.cut(): Pair<List<String>, Command> {
+            val kept = header.indexOfLast(::isPlaceMarker) + 1
+            return header.take(kept) to copy(header = header.drop(kept))
+        }
+
+        /** [this] with the block [id] split from the place markers of its header, which then stand alone before it. */
+        private fun List<Segment>.opened(id: Int): List<Segment> {
+            val i = indexOfFirst { it is Command && it.id == id }
+            val (kept, block) = (this[i] as Command).cut()
+            if (kept.isEmpty()) return this
+            return take(i) + Gap(kept.joinToString("")) + block + drop(i + 1)
+        }
 
         private fun randomBulwarkId(): String = "sterna-" + UUID.randomUUID().toString().substringBefore('-')
     }

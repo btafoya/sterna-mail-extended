@@ -575,6 +575,7 @@ class MailAccounts(
             scriptText = opened?.let { jmapScriptText(ctx.session, ctx.accountId, ctx.auth, it.blobId) },
             stopsServerResponder = stopsServerResponder(scripts.jmapListed(), serverResponder = true),
         ).listing(scripts.jmapListed(), script, serverResponder = true)
+            .copy(sieveExtensions = ctx.session.sieveExtensions(ctx.accountId))
     }
 
     /**
@@ -628,7 +629,7 @@ class MailAccounts(
                     ?: throw IllegalStateException("Server-side filters are not available for this account")
                 return sieveSession(sieveHost, credentials) {
                     val (scripts, activated) = writeOver(write.read, name, text)
-                    write.written(text, scripts, activated, serverResponder = false)
+                    write.written(text, scripts, activated, serverResponder = false).copy(sieveExtensions = announced(sieveExtensions))
                 }
             }
             MailProtocol.JMAP -> Unit
@@ -653,6 +654,7 @@ class MailAccounts(
             auth = ctx.auth,
         )
         return write.written(text, scripts.jmapListed(), activated, serverResponder = true)
+            .copy(sieveExtensions = ctx.session.sieveExtensions(ctx.accountId))
     }
 
     /** What the server holds once [this] is written as [text] over [scripts], the listing read before the write. */
@@ -664,6 +666,9 @@ class MailAccounts(
     ): FilterRulesState.Loaded = loadedFilterRules(name, text)
         .listing(listedAfterWrite(scripts, name, activated), requested = name.takeIf { read.chosen }, serverResponder)
 
+    /** A ManageSieve server that lists no `SIEVE` capability announced nothing: every feature stays offered. */
+    private fun announced(extensions: List<String>): List<String>? = extensions.takeIf { it.isNotEmpty() }
+
     /** [loadFilterRules] over ManageSieve: one listing, then the script [chosenScriptName] picks. */
     private suspend fun loadFilterRulesBySieve(credentials: AccountCredentials, script: String?): FilterRulesState {
         val sieveHost = manageSieveHost(credentials) ?: return FilterRulesState.Unsupported
@@ -672,6 +677,7 @@ class MailAccounts(
             val name = chosenScriptName(scripts, script, serverResponder = false)
             loadedFilterRules(scriptName = name, scriptText = name?.let { getScript(it) })
                 .listing(scripts, script, serverResponder = false)
+                .copy(sieveExtensions = announced(sieveExtensions))
         }
     }
 

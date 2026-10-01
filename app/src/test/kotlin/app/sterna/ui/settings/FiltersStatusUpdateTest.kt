@@ -113,11 +113,12 @@ class FiltersStatusUpdateTest {
 
     @Test
     fun `the rest of the screen is not touched by a status read`() {
-        val editing = displayed.copy(dirty = true, saving = true, savedTick = 3, accountLabel = "a@b.c")
+        val editing = displayed.copy(overwritePending = FiltersChange.Rewrite, saving = true, landed = 3, retry = FiltersChange.Rewrite, accountLabel = "a@b.c")
         val next = filtersStateWithStatus(editing, FilterScriptStatus())
-        assertTrue("a status read must not undo an edit", next.dirty)
+        assertEquals("a status read must not drop a write waiting on its confirmation", FiltersChange.Rewrite, next.overwritePending)
         assertTrue(next.saving)
-        assertEquals(3, next.savedTick)
+        assertEquals(3, next.landed)
+        assertEquals("a status read must not drop a change waiting for its replay", FiltersChange.Rewrite, next.retry)
         assertEquals("a@b.c", next.accountLabel)
     }
 

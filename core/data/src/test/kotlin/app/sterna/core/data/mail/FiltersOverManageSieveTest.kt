@@ -16,6 +16,7 @@ import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.filter.BlockOutcome
 import app.sterna.core.data.filter.BulwarkMetadata
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.copy
 import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.FilterScriptWrite
 import app.sterna.core.data.filter.FilterScriptStatus
@@ -78,7 +79,7 @@ class FiltersOverManageSieveTest {
         private val refuse: (verb: String) -> Exception? = { null },
         /** The command at which the connection is lost, before the server receives it. */
         private val cutAt: String? = null,
-        private val extensions: List<String> = listOf("fileinto", "imap4flags", "vacation", "date", "relational"),
+        private val extensions: List<String> = ANNOUNCED,
         /** Thrown by the connection itself, before any command: offline, refused, timed out. */
         private val unreachable: Exception? = null,
     ) : SieveConnector {
@@ -265,6 +266,17 @@ class FiltersOverManageSieveTest {
 
     // ---- read ----------------------------------------------------------------------------------
 
+    @Test fun `what the server announces reaches the form, and a server that lists nothing offers it everything`() {
+        val listed = FakeSieve(scripts = mapOf("sterna" to handWritten), active = "sterna")
+        val accounts = accounts(listed)
+        val opened = accounts.opening()
+        assertEquals(ANNOUNCED, opened.sieveExtensions)
+        assertEquals("the state a save answers carries it too", ANNOUNCED, accounts.saveRules(opened, listOf(handRule.copy(value = "y"))).sieveExtensions)
+        val silent = FakeSieve(scripts = mapOf("sterna" to handWritten), active = "sterna", extensions = emptyList())
+        assertNull(accounts(silent).opening().sieveExtensions)
+    }
+
+
     @Test fun `the active script is read on the IMAP host with the IMAP login`() {
         val text = SieveCodec.generate(rules)
         val sieve = FakeSieve(scripts = mapOf("sterna" to text), active = "sterna")
@@ -272,7 +284,10 @@ class FiltersOverManageSieveTest {
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
         assertEquals(
-            FilterRulesState.Loaded(rules = rules, scriptName = "sterna", scriptText = text, scripts = listOf(ListedScript("sterna", true))),
+            FilterRulesState.Loaded(
+                rules = rules, scriptName = "sterna", scriptText = text, scripts = listOf(ListedScript("sterna", true)),
+                sieveExtensions = ANNOUNCED,
+            ),
             state,
         )
         assertEquals(listOf(login), sieve.logins)
@@ -291,6 +306,7 @@ class FiltersOverManageSieveTest {
                 scriptName = "roundcube",
                 scriptText = handWritten,
                 scripts = listOf(ListedScript("roundcube", true), ListedScript("sterna", false)),
+                sieveExtensions = ANNOUNCED,
             ),
             state,
         )
@@ -333,6 +349,7 @@ class FiltersOverManageSieveTest {
                 scriptName = "roundcube",
                 scriptText = broken,
                 scripts = listOf(ListedScript("roundcube", true)),
+                sieveExtensions = ANNOUNCED,
             ),
             state,
         )
@@ -343,7 +360,10 @@ class FiltersOverManageSieveTest {
 
         val state = runBlocking { accounts(sieve).loadFilterRules(imapAccount) }
 
-        assertEquals(FilterRulesState.Loaded(rules = emptyList(), scripts = listOf(ListedScript("vacation", false))), state)
+        assertEquals(
+            FilterRulesState.Loaded(rules = emptyList(), scripts = listOf(ListedScript("vacation", false)), sieveExtensions = ANNOUNCED),
+            state,
+        )
         assertEquals(listOf("LISTSCRIPTS"), sieve.commands)
     }
 
@@ -1067,3 +1087,6 @@ class FiltersOverManageSieveTest {
         assertTrue(stored, "fileinto \"INBOX.项目.报告\";" in stored)
     }
 }
+
+/** What the fake server announces unless a test says otherwise; a load hands it on as the form's offer. */
+private val ANNOUNCED = listOf("fileinto", "imap4flags", "vacation", "date", "relational")

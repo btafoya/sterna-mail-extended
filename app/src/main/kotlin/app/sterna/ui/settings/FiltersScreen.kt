@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,6 +22,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,17 +35,23 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,103 +60,85 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
+import app.sterna.core.data.filter.Action
+import app.sterna.core.data.filter.Condition
+import app.sterna.core.data.filter.ConditionField
 import app.sterna.core.data.filter.FilterRule
 import app.sterna.core.data.filter.ListedScript
 import app.sterna.core.data.filter.ForeignScriptNotice
-import app.sterna.core.data.filter.RuleField
 import app.sterna.core.data.filter.RuleMatch
+import app.sterna.core.data.filter.RuleMode
+import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.foreignScriptNotice
 import app.sterna.core.data.filter.showsNoRulesNote
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.ReorderableColumn
+import app.sterna.util.isValidEmail
+import kotlinx.coroutines.launch
 
-/** Server-side filter rules (Sieve, over JMAP or ManageSieve) for the current account: edited as a
- *  form and pushed on Save. Network-backed, so the screen carries loading / saving / error state. */
+/** Server-side filter rules (Sieve, over JMAP or ManageSieve) for the current account. Each gesture
+ *  writes at once, so the screen carries loading / saving / error state. */
 @Composable
 fun FiltersScreen(
     onBack: () -> Unit,
     viewModel: FiltersViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var editing by remember { mutableStateOf<Int?>(null) }
-    var editingText by rememberSaveable { mutableStateOf<Int?>(null) }
-    // Confirm-on-back (#34); both doors go through it, the scaffold's arrow and the system gesture.
-    // Held above the rule-editor branch below so the early return never straddles a remember.
-    var confirmExit by remember { mutableStateOf(false) }
-    // Leaves, or opens `switchTo`, only once the server has taken the save; a refusal keeps the error in view.
-    var leaveAfterSave by remember { mutableStateOf(false) }
-    // The overwrite confirmation, and which gesture waits behind it: the exit dialog's Save must
-    // still leave once the write lands, the button must still stay.
-    var confirmOverwrite by remember { mutableStateOf(false) }
-    var overwriteThenLeave by remember { mutableStateOf(false) }
-    var switchTo by remember { mutableStateOf<String?>(null) }
+    // Everything remembered is held above the editor branches below, so their early return never
+    // straddles a remember. Both editors' subjects survive a rotation and the death of the process.
+    var editingSaved by rememberSaveable { mutableStateOf<ArrayList<Any?>?>(null) }
+    var editingTextSaved by rememberSaveable { mutableStateOf<ArrayList<Any?>?>(null) }
+    var confirmDelete by remember { mutableStateOf<FiltersChange?>(null) }
+    var confirmToggle by remember { mutableStateOf<FiltersChange?>(null) }
+    var advancedOpen by rememberSaveable { mutableStateOf(false) }
+    var reordering by rememberSaveable { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val savedText = stringResource(R.string.settings_filters_saved)
+    val editing = editingSaved?.let(::restoredRuleTarget)
+    val editingText = editingTextSaved?.let(::restoredTextTarget)
 
-    val editIndex = editing
-    if (editIndex != null && editIndex < state.rules.size) {
-        // Full-screen editor (a dialog is too cramped for this many fields).
-        RuleEditScreen(
-            initial = state.rules[editIndex],
-            folders = state.folders,
-            onCommit = { viewModel.updateRule(editIndex, it); editing = null },
-            onDelete = { viewModel.removeRule(editIndex); editing = null },
-        )
-        return
+    // Only a write that landed closes the editor: a refusal leaves what was typed in front of the
+    // user, with the server's words under it.
+    LaunchedEffect(state.landed) {
+        if (state.landed == null) return@LaunchedEffect
+        editingSaved = null
+        editingTextSaved = null
+        // Outside this effect: consuming the event changes its key, which cancels this coroutine.
+        snackbarScope.launch { snackbar.showSnackbar(savedText) }
+        viewModel.landedTaken()
     }
-    val textCard = editingText?.let { id ->
-        filtersListing(state).firstOrNull { it is FiltersListItem.Text && it.id == id && it.editable } as FiltersListItem.Text?
-    }
-    if (textCard != null) {
-        TextEditScreen(
-            initial = textCard.text,
-            onCommit = { viewModel.updateText(textCard.id, it); editingText = null },
-            onCancel = { editingText = null },
-            onDelete = { viewModel.removeText(textCard.id); editingText = null },
-        )
-        return
-    }
-
-    fun leave() {
-        val next = switchTo
-        switchTo = null
-        if (next != null) viewModel.openScript(next) else onBack()
-    }
-    LaunchedEffect(leaveAfterSave, state.saving, state.dirty, state.errorKind) {
-        if (!leaveAfterSave) return@LaunchedEffect
-        when (pendingExitStep(state.saving, state.dirty, failed = state.errorKind != null)) {
-            PendingExit.LEAVE -> { leaveAfterSave = false; leave() }
-            PendingExit.STAY -> { leaveAfterSave = false; switchTo = null }
-            PendingExit.WAIT -> Unit
+    LaunchedEffect(state.proposal) {
+        when (val proposed = state.proposal ?: return@LaunchedEffect) {
+            is FiltersChange.PutRule -> {
+                editingTextSaved = null
+                editingSaved = savedRuleTarget(RuleTarget(original = proposed.was, start = proposed.rule, rank = proposed.rank))
+            }
+            is FiltersChange.PutText -> {
+                editingSaved = null
+                editingTextSaved = savedTextTarget(TextTarget(proposed.name, proposed.was, proposed.text, proposed.rank))
+            }
+            else -> Unit
         }
-    }
-    // One door for both gestures that write: the confirmation belongs to the write, not to the
-    // button. Hung on the button alone it is walked around by the back gesture, which reaches the
-    // same write through the exit dialog below. Which asked travels in `thenLeave`.
-    fun requestSave(thenLeave: Boolean) {
-        when (filtersSaveStep(scriptUnreadable = state.scriptUnreadable)) {
-            FiltersSaveStep.CONFIRM_OVERWRITE -> { overwriteThenLeave = thenLeave; confirmOverwrite = true }
-            FiltersSaveStep.WRITE -> { leaveAfterSave = thenLeave; viewModel.save() }
-        }
+        viewModel.proposalTaken()
     }
 
-    BackHandler(enabled = state.dirty) { confirmExit = true }
-    if (confirmExit) {
-        SaveChangesDialog(
-            message = stringResource(R.string.settings_save_changes_message_generic),
-            canSave = !state.saving,
-            onCancel = { confirmExit = false; switchTo = null },
-            onDiscard = { confirmExit = false; leave() },
-            onSave = { confirmExit = false; requestSave(thenLeave = true) },
-        )
+    fun openRule(target: RuleTarget) {
+        viewModel.dismissError()
+        editingSaved = savedRuleTarget(target)
     }
-    if (confirmOverwrite) {
+
+    state.overwritePending?.let {
         // Same shape as the block-sender dialog: server-side, permanent, no Undo behind it.
-        // Cancelling leaves both the screen and the exit alone, so the edits stay unwritten.
+        // Cancelling writes nothing, and an open editor keeps what was typed.
         AlertDialog(
-            onDismissRequest = { confirmOverwrite = false; switchTo = null },
+            onDismissRequest = viewModel::cancelOverwrite,
             title = { Text(stringResource(R.string.settings_filters_overwrite_title)) },
             text = {
                 // The body must scroll: Material's text slot is a height-bounded box, so a bare
@@ -155,19 +151,105 @@ fun FiltersScreen(
             confirmButton = {
                 // A verb, not a sentence: a sentence wraps and Cancel is then drawn inside this
                 // button, one tap landing on both, on a permanent server-side write.
-                TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {
+                TextButton(onClick = viewModel::confirmOverwrite) {
                     Text(stringResource(R.string.settings_filters_overwrite_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmOverwrite = false; switchTo = null }) { Text(stringResource(R.string.settings_cancel)) }
+                TextButton(onClick = viewModel::cancelOverwrite) { Text(stringResource(R.string.settings_cancel)) }
+            },
+        )
+    }
+    confirmDelete?.let { change ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text(stringResource(R.string.settings_filters_delete_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.settings_filters_delete_body),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = null; viewModel.save(change) }) {
+                    Text(stringResource(R.string.settings_filters_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) { Text(stringResource(R.string.settings_cancel)) }
+            },
+        )
+    }
+    confirmToggle?.let { change ->
+        // A switch writes at once and would stop the script running now: its line is on the list,
+        // but a tap on a switch is not a moment anyone reads it.
+        AlertDialog(
+            onDismissRequest = { confirmToggle = null },
+            text = {
+                Text(
+                    stringResource(R.string.settings_filters_stops_auto_reply),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmToggle = null; viewModel.save(change) }) {
+                    Text(stringResource(R.string.settings_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmToggle = null }) { Text(stringResource(R.string.settings_cancel)) }
             },
         )
     }
 
+    val busy = filtersBusy(state)
+    if (editing != null) {
+        // Full-screen editor (a dialog is too cramped for this many fields).
+        key(editingSaved) {
+            RuleEditScreen(
+                target = editing,
+                state = state,
+                busy = busy,
+                onSave = { viewModel.save(FiltersChange.PutRule(editing.original, it, editing.rank)) },
+                onDelete = editing.original?.let { was -> { confirmDelete = FiltersChange.DeleteRule(was, editing.rank) } },
+                onClose = { editingSaved = null },
+            )
+        }
+        return
+    }
+    if (editingText != null) {
+        key(editingTextSaved) {
+            TextEditScreen(
+                target = editingText,
+                state = state,
+                busy = busy,
+                onSave = { viewModel.save(FiltersChange.PutText(editingText.name, editingText.was, it, editingText.rank)) },
+                onDelete = { confirmDelete = FiltersChange.DeleteText(editingText.name, editingText.was, editingText.rank) },
+                onClose = { editingTextSaved = null },
+            )
+        }
+        return
+    }
+
+    val mayReorder = filtersMayReorder(state)
+    fun back() {
+        if (!filtersMayLeave(state)) return
+        if (reordering && mayReorder) reordering = false else onBack()
+    }
+    BackHandler(enabled = reordering && mayReorder) { reordering = false }
+    BackHandler(enabled = !filtersMayLeave(state)) {}
     DetailScaffold(
         title = stringResource(R.string.settings_filters_screen_title),
-        onBack = { if (state.dirty) confirmExit = true else onBack() },
+        onBack = { back() },
+        actions = if (mayReorder) {
+            {
+                TextButton(onClick = { reordering = !reordering }) {
+                    Text(stringResource(if (reordering) R.string.folders_reorder_done else R.string.folders_reorder_start))
+                }
+            }
+        } else {
+            null
+        },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
@@ -175,55 +257,165 @@ fun FiltersScreen(
                 state.noAccount -> FiltersNote(stringResource(R.string.settings_vacation_no_account))
                 !state.supported -> FiltersNote(stringResource(R.string.settings_filters_unsupported))
                 state.errorKind == FiltersError.LOAD -> FiltersNote(
-                    stringResource(filtersErrorText(FiltersError.LOAD, state.errorSieveKind), state.errorDetail),
+                    filtersErrorLines(FiltersError.LOAD, state.errorSieveKind, state.errorDetail),
                     onRetry = viewModel::load,
+                )
+                reordering && mayReorder -> FiltersReorder(
+                    state = state,
+                    idle = !state.saving && confirmToggle == null,
+                    drop = viewModel::drop,
+                    onMove = { change -> if (filtersWarnsBeforeWrite(state)) confirmToggle = change else viewModel.save(change) },
                 )
                 else -> FiltersList(
                     state = state,
-                    viewModel = viewModel,
-                    onEdit = { editing = it },
-                    onEditText = { editingText = it },
-                    onAdd = { viewModel.addRule(); editing = state.rules.size },
-                    onSave = { requestSave(thenLeave = false) },
+                    busy = busy,
+                    advancedOpen = advancedOpen,
+                    onAdvanced = { advancedOpen = !advancedOpen },
+                    onEdit = { item -> openRule(RuleTarget(original = item.rule, start = item.rule, rank = item.rank)) },
+                    onToggle = { item, on ->
+                        val change = FiltersChange.PutRule(item.rule, item.rule.copy(enabled = on), item.rank)
+                        if (filtersWarnsBeforeWrite(state)) confirmToggle = change else viewModel.save(change)
+                    },
+                    onEditText = { item ->
+                        viewModel.dismissError()
+                        editingTextSaved = savedTextTarget(TextTarget(item.name, item.text, item.text, item.rank))
+                    },
+                    onDeleteText = { item -> confirmDelete = FiltersChange.DeleteText(item.name, item.text, item.rank) },
+                    onAdd = { openRule(RuleTarget(original = null, start = FilterRule())) },
+                    onRestart = { viewModel.save(FiltersChange.Rewrite) },
+                    onActivate = viewModel::activate,
                     onPickScript = { picked ->
-                        when (scriptPickStep(picked = picked, opened = state.scriptName, dirty = state.dirty)) {
+                        when (scriptPickStep(picked = picked, opened = state.scriptName)) {
                             ScriptPick.STAY -> Unit
-                            ScriptPick.ASK -> { switchTo = picked; confirmExit = true }
                             ScriptPick.OPEN -> viewModel.openScript(picked)
                         }
                     },
                 )
             }
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
     }
 }
 
 @Composable
-private fun BoxScope.FiltersNote(text: String, onRetry: (() -> Unit)? = null) {
+private fun BoxScope.FiltersNote(text: String) {
     Column(
         modifier = Modifier.align(Alignment.Center).padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(text, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (onRetry != null) {
-            // Filled Button to match every other error-recovery "Retry" (inbox, message load).
-            Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text(stringResource(R.string.settings_vacation_retry))
-            }
+    }
+}
+
+@Composable
+private fun BoxScope.FiltersNote(lines: FiltersErrorLines, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.align(Alignment.Center).padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            stringResource(lines.sentence),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        errorDetailText(lines)?.let { detail ->
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        // Filled Button to match every other error-recovery "Retry" (inbox, message load).
+        Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
+            Text(stringResource(R.string.settings_vacation_retry))
         }
     }
 }
 
 @Composable
+private fun errorDetailText(lines: FiltersErrorLines): String? =
+    lines.detailRes?.let { stringResource(it) } ?: lines.detail
+
+/** The failure of the last write, SAVE, TEXT_UNCUT or ACTIVATE; a LOAD failure takes the whole screen instead. */
+@Composable
+private fun FiltersErrorBlock(state: FiltersUiState) {
+    val kind = state.errorKind?.takeIf { it != FiltersError.LOAD } ?: return
+    val lines = filtersErrorLines(kind, state.errorSieveKind, state.errorDetail)
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Text(
+            stringResource(lines.sentence),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        errorDetailText(lines)?.let { detail ->
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** In front of every write, so on the list and in each editor: a write replaces a script nobody
+ *  could read, or stops the server's auto-reply. */
+@Composable
+private fun FiltersNoticeLine(state: FiltersUiState) {
+    foreignScriptLine(
+        foreignScriptNotice(
+            scriptUnreadable = state.scriptUnreadable,
+            foreignActive = state.foreignActive,
+            vacationScriptActive = state.vacationScriptActive,
+        ),
+    )?.let { line ->
+        Text(
+            stringResource(line),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun SaveAction(enabled: Boolean, saving: Boolean, onClick: () -> Unit) {
+    if (saving) {
+        CircularProgressIndicator(modifier = Modifier.padding(horizontal = 12.dp).size(20.dp), strokeWidth = 2.dp)
+    } else {
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.settings_save))
+        }
+    }
+}
+
+@Composable
+private fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onKeep,
+        title = { Text(stringResource(R.string.settings_filters_discard_title)) },
+        confirmButton = {
+            TextButton(onClick = onDiscard) { Text(stringResource(R.string.settings_discard)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onKeep) { Text(stringResource(R.string.settings_filters_keep_editing)) }
+        },
+    )
+}
+
+@Composable
 private fun FiltersList(
     state: FiltersUiState,
-    viewModel: FiltersViewModel,
-    onEdit: (Int) -> Unit,
-    onEditText: (Int) -> Unit,
+    busy: Boolean,
+    advancedOpen: Boolean,
+    onAdvanced: () -> Unit,
+    onEdit: (FiltersListItem.Form) -> Unit,
+    onToggle: (FiltersListItem.Form, Boolean) -> Unit,
+    onEditText: (FiltersListItem.Text) -> Unit,
+    onDeleteText: (FiltersListItem.Text) -> Unit,
     onAdd: () -> Unit,
-    // Not viewModel::save: the write goes through the screen's one door, which asks first when the
-    // save would replace a script nobody could read.
-    onSave: () -> Unit,
+    onRestart: () -> Unit,
+    onActivate: () -> Unit,
     onPickScript: (String) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -235,59 +427,25 @@ private fun FiltersList(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
         }
-        state.scriptName?.let { name ->
-            ScriptSelector(
-                opened = name,
-                scripts = state.scripts,
-                enabled = !state.saving && !state.activating,
-                onPick = onPickScript,
-            )
-        }
-        if (state.scriptNotActive) {
+        // Before the auto-reply line and independent of it: the rules can be stopped with no
+        // other script active at all. Its button is the one gesture that puts them back.
+        if (state.rulesNotRunning) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    stringResource(R.string.settings_filters_script_inactive),
+                    stringResource(R.string.settings_filters_not_running),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f),
                 )
-                // Not while edits are unwritten: the read that follows the activation would drop them.
-                TextButton(
-                    onClick = viewModel::activate,
-                    enabled = !state.activating && !state.saving && !state.dirty,
-                ) {
-                    Text(stringResource(R.string.settings_filters_make_active))
+                TextButton(onClick = onRestart, enabled = !busy) {
+                    Text(stringResource(R.string.settings_filters_restart))
                 }
             }
         }
-        // Before the auto-reply line and independent of it: the rules can be stopped with no
-        // other script active at all.
-        if (state.rulesNotRunning) {
-            Text(
-                stringResource(R.string.settings_filters_not_running),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-        // One line at most: an unreadable script first, then the server's auto-reply, which Save stops.
-        foreignScriptLine(
-            foreignScriptNotice(
-                scriptUnreadable = state.scriptUnreadable,
-                foreignActive = state.foreignActive,
-                vacationScriptActive = state.vacationScriptActive,
-            ),
-        )?.let { line ->
-            Text(
-                stringResource(line),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
+        FiltersNoticeLine(state)
         val listing = filtersListing(state)
         when {
             listing.isNotEmpty() -> {
@@ -296,13 +454,16 @@ private fun FiltersList(
                     when (item) {
                         is FiltersListItem.Form -> RuleRow(
                             rule = item.rule,
-                            onToggle = { viewModel.setRuleEnabled(item.index, it) },
-                            onEdit = { onEdit(item.index) },
+                            trashFolder = state.trashFolder,
+                            switchEnabled = !busy,
+                            onToggle = { onToggle(item, it) },
+                            onEdit = { onEdit(item) },
                         )
                         is FiltersListItem.Text -> TextRuleCard(
                             item = item,
-                            onEdit = { onEditText(item.id) },
-                            onDelete = { viewModel.removeText(item.id) },
+                            deleteEnabled = !busy,
+                            onEdit = { onEditText(item) },
+                            onDelete = { onDeleteText(item) },
                         )
                     }
                 }
@@ -319,55 +480,65 @@ private fun FiltersList(
                 )
         }
 
-        OutlinedButton(onClick = onAdd, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        OutlinedButton(onClick = onAdd, enabled = !busy, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.settings_filters_add))
         }
 
-        when (state.errorKind) {
-            FiltersError.SAVE -> stringResource(filtersErrorText(FiltersError.SAVE, state.errorSieveKind), state.errorDetail)
-            FiltersError.TEXT_UNCUT -> stringResource(filtersErrorText(FiltersError.TEXT_UNCUT, state.errorSieveKind))
-            FiltersError.ACTIVATE -> stringResource(filtersErrorText(FiltersError.ACTIVATE, state.errorSieveKind), state.errorDetail)
-            FiltersError.LOAD, null -> null
-        }?.let { message ->
-            Text(
-                message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-        Button(
-            onClick = onSave,
-            // Nothing to push until a rule differs from what the server holds (#34), unless the
-            // server is not running the rules it holds, and Save is the way to put them back.
-            enabled = filtersSaveEnabled(
-                saving = state.saving,
-                dirty = state.dirty,
-                rulesNotRunning = state.rulesNotRunning,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            if (state.saving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.width(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
+        FiltersErrorBlock(state)
+
+        state.scriptName?.let { name ->
+            AdvancedSection(open = advancedOpen, onToggle = onAdvanced) {
+                ScriptSelector(
+                    opened = name,
+                    scripts = state.scripts,
+                    enabled = !busy,
+                    onPick = onPickScript,
                 )
-            } else {
-                Text(stringResource(R.string.settings_vacation_save))
+                if (state.scriptNotActive) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_filters_script_inactive),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = onActivate, enabled = !busy) {
+                            Text(stringResource(R.string.settings_filters_make_active))
+                        }
+                    }
+                }
             }
         }
-        if (state.savedTick > 0) {
+        // Room for the snackbar over the last row.
+        Spacer(Modifier.padding(bottom = 72.dp))
+    }
+}
+
+@Composable
+private fun AdvancedSection(open: Boolean, onToggle: () -> Unit, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                stringResource(R.string.settings_filters_saved),
-                style = MaterialTheme.typography.bodyMedium,
+                stringResource(R.string.settings_filters_advanced),
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp).align(Alignment.CenterHorizontally),
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                if (open) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
-        Spacer(Modifier.padding(bottom = 24.dp))
+        if (open) content()
     }
 }
 
@@ -407,9 +578,63 @@ private fun ScriptSelector(opened: String, scripts: List<ListedScript>, enabled:
     }
 }
 
-/** One rule in the list: summary + enable switch; tap to edit. */
 @Composable
-private fun RuleRow(rule: FilterRule, onToggle: (Boolean) -> Unit, onEdit: () -> Unit) {
+private fun FiltersReorder(
+    state: FiltersUiState,
+    idle: Boolean,
+    drop: (from: Int, to: Int) -> FiltersChange.MoveRule?,
+    onMove: (FiltersChange.MoveRule) -> Unit,
+) {
+    val rows = filtersReorderRows(state.scriptRules)
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            stringResource(R.string.settings_filters_reorder_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        FiltersErrorBlock(state)
+        ReorderableColumn(
+            items = rows,
+            key = { it.key },
+            canMove = { from, to -> drop(from, to) != null },
+            onMove = { from, to -> drop(from, to)?.let(onMove) },
+            idle = idle,
+            modifier = Modifier.weight(1f),
+        ) { row, handle ->
+            val at = rows.indexOf(row)
+            RuleReorderRow(row.rule, handle, up = drop(at, at - 1), down = drop(at, at + 1), onMove = onMove)
+        }
+    }
+}
+
+@Composable
+private fun RuleReorderRow(
+    rule: ScriptRule,
+    handle: Modifier,
+    up: FiltersChange.MoveRule?,
+    down: FiltersChange.MoveRule?,
+    onMove: (FiltersChange.MoveRule) -> Unit,
+) {
+    val name = rule.name.ifBlank { stringResource(R.string.settings_filters_untitled) }
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.DragHandle,
+            contentDescription = stringResource(R.string.folders_reorder_drag),
+            modifier = handle.size(48.dp).padding(12.dp),
+        )
+        Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        MoveSlot(up != null, Icons.Filled.KeyboardArrowUp, stringResource(R.string.folders_reorder_up, name)) { up?.let(onMove) }
+        MoveSlot(down != null, Icons.Filled.KeyboardArrowDown, stringResource(R.string.folders_reorder_down, name)) { down?.let(onMove) }
+    }
+}
+
+/** One rule in the list: summary + enable switch, which writes at once; tap to edit. */
+@Composable
+private fun RuleRow(rule: FilterRule, trashFolder: String?, switchEnabled: Boolean, onToggle: (Boolean) -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -421,18 +646,20 @@ private fun RuleRow(rule: FilterRule, onToggle: (Boolean) -> Unit, onEdit: () ->
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                ruleSummary(context, rule),
+                ruleSummary(context, rule, trashFolder),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(Modifier.width(16.dp))
-        Switch(checked = rule.enabled, onCheckedChange = onToggle)
+        Switch(checked = rule.enabled, onCheckedChange = onToggle, enabled = switchEnabled)
     }
 }
 
 @Composable
-private fun TextRuleCard(item: FiltersListItem.Text, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun TextRuleCard(item: FiltersListItem.Text, deleteEnabled: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
     val open = stringResource(R.string.settings_filters_edit_text)
     Column(
         Modifier
@@ -454,7 +681,7 @@ private fun TextRuleCard(item: FiltersListItem.Text, onEdit: () -> Unit, onDelet
             modifier = Modifier.padding(top = 4.dp),
         )
         if (!item.editable) {
-            TextButton(onClick = onDelete) {
+            TextButton(onClick = onDelete, enabled = deleteEnabled) {
                 Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
             }
         }
@@ -463,16 +690,34 @@ private fun TextRuleCard(item: FiltersListItem.Text, onEdit: () -> Unit, onDelet
 
 @Composable
 private fun TextEditScreen(
-    initial: String,
-    onCommit: (String) -> Unit,
-    onCancel: () -> Unit,
+    target: TextTarget,
+    state: FiltersUiState,
+    busy: Boolean,
+    onSave: (String) -> Unit,
     onDelete: () -> Unit,
+    onClose: () -> Unit,
 ) {
-    var text by rememberSaveable { mutableStateOf(initial) }
-    BackHandler { onCommit(text) }
+    var text by rememberSaveable { mutableStateOf(target.start) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    fun leave() {
+        when (editorLeaveStep(changed = text != target.was, saving = state.saving)) {
+            EditorLeave.ASK -> confirmDiscard = true
+            EditorLeave.LEAVE -> onClose()
+            EditorLeave.STAY -> Unit
+        }
+    }
+    BackHandler { leave() }
+    if (confirmDiscard) DiscardDialog(onKeep = { confirmDiscard = false }, onDiscard = { confirmDiscard = false; onClose() })
     DetailScaffold(
-        title = stringResource(R.string.settings_filters_text_edit_title),
-        onBack = { onCommit(text) },
+        title = stringResource(R.string.settings_filters_edit_text),
+        onBack = { leave() },
+        actions = {
+            SaveAction(
+                enabled = textSaveEnabled(original = target.was, text = text, busy = busy, present = textTargetPresent(state, target)),
+                saving = state.saving,
+                onClick = { onSave(text) },
+            )
+        },
     ) { padding ->
         Column(
             Modifier
@@ -481,6 +726,7 @@ private fun TextEditScreen(
                 .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
+            FiltersNoticeLine(state)
             Text(
                 stringResource(R.string.settings_filters_text_help),
                 style = MaterialTheme.typography.bodySmall,
@@ -494,32 +740,51 @@ private fun TextEditScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                TextButton(onClick = onDelete) {
-                    Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.settings_cancel)) }
+            FiltersErrorBlock(state)
+            TextButton(onClick = onDelete, enabled = !busy, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.padding(bottom = 24.dp))
         }
     }
 }
 
-/** Full-screen rule editor. Back commits the edited rule to the in-memory list. */
+/** Full-screen rule editor. Save writes the rule to the server; leaving with changes asks first. */
 @Composable
 private fun RuleEditScreen(
-    initial: FilterRule,
-    folders: List<String>,
-    onCommit: (FilterRule) -> Unit,
-    onDelete: () -> Unit,
+    target: RuleTarget,
+    state: FiltersUiState,
+    busy: Boolean,
+    onSave: (FilterRule) -> Unit,
+    // Null for a rule not written yet: there is nothing on the server to delete.
+    onDelete: (() -> Unit)?,
+    onClose: () -> Unit,
 ) {
     val context = LocalContext.current
-    var rule by remember { mutableStateOf(initial) }
-    BackHandler { onCommit(rule) }
+    val folders = state.folders
+    val bulwark = ruleInBulwark(state, target)
+    val handCondition = ruleTargetForm(state, target)?.handCondition == true
+    var rule by rememberSaveable(stateSaver = FilterRuleSaver) { mutableStateOf(target.start) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    fun leave() {
+        when (editorLeaveStep(changed = ruleEdited(target.original, rule), saving = state.saving)) {
+            EditorLeave.ASK -> confirmDiscard = true
+            EditorLeave.LEAVE -> onClose()
+            EditorLeave.STAY -> Unit
+        }
+    }
+    BackHandler { leave() }
+    if (confirmDiscard) DiscardDialog(onKeep = { confirmDiscard = false }, onDiscard = { confirmDiscard = false; onClose() })
     DetailScaffold(
         title = stringResource(R.string.settings_filters_edit_title),
-        onBack = { onCommit(rule) },
+        onBack = { leave() },
+        actions = {
+            SaveAction(
+                enabled = ruleSaveEnabled(original = target.original, rule = rule, busy = busy, present = ruleTargetPresent(state, target)),
+                saving = state.saving,
+                onClick = { onSave(rule) },
+            )
+        },
     ) { padding ->
         Column(
             Modifier
@@ -529,6 +794,7 @@ private fun RuleEditScreen(
                 .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
+            FiltersNoticeLine(state)
             OutlinedTextField(
                 value = rule.name,
                 onValueChange = { rule = rule.copy(name = it) },
@@ -537,69 +803,289 @@ private fun RuleEditScreen(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             )
             SettingsSection(stringResource(R.string.settings_filter_if)) {
-                SettingChoiceRow(
-                    title = stringResource(R.string.settings_filter_field),
-                    options = RuleField.entries,
-                    selected = rule.field,
-                    optionLabel = { fieldLabel(context, it) },
-                    onSelect = { rule = rule.copy(field = it) },
-                )
-                SettingChoiceRow(
-                    title = stringResource(R.string.settings_filter_match),
-                    options = RuleMatch.entries,
-                    selected = rule.match,
-                    optionLabel = { matchLabel(context, it) },
-                    onSelect = { rule = rule.copy(match = it) },
-                )
-                OutlinedTextField(
-                    value = rule.value,
-                    onValueChange = { rule = rule.copy(value = it) },
-                    label = { Text(stringResource(R.string.settings_filter_value)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                )
+                if (rule.conditions.size >= 2) {
+                    SettingChoiceRow(
+                        title = stringResource(R.string.settings_filter_mode),
+                        options = RuleMode.entries,
+                        selected = rule.mode,
+                        optionLabel = { modeLabel(context, it) },
+                        onSelect = { rule = rule.copy(mode = it) },
+                    )
+                }
+                rule.conditions.forEachIndexed { index, condition ->
+                    if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    ConditionEditor(
+                        condition = condition,
+                        offered = state.offered,
+                        bulwark = bulwark,
+                        onRemove = if (rule.conditions.size > 1) ({ rule = withoutCondition(rule, index) }) else null,
+                        onChange = { changed ->
+                            rule = rule.copy(conditions = rule.conditions.mapIndexed { i, c -> if (i == index) changed else c })
+                        },
+                    )
+                }
+                if (handCondition) {
+                    Text(
+                        stringResource(R.string.settings_filter_hand_condition),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                TextButton(
+                    onClick = { rule = rule.copy(conditions = rule.conditions + Condition()) },
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.settings_filter_add_condition))
+                }
             }
             SettingsSection(stringResource(R.string.settings_filter_then)) {
-                val noMove = stringResource(R.string.settings_filter_move_none)
-                // A rule written before targets became whole paths holds a bare folder name, no
-                // longer an offered option. Kept and kept selected: opening a rule must not
-                // quietly retarget it.
-                val stored = rule.moveTo?.takeIf { it !in folders }
-                SettingChoiceRow(
-                    title = stringResource(R.string.settings_filter_move_to),
-                    options = listOf<String?>(null) + folders + listOfNotNull(stored),
-                    selected = rule.moveTo,
-                    optionLabel = { it ?: noMove },
-                    onSelect = { rule = rule.copy(moveTo = it) },
-                )
-                ActionSwitch(
-                    label = stringResource(R.string.settings_filter_mark_read),
-                    checked = rule.markRead,
-                    onChange = { rule = rule.copy(markRead = it) },
-                )
-                ActionSwitch(
-                    label = stringResource(R.string.settings_filter_flag),
-                    checked = rule.flag,
-                    onChange = { rule = rule.copy(flag = it) },
+                rule.actions.forEachIndexed { index, action ->
+                    ActionEditor(
+                        action = action,
+                        folders = folders,
+                        trashFolder = state.trashFolder,
+                        onRemove = if (actionRemovable(action, target.original)) {
+                            { rule = rule.copy(actions = rule.actions.filterIndexed { i, _ -> i != index }) }
+                        } else {
+                            null
+                        },
+                        onChange = { changed ->
+                            rule = rule.copy(actions = rule.actions.mapIndexed { i, a -> if (i == index) changed else a })
+                        },
+                    )
+                }
+                AddActionButton(
+                    rule = rule,
+                    offered = state.offered,
+                    bulwark = bulwark,
+                    trashFolder = state.trashFolder,
+                    onAdd = { kind -> rule = withAction(rule, newAction(kind, folders, state.trashFolder)) },
                 )
             }
-            TextButton(onClick = onDelete, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
+            FiltersErrorBlock(state)
+            if (onDelete != null) {
+                TextButton(onClick = onDelete, enabled = !busy, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(stringResource(R.string.settings_filter_delete), color = MaterialTheme.colorScheme.error)
+                }
             }
             Spacer(Modifier.padding(bottom = 24.dp))
         }
     }
 }
 
+private val FilterRuleSaver = Saver<FilterRule, ArrayList<Any?>>(save = { savedRule(it) }, restore = { restoredRule(it) })
+
 @Composable
-private fun ActionSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun ConditionEditor(
+    condition: Condition,
+    offered: List<String>?,
+    bulwark: Boolean,
+    onRemove: (() -> Unit)?,
+    onChange: (Condition) -> Unit,
+) {
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(1f)) {
+            PickerRow(
+                title = stringResource(R.string.settings_filter_field),
+                selected = condition.field,
+                options = ConditionField.entries,
+                optionLabel = { fieldLabel(context, it) },
+                optionNote = { availabilityNote(context, fieldAvailability(it, offered, bulwark)) },
+                onSelect = { onChange(withField(condition, it, bulwark)) },
+            )
+            SettingChoiceRow(
+                title = stringResource(R.string.settings_filter_match),
+                options = offeredMatches(condition.field, bulwark),
+                selected = condition.match,
+                optionLabel = { matchLabel(context, it) },
+                onSelect = { onChange(condition.copy(match = it)) },
+            )
+            if (condition.field == ConditionField.SIZE) {
+                SizeEditor(bytes = condition.value, onChange = { onChange(condition.copy(value = it)) })
+            } else {
+                OutlinedTextField(
+                    value = condition.value,
+                    onValueChange = { onChange(condition.copy(value = it)) },
+                    label = { Text(stringResource(R.string.settings_filter_value)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        if (onRemove != null) {
+            IconButton(onClick = onRemove, modifier = Modifier.padding(top = 4.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_filter_remove))
+            }
+        }
+    }
+}
+
+/** The number is read back from the bytes, never remembered: a row's state follows its place, not its condition. */
+@Composable
+private fun SizeEditor(bytes: String, onChange: (String) -> Unit) {
+    val context = LocalContext.current
+    var chosen by rememberSaveable { mutableStateOf(sizeUnitOf(bytes)) }
+    val unit = if (bytes.isBlank() || sizeInUnit(bytes, chosen).isNotEmpty()) chosen else sizeUnitOf(bytes)
+    val number = sizeInUnit(bytes, unit)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(16.dp))
-        Switch(checked = checked, onCheckedChange = onChange)
+        OutlinedTextField(
+            value = number,
+            onValueChange = { typed -> onChange(sizeValue(typed.filter(Char::isDigit), unit)) },
+            label = { Text(stringResource(R.string.settings_filter_value)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        Box {
+            PickerRow(
+                title = stringResource(R.string.settings_filter_unit),
+                selected = unit,
+                options = SizeUnit.entries,
+                optionLabel = { unitLabel(context, it) },
+                optionNote = { null },
+                onSelect = {
+                    chosen = it
+                    onChange(sizeValue(number, it))
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun <T> PickerRow(
+    title: String,
+    selected: T,
+    options: List<T>,
+    optionLabel: (T) -> String,
+    optionNote: (T) -> String?,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Column(
+            Modifier
+                .clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(optionLabel(selected), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                val note = optionNote(option)
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(optionLabel(option))
+                            if (note != null) Text(note, style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
+                    enabled = note == null,
+                    onClick = { expanded = false; onSelect(option) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionEditor(
+    action: Action,
+    folders: List<String>,
+    trashFolder: String?,
+    onRemove: (() -> Unit)?,
+    onChange: (Action) -> Unit,
+) {
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) {
+            when (val kind = kindOf(action, trashFolder)) {
+                ActionKind.MOVE, ActionKind.COPY -> {
+                    val folder = (action as? Action.MoveTo)?.folder ?: (action as Action.CopyTo).folder
+                    // A target no longer among the offered folders is kept, and kept selected: opening a
+                    // rule must not quietly retarget it.
+                    val choices = folders.filter { kind == ActionKind.COPY || it != trashFolder } + listOfNotNull(folder.takeIf { it !in folders })
+                    SettingChoiceRow(
+                        title = actionLabel(context, kind),
+                        options = choices,
+                        selected = folder,
+                        optionLabel = { it },
+                        onSelect = { onChange(if (kind == ActionKind.MOVE) Action.MoveTo(it) else Action.CopyTo(it)) },
+                    )
+                }
+                ActionKind.FORWARD -> {
+                    val forward = action as Action.ForwardTo
+                    val address = forward.address
+                    val invalid = address.isNotBlank() && !isValidEmail(address)
+                    OutlinedTextField(
+                        value = address,
+                        onValueChange = { onChange(forward.copy(address = it.trim())) },
+                        label = { Text(actionLabel(context, kind)) },
+                        singleLine = true,
+                        isError = invalid,
+                        supportingText = if (invalid) ({ Text(stringResource(R.string.settings_email_invalid)) }) else null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+                else -> Text(
+                    actionLabel(context, kind),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
+        }
+        if (onRemove != null) {
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_filter_remove))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddActionButton(
+    rule: FilterRule,
+    offered: List<String>?,
+    bulwark: Boolean,
+    trashFolder: String?,
+    onAdd: (ActionKind) -> Unit,
+) {
+    val context = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.padding(horizontal = 8.dp)) {
+        TextButton(onClick = { expanded = true }) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.settings_filter_add_action))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ActionKind.entries
+                .filter { it != ActionKind.DELETE || trashFolder != null }
+                .map { it to actionAvailability(it, rule, offered, bulwark) }
+                .filter { (_, availability) -> availability != Availability.ALREADY_THERE }
+                .forEach { (kind, availability) ->
+                    val note = availabilityNote(context, availability)
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(actionLabel(context, kind))
+                                if (note != null) Text(note, style = MaterialTheme.typography.bodySmall)
+                            }
+                        },
+                        enabled = note == null,
+                        onClick = { expanded = false; onAdd(kind) },
+                    )
+                }
+        }
     }
 }
 
@@ -611,23 +1097,76 @@ internal fun foreignScriptLine(notice: ForeignScriptNotice?): Int? = when (notic
     ForeignScriptNotice.ANOTHER_SCRIPT -> R.string.settings_filters_stops_auto_reply
 }
 
-/** "Sender contains \"X\" → Move to Y · Mark read", a one-line human summary. */
-private fun ruleSummary(context: Context, rule: FilterRule): String {
-    val cond = "${fieldLabel(context, rule.field)} ${matchLabel(context, rule.match)} \"${rule.value}\""
-    val actions = buildList {
-        rule.moveTo?.let { add(context.getString(R.string.settings_filter_summary_move, it)) }
-        if (rule.markRead) add(context.getString(R.string.settings_filter_mark_read))
-        if (rule.flag) add(context.getString(R.string.settings_filter_flag))
-    }
-    return if (actions.isEmpty()) cond else "$cond → ${actions.joinToString(" · ")}"
+/** "Sender contains "x", and 1 more → Move to Y, stop": the first condition, how many more, every action. */
+private fun ruleSummary(context: Context, rule: FilterRule, trashFolder: String?): String {
+    val first = rule.conditions.firstOrNull()?.let { conditionSummary(context, it) }.orEmpty()
+    val more = rule.conditions.size - 1
+    val cond = if (more > 0) context.resources.getQuantityString(R.plurals.settings_filter_summary_more, more, first, more) else first
+    val actions = rule.actions.map { actionSummary(context, it, trashFolder) }
+    return if (actions.isEmpty()) cond else "$cond → ${actions.joinToString(", ")}"
 }
 
-private fun fieldLabel(context: Context, field: RuleField): String = context.getString(
+private fun conditionSummary(context: Context, condition: Condition): String {
+    val value = if (condition.field == ConditionField.SIZE) {
+        val unit = sizeUnitOf(condition.value)
+        unitAmount(context, sizeInUnit(condition.value, unit), unit)
+    } else {
+        "\"${condition.value}\""
+    }
+    return "${fieldLabel(context, condition.field)} ${matchLabel(context, condition.match)} $value"
+}
+
+private fun actionSummary(context: Context, action: Action, trashFolder: String?): String = when (kindOf(action, trashFolder)) {
+    ActionKind.MOVE -> context.getString(R.string.settings_filter_summary_move, (action as Action.MoveTo).folder)
+    ActionKind.COPY -> context.getString(R.string.settings_filter_summary_copy, (action as Action.CopyTo).folder)
+    ActionKind.DELETE -> context.getString(R.string.settings_filter_action_delete)
+    ActionKind.MARK_READ -> context.getString(R.string.settings_filter_mark_read)
+    ActionKind.STAR -> context.getString(R.string.settings_filter_flag)
+    ActionKind.FORWARD -> context.getString(R.string.settings_filter_summary_forward, (action as Action.ForwardTo).address)
+    ActionKind.STOP -> context.getString(R.string.settings_filter_summary_stop)
+}
+
+private fun actionLabel(context: Context, kind: ActionKind): String = context.getString(
+    when (kind) {
+        ActionKind.MOVE -> R.string.settings_filter_move_to
+        ActionKind.COPY -> R.string.settings_filter_copy_to
+        ActionKind.DELETE -> R.string.settings_filter_action_delete
+        ActionKind.MARK_READ -> R.string.settings_filter_mark_read
+        ActionKind.STAR -> R.string.settings_filter_flag
+        ActionKind.FORWARD -> R.string.settings_filter_forward_to
+        ActionKind.STOP -> R.string.settings_filter_stop
+    },
+)
+
+private fun availabilityNote(context: Context, availability: Availability): String? = when (availability) {
+    Availability.OFFERED, Availability.ALREADY_THERE -> null
+    Availability.NOT_BY_SERVER -> context.getString(R.string.settings_filter_not_offered)
+    Availability.NOT_IN_BULWARK -> context.getString(R.string.settings_filter_not_in_bulwark)
+}
+
+private fun unitLabel(context: Context, unit: SizeUnit): String = unitAmount(context, "", unit).trim()
+
+private fun unitAmount(context: Context, amount: String, unit: SizeUnit): String = context.getString(
+    if (unit == SizeUnit.MB) R.string.settings_filter_size_mb else R.string.settings_filter_size_kb,
+    amount,
+)
+
+private fun modeLabel(context: Context, mode: RuleMode): String = context.getString(
+    when (mode) {
+        RuleMode.ALL -> R.string.settings_filter_mode_all
+        RuleMode.ANY -> R.string.settings_filter_mode_any
+    },
+)
+
+private fun fieldLabel(context: Context, field: ConditionField): String = context.getString(
     when (field) {
-        RuleField.FROM -> R.string.settings_filter_field_from
-        RuleField.TO -> R.string.settings_filter_field_to
-        RuleField.CC -> R.string.settings_filter_field_cc
-        RuleField.SUBJECT -> R.string.settings_filter_field_subject
+        ConditionField.FROM -> R.string.settings_filter_field_from
+        ConditionField.TO -> R.string.settings_filter_field_to
+        ConditionField.CC -> R.string.settings_filter_field_cc
+        ConditionField.SUBJECT -> R.string.settings_filter_field_subject
+        ConditionField.LIST -> R.string.settings_filter_field_list
+        ConditionField.BODY -> R.string.settings_filter_field_body
+        ConditionField.SIZE -> R.string.settings_filter_field_size
     },
 )
 
@@ -635,5 +1174,8 @@ private fun matchLabel(context: Context, match: RuleMatch): String = context.get
     when (match) {
         RuleMatch.CONTAINS -> R.string.settings_filter_match_contains
         RuleMatch.IS -> R.string.settings_filter_match_is
+        RuleMatch.NOT_CONTAINS -> R.string.settings_filter_match_not_contains
+        RuleMatch.OVER -> R.string.settings_filter_match_over
+        RuleMatch.UNDER -> R.string.settings_filter_match_under
     },
 )

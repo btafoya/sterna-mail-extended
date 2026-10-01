@@ -2,24 +2,32 @@ package app.sterna.ui.settings
 
 import app.sterna.core.data.filter.BulwarkMetadata
 import app.sterna.core.data.filter.FilterRule
+import app.sterna.core.data.filter.copy
 import app.sterna.core.data.filter.FilterScriptChangedException
 import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.loadedFilterRules
+import app.sterna.core.data.mail.FilterRulesState
 import app.sterna.core.imap.ManageSieveException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The filters list beyond the form: Sieve text blocks edited as text, Bulwark rules that can only be deleted. */
+/**
+ * The filters list beyond the form, and what each gesture writes: Sieve text blocks edited as text,
+ * Bulwark rules that can only be deleted, form rules edited, switched and deleted one write at a time.
+ */
 class FiltersTextRulesTest {
 
     private val loaded = loadedFilterRules("bulwark", BULWARK)
     private val opened = FiltersUiState().withScript(loaded)
-    private val serverRules = loaded.rules
 
-    private fun textId(name: String) = loaded.scriptRules.single { it is ScriptRule.Text && it.name == name }.id
+    private fun text(name: String) = loaded.scriptRules.single { it is ScriptRule.Text && it.name == name } as ScriptRule.Text
+    private fun form(name: String) = (loaded.scriptRules.single { it is ScriptRule.Form && it.name == name } as ScriptRule.Form).rule
+
+    private fun written(change: FiltersChange, over: FilterRulesState.Loaded = loaded): String =
+        ((filtersWrite(over, change) as FiltersWritePlan.Write).write.script.emit())
 
     @Test fun `the list shows every rule in script order, and only Bulwark's are not opened as text`() {
         val listing = filtersListing(opened)
@@ -35,81 +43,197 @@ class FiltersTextRulesTest {
         assertTrue(listing.filterIsInstance<FiltersListItem.Text>().single { it.name == "Roundcube two" }.text.contains("\"rc2\""))
     }
 
-    @Test fun `a text edit is listed, marks the screen dirty, and undone it is no edit`() {
-        val id = textId("Roundcube two")
-        val original = (loaded.scriptRules.single { it.id == id } as ScriptRule.Text).text
-        val edited = opened.withTextEdit(id, original.replace("rc2", "rc3"))
-
-        assertTrue(filtersDirty(edited, serverRules))
-        assertEquals(
-            original.replace("rc2", "rc3"),
-            filtersListing(edited).filterIsInstance<FiltersListItem.Text>().single { it.id == id }.text,
-        )
-        val undone = edited.withTextEdit(id, original)
-        assertEquals(emptyMap<Int, String>(), undone.textEdits)
-        assertFalse(filtersDirty(undone, serverRules))
-    }
-
-    @Test fun `a Bulwark rule takes no text edit, only a deletion`() {
-        val id = textId("Big or invoice")
-        assertEquals(opened, opened.withTextEdit(id, "discard;"))
-
-        val removed = opened.withTextRemoved(id)
-        assertTrue(filtersDirty(removed, serverRules))
-        assertFalse(filtersListing(removed).any { it is FiltersListItem.Text && it.id == id })
-
-        val write = filtersWrite(loaded, removed)!!
-        val reread = loadedFilterRules(write.name, write.script.emit())
-        assertEquals(BulwarkMetadata.READABLE, reread.script!!.bulwarkMetadata)
-        assertEquals(
-            listOf("Newsletters", "Boss", "Sleeping", "Roundcube one", "Roundcube two"),
-            reread.scriptRules.map { it.name },
-        )
-        assertFalse(write.script.emit().contains("invoice"))
-    }
-
-    @Test fun `a block edited then deleted is written deleted, without a throw`() {
-        val id = textId("Roundcube two")
-        val state = opened.withTextEdit(id, "discard;").withTextRemoved(id)
-
-        val write = filtersWrite(loaded, state)!!
-        assertFalse(write.script.emit().contains("rc2"))
-        assertEquals(
-            listOf("Newsletters", "Boss", "Big or invoice", "Sleeping", "Roundcube one"),
-            loadedFilterRules(write.name, write.script.emit()).scriptRules.map { it.name },
-        )
-    }
-
-    @Test fun `Save writes the edited text in place of its block, the rest byte for byte`() {
-        val id = textId("Roundcube two")
-        val original = (loaded.scriptRules.single { it.id == id } as ScriptRule.Text).text
-        val state = opened.withTextEdit(id, original.replace("rc2", "rc3"))
-
-        val write = filtersWrite(loaded, state)!!
+    @Test fun `Save of a text writes it in place of its block, the rest byte for byte, under the script's name`() {
+        val original = text("Roundcube two").text
+        val plan = filtersWrite(loaded, FiltersChange.PutText(name = "Roundcube two", was = original, text = original.replace("rc2", "rc3")))
+        val write = (plan as FiltersWritePlan.Write).write
         assertEquals("bulwark", write.name)
+        assertEquals(loaded.snapshot, write.read)
         assertEquals(BULWARK.replace("\"rc2\"", "\"rc3\""), write.script.emit())
     }
 
-    @Test fun `a text edited into a form rule is written along with a form edit, neither lost`() {
-        val id = textId("Roundcube two")
-        val asForm = "# rule:[Roundcube two]\nif header :contains \"subject\" \"rc9\" {\n    fileinto \"Archive\";\n}"
-        val state = opened.withTextEdit(id, asForm)
-            .let { it.copy(rules = it.rules + FilterRule(name = "new", value = "x@example.com", moveTo = "Box"), ruleIds = it.ruleIds + listOf(null)) }
+    @Test fun `Save of a form rule rewrites that rule alone`() {
+        val boss = form("Boss")
+        val emitted = written(FiltersChange.PutRule(was = boss, rule = boss.copy(value = "CRITICAL")))
+        assertTrue(emitted, emitted.contains("\"CRITICAL\""))
+        assertFalse(emitted, emitted.contains("\"URGENT\""))
+        assertTrue("the text blocks are untouched", emitted.contains(text("Roundcube two").text))
+        assertEquals(
+            listOf("Newsletters", "Boss", "Big or invoice", "Sleeping", "Roundcube one", "Roundcube two"),
+            loadedFilterRules("bulwark", emitted).scriptRules.map { it.name },
+        )
+    }
 
-        val emitted = filtersWrite(loaded, state)!!.script.emit()
-        assertTrue(emitted, emitted.contains("\"rc9\""))
-        assertTrue(emitted, emitted.contains("x@example.com"))
+    @Test fun `a switch writes the rule with its new state and nothing else`() {
+        val boss = form("Boss")
+        val reread = loadedFilterRules("bulwark", written(FiltersChange.PutRule(was = boss, rule = boss.copy(enabled = false))))
+        assertEquals(boss.copy(enabled = false), (reread.scriptRules.single { it.name == "Boss" } as ScriptRule.Form).rule)
+        assertEquals(loaded.scriptRules.size, reread.scriptRules.size)
+    }
+
+    @Test fun `a new rule is added, and exists nowhere before its Save`() {
+        val added = FilterRule(name = "new", value = "x@example.com", moveTo = "Box")
+        assertEquals("the list holds no rule the server does not", loaded.scriptRules.size, filtersListing(opened).size)
+        val reread = loadedFilterRules("bulwark", written(FiltersChange.PutRule(was = null, rule = added)))
+        assertEquals(loaded.scriptRules.size + 1, reread.scriptRules.size)
+        assertTrue(reread.scriptRules.any { it is ScriptRule.Form && it.rule.value == "x@example.com" })
+    }
+
+    @Test fun `a Bulwark rule takes only a deletion, and deleting keeps Bulwark's metadata readable`() {
+        val big = text("Big or invoice")
+        assertEquals(
+            "a locked block is never the target of a text edit",
+            FiltersWritePlan.BlockGone,
+            filtersWrite(loaded, FiltersChange.PutText(name = big.name, was = big.text, text = "discard;")),
+        )
+        val emitted = written(FiltersChange.DeleteText(name = big.name, was = big.text))
+        val reread = loadedFilterRules("bulwark", emitted)
+        assertEquals(BulwarkMetadata.READABLE, reread.script!!.bulwarkMetadata)
+        assertEquals(listOf("Newsletters", "Boss", "Sleeping", "Roundcube one", "Roundcube two"), reread.scriptRules.map { it.name })
+        assertFalse(emitted.contains("invoice"))
+    }
+
+    @Test fun `a form rule and a text block are deleted by what they held`() {
+        val emitted = written(FiltersChange.DeleteRule(was = form("Boss")))
+        assertEquals(
+            listOf("Newsletters", "Big or invoice", "Sleeping", "Roundcube one", "Roundcube two"),
+            loadedFilterRules("bulwark", emitted).scriptRules.map { it.name },
+        )
+        val two = text("Roundcube two")
+        assertFalse(written(FiltersChange.DeleteText(name = two.name, was = two.text)).contains("rc2"))
+    }
+
+    @Test fun `the restart writes the script back byte for byte`() {
+        assertEquals(BULWARK, written(FiltersChange.Rewrite))
     }
 
     @Test fun `an edited text that leaves a bracket open writes nothing`() {
-        val state = opened.withTextEdit(textId("Roundcube two"), "if header :contains \"subject\" \"rc2\" {\n    discard;\n")
-        assertNull(filtersWrite(loaded, state))
+        val two = text("Roundcube two")
+        assertEquals(
+            FiltersWritePlan.TextUncut,
+            filtersWrite(loaded, FiltersChange.PutText(name = two.name, was = two.text, text = "if header :contains \"subject\" \"rc2\" {\n    discard;\n")),
+        )
+    }
+
+    @Test fun `a change whose block is gone writes nothing`() {
+        val gone = form("Boss").copy(value = "somebody-else-changed-it")
+        assertEquals(FiltersWritePlan.BlockGone, filtersWrite(loaded, FiltersChange.PutRule(was = gone, rule = gone.copy(flag = true))))
+        assertEquals(FiltersWritePlan.BlockGone, filtersWrite(loaded, FiltersChange.DeleteRule(was = gone)))
+        assertEquals(FiltersWritePlan.BlockGone, filtersWrite(loaded, FiltersChange.PutText(name = "Roundcube two", was = "gone;", text = "keep;")))
+    }
+
+    @Test fun `a change refused because the script changed is replayed over the new read, found by its content`() {
+        val plain = "require [\"fileinto\"];\n\n# rule:[boss]\nif address :is \"from\" \"boss@example.com\" {\n    fileinto \"Work\";\n}\n"
+        val before = loadedFilterRules("roundcube", plain)
+        val boss = (before.scriptRules.single() as ScriptRule.Form)
+        val edit = FiltersChange.PutRule(was = boss.rule, rule = boss.rule.copy(value = "chief@example.com"))
+        // Somebody added a rule above it elsewhere: the ids moved, the boss rule did not change.
+        val top = "# rule:[Top]\nif header :contains \"subject\" \"top\" {\n    discard;\n}\n\n"
+        val elsewhere = loadedFilterRules("roundcube", plain.replace("# rule:[boss]", top + "# rule:[boss]"))
+        val moved = elsewhere.scriptRules.single { it.name == "boss" }
+        assertNotEquals("the premise: the id the edit was made on now names another block", boss.id, moved.id)
+
+        assertEquals(FiltersReplay.Again(edit), filtersReplay(elsewhere, edit, replayedOnce = false, warns = false))
+        val emitted = written(edit, over = elsewhere)
+        assertEquals(
+            "replayed on the boss block, wherever its id now is, and the rule added elsewhere survives",
+            plain.replace("# rule:[boss]", top + "# rule:[boss]").replace("boss@example.com", "chief@example.com"),
+            emitted,
+        )
+    }
+
+    @Test fun `a replay whose block is gone offers an edited rule back, and drops the rest`() {
+        val boss = form("Boss")
+        val without = loadedFilterRules("bulwark", written(FiltersChange.DeleteRule(was = boss)))
+        val edit = FiltersChange.PutRule(was = boss, rule = boss.copy(value = "CRITICAL"))
+        assertEquals(
+            "the typed rule comes back as a new one: its block is gone, so a Save must add it",
+            FiltersReplay.Propose(FiltersChange.PutRule(was = null, rule = boss.copy(value = "CRITICAL"))),
+            filtersReplay(without, edit, replayedOnce = false, warns = false),
+        )
+        assertEquals(FiltersReplay.Dropped, filtersReplay(without, FiltersChange.DeleteRule(was = boss), replayedOnce = false, warns = false))
+        val two = text("Roundcube two")
+        val withoutTwo = loadedFilterRules("bulwark", written(FiltersChange.DeleteText(two.name, two.text)))
+        assertEquals(FiltersReplay.Dropped, filtersReplay(withoutTwo, FiltersChange.PutText(two.name, two.text, "keep;"), replayedOnce = false, warns = false))
+    }
+
+    @Test fun `an added rule and the restart need no block and are always replayed once`() {
+        val added = FiltersChange.PutRule(was = null, rule = FilterRule(name = "n", value = "v"))
+        val empty = loadedFilterRules(null, null)
+        assertEquals(FiltersReplay.Again(added), filtersReplay(empty, added, replayedOnce = false, warns = false))
+        assertEquals(FiltersReplay.Again(FiltersChange.Rewrite), filtersReplay(empty, FiltersChange.Rewrite, replayedOnce = false, warns = false))
+    }
+
+    @Test fun `a second refusal in a row hands the edit back instead of racing the other writer`() {
+        val boss = form("Boss")
+        val edit = FiltersChange.PutRule(was = boss, rule = boss.copy(value = "CRITICAL"))
+        assertEquals(
+            "still found: offered back over the same rule, not as a new one",
+            FiltersReplay.Propose(edit),
+            filtersReplay(loaded, edit, replayedOnce = true, warns = false),
+        )
+        assertEquals(FiltersReplay.Dropped, filtersReplay(loaded, FiltersChange.Rewrite, replayedOnce = true, warns = false))
+    }
+
+    @Test fun `of two identical rules, the one the change was made on is the one written`() {
+        val block = "# rule:[twin]\nif address :is \"from\" \"twin@example.com\" {\n    fileinto \"Work\";\n}\n"
+        val twins = "require [\"fileinto\"];\n\n$block\n$block"
+        val read = loadedFilterRules("sterna", twins)
+        val listing = filtersListing(FiltersUiState().withScript(read)).filterIsInstance<FiltersListItem.Form>()
+        assertEquals("each twin carries its rank among the identical ones", listOf(0, 1), listing.map { it.rank })
+        val second = listing[1]
+        val emitted = written(FiltersChange.PutRule(was = second.rule, rule = second.rule.copy(value = "other@example.com"), rank = second.rank), over = read)
+        assertEquals(
+            "the second block changed, the first did not",
+            twins.substringBeforeLast("twin@example.com") + "other@example.com" + twins.substringAfterLast("twin@example.com"),
+            emitted,
+        )
+        val deleted = written(FiltersChange.DeleteRule(was = second.rule, rank = 1), over = read)
+        assertEquals(1, loadedFilterRules("sterna", deleted).scriptRules.size)
+        assertTrue(deleted, deleted.startsWith("require [\"fileinto\"];\n\n$block"))
+    }
+
+    @Test fun `a text block is found by its name, its text and its rank among twins`() {
+        val rules = listOf(
+            ScriptRule.Text(id = 11, name = "a", text = "same;", lockedByBulwark = false),
+            ScriptRule.Text(id = 12, name = "b", text = "same;", lockedByBulwark = false),
+            ScriptRule.Text(id = 13, name = "b", text = "same;", lockedByBulwark = false),
+            ScriptRule.Text(id = 14, name = "b", text = "same;", lockedByBulwark = true),
+        )
+        assertEquals("the name tells two identical texts apart", 12, FiltersChange.PutText("b", "same;", "x;").targetIn(rules))
+        assertEquals(11, FiltersChange.PutText("a", "same;", "x;").targetIn(rules))
+        assertEquals("the rank tells two identical blocks of the same name apart", 13, FiltersChange.PutText("b", "same;", "x;", rank = 1).targetIn(rules))
+        assertEquals("a Bulwark block is never edited as text", null, FiltersChange.PutText("b", "same;", "x;", rank = 2).targetIn(rules))
+        assertEquals(12, FiltersChange.DeleteText("b", "same;").targetIn(rules))
+        assertEquals(11, FiltersChange.DeleteText("a", "same;").targetIn(rules))
+        assertEquals("a deletion reaches a Bulwark block too", 14, FiltersChange.DeleteText("b", "same;", rank = 2).targetIn(rules))
+        val listed = filtersListing(FiltersUiState(scriptRules = rules)).filterIsInstance<FiltersListItem.Text>()
+        assertEquals(listOf(0, 0, 1, 0), listed.map { it.rank })
+    }
+
+    @Test fun `a text whose block changed elsewhere is offered back over that block as it now reads`() {
+        val two = text("Roundcube two")
+        val typed = FiltersChange.PutText(name = two.name, was = two.text, text = "discard;\n")
+        val changedElsewhere = loadedFilterRules("bulwark", BULWARK.replace("\"rc2\"", "\"rc4\""))
+        val now = changedElsewhere.scriptRules.single { it.name == "Roundcube two" } as ScriptRule.Text
+        assertEquals(
+            "what was typed is kept, and the Save now goes against the text the block holds, so it cannot fail on it again",
+            FiltersReplay.Propose(typed.copy(was = now.text)),
+            filtersReplay(changedElsewhere, typed, replayedOnce = false, warns = false),
+        )
+    }
+
+    @Test fun `a replay that would stop the auto-reply is offered back, never written`() {
+        val boss = form("Boss")
+        val edit = FiltersChange.PutRule(was = boss, rule = boss.copy(value = "CRITICAL"))
+        assertEquals(FiltersReplay.Propose(edit), filtersReplay(loaded, edit, replayedOnce = false, warns = true))
+        assertEquals(FiltersReplay.Dropped, filtersReplay(loaded, FiltersChange.Rewrite, replayedOnce = false, warns = true))
     }
 
     @Test fun `a text left open is its own failure, every other save failure stays a failed save with its detail`() {
-        val edited = opened.withTextEdit(textId("Roundcube two"), "if true {").copy(saving = true, dirty = true)
+        val saving = opened.copy(saving = true)
 
-        val uncut = filtersSaveFailed(edited, SieveTextUncut())
+        val uncut = filtersSaveFailed(saving, SieveTextUncut())
         assertEquals(
             "a text that cannot be cut never reached the server: it must not be worded as a failed save " +
                 "carrying the exception's English message",
@@ -117,10 +241,9 @@ class FiltersTextRulesTest {
             uncut.errorKind,
         )
         assertFalse(uncut.saving)
-        assertEquals(edited.textEdits, uncut.textEdits)
 
         listOf(IllegalStateException("x"), IllegalArgumentException("x")).forEach { failure ->
-            val other = filtersSaveFailed(edited, failure)
+            val other = filtersSaveFailed(saving, failure)
             assertEquals(
                 "$failure: the model's require() calls throw IllegalArgumentException too, and they are not a text left open",
                 FiltersError.SAVE,
@@ -130,19 +253,14 @@ class FiltersTextRulesTest {
         }
     }
 
-    @Test fun `a server refusing the text keeps the edit on screen, and its own words`() {
-        val id = textId("Roundcube two")
-        val edited = opened.withTextEdit(id, "if header :contains \"subject\" \"rc2\" { nonsense; }").copy(saving = true, dirty = true)
+    @Test fun `a server refusing the text keeps the script as read, and its own words`() {
         val refused = ManageSieveException(
             "PUTSCRIPT: NO line 30: unknown command 'nonsense'",
             ManageSieveException.Kind.REFUSED,
             serverText = "line 30: unknown command 'nonsense'",
         )
-
-        val failed = filtersSaveFailed(edited, refused)
-        assertEquals(edited.textEdits, failed.textEdits)
-        assertEquals(edited.removedText, failed.removedText)
-        assertTrue(failed.dirty)
+        val failed = filtersSaveFailed(opened.copy(saving = true), refused)
+        assertEquals(opened.scriptRules, failed.scriptRules)
         assertFalse(failed.saving)
         assertEquals(FiltersError.SAVE, failed.errorKind)
         assertEquals("line 30: unknown command 'nonsense'", failed.errorDetail)
@@ -162,14 +280,6 @@ class FiltersTextRulesTest {
         }
         assertEquals(FiltersSaveStep.WRITE, step(BULWARK))
         assertEquals(FiltersSaveStep.CONFIRM_OVERWRITE, step("if true {\n    discard;\n"))
-    }
-
-    @Test fun `a saved script starts again with no edit pending`() {
-        val id = textId("Roundcube two")
-        val state = opened.withTextEdit(id, "discard;").withTextRemoved(textId("Big or invoice"))
-        val saved = state.withScript(loaded)
-        assertEquals(emptyMap<Int, String>(), saved.textEdits)
-        assertEquals(emptySet<Int>(), saved.removedText)
     }
 
     private companion object {
@@ -205,7 +315,7 @@ if header :contains "subject" "roundcube" {
 # rule:[Roundcube two]
 if header :contains "subject" "rc2" {
     fileinto "Archive";
-    stop;
+    keep;
 }
 """.trimStart()
     }

@@ -77,58 +77,71 @@ class FilterWarningWiringTest {
         )
     }
 
-    @Test fun `the filters screen gates Save through the tested rule, not an expression of its own`() {
-        val source = text(FILTERS_SCREEN)
+    @Test fun `the stopped rules keep a gesture that puts them back`() {
+        val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
+        val guarded = text(FILTERS_SCREEN).substringAfter("if (state.rulesNotRunning) {").substringBefore("FiltersNoticeLine(state)")
         assertTrue(
-            "the Save button must be gated by filtersSaveEnabled(...): written inline it goes back " +
-                "to `!saving && dirty`, which greys out the ONE gesture that restarts rules the " +
-                "server has stopped — the screen then states the problem and locks the door",
-            Regex("enabled = filtersSaveEnabled\\(").containsMatchIn(source),
+            "the restart button must sit under the rulesNotRunning guard, on the onRestart callback: without " +
+                "it the screen states the problem and locks the door, and the responder screen's sentence " +
+                "sends the user to a screen with nothing to press",
+            "TextButton(onClick = onRestart, enabled = !busy) {" in guarded.lines().map { it.trim() } &&
+                "Text(stringResource(R.string.settings_filters_restart))" in guarded.lines().map { it.trim() },
         )
-        assertTrue(
-            "filtersSaveEnabled must be given state.rulesNotRunning: without it the widening is " +
-                "decorative and the dead end is back",
-            Regex("rulesNotRunning = state\\.rulesNotRunning").containsMatchIn(source),
+        assertEquals(
+            "…and onRestart is a write of the script as read, through the one door",
+            listOf("onRestart = { viewModel.save(FiltersChange.Rewrite) },"),
+            lines.filter { it.startsWith("onRestart = ") },
         )
     }
 
-    @Test fun `both write paths of the filters screen go through the confirmation decision`() {
-        // The failure mode this closes is not "the confirmation is missing" but "the confirmation
-        // is on the button only": the exit dialog's Save writes the same script, is reached by the
-        // back gesture and by the title-bar arrow, and a door hung on one of the two is no door.
+    @Test fun `every write of the filters screen is a viewModel save of one change`() {
+        // The door is executed in FiltersSaveGateTest. Pinned here is that each gesture hands it
+        // the change it means: a swapped argument writes the wrong rule, and every executed test
+        // stays green.
         val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
         assertEquals(
-            "FiltersScreen must consult filtersSaveStep(scriptUnreadable = state.scriptUnreadable) " +
-                "exactly once, on the screen's own flag: a literal there makes the whole gate " +
-                "decorative, and a second call site is a second policy",
-            listOf("when (filtersSaveStep(scriptUnreadable = state.scriptUnreadable)) {"),
-            lines.filter { it.contains("filtersSaveStep(") },
+            listOf(
+                "TextButton(onClick = { confirmDelete = null; viewModel.save(change) }) {",
+                "TextButton(onClick = { confirmToggle = null; viewModel.save(change) }) {",
+                "onSave = { viewModel.save(FiltersChange.PutRule(editing.original, it, editing.rank)) },",
+                "onSave = { viewModel.save(FiltersChange.PutText(editingText.name, editingText.was, it, editingText.rank)) },",
+                "onMove = { change -> if (filtersWarnsBeforeWrite(state)) confirmToggle = change else viewModel.save(change) },",
+                "if (filtersWarnsBeforeWrite(state)) confirmToggle = change else viewModel.save(change)",
+                "onRestart = { viewModel.save(FiltersChange.Rewrite) },",
+            ),
+            lines.filter { "viewModel.save(" in it },
         )
         assertEquals(
-            "BOTH Save gestures must funnel into requestSave(...) — the exit dialog first " +
-                "(back gesture and title-bar arrow), then the Save button. `thenLeave` is which " +
-                "one asked: dropped, either the screen leaves before the server has taken the " +
-                "write, or it stays on a screen the user asked to leave",
-            listOf(
-                "onSave = { confirmExit = false; requestSave(thenLeave = true) },",
-                "onSave = { requestSave(thenLeave = false) },",
-            ),
-            lines.filter { it.startsWith("onSave = ") },
+            "a switch writes its own rule, by its rank among twins, and asks first where the auto-reply line applies",
+            listOf("val change = FiltersChange.PutRule(item.rule, item.rule.copy(enabled = on), item.rank)"),
+            lines.filter { "copy(enabled = on)" in it },
         )
         assertTrue(
-            "…and the Save button's own click must BE that onSave: rewired to viewModel::save the " +
-                "funnel is still there, still tested, and walked straight past",
-            lines.contains("onClick = onSave,"),
+            "the switch's question says what the write costs, in the list line's own words",
+            text(FILTERS_SCREEN).substringAfter("confirmToggle?.let { change ->").substringBefore("confirmButton")
+                .contains("stringResource(R.string.settings_filters_stops_auto_reply),"),
         )
         assertEquals(
-            "the ONLY two places FiltersScreen may start a write: the WRITE branch of the " +
-                "decision, and the overwrite confirmation's own button. Anything else in this " +
-                "list is a third door, which is exactly how this one was found open",
+            "a deletion is only ever asked, never written straight from the button that asks",
             listOf(
-                "FiltersSaveStep.WRITE -> { leaveAfterSave = thenLeave; viewModel.save() }",
-                "TextButton(onClick = { confirmOverwrite = false; leaveAfterSave = overwriteThenLeave; viewModel.save() }) {",
+                "onDelete = editing.original?.let { was -> { confirmDelete = FiltersChange.DeleteRule(was, editing.rank) } },",
+                "onDelete = { confirmDelete = FiltersChange.DeleteText(editingText.name, editingText.was, editingText.rank) },",
+                "onDeleteText = { item -> confirmDelete = FiltersChange.DeleteText(item.name, item.text, item.rank) },",
             ),
-            lines.filter { Regex("viewModel(::save\\b|\\.save\\(\\))").containsMatchIn(it) },
+            lines.filter { "FiltersChange.Delete" in it },
+        )
+        assertEquals(
+            "each editor's Save action is gated by its tested rule, on the editor's own values",
+            listOf(
+                "enabled = textSaveEnabled(original = target.was, text = text, busy = busy, present = textTargetPresent(state, target)),",
+                "enabled = ruleSaveEnabled(original = target.original, rule = rule, busy = busy, present = ruleTargetPresent(state, target)),",
+            ),
+            lines.filter { "SaveEnabled(" in it },
+        )
+        assertEquals(
+            "the busy flag the editors and the list are given is the tested one",
+            listOf("val busy = filtersBusy(state)"),
+            lines.filter { "filtersBusy(" in it },
         )
     }
 
@@ -154,8 +167,7 @@ class FilterWarningWiringTest {
                 "never the body: with a sentence in it the label wrapped and Cancel was drawn " +
                 "INSIDE the confirm button — one tap on both, on a permanent server-side write",
             Regex(
-                "TextButton\\(onClick = \\{ confirmOverwrite = false; leaveAfterSave = " +
-                    "overwriteThenLeave; viewModel\\.save\\(\\) \\}\\) \\{\\s*" +
+                "TextButton\\(onClick = viewModel::confirmOverwrite\\) \\{\\s*" +
                     "Text\\(stringResource\\(R\\.string\\.settings_filters_overwrite_confirm\\)\\)",
             ).containsMatchIn(source),
         )
@@ -223,47 +235,67 @@ class FilterWarningWiringTest {
         )
     }
 
-    @Test fun `the text editor commits on the system back, survives rotation, and never opens a Bulwark rule`() {
+    @Test fun `both editors ask before dropping what was typed, survive rotation, and never open a Bulwark rule`() {
         val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
         assertEquals(
-            "three back handlers, each where it belongs: the list asks before losing edits, each " +
-                "editor commits what is typed. A text editor whose back drops the text loses it silently",
+            "one back handler per editor, the list's, which only holds the screen while a write runs, and the reorder mode's, which leaves that mode",
             listOf(
-                "BackHandler { onCommit(rule) }",
-                "BackHandler { onCommit(text) }",
-                "BackHandler(enabled = state.dirty) { confirmExit = true }",
+                "BackHandler { leave() }",
+                "BackHandler { leave() }",
+                "BackHandler(enabled = !filtersMayLeave(state)) {}",
+                "BackHandler(enabled = reordering && mayReorder) { reordering = false }",
             ),
             lines.filter { it.startsWith("BackHandler") }.sorted(),
         )
-        assertTrue(
-            "the text editor's commit must reach the list: `viewModel.updateText(textCard.id, it)`",
-            "onCommit = { viewModel.updateText(textCard.id, it); editingText = null }," in lines,
-        )
-        assertTrue(
-            "which block is open, and its text, are saveable: a rotation must not drop the edit",
-            "var editingText by rememberSaveable { mutableStateOf<Int?>(null) }" in lines &&
-                "var text by rememberSaveable { mutableStateOf(initial) }" in lines,
+        assertEquals(
+            "every top arrow goes through the same decision as its back gesture",
+            listOf("onBack = { back() },", "onBack = { leave() },", "onBack = { leave() },"),
+            lines.filter { it.startsWith("onBack = {") }.sorted(),
         )
         assertEquals(
-            "both editors' top arrow commits, like their back gesture: an arrow that cancels drops the edit",
-            listOf("onBack = { onCommit(rule) },", "onBack = { onCommit(text) },"),
-            lines.filter { it.startsWith("onBack = { onCommit(") || it.startsWith("onBack = { onCancel") }.sorted(),
+            "each editor asks on its own measure of a change, and stays while its write runs",
+            listOf(
+                "when (editorLeaveStep(changed = text != target.was, saving = state.saving)) {",
+                "when (editorLeaveStep(changed = ruleEdited(target.original, rule), saving = state.saving)) {",
+            ),
+            lines.filter { "editorLeaveStep(" in it },
         )
         assertTrue(
-            "the text editor's Delete and the locked card's Delete both reach viewModel.removeText",
-            "onDelete = { viewModel.removeText(textCard.id); editingText = null }," in lines &&
-                "onDelete = { viewModel.removeText(item.id) }," in lines,
-        )
-        assertEquals(
-            "…and each draws its Delete button on that very callback",
-            2,
-            lines.count { it == "TextButton(onClick = onDelete) {" },
+            "which rule or block is open, and what was typed in either editor, are saveable: a rotation must not drop the edit",
+            "var editingSaved by rememberSaveable { mutableStateOf<ArrayList<Any?>?>(null) }" in lines &&
+                "var editingTextSaved by rememberSaveable { mutableStateOf<ArrayList<Any?>?>(null) }" in lines &&
+                "var text by rememberSaveable { mutableStateOf(target.start) }" in lines &&
+                "var rule by rememberSaveable(stateSaver = FilterRuleSaver) { mutableStateOf(target.start) }" in lines &&
+                "private val FilterRuleSaver = Saver<FilterRule, ArrayList<Any?>>(save = { savedRule(it) }, restore = { restoredRule(it) })" in lines,
         )
         assertTrue(
             "the text editor opens only a card the listing calls editable",
-            lines.any { it.contains("it is FiltersListItem.Text && it.id == id && it.editable") } &&
-                ".then(if (item.editable) Modifier.clickable(onClickLabel = open, onClick = onEdit) else Modifier)" in lines,
+            ".then(if (item.editable) Modifier.clickable(onClickLabel = open, onClick = onEdit) else Modifier)" in lines,
         )
+        assertTrue(
+            "Add rule opens an empty editor and creates nothing: the rule exists only once saved",
+            "onAdd = { openRule(RuleTarget(original = null, start = FilterRule())) }," in lines,
+        )
+    }
+
+    @Test fun `only a write that landed closes the editor and says so, consumed once`() {
+        val source = text(FILTERS_SCREEN)
+        val effect = source.substringAfter("LaunchedEffect(state.landed) {").substringBefore("LaunchedEffect(state.proposal)")
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        assertEquals(
+            "an event the view model sets and the screen clears: no count compared with a saved one, " +
+                "which a new process restarts from zero",
+            listOf(
+                "if (state.landed == null) return@LaunchedEffect",
+                "editingSaved = null",
+                "editingTextSaved = null",
+                "snackbarScope.launch { snackbar.showSnackbar(savedText) }",
+                "viewModel.landedTaken()",
+                "}",
+            ),
+            effect,
+        )
+        assertEquals(listOf("fun landedTaken() = _state.update { it.copy(landed = null) }"), text(FILTERS_VM).lines().map { it.trim() }.filter { "landedTaken" in it })
     }
 
     @Test fun `the filters view model folds a status read into the state, at load and after a save`() {
@@ -313,31 +345,13 @@ class FilterWarningWiringTest {
         )
     }
 
-    @Test fun `the filters screen opens a picked script through the tested decision, asking first over unwritten edits`() {
+    @Test fun `the filters screen opens a picked script through the tested decision`() {
         val lines = text(FILTERS_SCREEN).lines().map { it.trim() }
         assertEquals(
-            "one call, on the picked name, the OPENED script and the screen's own dirty flag: a literal " +
-                "`dirty = false` there drops the edits without the dialog",
-            listOf("when (scriptPickStep(picked = picked, opened = state.scriptName, dirty = state.dirty)) {"),
+            listOf("when (scriptPickStep(picked = picked, opened = state.scriptName)) {"),
             lines.filter { "scriptPickStep(" in it },
         )
-        assertTrue(
-            "ASK must raise the SAME dialog as leaving the screen, remembering what to open",
-            "ScriptPick.ASK -> { switchTo = picked; confirmExit = true }" in lines &&
-                "ScriptPick.OPEN -> viewModel.openScript(picked)" in lines,
-        )
-        assertTrue(
-            "Discard and a save that landed both go through leave(), which opens the picked script " +
-                "instead of leaving; `onBack()` there leaves the screen when the user asked for another script",
-            "onDiscard = { confirmExit = false; leave() }," in lines &&
-                "PendingExit.LEAVE -> { leaveAfterSave = false; leave() }" in lines &&
-                "if (next != null) viewModel.openScript(next) else onBack()" in lines,
-        )
-        assertTrue(
-            "Cancel, and a save refused, forget the picked script: the next back gesture must leave, not open it",
-            "onCancel = { confirmExit = false; switchTo = null }," in lines &&
-                "PendingExit.STAY -> { leaveAfterSave = false; switchTo = null }" in lines,
-        )
+        assertTrue("ScriptPick.OPEN -> viewModel.openScript(picked)" in lines)
     }
 
     @Test fun `the not-active line is guarded by its own flag and its button activates, never saves`() {
@@ -348,9 +362,10 @@ class FilterWarningWiringTest {
         )
         assertEquals(
             "\"Make active\" is viewModel::activate, which sends the activation alone: wired to save it rewrites the script",
-            listOf("onClick = viewModel::activate,"),
+            listOf("onActivate = viewModel::activate,"),
             lines.filter { "viewModel::activate" in it },
         )
+        assertEquals(listOf("TextButton(onClick = onActivate, enabled = !busy) {"), lines.filter { "onClick = onActivate" in it })
         val vm = text(FILTERS_VM).lines().map { it.trim() }
         assertTrue(
             "the view model's activation is the repository's activation-only call, then a fresh read",
@@ -369,10 +384,10 @@ class FilterWarningWiringTest {
         assertEquals(
             "openScript must forget the script left, its base and its edits, BEFORE reading the next one: " +
                 "a failed or abandoned read otherwise leaves Save able to write the discarded edits into it",
-            listOf("pickedScript = name", "opened = null", "serverRules = emptyList()", "_state.update { it.leavingScript() }", "load()"),
+            listOf("pickedScript = name", "opened = null", "_state.update { it.leavingScript() }", "load()"),
             body("fun openScript(name: String) {", "fun load()").drop(1).filter { it.isNotEmpty() && it != "}" },
         )
-        val activate = body("fun activate()", "fun addRule()")
+        val activate = body("fun activate()", "fun proposalTaken()")
         assertTrue(
             "the activation is gated like an edit, and shows the loading state, which hides every control",
             "if (!filtersAcceptEdits(_state.value)) return" in activate &&
@@ -384,9 +399,10 @@ class FilterWarningWiringTest {
                 activate.filter { it.isNotEmpty() && it != "}" }.last() == "load()",
         )
         val lines = source.lines().map { it.trim() }
-        assertTrue(
-            "edits and saves pass the same gate",
-            "if (!filtersAcceptEdits(it)) return@update it" in lines && "if (!filtersAcceptEdits(edited)) return" in lines,
+        assertEquals(
+            "no write path consults the gate on its own: it is filtersSaveAsked's, executed in FiltersSaveGateTest",
+            listOf("if (!filtersAcceptEdits(_state.value)) return"),
+            lines.filter { "filtersAcceptEdits(" in it && !it.startsWith("internal fun filtersAcceptEdits") },
         )
         assertEquals(
             "a save that returns after a newer read, success or failure, must not paint over it",
@@ -394,8 +410,8 @@ class FilterWarningWiringTest {
             lines.count { it == "if (generation != loads) return@launch" },
         )
         assertTrue(
-            "closing the overwrite confirmation outside its buttons forgets the picked script, like Cancel",
-            "onDismissRequest = { confirmOverwrite = false; switchTo = null }," in text(FILTERS_SCREEN).lines().map { it.trim() },
+            "closing the overwrite confirmation outside its buttons cancels it, like Cancel",
+            "onDismissRequest = viewModel::cancelOverwrite," in text(FILTERS_SCREEN).lines().map { it.trim() },
         )
     }
 

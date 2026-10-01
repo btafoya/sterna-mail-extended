@@ -280,8 +280,8 @@ class SenderRuleDialogFitTest {
 
         /** The server-side write, on any of the three surfaces. Named, because nothing here can
          *  derive it, and every rule that uses it is written to fail when the name stops being
-         *  found. `viewModel.save()` rewrites the whole Sieve script of the account. */
-        val WRITE = Regex("""\b(onBlock|blockSender|viewModel\.save)\(""")
+         *  found. `viewModel.save(…)` and `viewModel::confirmOverwrite` write the account's Sieve script. */
+        val WRITE = Regex("""\b(onBlock|blockSender|viewModel\.save)\(|\bviewModel::confirmOverwrite\b""")
 
         /** The whole line, as the repo's other source lints pin theirs. */
         const val SCROLL_MODIFIER = "modifier = Modifier.verticalScroll(rememberScrollState()),"
@@ -314,6 +314,10 @@ class SenderRuleDialogFitTest {
                 Confirmation(
                     File(root, "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"),
                     "settings_filters_overwrite_title",
+                ),
+                Confirmation(
+                    File(root, "app/src/main/kotlin/app/sterna/ui/settings/FiltersScreen.kt"),
+                    "settings_filters_delete_title",
                 ),
                 Confirmation(
                     File(root, "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"),

@@ -67,6 +67,14 @@ class SenderBlockTest {
         assertFalse(alreadyBlocked(existing, "news@family.example"))
         assertFalse(alreadyBlocked(existing, "list@example.com")) // a to/IS rule, not a from rule
         assertFalse(alreadyBlocked(emptyList(), "news@example.com"))
+        val narrower = FilterRule(
+            conditions = listOf(
+                Condition(ConditionField.FROM, RuleMatch.IS, "news@example.com"),
+                Condition(ConditionField.SUBJECT, RuleMatch.CONTAINS, "promo"),
+            ),
+            actions = listOf(Action.MoveTo("Trash")),
+        )
+        assertFalse("a from/IS rule narrowed by a second condition catches only part of the mail", alreadyBlocked(listOf(narrower), "news@example.com"))
     }
 
     // -- the two addresses no rule may target ----------------------------------------------------

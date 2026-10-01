@@ -1,18 +1,19 @@
 package app.sterna.core.data.filter
 
 /**
- * An `if` block the rule form can edit: its [rule], the test [word] it was written with (`address` or
- * `header`), and the verbatim guard `G` of `allof(T, G)`, put back in place when the block is rewritten.
+ * An `if` block the rule form can edit: its [rule], the test word each condition was written with
+ * ([words], `address` or `header` for an address field), and the verbatim tests `G` of `allof(T…, G…)`
+ * the form cannot show ([guard]), put back in place when the block is rewritten.
  */
-internal data class FormBlock(val rule: FilterRule, val word: String, val guard: String?)
+internal data class FormBlock(val rule: FilterRule, val words: List<String>, val guard: String?)
 
-private class TestShape(val disabled: Boolean, val atom: Atom, val guard: String?)
+private class TestShape(val disabled: Boolean, val mode: RuleMode, val atoms: List<Atom>, val guard: String?)
 
-private class Atom(val word: String, val field: RuleField, val match: RuleMatch, val value: String)
+private class Atom(val word: String, val condition: Condition)
 
 /**
- * [statement] as a form rule, or null when it is anything else. A rule has no name here: the name
- * lives in the comment above the block.
+ * [statement] as a form rule, or null when the form cannot show all of it. A rule has no name here:
+ * the name lives in the comment above the block.
  */
 internal fun recognizeForm(statement: String): FormBlock? {
     val toks = sieveTokens(statement) ?: return null
@@ -22,56 +23,59 @@ internal fun recognizeForm(statement: String): FormBlock? {
     val open = toks.indexOfFirst { it.isPunct('{') }
     if (open < 0) return null
     val shape = testShape(toks.subList(1, open), statement) ?: return null
-    val body = toks.subList(open + 1, toks.size - 1)
-    var moveTo: String? = null
-    var seen = false
-    var flagged = false
-    var i = 0
-    while (i < body.size) {
-        val command = body[i]
-        val argument = body.getOrNull(i + 1)
-        if (command.kind != TokenKind.WORD) return null
-        when (command.text.lowercase()) {
-            // A `stop` ends the script for this message: the form cannot show it, and rewriting the
-            // block without it would let every later rule act on mail it never saw.
-            "stop" -> return null
-            "fileinto" -> {
-                if (argument?.kind != TokenKind.STRING || moveTo != null) return null
-                moveTo = argument.text
-            }
-            "addflag" -> when (argument?.takeIf { it.kind == TokenKind.STRING }?.text) {
-                "\\Seen" -> {
-                    if (seen) return null
-                    seen = true
-                }
-                "\\Flagged" -> {
-                    if (flagged) return null
-                    flagged = true
-                }
-                else -> return null
-            }
-            else -> return null
-        }
-        if (body.getOrNull(i + 2)?.isPunct(';') != true) return null
-        i += 3
-    }
-    val atom = shape.atom
+    val actions = formActions(toks.subList(open + 1, toks.size - 1)) ?: return null
     return FormBlock(
         rule = FilterRule(
             enabled = !shape.disabled,
-            field = atom.field,
-            match = atom.match,
-            value = atom.value,
-            moveTo = moveTo,
-            markRead = seen,
-            flag = flagged,
+            mode = shape.mode,
+            conditions = shape.atoms.map { it.condition },
+            actions = actions,
         ),
-        word = atom.word,
+        words = shape.atoms.map { it.word },
         guard = shape.guard,
     )
 }
 
-/** The verbatim `G` of an `if allof(T, G)` whose `T` is a form test, or null. */
+/** The actions of a block body, in the order it runs them, or null when one of them is not the form's. */
+private fun formActions(body: List<SieveToken>): List<Action>? {
+    val actions = mutableListOf<Action>()
+    var i = 0
+    while (i < body.size) {
+        val end = (i until body.size).firstOrNull { body[it].isPunct(';') } ?: return null
+        val command = body[i]
+        val args = body.subList(i + 1, end)
+        if (command.kind != TokenKind.WORD) return null
+        // Nothing runs after a `stop`: a command there could only be lost by a rewrite.
+        if (Action.Stop in actions) return null
+        val strings = args.all { it.kind == TokenKind.STRING }
+        val action = when (command.text.lowercase()) {
+            "stop" -> Action.Stop.takeIf { args.isEmpty() }
+            "fileinto" -> when {
+                args.size == 1 && strings -> Action.MoveTo(args[0].text).takeIf { actions.none { a -> a is Action.MoveTo } }
+                args.size == 2 && args[0].kind == TokenKind.TAG && args[0].text.equals(":copy", ignoreCase = true) &&
+                    args[1].kind == TokenKind.STRING -> Action.CopyTo(args[1].text)
+                else -> null
+            }
+            "addflag" -> when (args.singleOrNull()?.takeIf { strings }?.text) {
+                "\\Seen" -> Action.MarkRead
+                "\\Flagged" -> Action.Star
+                else -> null
+            }?.takeIf { it !in actions }
+            "redirect" -> when {
+                args.size == 1 && strings -> Action.ForwardTo(args[0].text, keepCopy = false)
+                args.size == 2 && args[0].kind == TokenKind.TAG && args[0].text.equals(":copy", ignoreCase = true) &&
+                    args[1].kind == TokenKind.STRING -> Action.ForwardTo(args[1].text, keepCopy = true)
+                else -> null
+            }
+            else -> null
+        } ?: return null
+        actions += action
+        i = end + 1
+    }
+    return actions
+}
+
+/** The verbatim `G` of an `if allof(T…, G…)` whose `T` are form tests, or null. */
 internal fun guardOf(statement: String): String? {
     val toks = sieveTokens(statement) ?: return null
     val open = toks.indexOfFirst { it.isPunct('{') }
@@ -79,21 +83,60 @@ internal fun guardOf(statement: String): String? {
     return testShape(toks.subList(1, open), statement)?.guard
 }
 
+/**
+ * `T`, `anyof(T…)`, `allof(T…)`, `allof(T…, G…)`, `allof(anyof(T…), G…)`, each also behind `allof(false, …)`.
+ * The form's tests of an `allof` are the ones before the first it cannot show; that one and all after
+ * it are the guard, in their place. An `anyof` is all form tests or nothing: dropping one of its tests
+ * would widen the rule.
+ */
 private fun testShape(test: List<SieveToken>, source: String): TestShape? {
-    atom(test)?.let { return TestShape(disabled = false, atom = it, guard = null) }
-    if (test.size < 4 || !test[0].isWord("allof") || !test[1].isPunct('(') || !test.last().isPunct(')')) return null
-    val args = topLevelArguments(test.subList(2, test.size - 1)) ?: return null
+    atom(test)?.let { return TestShape(disabled = false, mode = RuleMode.ALL, atoms = listOf(it), guard = null) }
+    anyofAtoms(test)?.let { return TestShape(disabled = false, mode = RuleMode.ANY, atoms = it, guard = null) }
+    val args = call("allof", test) ?: return null
     val disabled = args[0].size == 1 && args[0][0].isWord("false")
     val rest = if (disabled) args.drop(1) else args
-    val atom = rest.firstOrNull()?.let(::atom) ?: return null
-    val guardArgs = rest.drop(1)
-    if (!disabled && guardArgs.isEmpty()) return null
+    val any = rest.firstOrNull()?.let(::anyofAtoms)
+    val atoms = any ?: rest.map(::atom).takeWhile { it != null }.filterNotNull()
+    if (atoms.isEmpty()) return null
+    val guardArgs = rest.drop(if (any != null) 1 else atoms.size)
+    // `allof(T)` and `allof(anyof(…))` alone would come back as `T` and `anyof(…)`.
+    if (!disabled && guardArgs.isEmpty() && (any != null || atoms.size == 1)) return null
     val guard = guardArgs.takeIf { it.isNotEmpty() }
         ?.let { source.substring(it.first().first().start, it.last().last().end) }
-    return TestShape(disabled, atom, guard)
+    return TestShape(disabled, if (any != null) RuleMode.ANY else RuleMode.ALL, atoms, guard)
+}
+
+private fun anyofAtoms(test: List<SieveToken>): List<Atom>? {
+    val args = call("anyof", test)?.takeIf { it.size >= 2 } ?: return null
+    return args.map { atom(it) ?: return null }
+}
+
+/** The arguments of `name(…)` when [t] is that call whole, or null. */
+private fun call(name: String, t: List<SieveToken>): List<List<SieveToken>>? {
+    if (t.size < 4 || !t[0].isWord(name) || !t[1].isPunct('(') || !t.last().isPunct(')')) return null
+    return topLevelArguments(t.subList(2, t.size - 1))
 }
 
 private fun atom(t: List<SieveToken>): Atom? {
+    if (t.firstOrNull()?.isWord("not") == true) {
+        val inner = atom(t.drop(1)) ?: return null
+        if (inner.condition.match != RuleMatch.CONTAINS || inner.condition.field == ConditionField.SIZE) return null
+        return Atom(inner.word, inner.condition.copy(match = RuleMatch.NOT_CONTAINS))
+    }
+    if (t.size == 3 && t[0].isWord("size") && t[1].kind == TokenKind.TAG && t[2].kind == TokenKind.NUMBER) {
+        val match = when (t[1].text.lowercase()) {
+            ":over" -> RuleMatch.OVER
+            ":under" -> RuleMatch.UNDER
+            else -> return null
+        }
+        val bytes = sizeBytes(t[2].text) ?: return null
+        return Atom("size", Condition(ConditionField.SIZE, match, bytes.toString()))
+    }
+    if (t.size == 4 && t[0].isWord("body") && t[1].kind == TokenKind.TAG && t[1].text.equals(":text", ignoreCase = true) &&
+        t[2].kind == TokenKind.TAG && t[2].text.equals(":contains", ignoreCase = true) && t[3].kind == TokenKind.STRING
+    ) {
+        return Atom("body", Condition(ConditionField.BODY, RuleMatch.CONTAINS, t[3].text))
+    }
     if (t.size != 4 || t[0].kind != TokenKind.WORD || t[1].kind != TokenKind.TAG) return null
     if (t[2].kind != TokenKind.STRING || t[3].kind != TokenKind.STRING) return null
     val word = t[0].text.lowercase()
@@ -103,17 +146,56 @@ private fun atom(t: List<SieveToken>): Atom? {
         else -> return null
     }
     val field = when (t[2].text.lowercase()) {
-        "from" -> RuleField.FROM
-        "to" -> RuleField.TO
-        "cc" -> RuleField.CC
-        "subject" -> RuleField.SUBJECT
+        "from" -> ConditionField.FROM
+        "to" -> ConditionField.TO
+        "cc" -> ConditionField.CC
+        "subject" -> ConditionField.SUBJECT
+        "list-id" -> ConditionField.LIST
         else -> return null
     }
+    val condition = Condition(field, match, t[3].text)
     return when {
-        word == "header" -> Atom(word, field, match, t[3].text)
-        word == "address" && field != RuleField.SUBJECT -> Atom(word, field, match, t[3].text)
+        word == "header" -> Atom(word, condition)
+        word == "address" && field in ADDRESS_FIELDS -> Atom(word, condition)
         else -> null
     }
+}
+
+private val ADDRESS_FIELDS = setOf(ConditionField.FROM, ConditionField.TO, ConditionField.CC)
+
+private const val KB = 1024L
+
+/**
+ * The bytes of a Sieve number, `5M` included, or null when it is no whole number of kilobytes: the
+ * form shows a size in KB or MB, and a value it could not show would be rewritten rounded.
+ */
+internal fun sizeBytes(number: String): Long? {
+    val digits = number.takeWhile { it.isDigit() }
+    // The most digits each quantifier takes with the product still inside a Long.
+    val (unit, most) = when (number.drop(digits.length).uppercase()) {
+        "" -> 1L to 18
+        "K" -> KB to 15
+        "M" -> KB * KB to 12
+        "G" -> KB * KB * KB to 9
+        else -> return null
+    }
+    val n = digits.takeIf { it.isNotEmpty() && it.length <= most }?.toLong() ?: return null
+    return (n * unit).takeIf { it % KB == 0L }
+}
+
+/** [bytes] as Sieve writes a size: with the largest quantifier that keeps it whole. */
+internal fun sizeNumber(bytes: Long): String = when {
+    bytes != 0L && bytes % (KB * KB * KB) == 0L -> "${bytes / (KB * KB * KB)}G"
+    bytes != 0L && bytes % (KB * KB) == 0L -> "${bytes / (KB * KB)}M"
+    bytes != 0L && bytes % KB == 0L -> "${bytes / KB}K"
+    else -> bytes.toString()
+}
+
+/** The matches the form offers on [field]; a condition outside them is never written. */
+fun matchesFor(field: ConditionField): List<RuleMatch> = when (field) {
+    ConditionField.SIZE -> listOf(RuleMatch.OVER, RuleMatch.UNDER)
+    ConditionField.BODY -> listOf(RuleMatch.CONTAINS, RuleMatch.NOT_CONTAINS)
+    else -> listOf(RuleMatch.CONTAINS, RuleMatch.IS, RuleMatch.NOT_CONTAINS)
 }
 
 private fun topLevelArguments(t: List<SieveToken>): List<List<SieveToken>>? {
@@ -176,69 +258,145 @@ internal fun renamedHeader(header: List<String>, name: String, indent: String, l
     return kept + (indent + line + lineEnding)
 }
 
-internal fun defaultWord(field: RuleField) = if (field == RuleField.SUBJECT) "header" else "address"
+internal fun defaultWord(field: ConditionField) = when (field) {
+    in ADDRESS_FIELDS -> "address"
+    ConditionField.BODY -> "body"
+    ConditionField.SIZE -> "size"
+    else -> "header"
+}
 
-/** The Sieve of [rule]'s test, `address` or `header` as [word] says; an `address` test cannot read the subject. */
-internal fun formTest(rule: FilterRule, word: String): String {
-    val used = if (word == "address" && rule.field == RuleField.SUBJECT) "header" else word
-    val tag = if (rule.match == RuleMatch.IS) ":is" else ":contains"
-    val field = rule.field.name.lowercase()
-    return "$used $tag \"$field\" \"${SieveCodec.escape(rule.value)}\""
+/** The Sieve of [condition], `address` or `header` as [word] says for an address field; any other takes its own word. */
+internal fun conditionTest(condition: Condition, word: String?): String {
+    val field = condition.field
+    val match = condition.match
+    require(match in matchesFor(field)) { "$match on $field" }
+    val value = SieveCodec.escape(condition.value)
+    val tag = if (match == RuleMatch.IS) ":is" else ":contains"
+    val test = when (field) {
+        ConditionField.SIZE -> "size ${if (match == RuleMatch.OVER) ":over" else ":under"} ${sizeNumber(condition.value.toLong())}"
+        ConditionField.BODY -> "body :text $tag \"$value\""
+        else -> {
+            val used = if (field in ADDRESS_FIELDS && (word == "address" || word == "header")) word else defaultWord(field)
+            val name = if (field == ConditionField.LIST) "list-id" else field.name.lowercase()
+            "$used $tag \"$name\" \"$value\""
+        }
+    }
+    return if (match == RuleMatch.NOT_CONTAINS) "not $test" else test
+}
+
+/**
+ * For each of [edited], the place in [read] of the condition it continues, or null for a new one: the
+ * same condition first, then one on the same field, then the one left on each side. Never the rank
+ * alone, or removing a condition hands the next one the `address` or `header` of the removed one.
+ */
+internal fun pairedConditions(read: List<Condition>, edited: List<Condition>): List<Int?> {
+    val pairs = arrayOfNulls<Int>(edited.size)
+    val used = BooleanArray(read.size)
+    fun pass(same: (Condition, Condition) -> Boolean) {
+        for (k in edited.indices) {
+            if (pairs[k] != null) continue
+            val i = read.indices.firstOrNull { !used[it] && same(read[it], edited[k]) } ?: continue
+            pairs[k] = i
+            used[i] = true
+        }
+    }
+    pass { a, b -> a == b }
+    pass { a, b -> a.field == b.field }
+    val newLeft = edited.indices.filter { pairs[it] == null }
+    val readLeft = read.indices.filter { !used[it] }
+    if (newLeft.size == 1 && readLeft.size == 1) pairs[newLeft[0]] = readLeft[0]
+    return pairs.toList()
+}
+
+/** The one Sieve test of [rule]'s conditions, each with the word [words] gives it, its guard left out. */
+internal fun formTest(rule: FilterRule, words: List<String?>): String {
+    val tests = rule.conditions.mapIndexed { i, c -> conditionTest(c, words.getOrNull(i)) }
+    require(tests.isNotEmpty()) { "a rule with no condition has no test" }
+    return when {
+        tests.size == 1 -> tests.single()
+        rule.mode == RuleMode.ALL -> "allof(${tests.joinToString(", ")})"
+        else -> "anyof(${tests.joinToString(", ")})"
+    }
 }
 
 /** [rule] as it may be written: a blank value matches every message, so an active one is written disabled. */
-internal fun asWritten(rule: FilterRule): FilterRule = if (rule.enabled && rule.value.isBlank()) rule.copy(enabled = false) else rule
+internal fun asWritten(rule: FilterRule): FilterRule = if (rule.enabled && !rule.isRunnable) rule.copy(enabled = false) else rule
+
+/** The key of each action in a block, a kind and its rank among its kind, so an edit can keep the order it was read in. */
+private fun actionKeys(actions: List<Action>): List<String> {
+    val seen = HashMap<String, Int>()
+    return actions.map { action ->
+        val kind = when (action) {
+            Action.MarkRead -> "seen"
+            Action.Star -> "flagged"
+            is Action.CopyTo -> "copy"
+            is Action.MoveTo -> "fileinto"
+            is Action.ForwardTo -> "redirect"
+            Action.Stop -> "stop"
+        }
+        val n = seen.getOrDefault(kind, 0)
+        seen[kind] = n + 1
+        "$kind#$n"
+    }
+}
+
+private val NEW_ACTION_RANK = listOf("seen", "flagged", "copy", "fileinto", "redirect")
+
+private fun actionLine(action: Action): String = when (action) {
+    Action.MarkRead -> "addflag \"\\\\Seen\";"
+    Action.Star -> "addflag \"\\\\Flagged\";"
+    is Action.CopyTo -> "fileinto :copy \"${SieveCodec.escape(action.folder)}\";"
+    is Action.MoveTo -> "fileinto \"${SieveCodec.escape(action.folder)}\";"
+    is Action.ForwardTo -> "redirect ${if (action.keepCopy) ":copy " else ""}\"${SieveCodec.escape(action.address)}\";"
+    Action.Stop -> "stop;"
+}
+
+/** [rule] with the `stop` of a block read with one: dropped by no rewrite, or every later rule would act on its mail. */
+internal fun keptStop(rule: FilterRule, order: List<String>): FilterRule =
+    if ("stop#0" in order && Action.Stop !in rule.actions) rule.copy(actions = rule.actions + Action.Stop) else rule
 
 /**
- * The `if` block for [rule]. A disabled rule is `allof(false, T)`, valid Sieve that never matches, so it
- * needs no hidden copy to survive. Actions keep the block's [order]; added flags go first, an added `fileinto` last.
+ * The `if` block for [rule]. A disabled rule is `allof(false, …)`, valid Sieve that never matches, so it
+ * needs no hidden copy to survive; `allof` and `anyof` only from two conditions. Actions keep the
+ * block's [order]; added flags go first, other added actions after, in the order flags, copy, fileinto,
+ * redirect; `stop` is always last.
  */
 internal fun formStatement(
     rule: FilterRule,
-    word: String,
+    words: List<String?>,
     guard: String?,
     indent: String,
     lineEnding: String,
     order: List<String> = emptyList(),
 ): String {
-    val test = formTest(rule, word)
+    val tests = rule.conditions.mapIndexed { i, c -> conditionTest(c, words.getOrNull(i)) }
+    require(tests.isNotEmpty()) { "a rule with no condition has no test" }
+    val core = if (tests.size == 1 || rule.mode == RuleMode.ALL) tests else listOf("anyof(${tests.joinToString(", ")})")
     val condition = when {
-        !asWritten(rule).enabled -> "allof(${listOfNotNull("false", test, guard).joinToString(", ")})"
-        guard != null -> "allof($test, $guard)"
-        else -> test
+        !asWritten(rule).enabled -> "allof(${(listOf("false") + core + listOfNotNull(guard)).joinToString(", ")})"
+        guard != null -> "allof(${(core + guard).joinToString(", ")})"
+        core.size == 1 -> core.single()
+        else -> "allof(${core.joinToString(", ")})"
     }
-    val lines = listOfNotNull(
-        ("seen" to "addflag \"\\\\Seen\";").takeIf { rule.markRead },
-        ("flagged" to "addflag \"\\\\Flagged\";").takeIf { rule.flag },
-        rule.moveTo?.let { "fileinto" to "fileinto \"${SieveCodec.escape(it)}\";" },
-    ).toMap()
+    val written = keptStop(rule, order).actions
+    val lines = actionKeys(written).zip(written).filter { it.second != Action.Stop }.toMap()
     // RFC 5232: `fileinto` files the flags set so far. Reordering a block the user wrote changes what it does.
     val kept = order.filter { it in lines }
-    val sequence = listOf("seen", "flagged").filter { it in lines && it !in kept } + kept +
-        listOf("fileinto").filter { it in lines && it !in kept }
-    return "if $condition {$lineEnding" + sequence.joinToString("") { "$indent    ${lines.getValue(it)}$lineEnding" } + "$indent}"
+    val added = lines.keys.filter { it !in kept }.sortedBy { key -> NEW_ACTION_RANK.indexOf(key.substringBefore('#')) }
+    val (flags, others) = added.partition { it.startsWith("seen#") || it.startsWith("flagged#") }
+    val sequence = (flags + kept + others).map { lines.getValue(it) } + listOfNotNull(Action.Stop.takeIf { it in written })
+    return "if $condition {$lineEnding" + sequence.joinToString("") { "$indent    ${actionLine(it)}$lineEnding" } + "$indent}"
 }
 
-/** The form actions of an `if` [statement], in the order it runs them: `seen`, `flagged`, `fileinto`. */
-internal fun actionOrder(statement: String): List<String> {
-    val toks = sieveTokens(statement) ?: return emptyList()
-    val open = toks.indexOfFirst { it.isPunct('{') }
-    if (open < 0) return emptyList()
-    return toks.drop(open + 1).withIndex().mapNotNull { (i, tok) ->
-        val argument = toks.getOrNull(open + 2 + i)?.text
-        when {
-            tok.isWord("fileinto") -> "fileinto"
-            tok.isWord("addflag") && argument == "\\Seen" -> "seen"
-            tok.isWord("addflag") && argument == "\\Flagged" -> "flagged"
-            else -> null
-        }
-    }
-}
+/** The action keys of an `if` [statement] the form can edit, in the order it runs them; empty for any other. */
+internal fun actionOrder(statement: String): List<String> = recognizeForm(statement)?.rule?.actions?.let(::actionKeys).orEmpty()
 
 /** The capabilities a block written for [rule] uses. */
 internal fun capabilitiesOf(rule: FilterRule): Set<String> = buildSet {
-    if (rule.moveTo != null) add("fileinto")
-    if (rule.markRead || rule.flag) add("imap4flags")
+    if (rule.actions.any { it is Action.MoveTo || it is Action.CopyTo }) add("fileinto")
+    if (rule.actions.any { it is Action.CopyTo || (it is Action.ForwardTo && it.keepCopy) }) add("copy")
+    if (Action.MarkRead in rule.actions || Action.Star in rule.actions) add("imap4flags")
+    if (rule.conditions.any { it.field == ConditionField.BODY }) add("body")
 }
 
 /** Every capability a `require` [statement] names. */

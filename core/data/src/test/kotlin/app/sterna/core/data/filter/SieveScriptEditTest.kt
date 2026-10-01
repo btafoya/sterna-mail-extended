@@ -75,14 +75,17 @@ class SieveScriptEditTest {
         assertEquals(text, reread.update(off.id, off.rule.copy(enabled = true)).emit())
     }
 
-    @Test fun `a stop block is text, and editing another rule keeps it whole`() {
+    @Test fun `a stop block is a form rule, editing another rule keeps it whole, and editing it keeps its stop last`() {
         val text = fixture("f237-bulwark")
         val script = readable(text)
-        val two = script.rules[5]
-        assertTrue(two is ScriptRule.Text)
+        val two = script.rules[5] as ScriptRule.Form
         val one = script.rules[4] as ScriptRule.Form
-        val edited = script.update(one.id, one.rule.copy(moveTo = "Kept")).emit()
-        assertTrue(edited.endsWith("# rule:[Roundcube two]\nif header :contains \"subject\" \"rc2\" {\n    fileinto \"Archive\";\n    stop;\n}\n"))
+        val block = "# rule:[Roundcube two]\nif header :contains \"subject\" \"rc2\" {\n    fileinto \"Archive\";\n    stop;\n}\n"
+        assertTrue(script.update(one.id, one.rule.copy(moveTo = "Kept")).emit().endsWith(block))
+        assertEquals(
+            text.replace(block, block.replace("\"rc2\"", "\"rc3\"").replace("    fileinto", "    addflag \"\\\\Seen\";\n    fileinto")),
+            script.update(two.id, two.rule.copy(value = "rc3", markRead = true)).emit(),
+        )
     }
 
     // ---- new rules, removal, raw text ----
@@ -95,7 +98,7 @@ class SieveScriptEditTest {
         )
         val everything = FilterRule(value = "x", moveTo = "Y", markRead = true, flag = true)
         listOf(everything, everything.copy(field = RuleField.SUBJECT, match = RuleMatch.IS)).forEach {
-            assertTrue(SieveCodec.generate(listOf(it)).contains("\n" + formStatement(it, defaultWord(it.field), null, "", "\n") + "\n"))
+            assertTrue(SieveCodec.generate(listOf(it)).contains("\n" + formStatement(it, listOf(defaultWord(it.field.condition)), null, "", "\n") + "\n"))
         }
     }
 
@@ -162,10 +165,10 @@ class SieveScriptEditTest {
     @Test fun `a text block is replaced by its new text, and text that cannot be cut is refused`() {
         val text = fixture("roundcube")
         val script = readable(text)
-        val either = script.rules[2] as ScriptRule.Text
-        val replacement = "# rule:[either]\nif header :contains \"subject\" \"x\" {\n    stop;\n}"
-        assertEquals(text.replace(either.text, replacement), script.replaceText(either.id, replacement)?.emit())
-        assertNull(script.replaceText(either.id, "if true {"))
+        val away = script.rules[3] as ScriptRule.Text
+        val replacement = "# rule:[away]\nif header :contains \"subject\" \"x\" {\n    keep;\n}"
+        assertEquals(text.replace(away.text, replacement), script.replaceText(away.id, replacement)?.emit())
+        assertNull(script.replaceText(away.id, "if true {"))
     }
 
     // ---- V1: migrated at the first rewrite ----

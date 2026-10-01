@@ -2,6 +2,7 @@ package app.sterna.core.jmap.model
 
 import app.sterna.core.jmap.Jmap
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -55,6 +56,13 @@ data class JmapSession(
     fun vapidPublicKey(): String? =
         (capabilities[Jmap.WEBPUSH_VAPID_CAPABILITY]?.get("applicationServerKey") as? JsonPrimitive)
             ?.contentOrNull
+
+    fun sieveExtensions(accountId: String): List<String>? {
+        val capability = accounts[accountId]?.accountCapabilities?.get(Jmap.SIEVE_CAPABILITY)
+            ?: capabilities[Jmap.SIEVE_CAPABILITY]
+        val listed = capability?.get("sieveExtensions") as? JsonArray ?: return null
+        return listed.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }.takeIf { it.isNotEmpty() }
+    }
 
         /** Ids one `Email/set` may carry: the server's `maxObjectsInSet` (RFC 8620 §2, core
          *  capability), guarded and capped by [advertisedLimit]. */

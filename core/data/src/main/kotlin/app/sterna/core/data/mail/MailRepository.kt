@@ -869,6 +869,8 @@ sealed interface FilterRulesState {
         val chosen: Boolean = false,
         /** See `inactiveBesideActive`. */
         val inactiveBesideActive: Boolean = false,
+        /** The Sieve extensions the server announced, null when it announced none: the form then offers everything and the server decides at Save. */
+        val sieveExtensions: List<String>? = null,
     ) : FilterRulesState {
         /** [scriptText] cut into blocks, null when there is none or it cannot be cut. */
         val script: SieveScript?

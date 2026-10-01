@@ -1,7 +1,37 @@
 package app.sterna.core.data.filter
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+
+@Serializable
+private data class V1Rule(
+    val name: String = "",
+    val enabled: Boolean = true,
+    val field: RuleField = RuleField.FROM,
+    val match: RuleMatch = RuleMatch.CONTAINS,
+    val value: String = "",
+    val moveTo: String? = null,
+    val markRead: Boolean = false,
+    val flag: Boolean = false,
+)
+
+private object V1RuleSerializer : KSerializer<FilterRule> {
+    override val descriptor: SerialDescriptor = V1Rule.serializer().descriptor
+
+    override fun serialize(encoder: Encoder, value: FilterRule) = encoder.encodeSerializableValue(
+        V1Rule.serializer(),
+        V1Rule(value.name, value.enabled, value.field, value.match, value.value, value.moveTo, value.markRead, value.flag),
+    )
+
+    override fun deserialize(decoder: Decoder): FilterRule = decoder.decodeSerializableValue(V1Rule.serializer()).let {
+        FilterRule(it.name, it.enabled, it.field, it.match, it.value, it.moveTo, it.markRead, it.flag)
+    }
+}
 
 /**
  * Compiles structured [FilterRule]s to a Sieve script and reads them back.
@@ -15,7 +45,7 @@ object SieveCodec {
     internal const val MARKER = "# STERNA-RULES-V1:"
     internal const val VACATION_MARKER = "# STERNA-VACATION-V1:"
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
-    private val serializer = ListSerializer(FilterRule.serializer())
+    private val serializer = ListSerializer(V1RuleSerializer)
     private val vacationSerializer = SieveVacation.serializer()
 
     /** The Sieve script for [rules] and, only when one is handed over, [vacation], each under its marker. */
@@ -90,7 +120,12 @@ object SieveCodec {
     internal fun vacationMarkerLine(vacation: SieveVacation): String =
         VACATION_MARKER + " " + json.encodeToString(vacationSerializer, vacation)
 
-    internal fun vacationToSieve(vacation: SieveVacation, active: List<FilterRule>, newline: String = "\n"): String {
+    internal fun vacationToSieve(
+        vacation: SieveVacation,
+        active: List<FilterRule>,
+        newline: String = "\n",
+        written: List<String?> = active.map { formTest(it, emptyList()) },
+    ): String {
         val command = StringBuilder("vacation")
         val subject = vacation.subject
         if (!subject.isNullOrBlank()) command.append(" :subject \"").append(escape(subject)).append('"')
@@ -99,9 +134,10 @@ object SieveCodec {
             command.append(" :addresses [").append(vacation.addresses.joinToString(", ") { "\"${escape(it)}\"" }).append(']')
         }
         command.append(" \"").append(escape(vacation.textBody.orEmpty())).append("\";")
-        val trashed = active.filter { vacation.trashFolder != null && it.moveTo == vacation.trashFolder }
+        val trashed = active.indices.filter { vacation.trashFolder != null && active[it].moveTo == vacation.trashFolder }
+            .mapNotNull { written[it] }
         val conditions = listOfNotNull(
-            trashed.takeIf { it.isNotEmpty() }?.let { rules -> "not anyof (${rules.joinToString(", ") { ruleTest(it) }})" },
+            trashed.takeIf { it.isNotEmpty() }?.let { tests -> "not anyof (${tests.joinToString(", ")})" },
             vacation.fromDate?.let { "currentdate :zone \"+0000\" :value \"ge\" \"date\" \"${utcDay(it)}\"" },
             vacation.toDate?.let { "currentdate :zone \"+0000\" :value \"le\" \"date\" \"${utcDay(it)}\"" },
         )

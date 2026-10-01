@@ -3,26 +3,26 @@ package app.sterna.core.data.filter
 import app.sterna.core.data.mail.FilterRulesState
 
 /**
- * "File future mail from [address] into [trashFolder], already read."
+ * "File future mail from [address] into [trashFolder], already read." A move into the Trash, never
+ * `discard`: the mail stays one gesture away.
  */
 fun blockRule(address: String, trashFolder: String): FilterRule = FilterRule(
     name = address,
     enabled = true,
-    field = RuleField.FROM,
-    match = RuleMatch.IS,
-    value = address,
-    moveTo = trashFolder,
-    markRead = true,
+    mode = RuleMode.ALL,
+    conditions = listOf(Condition(ConditionField.FROM, RuleMatch.IS, address)),
+    actions = listOf(Action.MarkRead, Action.MoveTo(trashFolder)),
 )
 
 /**
- * Whether [rules] already send [address] away, a from/IS rule on the same address, case ignored,
- * ignored, since that is how the screen groups. A `contains` rule, or one on another field, is
- * not this rule: it may or may not catch the same mail, and guessing would either add a
- * duplicate or silently refuse to add anything.
+ * Whether [rules] already send [address] away: a rule whose one condition is from/IS on the same
+ * address, case ignored, since that is how the screen groups. A `contains` rule, one on another field,
+ * or one with more conditions is not this rule: it may or may not catch the same mail, and guessing
+ * would either add a duplicate or silently refuse to add anything.
  */
-fun alreadyBlocked(rules: List<FilterRule>, address: String): Boolean = rules.any {
-    it.field == RuleField.FROM && it.match == RuleMatch.IS && it.value.equals(address, ignoreCase = true)
+fun alreadyBlocked(rules: List<FilterRule>, address: String): Boolean = rules.any { rule ->
+    val only = rule.conditions.singleOrNull()
+    only != null && only.field == ConditionField.FROM && only.match == RuleMatch.IS && only.value.equals(address, ignoreCase = true)
 }
 
 /**

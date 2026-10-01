@@ -24,10 +24,7 @@ internal fun pendingExitStep(saving: Boolean, dirty: Boolean, failed: Boolean): 
     else -> PendingExit.LEAVE
 }
 
-internal enum class ScriptPick { STAY, ASK, OPEN }
+internal enum class ScriptPick { STAY, OPEN }
 
-internal fun scriptPickStep(picked: String, opened: String?, dirty: Boolean): ScriptPick = when {
-    picked == opened -> ScriptPick.STAY
-    dirty -> ScriptPick.ASK
-    else -> ScriptPick.OPEN
-}
+internal fun scriptPickStep(picked: String, opened: String?): ScriptPick =
+    if (picked == opened) ScriptPick.STAY else ScriptPick.OPEN

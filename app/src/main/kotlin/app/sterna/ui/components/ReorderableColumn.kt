@@ -37,7 +37,11 @@ import androidx.compose.ui.zIndex
  * pair; a refused place is never offered while carrying. The caller writes the move and hands back
  * the new [items].
  *
- * [key] must be stable and savable in a `Bundle`, as any key of a `LazyColumn`.
+ * [key] must be stable and savable in a `Bundle`, as any key of a `LazyColumn`. Being one, it cannot
+ * sit in a vertically scrolled parent: a screen that scrolls gives it a mode of its own.
+ *
+ * [idle] false while the caller's write of a move is pending: the order dropped is drawn until it is
+ * true again, so a write that failed, and leaves [items] as they were, does not leave it drawn.
  */
 @Composable
 internal fun <T> ReorderableColumn(
@@ -47,6 +51,7 @@ internal fun <T> ReorderableColumn(
     onMove: (from: Int, to: Int) -> Unit,
     modifier: Modifier = Modifier,
     span: (index: Int) -> Int = { 1 },
+    idle: Boolean = true,
     row: @Composable (item: T, handle: Modifier) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -59,7 +64,7 @@ internal fun <T> ReorderableColumn(
     // The order just dropped, drawn until the caller's new list arrives: without it the row jumps
     // back to where it was lifted from for the frames the write takes.
     var dropped by remember { mutableStateOf<List<T>?>(null) }
-    LaunchedEffect(items) { dropped = null }
+    LaunchedEffect(items, idle) { if (idle) dropped = null }
 
     fun currentKeys() = currentItems.map(currentKey)
 

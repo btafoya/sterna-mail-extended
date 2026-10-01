@@ -72,10 +72,9 @@ internal fun vacationFailedState(state: VacationUiState, kind: VacationError, fa
     )
 
 /**
- * The sentence of a failed load or save, on either screen, [fallback] taking the detail. An
- * unreachable ManageSieve never says the server lacks filters or a responder, and never falls back
- * to `settings_vacation_unsupported`: a firewall on port 4190 or the network look exactly the same
- * from here.
+ * The sentence of a failed responder load or save, [fallback] taking the detail. An unreachable
+ * ManageSieve never says the server lacks a responder, and never falls back to
+ * `settings_vacation_unsupported`: a firewall on port 4190 or the network look exactly the same from here.
  */
 @StringRes
 private fun sieveErrorText(sieveKind: ManageSieveException.Kind?, @StringRes fallback: Int): Int = when (sieveKind) {
@@ -84,13 +83,41 @@ private fun sieveErrorText(sieveKind: ManageSieveException.Kind?, @StringRes fal
     ManageSieveException.Kind.REFUSED, null -> fallback
 }
 
-@StringRes
-internal fun filtersErrorText(kind: FiltersError, sieveKind: ManageSieveException.Kind?): Int = when (kind) {
-    FiltersError.LOAD -> sieveErrorText(sieveKind, R.string.settings_vacation_load_error)
-    FiltersError.SAVE -> sieveErrorText(sieveKind, R.string.settings_vacation_save_error)
-    FiltersError.ACTIVATE -> sieveErrorText(sieveKind, R.string.settings_filters_activate_error)
+/**
+ * A failure of the filters screen as two lines: the sentence, and under it, greyed, what only a
+ * technician reads. [detailRes] and [detail] are never both set.
+ */
+internal data class FiltersErrorLines(
+    @StringRes val sentence: Int,
+    @StringRes val detailRes: Int? = null,
+    val detail: String? = null,
+)
+
+/**
+ * The lines of a failed filters gesture. An unreachable ManageSieve never says the server lacks
+ * filters: a firewall on port 4190 or the network look exactly the same from here.
+ */
+internal fun filtersErrorLines(kind: FiltersError, sieveKind: ManageSieveException.Kind?, detail: String): FiltersErrorLines {
     // Refused before any ManageSieve dialogue, so a kind left over from an earlier failure never words it.
-    FiltersError.TEXT_UNCUT -> R.string.settings_filters_text_uncut
+    if (kind == FiltersError.TEXT_UNCUT) return FiltersErrorLines(R.string.settings_filters_text_uncut)
+    if (kind == FiltersError.CHANGED) return FiltersErrorLines(R.string.settings_filters_changed_elsewhere)
+    return when (sieveKind) {
+        ManageSieveException.Kind.UNREACHABLE -> FiltersErrorLines(
+            R.string.settings_filters_unreachable,
+            detailRes = R.string.settings_filters_unreachable_detail,
+        )
+        ManageSieveException.Kind.INSECURE -> FiltersErrorLines(R.string.settings_filters_sieve_insecure)
+        ManageSieveException.Kind.REFUSED, null -> FiltersErrorLines(
+            when (kind) {
+                FiltersError.LOAD -> R.string.settings_filters_load_error
+                FiltersError.SAVE -> R.string.settings_filters_save_error
+                FiltersError.ACTIVATE -> R.string.settings_filters_activate_error
+                FiltersError.TEXT_UNCUT -> R.string.settings_filters_text_uncut
+                FiltersError.CHANGED -> R.string.settings_filters_changed_elsewhere
+            },
+            detail = detail.takeIf { it.isNotBlank() },
+        )
+    }
 }
 
 /** A date check never reached the server, so a kind left over from an earlier failure never words it. */
