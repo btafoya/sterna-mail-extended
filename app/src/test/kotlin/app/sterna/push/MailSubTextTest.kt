@@ -20,10 +20,15 @@ class MailSubTextTest {
         NotificationContent.SENDER_ONLY,
     )
 
-    private fun eachTelling(expected: MailSubText, accountCount: Int, label: String?, folder: String?) =
-        telling.forEach { content ->
-            assertEquals("$content", expected, MailNotificationText.subTextFor(content, accountCount, label, folder))
-        }
+    private fun eachTelling(
+        expected: MailSubText,
+        accountCount: Int,
+        label: String?,
+        folder: String?,
+        address: String? = null,
+    ) = telling.forEach { content ->
+        assertEquals("$content", expected, MailNotificationText.subTextFor(content, accountCount, label, address, folder))
+    }
 
     @Test fun `one account, inbox, names nothing`() {
         eachTelling(MailSubText.None, 1, PERSO, folder = null)
@@ -57,7 +62,7 @@ class MailSubTextTest {
     @Test fun `no sender or subject names neither the account nor the folder`() {
         assertEquals(
             MailSubText.None,
-            MailNotificationText.subTextFor(NotificationContent.NONE, 2, PERSO, ARCHIVE),
+            MailNotificationText.subTextFor(NotificationContent.NONE, 2, PERSO, null, ARCHIVE),
         )
     }
 
@@ -74,7 +79,7 @@ class MailSubTextTest {
             assertEquals(
                 "count=$count label=$label folder=$folder",
                 MailSubText.None,
-                MailNotificationText.subTextFor(NotificationContent.NONE, count, label, folder),
+                MailNotificationText.subTextFor(NotificationContent.NONE, count, label, null, folder),
             )
         }
     }
@@ -96,7 +101,70 @@ class MailSubTextTest {
         assertEquals(
             expected,
             NotificationContent.entries.associateWith {
-                MailNotificationText.subTextFor(it, accountCount = 2, accountLabel = PERSO, folderName = ARCHIVE)
+                MailNotificationText.subTextFor(
+                    it,
+                    accountCount = 2,
+                    accountLabel = PERSO,
+                    arrivalAddress = null,
+                    folderName = ARCHIVE,
+                )
+            },
+        )
+    }
+
+    // -- the address the message came in on (#243) ------------------------------------------------
+
+    @Test fun `a known address, one account, inbox, names the address`() {
+        eachTelling(MailSubText.Account(account = PRO), 1, PERSO, folder = null, address = PRO)
+    }
+
+    @Test fun `a known address, one account, another folder, names the address then the folder`() {
+        eachTelling(MailSubText.AccountAndFolder(account = PRO, folder = ARCHIVE), 1, PERSO, ARCHIVE, address = PRO)
+    }
+
+    @Test fun `a known address, two accounts, inbox, names the address and not the account`() {
+        eachTelling(MailSubText.Account(account = PRO), 2, PERSO, folder = null, address = PRO)
+        eachTelling(MailSubText.Account(account = PRO), 5, PERSO, folder = null, address = PRO)
+    }
+
+    @Test fun `a known address, two accounts, another folder, names the address then the folder`() {
+        eachTelling(MailSubText.AccountAndFolder(account = PRO, folder = ARCHIVE), 2, PERSO, ARCHIVE, address = PRO)
+    }
+
+    @Test fun `a known address with no label left still names the address`() {
+        eachTelling(MailSubText.Account(account = PRO), 2, label = null, folder = null, address = PRO)
+    }
+
+    @Test fun `no sender or subject names no address either`() {
+        listOf(1, 2, 5).forEach { count ->
+            listOf(ARCHIVE, null).forEach { folder ->
+                assertEquals(
+                    "count=$count folder=$folder",
+                    MailSubText.None,
+                    MailNotificationText.subTextFor(NotificationContent.NONE, count, PERSO, PRO, folder),
+                )
+            }
+        }
+    }
+
+    @Test fun `what the header line may name with a known address, position by position`() {
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to MailSubText.AccountAndFolder(PRO, ARCHIVE),
+            NotificationContent.SENDER_AND_SUBJECT to MailSubText.AccountAndFolder(PRO, ARCHIVE),
+            NotificationContent.SENDER_ONLY to MailSubText.AccountAndFolder(PRO, ARCHIVE),
+            NotificationContent.NONE to MailSubText.None,
+        )
+        assertEquals(NotificationContent.entries.toSet(), expected.keys)
+        assertEquals(
+            expected,
+            NotificationContent.entries.associateWith {
+                MailNotificationText.subTextFor(
+                    it,
+                    accountCount = 1,
+                    accountLabel = PERSO,
+                    arrivalAddress = PRO,
+                    folderName = ARCHIVE,
+                )
             },
         )
     }
@@ -145,5 +213,6 @@ class MailSubTextTest {
     private companion object {
         const val PERSO = "Perso"
         const val ARCHIVE = "Archive"
+        const val PRO = "pro@exemple.org"
     }
 }

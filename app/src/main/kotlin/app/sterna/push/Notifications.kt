@@ -1,5 +1,6 @@
 package app.sterna.push
 
+import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import app.sterna.MainActivity
 import app.sterna.R
+import app.sterna.container
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.jmap.model.Email
 
@@ -223,7 +225,9 @@ object Notifications {
             hasSubject = realSubject != null,
         )
         val notifId = childId(accountId, email.id)
-        val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, accountLabel, folderName)) {
+        val store = (context.applicationContext as Application).container.accountStore
+        val arrival = arrivalAddress(email, store.identities(accountId), store.account(accountId)?.username, folderName)
+        val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, accountLabel, arrival, folderName)) {
             MailSubText.None -> null
             is MailSubText.Account -> line.account
             is MailSubText.Folder -> line.folder

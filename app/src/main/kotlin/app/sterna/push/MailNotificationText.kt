@@ -70,19 +70,20 @@ object MailNotificationText {
         NotificationContent.SENDER_ONLY, NotificationContent.NONE -> null
     }
 
-    /** The header line of a banner: the account it came to (#193), the folder it sits in (#16), or
-     *  neither, those two being what is left to say who writes about what once the texts do not. */
+    /** The header line of a banner: the address it came in on (#243) whatever the count, else the
+     *  account (#193); then the folder (#16); what is left to say who writes about what once texts do not. */
     fun subTextFor(
         content: NotificationContent,
         accountCount: Int,
         accountLabel: String?,
+        arrivalAddress: String?,
         folderName: String?,
     ): MailSubText = when (content) {
         NotificationContent.BODY_PREVIEW,
         NotificationContent.SENDER_AND_SUBJECT,
         NotificationContent.SENDER_ONLY,
         -> {
-            val account = accountLabel?.takeIf { accountCount > 1 }
+            val account = arrivalAddress ?: accountLabel?.takeIf { accountCount > 1 }
             when {
                 account != null && folderName != null -> MailSubText.AccountAndFolder(account, folderName)
                 account != null -> MailSubText.Account(account)

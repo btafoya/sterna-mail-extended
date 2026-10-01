@@ -20,7 +20,7 @@ class AccountNamedOnTheNotificationWiringTest {
                 "the folder to a reader who asked for neither (#84)",
             listOf(
                 "val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, " +
-                    "accountLabel, folderName)) {",
+                    "accountLabel, arrival, folderName)) {",
             ),
             codeLinesNaming(body, "subTextFor("),
         )
@@ -40,6 +40,63 @@ class AccountNamedOnTheNotificationWiringTest {
             "set once, at construction, so the silent repost's recoverBuilder carries it over",
             listOf(".apply { if (subText != null) setSubText(subText) }"),
             codeLinesNaming(body, "setSubText"),
+        )
+    }
+
+    @Test fun `the address handed to the decision is the reader's arrival rule, read from the account store`() {
+        val body = bodyOf(NOTIFICATIONS, "notifyNewMail")
+        assertEquals(
+            "computed here and nowhere else, from the message itself and the account's identities, the " +
+                "login only as the rule's search list: no caller can hand it in, and the snooze " +
+                "wake-up gets it by construction (#243)",
+            listOf(
+                "val arrival = arrivalAddress(email, store.identities(accountId), store.account(accountId)?.username, " +
+                    "folderName)",
+                "val subText = when (val line = MailNotificationText.subTextFor(content, accountCount, " +
+                    "accountLabel, arrival, folderName)) {",
+            ),
+            codeLinesNaming(body, "arrival"),
+        )
+        assertEquals(
+            "the store is the application's own account store, read synchronously and offline",
+            listOf(
+                "val store = (context.applicationContext as Application).container.accountStore",
+                "val arrival = arrivalAddress(email, store.identities(accountId), store.account(accountId)?.username, " +
+                    "folderName)",
+            ),
+            codeLinesNaming(body, "store"),
+        )
+        assertEquals(
+            "the shared rule is the reader's guard applied to the reader's search and the reader's " +
+                "own-message rule, identities alone counted by the guard: the login handed to " +
+                "deliveredToInHeader is the defect of #180",
+            listOf(
+                "val received = receivingAddress(email, accountAddresses(identities, login))",
+                "val role = if (folderName == null) \"inbox\" else null",
+                "val ownMessage = showsRecipients(role, unified = false, selfAuthored = isSelfAuthored(email.from, identities))",
+                "return deliveredToInHeader(received, identities.map { it.email }, ownMessage)",
+            ),
+            codeLinesOf(bodyOf(ARRIVAL, "arrivalAddress")).filterNot { it == "{" || it == "}" },
+        )
+    }
+
+    @Test fun `only the poster reaches the decision, so no path posts a header line around the address`() {
+        val reaching = File(root, MAIN_PATH).walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { file -> codeLinesNaming(file.readText(), "subTextFor(").isNotEmpty() }
+            .map { it.name }
+            .toSortedSet()
+        assertEquals(
+            "the decision's own file and the poster, and no third: a caller of its own would post a " +
+                "sub-text that never consulted the arrival address",
+            sortedSetOf("MailNotificationText.kt", "Notifications.kt"),
+            reaching,
+        )
+        val snooze = codeLinesOf(SNOOZE_WORKER.readText())
+        assertEquals(
+            "the snooze wake-up posts through notifyNewMail, once, and composes no header line itself",
+            listOf("Notifications.notifyNewMail("),
+            snooze.filter { "notifyNewMail" in it || "subTextFor" in it || "MailSubText" in it || "setSubText" in it },
         )
     }
 
@@ -152,6 +209,8 @@ class AccountNamedOnTheNotificationWiringTest {
         private const val NOTIFICATIONS_PATH = "app/src/main/kotlin/app/sterna/push/Notifications.kt"
         private const val SNOOZE_WORKER_PATH = "app/src/main/kotlin/app/sterna/snooze/SnoozeWorker.kt"
         private const val RES_PATH = "app/src/main/res"
+        private const val MAIN_PATH = "app/src/main/kotlin"
+        private const val ARRIVAL_PATH = "app/src/main/kotlin/app/sterna/push/ArrivalAddress.kt"
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -162,5 +221,6 @@ class AccountNamedOnTheNotificationWiringTest {
         private val NOTIFIER: File by lazy { File(root, NOTIFIER_PATH) }
         private val NOTIFICATIONS: File by lazy { File(root, NOTIFICATIONS_PATH) }
         private val SNOOZE_WORKER: File by lazy { File(root, SNOOZE_WORKER_PATH) }
+        private val ARRIVAL: File by lazy { File(root, ARRIVAL_PATH) }
     }
 }
