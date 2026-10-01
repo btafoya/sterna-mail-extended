@@ -176,6 +176,12 @@ import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
 import app.sterna.ui.attachmentLook
+import app.sterna.ui.attachmentKey
+import app.sterna.ui.THUMBNAIL_DP
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
@@ -1392,6 +1398,7 @@ private fun MessageContent(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
+    val attachmentThumbnails by viewModel.attachmentThumbnails.collectAsStateWithLifecycle()
     val calendar by viewModel.calendar.collectAsStateWithLifecycle()
     val ownMessage by viewModel.ownMessage.collectAsStateWithLifecycle()
     val deliveredTo by viewModel.deliveredTo.collectAsStateWithLifecycle()
@@ -1616,6 +1623,7 @@ private fun MessageContent(
                 // mail to a stranger, the second sends nothing and takes the question away.
                 onSendReadReceipt = viewModel::sendReadReceipt,
                 onDeclineReadReceipt = viewModel::declineReadReceipt,
+                attachmentThumbnails = attachmentThumbnails,
             )
         }
     }
@@ -1672,6 +1680,7 @@ private fun ConversationBody(
     readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
     onSendReadReceipt: () -> Unit = {},
     onDeclineReadReceipt: () -> Unit = {},
+    attachmentThumbnails: Map<String, ImageBitmap> = emptyMap(),
 ) {
     val msg = messages.firstOrNull() ?: return
     val full = msg.body
@@ -1885,6 +1894,7 @@ private fun ConversationBody(
                 onDeclineReadReceipt = onDeclineReadReceipt,
                 saveAllProgress = saveAllProgress,
                 onSaveAllAttachments = onSaveAllAttachments,
+                attachmentThumbnails = attachmentThumbnails,
             )
         }
         // Spinner until the body has laid out (cached/prefetched mail beats the 500ms, so none flashes).
@@ -1974,6 +1984,7 @@ private fun MessageHeader(
     onDeclineReadReceipt: () -> Unit = {},
     saveAllProgress: SaveAllProgress? = null,
     onSaveAllAttachments: (ownerId: String) -> Unit = {},
+    attachmentThumbnails: Map<String, ImageBitmap> = emptyMap(),
 ) {
     val sender = msg.header.from.firstOrNull()
     // The user's own message (Sent/Drafts, or sent under one of the account's identities): the sender
@@ -2112,6 +2123,7 @@ private fun MessageHeader(
                 AttachmentSection(
                     attachments,
                     attachmentStatus,
+                    attachmentThumbnails,
                     onOpen = { part -> onOpenAttachment(part, msg.id) },
                     onSave = { part -> onSaveAttachment(part, msg.id) },
                     saveAllProgress = saveAllProgress?.takeIf { it.ownerId == msg.id },
@@ -2492,6 +2504,7 @@ private fun addToContacts(context: Context, addr: EmailAddress): Boolean = try {
 private fun AttachmentSection(
     attachments: List<EmailBodyPart>,
     status: String?,
+    thumbnails: Map<String, ImageBitmap>,
     onOpen: (EmailBodyPart) -> Unit,
     onSave: (EmailBodyPart) -> Unit,
     saveAllProgress: SaveAllProgress?,
@@ -2531,12 +2544,27 @@ private fun AttachmentSection(
                     .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    look.icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 12.dp).size(20.dp),
-                )
+                Box(
+                    Modifier.padding(end = 12.dp).size(THUMBNAIL_DP.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val thumbnail = thumbnails[attachmentKey(att)]
+                    if (thumbnail != null) {
+                        androidx.compose.foundation.Image(
+                            thumbnail,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),
+                        )
+                    } else {
+                        Icon(
+                            look.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = att.name ?: stringResource(R.string.message_attachment_fallback),

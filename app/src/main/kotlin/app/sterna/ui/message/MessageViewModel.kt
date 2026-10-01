@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
+import androidx.compose.ui.graphics.ImageBitmap
 import app.sterna.core.data.mail.MessageCrypto
 import app.sterna.core.data.mail.MessageUnavailableException
 import app.sterna.core.data.mail.requireAttachmentBytes
@@ -41,6 +43,7 @@ import app.sterna.core.data.mail.confirmationTarget
 import app.sterna.core.data.mail.preferredAction
 import app.sterna.core.data.mail.unsubscribePreview
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
+import app.sterna.core.data.text.attachmentKind
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
@@ -52,7 +55,11 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.net.hasUsableNetwork
+import app.sterna.ui.THUMBNAIL_DP
+import app.sterna.ui.attachmentKey
+import app.sterna.ui.decodeThumbnail
 import app.sterna.ui.handAttachmentToViewer
+import app.sterna.ui.newThumbnailCache
 import app.sterna.ui.readerActionFailureText
 import app.sterna.ui.inbox.folderOrderingOf
 import app.sterna.ui.inbox.isSelfAuthored
@@ -82,6 +89,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.roundToInt
 
 sealed interface MessageState {
     data object Loading : MessageState
@@ -648,7 +656,62 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         if (!stillWanted()) return false
         if (tooMany) gaveUpOnResources(emailId, accountId)
         _messages.value = listOf(message)
+        if (loadedId == emailId) loadThumbnailsFor(message)
         return true
+    }
+
+    private val thumbnailCache = newThumbnailCache()
+    private val _attachmentThumbnails = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val attachmentThumbnails: StateFlow<Map<String, ImageBitmap>> = _attachmentThumbnails.asStateFlow()
+    private var thumbnailJob: Job? = null
+    private var thumbnailRequest: List<String>? = null
+    private var thumbnailOwner: String? = null
+
+    private fun stopThumbnails() {
+        thumbnailJob?.cancel()
+        thumbnailJob = null
+        thumbnailRequest = null
+    }
+
+    private fun forgetThumbnails() {
+        thumbnailJob?.cancel()
+        thumbnailJob = null
+        thumbnailRequest = null
+        thumbnailOwner = null
+        thumbnailCache.evictAll()
+        _attachmentThumbnails.value = emptyMap()
+    }
+
+    private fun loadThumbnailsFor(message: ThreadMessage) {
+        val parts = thumbnailsToFetch(message.body?.fileAttachmentParts().orEmpty()) { part ->
+            attachmentKind(part.type, part.name, MimeTypeMap.getSingleton()::getMimeTypeFromExtension)
+        }
+        val request = listOf(message.id) + parts.mapNotNull { attachmentKey(it) }
+        if (request == thumbnailRequest) return
+        if (thumbnailOwner != message.id) forgetThumbnails()
+        thumbnailJob?.cancel()
+        thumbnailRequest = request
+        thumbnailOwner = message.id
+        val ownerId = message.id
+        val shown = thumbnailCache.snapshot().keys
+        val pending = parts.filter { attachmentKey(it) !in shown }
+        val px = (THUMBNAIL_DP * getApplication<Application>().resources.displayMetrics.density).roundToInt()
+        thumbnailJob = viewModelScope.launch {
+            val credentials = credentials() ?: return@launch
+            loadThumbnails(
+                pending,
+                download = { part ->
+                    withContext(Dispatchers.IO) {
+                        repo.downloadAttachment(credentials, part, ownerId, DownloadLimits.INLINE_IMAGE_MAX_BYTES)
+                    }
+                },
+                decode = { bytes -> withContext(Dispatchers.Default) { decodeThumbnail(bytes, px) } },
+                keep = { key, image ->
+                    thumbnailCache.put(key, image)
+                    _attachmentThumbnails.value = thumbnailCache.snapshot()
+                },
+            )
+        }
     }
 
     /** One-shot "print this message" signal, same shape as the image override and for the same
@@ -744,6 +807,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      * "Save" on an attachment row: the part's bytes, straight from the server into the document she
      */
     fun saveAttachment(uri: Uri, proposedName: String, ownerId: String, partKey: String) {
+        stopThumbnails()
         viewModelScope.launch {
             try {
                 val part = _messages.value.firstOrNull { it.id == ownerId }
@@ -793,6 +857,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     val saveAllProgress = _saveAllProgress.asStateFlow()
 
     fun saveAllAttachments(treeUri: Uri, ownerId: String) {
+        stopThumbnails()
         viewModelScope.launch {
             try {
                 val app = getApplication<Application>()
@@ -1174,6 +1239,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         attachedMessageJob = null
         _attachedMessage.value = null
         _attachmentStatus.value = null
+        thumbnailJob?.cancel()
+        thumbnailJob = null
+        thumbnailRequest = null
+        thumbnailOwner = null
+        thumbnailCache.evictAll()
+        _attachmentThumbnails.value = emptyMap()
         // The per-sender rule, all three halves. The status belongs to the message we are leaving, and
         // the script is worse than stale: the pager crosses accounts, so the previous account's rules
         // would decide whether THIS account's sender is already ruled. The addresses are taken here
@@ -1331,6 +1402,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         if (isActive) {
             maybeMarkRead()
             maybeAutoDecrypt()
+            _messages.value.firstOrNull()?.takeIf { it.id == loadedId }?.let { loadThumbnailsFor(it) }
+        } else {
+            stopThumbnails()
         }
     }
 
@@ -1493,6 +1567,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     fun openAttachment(part: EmailBodyPart, ownerId: String) {
         if (openingAttachment) return
         openingAttachment = true
+        stopThumbnails()
         // A message/rfc822 part has no viewer app to go to: it is read here, in a sheet, and never
         // written to the cache. [openingAttachment] is held and released by that path too.
         if (isAttachedMessage(part.type)) { openAttachedMessage(part, ownerId); return }

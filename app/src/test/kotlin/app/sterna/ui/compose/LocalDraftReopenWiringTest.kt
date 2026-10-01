@@ -264,6 +264,7 @@ class LocalDraftReopenWiringTest {
                 "expand = fields.expand,",
                 ")",
                 "_attachments.value = fields.attachments",
+                "rememberStagedThumbnails(fields.attachments)",
                 "inReplyTo = fields.inReplyTo",
                 "references = fields.references",
                 "fields.fromEmail?.let { written ->",

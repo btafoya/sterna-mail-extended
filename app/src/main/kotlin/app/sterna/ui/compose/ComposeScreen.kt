@@ -18,6 +18,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -117,6 +119,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -150,6 +153,8 @@ import app.sterna.container
 import app.sterna.contacts.AndroidContacts
 import app.sterna.util.isValidEmail
 import app.sterna.ui.FORCE_ONBOARDING_PREVIEW
+import app.sterna.ui.THUMBNAIL_DP
+import app.sterna.ui.attachmentKey
 import app.sterna.ui.attachmentLook
 import app.sterna.ui.attachmentMeta
 import app.sterna.ui.formatSize
@@ -197,6 +202,7 @@ fun ComposeScreen(
     val forwardedPreview by viewModel.forwardedPreview.collectAsStateWithLifecycle()
     val attachments by viewModel.attachments.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
+    val thumbnails by viewModel.attachmentThumbnails.collectAsStateWithLifecycle()
     val attachmentsTotal by viewModel.attachmentsTotal.collectAsStateWithLifecycle()
     val fromOptions by viewModel.fromOptions.collectAsStateWithLifecycle()
     val selectedFrom by viewModel.selectedFrom.collectAsStateWithLifecycle()
@@ -1344,7 +1350,25 @@ fun ComposeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             val look = attachmentLook(att)
-                            Icon(look.icon, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                            // One slot for both, so names stay aligned whether a row shows a preview
+                            // or an icon; at 40 dp it stays under the remove button's 48 dp, and the
+                            // row keeps its height under the list's cap.
+                            Box(
+                                Modifier.padding(end = 8.dp).size(THUMBNAIL_DP.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                val thumbnail = thumbnails[attachmentKey(att)]
+                                if (thumbnail != null) {
+                                    Image(
+                                        thumbnail,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),
+                                    )
+                                } else {
+                                    Icon(look.icon, contentDescription = null)
+                                }
+                            }
                             // weight(1f) and one ellipsized line: a long name shortens instead of
                             // pushing the cross off the screen.
                             Column(Modifier.weight(1f)) {

@@ -8,6 +8,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.text.format.DateUtils
 import android.util.Log
+import android.webkit.MimeTypeMap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
@@ -54,6 +56,7 @@ import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Link
 import app.sterna.core.data.text.RichBody
 import app.sterna.core.data.text.Span
+import app.sterna.core.data.text.attachmentKind
 import app.sterna.core.data.text.draftHtmlIsLossy
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.text.toPlainText
@@ -72,12 +75,18 @@ import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.net.hasUsableNetwork
 import app.sterna.net.isOfflineFailure
+import app.sterna.ui.THUMBNAIL_DP
+import app.sterna.ui.newThumbnailCache
+import app.sterna.ui.thumbnailKeyToForget
+import app.sterna.ui.decodeThumbnail
 import app.sterna.ui.handAttachmentToViewer
+import app.sterna.ui.thumbnailKeyFor
 import app.sterna.util.MailDates
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import java.io.File
 import java.time.ZoneId
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -213,6 +222,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     private val _attachmentStatus = MutableStateFlow<String?>(null)
     val attachmentStatus: StateFlow<String?> = _attachmentStatus.asStateFlow()
+
+    private val thumbnailCache = newThumbnailCache()
+    private val _attachmentThumbnails = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val attachmentThumbnails: StateFlow<Map<String, ImageBitmap>> = _attachmentThumbnails.asStateFlow()
 
     private var openingAttachment = false
 
@@ -927,6 +940,35 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     fun removeAttachment(part: EmailBodyPart) {
         _attachments.value = _attachments.value.filterNot { it == part }
         _attachmentsTouched.value = true
+        forgetThumbnail(part)
+    }
+
+    private fun forgetThumbnail(part: EmailBodyPart) {
+        val key = thumbnailKeyToForget(part, _attachments.value) ?: return
+        thumbnailCache.remove(key)
+        _attachmentThumbnails.value = thumbnailCache.snapshot()
+    }
+
+    private fun rememberThumbnail(part: EmailBodyPart, decode: (Int) -> ImageBitmap?) {
+        val kind = attachmentKind(part.type, part.name, MimeTypeMap.getSingleton()::getMimeTypeFromExtension)
+        val key = thumbnailKeyFor(part, kind) ?: return
+        val px = (THUMBNAIL_DP * getApplication<Application>().resources.displayMetrics.density).roundToInt()
+        viewModelScope.launch {
+            val image = withContext(Dispatchers.Default) { decode(px) } ?: return@launch
+            thumbnailCache.put(key, image)
+            _attachmentThumbnails.value = thumbnailCache.snapshot()
+        }
+    }
+
+    private fun rememberStagedThumbnails(parts: List<EmailBodyPart>) {
+        val app = getApplication<Application>()
+        val roots = listOf(File(app.cacheDir, "outgoing"), File(app.filesDir, LOCAL_DRAFT_FILES_DIR))
+        for (part in parts) {
+            viewModelScope.launch {
+                val file = withContext(Dispatchers.IO) { stagedThumbnailSource(part, roots) } ?: return@launch
+                rememberThumbnail(part) { px -> decodeThumbnail(file, px) }
+            }
+        }
     }
 
     /**
@@ -947,6 +989,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     private fun bindQueuedRow(d: SendOutbox.ComposeDraft, options: List<FromOption>) {
         _attachments.value = d.attachments
+        rememberStagedThumbnails(d.attachments)
         inReplyTo = d.inReplyTo
         references = d.references
         // Reopening an undone forward: restore the carried original so it is still sent.
@@ -1390,6 +1433,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             expand = fields.expand,
         )
         _attachments.value = fields.attachments
+        rememberStagedThumbnails(fields.attachments)
         inReplyTo = fields.inReplyTo
         references = fields.references
         // The address the draft was written as, so a delegated sub-account's draft reopens under the
@@ -2221,6 +2265,20 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         disposition: String,
         cid: String?,
         forceLocal: Boolean = false,
+    ): EmailBodyPart {
+        val part = stageBytes(credentials, bytes, type, name, disposition, cid, forceLocal)
+        rememberThumbnail(part) { px -> decodeThumbnail(bytes, px) }
+        return part
+    }
+
+    private suspend fun stageBytes(
+        credentials: AccountCredentials,
+        bytes: ByteArray,
+        type: String?,
+        name: String?,
+        disposition: String,
+        cid: String?,
+        forceLocal: Boolean,
     ): EmailBodyPart {
         val app = getApplication<Application>()
         return if (forceLocal || stagesAttachmentLocally(credentials.protocol, _pgpMode.value)) {
