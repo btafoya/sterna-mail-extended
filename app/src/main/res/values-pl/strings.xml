@@ -259,6 +259,20 @@
     <string name="message_quoted_text">Cytowany tekst</string>
     <string name="list_to_recipients">Do: %1$s</string>
     <string name="message_attachments">Załączniki (%1$d)</string>
+    <string name="message_save_all_attachments">Zapisz wszystkie</string>
+    <string name="message_save_all_progress">Zapisywanie %1$d z %2$d…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="one">Zapisano %1$d załącznik</item>
+        <item quantity="few">Zapisano %1$d załączniki</item>
+        <item quantity="many">Zapisano %1$d załączników</item>
+        <item quantity="other">Zapisano %1$d załącznika</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="one">Zapisano %1$d z %2$d załącznika</item>
+        <item quantity="few">Zapisano %1$d z %2$d załączników</item>
+        <item quantity="many">Zapisano %1$d z %2$d załączników</item>
+        <item quantity="other">Zapisano %1$d z %2$d załącznika</item>
+    </plurals>
     <string name="message_attachment_fallback">załącznik</string>
     <string name="attachment_kind_image">Obraz</string>
     <string name="attachment_kind_pdf">PDF</string>

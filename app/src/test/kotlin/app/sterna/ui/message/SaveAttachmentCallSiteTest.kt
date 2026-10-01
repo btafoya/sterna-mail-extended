@@ -134,22 +134,14 @@ class SaveAttachmentCallSiteTest {
      */
     @Test fun `every way out of a save deletes the document the picker created`() {
         assertEquals(
-            "MessageViewModel must discard the created document on the owner refusal, on the " +
-                "too-large refusal and on any failure. One missing and an empty file with a real " +
-                "name is left behind in her Downloads. Lines found:",
+            "MessageViewModel must declare ONE discardDocument, and it must delete the document. " +
+                "Each save path's own discards are counted in its own body, below and in " +
+                "[ExportSourceCallSiteTest]. Lines found:",
             listOf(
-                // exportSource: owner refusal, then any failure
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                // saveAttachment: owner refusal, cancellation, too large, any failure
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                "discardDocument(uri)",
                 "private suspend fun discardDocument(uri: Uri) = withContext(NonCancellable + Dispatchers.IO) {",
                 "runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }",
             ),
-            codeLines(viewModel().readText()).filter { "discardDocument(" in it || "deleteDocument(" in it },
+            codeLines(viewModel().readText()).filter { "fun discardDocument(" in it || "deleteDocument(" in it },
         )
         assertEquals(
             "saveAttachment must discard the document exactly four times — one per way out. " +
@@ -319,6 +311,171 @@ class SaveAttachmentCallSiteTest {
             lines.filter { "onSaveAttachment" in it },
         )
     }
+
+    @Test fun `save all creates each document in the picked tree and writes the server's bytes`() {
+        val body = saveAllAttachmentsBody()
+        assertEquals(
+            "saveAllAttachments must create each document under the picked tree's own document, " +
+                "through DocumentsContract, with the part's MIME type and the batch's name. Lines found:",
+            listOf(
+                "val parent = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))",
+                "DocumentsContract.createDocument(resolver, parent, mime, name)",
+            ),
+            body.filter { "DocumentsContract." in it },
+        )
+        assertEquals(
+            "…fetch the bytes through MailRepository.downloadAttachment for the message the picker " +
+                "was launched for, and write them in \"wt\" mode. Lines found:",
+            listOf(
+                "resolver.openOutputStream(document, \"wt\")?.use { it.write(bytes) } ?: error(\"no output stream\")",
+                "repo.downloadAttachment(credentials, part, ownerId)",
+            ),
+            body.filter { "downloadAttachment(" in it || "openOutputStream(" in it },
+        )
+        assertEquals(
+            "…and hand a document it gives up on to discardDocument, exactly once, from the " +
+                "folder's discard. Lines found:",
+            listOf("override suspend fun discard(document: Uri) {", "discardDocument(document)"),
+            body.filter { "discard" in it },
+        )
+        assertEquals(
+            "…re-resolving the parts from _messages, never from anything the screen handed down. " +
+                "Lines found:",
+            listOf("_messages.value,", "ownerId,", "folder,"),
+            body.dropWhile { it != "val outcome = saveAllAttachmentsInto(" }.drop(1).take(3),
+        )
+    }
+
+    @Test fun `save all discards the part in flight on failure and on cancellation`() {
+        val loop = saveAllLoopBody()
+        assertEquals(
+            "saveAllAttachmentsInto must carry exactly two catch clauses, cancellation BEFORE the " +
+                "generic one: the other way round, a cancelled batch is swallowed as one failed part " +
+                "and the loop goes on writing under a dead page. Lines found:",
+            listOf("} catch (cancelled: CancellationException) {", "} catch (t: Throwable) {"),
+            loop.filter { it.startsWith("} catch (") },
+        )
+        val cancelCatch = loop.indexOf("} catch (cancelled: CancellationException) {")
+        val failCatch = loop.indexOf("} catch (t: Throwable) {")
+        assertEquals(
+            "each catch must discard the document in flight on its first line, and the " +
+                "cancellation one must rethrow. Lines found:",
+            listOf("document?.let { folder.discard(it) }", "throw cancelled", "document?.let { folder.discard(it) }"),
+            listOf(loop[cancelCatch + 1], loop[cancelCatch + 2], loop[failCatch + 1]),
+        )
+        val fetch = loop.indexOf("val bytes = fetch(part)")
+        val guard = loop.indexOf("requireAttachmentBytes(ownerId, part.partId ?: part.blobId.orEmpty(), bytes)")
+        val write = loop.indexOf("folder.write(document, bytes)")
+        val create = loop.indexOf("document = folder.create(names[index], \"application/octet-stream\")")
+        assertTrue(
+            "the document must be created after the bytes are in hand and refused-if-empty, and " +
+                "with the neutral type (guard $guard, create $create, write $write): $loop",
+            guard >= 0 && create in (guard + 1) until write,
+        )
+        assertTrue(
+            "the zero-byte refusal must sit between the fetch and the write (fetch $fetch, guard " +
+                "$guard, write $write): $loop",
+            fetch >= 0 && guard in (fetch + 1) until write,
+        )
+        assertEquals(
+            "the count must grow on the line after the write, inside the try. Lines found:",
+            "saved++",
+            loop[write + 1],
+        )
+    }
+
+    @Test fun `save all never names the cache`() {
+        assertEquals(
+            "neither saveAllAttachments nor its loop may name the cache, the open path or a " +
+                "FileProvider. Lines found:",
+            emptyList<String>(),
+            (saveAllAttachmentsBody() + codeLines(saveAllFile().readText())).filter {
+                "cacheAttachment" in it || "FileProvider" in it || "handAttachmentToViewer" in it
+            },
+        )
+    }
+
+    @Test fun `save all says one word from the outcome and always clears its progress`() {
+        val body = saveAllAttachmentsBody()
+        assertEquals(
+            "the outcome must map refused, all saved and partly saved to their own sentences. Lines found:",
+            listOf(
+                "SaveAllOutcome.Refused -> app.getString(R.string.status_action_failed)",
+                "app.resources.getQuantityString(R.plurals.message_attachments_all_saved, outcome.count, outcome.count)",
+                "R.plurals.message_attachments_partly_saved, outcome.total, outcome.saved, outcome.total,",
+            ),
+            body.filter { "R.string." in it || "R.plurals." in it }.filterNot { "status_no_saved_account" in it },
+        )
+        val finally = body.indexOf("} finally {")
+        assertTrue("saveAllAttachments must have a finally: $body", finally >= 0)
+        assertEquals("_saveAllProgress.value = null", body[finally + 1])
+        assertEquals(
+            "the outcome expression must stay `saved == parts.size`: anything looser announces " +
+                "every attachment saved after one failed. Lines found:",
+            listOf("return if (saved == parts.size) SaveAllOutcome.AllSaved(saved) else SaveAllOutcome.PartlySaved(saved, parts.size)"),
+            saveAllLoopBody().filter { "SaveAllOutcome.AllSaved(" in it },
+        )
+    }
+
+    @Test fun `the header's save all launches one folder picker for its own message`() {
+        val lines = codeLines(screen().readText())
+        assertEquals(
+            listOf("ActivityResultContracts.OpenDocumentTree(),"),
+            lines.filter { "OpenDocumentTree(" in it },
+        )
+        assertEquals(
+            listOf(
+                "var saveAllAttachmentsFor by rememberSaveable { mutableStateOf(\"\") }",
+                "val ownerId = saveAllAttachmentsFor",
+                "saveAllAttachmentsFor = \"\"",
+                "if (saveAllAttachmentsFor.isEmpty()) {",
+                "saveAllAttachmentsFor = ownerId",
+            ),
+            lines.filter { "saveAllAttachmentsFor" in it },
+        )
+        assertEquals(
+            listOf(
+                "val saveAllAttachmentsLauncher = rememberLauncherForActivityResult(",
+                "saveAllAttachmentsLauncher.launch(null)",
+            ),
+            lines.filter { "saveAllAttachmentsLauncher" in it },
+        )
+        assertEquals(
+            listOf("if (treeUri != null) viewModel.saveAllAttachments(treeUri, ownerId)"),
+            lines.filter { "viewModel.saveAllAttachments(" in it },
+        )
+        assertEquals(
+            "the section must be offered save all for the message it belongs to. Lines found:",
+            listOf("onSaveAll = { onSaveAllAttachments(msg.id) },"),
+            lines.filter { "onSaveAll = " in it },
+        )
+    }
+
+    /** The code lines of `saveAllAttachments`, up to the next member declared at class level. */
+    private fun saveAllAttachmentsBody(): List<String> {
+        val lines = viewModel().readText().lines()
+        val start = lines.indexOfFirst { it.trim().startsWith("fun saveAllAttachments(treeUri: Uri, ownerId: String)") }
+        assertTrue("MessageViewModel must still declare saveAllAttachments(treeUri, ownerId)", start >= 0)
+        val rest = lines.drop(start + 1)
+        val end = rest.indexOfFirst { it.startsWith("    fun ") || it.startsWith("    private ") }
+            .let { if (it < 0) rest.size else it }
+        return codeLines(rest.take(end).joinToString("\n")).also {
+            assertTrue("saveAllAttachments must have a body", it.isNotEmpty())
+        }
+    }
+
+    /** The code lines of `saveAllAttachmentsInto`, to the end of its file's top-level declaration. */
+    private fun saveAllLoopBody(): List<String> {
+        val lines = saveAllFile().readText().lines()
+        val start = lines.indexOfFirst { it.startsWith("internal suspend fun <D> saveAllAttachmentsInto(") }
+        assertTrue("SaveAllAttachments.kt must still declare saveAllAttachmentsInto", start >= 0)
+        val rest = lines.drop(start + 1)
+        val end = rest.indexOfFirst { it == "}" }.let { if (it < 0) rest.size else it }
+        return codeLines(rest.take(end).joinToString("\n"))
+    }
+
+    private fun saveAllFile(): File =
+        locate("app/src/main/kotlin/app/sterna/ui/message/SaveAllAttachments.kt")
 
     /**
      * The code lines of `saveAttachment`, from its declaration to the next member declared at class

@@ -259,6 +259,16 @@
     <string name="message_quoted_text">Zitierter Text</string>
     <string name="list_to_recipients">An: %1$s</string>
     <string name="message_attachments">Anhänge (%1$d)</string>
+    <string name="message_save_all_attachments">Alle speichern</string>
+    <string name="message_save_all_progress">Speichere %1$d von %2$d…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="one">%1$d Anhang gespeichert</item>
+        <item quantity="other">%1$d Anhänge gespeichert</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="one">%1$d von %2$d Anhang gespeichert</item>
+        <item quantity="other">%1$d von %2$d Anhängen gespeichert</item>
+    </plurals>
     <string name="message_attachment_fallback">Anhang</string>
     <string name="attachment_kind_image">Bild</string>
     <string name="attachment_kind_pdf">PDF</string>

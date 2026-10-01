@@ -259,6 +259,18 @@
     <string name="message_quoted_text">Texto citado</string>
     <string name="list_to_recipients">Para: %1$s</string>
     <string name="message_attachments">Anexos (%1$d)</string>
+    <string name="message_save_all_attachments">Guardar tudo</string>
+    <string name="message_save_all_progress">A guardar %1$d de %2$d…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="one">%1$d anexo guardado</item>
+        <item quantity="many">%1$d anexos guardados</item>
+        <item quantity="other">%1$d anexos guardados</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="one">%1$d de %2$d anexo guardado</item>
+        <item quantity="many">%1$d de %2$d anexos guardados</item>
+        <item quantity="other">%1$d de %2$d anexos guardados</item>
+    </plurals>
     <string name="message_attachment_fallback">anexo</string>
     <string name="attachment_kind_image">Imagem</string>
     <string name="attachment_kind_pdf">PDF</string>

@@ -1444,6 +1444,18 @@ private fun MessageContent(
         // A cancelled picker (null) does nothing, no word, no file.
         if (uri != null) viewModel.saveAttachment(uri, saveAttachmentName, saveAttachmentFor, saveAttachmentPart)
     }
+    // "Save all" in the attachment header, declared here for the reason given above. Its one key
+    // doubles as the open-picker latch: non-empty from the launch until the result, so a second tap
+    // in between does not stack a second picker.
+    var saveAllAttachmentsFor by rememberSaveable { mutableStateOf("") }
+    val saveAllAttachmentsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { treeUri ->
+        val ownerId = saveAllAttachmentsFor
+        saveAllAttachmentsFor = ""
+        if (treeUri != null) viewModel.saveAllAttachments(treeUri, ownerId)
+    }
+    val saveAllProgress by viewModel.saveAllProgress.collectAsStateWithLifecycle()
     // Print (the overflow menu's last entry). The document is built here, not in the menu, because
     // this is where the three decisions the reader took live, the body it renders, the reading mode,
     // and whether remote images are shown. Every string is resolved in the composable's body and
@@ -1532,6 +1544,13 @@ private fun MessageContent(
                     saveAttachmentName = attachmentFileName(part.name)
                     saveAttachmentLauncher.launch(saveAttachmentName)
                 },
+                saveAllProgress = saveAllProgress,
+                onSaveAllAttachments = { ownerId ->
+                    if (saveAllAttachmentsFor.isEmpty()) {
+                        saveAllAttachmentsFor = ownerId
+                        saveAllAttachmentsLauncher.launch(null)
+                    }
+                },
                 calendar = calendar,
                 onRespondToInvite = viewModel::respondToInvite,
                 textZoom = messageTextSize.zoom,
@@ -1591,6 +1610,8 @@ private fun ConversationBody(
     attachmentStatus: String?,
     onOpenAttachment: (EmailBodyPart, String) -> Unit,
     onSaveAttachment: (EmailBodyPart, String) -> Unit,
+    saveAllProgress: SaveAllProgress?,
+    onSaveAllAttachments: (ownerId: String) -> Unit,
     calendar: CalendarInvite?,
     onRespondToInvite: (String) -> Unit,
     textZoom: Int,
@@ -1832,6 +1853,8 @@ private fun ConversationBody(
                 // type, one of which queues mail to a stranger.
                 onSendReadReceipt = onSendReadReceipt,
                 onDeclineReadReceipt = onDeclineReadReceipt,
+                saveAllProgress = saveAllProgress,
+                onSaveAllAttachments = onSaveAllAttachments,
             )
         }
         // Spinner until the body has laid out (cached/prefetched mail beats the 500ms, so none flashes).
@@ -1919,6 +1942,8 @@ private fun MessageHeader(
     readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
     onSendReadReceipt: () -> Unit = {},
     onDeclineReadReceipt: () -> Unit = {},
+    saveAllProgress: SaveAllProgress? = null,
+    onSaveAllAttachments: (ownerId: String) -> Unit = {},
 ) {
     val sender = msg.header.from.firstOrNull()
     // The user's own message (Sent/Drafts, or sent under one of the account's identities): the sender
@@ -2059,6 +2084,8 @@ private fun MessageHeader(
                     attachmentStatus,
                     onOpen = { part -> onOpenAttachment(part, msg.id) },
                     onSave = { part -> onSaveAttachment(part, msg.id) },
+                    saveAllProgress = saveAllProgress?.takeIf { it.ownerId == msg.id },
+                    onSaveAll = { onSaveAllAttachments(msg.id) },
                 )
             }
             // A calendar invite renders as an event preview card above the body.
@@ -2437,13 +2464,34 @@ private fun AttachmentSection(
     status: String?,
     onOpen: (EmailBodyPart) -> Unit,
     onSave: (EmailBodyPart) -> Unit,
+    saveAllProgress: SaveAllProgress?,
+    onSaveAll: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(
-            text = stringResource(R.string.message_attachments, attachments.size),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = stringResource(R.string.message_attachments, attachments.size),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            // The progress replaces the button's label rather than taking a line of its own: the
+            // header's measured height keys the body document, and a line coming and going would
+            // reload the body under her twice per save.
+            if (attachments.size >= 2) {
+                TextButton(onClick = onSaveAll, enabled = saveAllProgress == null) {
+                    Text(
+                        text = if (saveAllProgress == null) {
+                            stringResource(R.string.message_save_all_attachments)
+                        } else {
+                            stringResource(R.string.message_save_all_progress, saveAllProgress.current, saveAllProgress.total)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
         attachments.forEach { att ->
             val look = attachmentLook(att)
             Row(

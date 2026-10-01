@@ -404,6 +404,16 @@
     <!-- Sent/Drafts list rows: who the mail went to (%1$s = recipient names) -->
     <string name="list_to_recipients">To: %1$s</string>
     <string name="message_attachments">Attachments (%1$d)</string>
+    <string name="message_save_all_attachments">Save all</string>
+    <string name="message_save_all_progress">Saving %1$d of %2$d…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="one">%1$d attachment saved</item>
+        <item quantity="other">%1$d attachments saved</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="one">%1$d of %2$d attachment saved</item>
+        <item quantity="other">%1$d of %2$d attachments saved</item>
+    </plurals>
     <string name="message_attachment_fallback">attachment</string>
     <string name="attachment_kind_image">Image</string>
     <string name="attachment_kind_pdf">PDF</string>

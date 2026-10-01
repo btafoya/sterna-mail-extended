@@ -733,8 +733,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _actionStatus.value = getApplication<Application>().getString(R.string.message_export_saved, name)
             } catch (t: Throwable) {
                 discardDocument(uri)
-                // The unavailable message gets the sentence the reader already shows for that case;
-                // everything else keeps its own text, like "View headers".
+                // An unavailable message gets the reader's own sentence for it; anything else its own text.
                 _actionStatus.value = readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }
                     ?: readerActionFailureText(t) { res -> getApplication<Application>().getString(res) }
             }
@@ -786,6 +785,57 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 _actionStatus.value = readFailureStringRes(t)?.let { getApplication<Application>().getString(it) }
                     ?: getApplication<Application>()
                         .getString(R.string.status_save_attachment_failed, t.message ?: "error")
+            }
+        }
+    }
+
+    private val _saveAllProgress = MutableStateFlow<SaveAllProgress?>(null)
+    val saveAllProgress = _saveAllProgress.asStateFlow()
+
+    fun saveAllAttachments(treeUri: Uri, ownerId: String) {
+        viewModelScope.launch {
+            try {
+                val app = getApplication<Application>()
+                val resolver = app.contentResolver
+                val folder = object : AttachmentFolder<Uri> {
+                    // NonCancellable: cancelled during the provider call, the document is created but its Uri lost on the way out, and nothing is left to discard.
+                    override suspend fun create(name: String, mime: String): Uri? = withContext(NonCancellable + Dispatchers.IO) {
+                        val parent = DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
+                        DocumentsContract.createDocument(resolver, parent, mime, name)
+                    }
+
+                    override suspend fun write(document: Uri, bytes: ByteArray) = withContext(Dispatchers.IO) {
+                        resolver.openOutputStream(document, "wt")?.use { it.write(bytes) } ?: error("no output stream")
+                    }
+
+                    override suspend fun discard(document: Uri) {
+                        discardDocument(document)
+                    }
+                }
+                val outcome = saveAllAttachmentsInto(
+                    _messages.value,
+                    ownerId,
+                    folder,
+                    fetch = { part ->
+                        val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+                        repo.downloadAttachment(credentials, part, ownerId)
+                    },
+                    onPartFailed = { part, t ->
+                        android.util.Log.w("SternaMessage", "save all: part ${part.partId ?: part.blobId} of $ownerId failed", t)
+                    },
+                    onProgress = { current, total -> _saveAllProgress.value = SaveAllProgress(ownerId, current, total) },
+                )
+                _actionStatus.value = when (outcome) {
+                    SaveAllOutcome.Refused -> app.getString(R.string.status_action_failed)
+                    is SaveAllOutcome.AllSaved ->
+                        app.resources.getQuantityString(R.plurals.message_attachments_all_saved, outcome.count, outcome.count)
+                    is SaveAllOutcome.PartlySaved ->
+                        app.resources.getQuantityString(
+                            R.plurals.message_attachments_partly_saved, outcome.total, outcome.saved, outcome.total,
+                        )
+                }
+            } finally {
+                _saveAllProgress.value = null
             }
         }
     }
@@ -1133,6 +1183,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         // Same argument, one gesture over: "could not report as spam" belongs to the message we are
         // leaving, and toasted on the next page it would name the wrong mail.
         _actionStatus.value = null
+        if (_saveAllProgress.value?.ownerId != emailId) _saveAllProgress.value = null
         _accountAddresses.value = ownAddresses()
         // Identities only, no login, see the flow's own comment. Same line, same moment, so neither
         // can be the previous account's.

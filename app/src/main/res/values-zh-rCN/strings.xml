@@ -398,6 +398,14 @@
     <!-- Sent/Drafts list rows: who the mail went to (%1$s = recipient names) -->
     <string name="list_to_recipients">收件人：%1$s</string>
     <string name="message_attachments">附件 (%1$d)</string>
+    <string name="message_save_all_attachments">全部保存</string>
+    <string name="message_save_all_progress">正在保存第 %1$d 个，共 %2$d 个…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="other">已保存 %1$d 个附件</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="other">已保存 %1$d 个附件（共 %2$d 个）</item>
+    </plurals>
     <string name="message_attachment_fallback">附件</string>
     <string name="attachment_kind_image">图片</string>
     <string name="attachment_kind_pdf">PDF</string>

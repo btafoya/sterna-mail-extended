@@ -259,6 +259,16 @@
     <string name="message_quoted_text">Geciteerde tekst</string>
     <string name="list_to_recipients">Aan: %1$s</string>
     <string name="message_attachments">Bijlagen (%1$d)</string>
+    <string name="message_save_all_attachments">Alles opslaan</string>
+    <string name="message_save_all_progress">%1$d van %2$d opslaan…</string>
+    <plurals name="message_attachments_all_saved">
+        <item quantity="one">%1$d bijlage opgeslagen</item>
+        <item quantity="other">%1$d bijlagen opgeslagen</item>
+    </plurals>
+    <plurals name="message_attachments_partly_saved">
+        <item quantity="one">%1$d van %2$d bijlage opgeslagen</item>
+        <item quantity="other">%1$d van %2$d bijlagen opgeslagen</item>
+    </plurals>
     <string name="message_attachment_fallback">bijlage</string>
     <string name="attachment_kind_image">Afbeelding</string>
     <string name="attachment_kind_pdf">PDF</string>

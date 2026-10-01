@@ -1,6 +1,7 @@
 package app.sterna.ui.message
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -26,34 +27,31 @@ class ExportSourceCallSiteTest {
         )
         assertEquals(
             "exportSource must open the picked document in \"wt\" mode (truncate: a re-saved " +
-                "file must not keep the tail of a longer one) and write the BYTES. The second " +
-                "line is `saveAttachment`'s, pinned in the same shape by " +
-                "[SaveAttachmentCallSiteTest]; this rule reads the whole file, so both appear. " +
-                "Lines found:",
-            listOf(
-                "getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }",
-                "getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }",
-            ),
-            lines.filter { "openOutputStream(" in it },
+                "file must not keep the tail of a longer one) and write the BYTES. Lines found:",
+            listOf("getApplication<Application>().contentResolver.openOutputStream(uri, \"wt\")?.use { it.write(bytes) }"),
+            exportSourceBody().filter { "openOutputStream(" in it },
         )
         assertEquals(
             "the picker CREATES the document before the callback runs: every failure, and the " +
                 "owner-mismatch refusal, must delete it again, or an empty `Subject.eml` sits in " +
-                "Downloads looking like a saved message. Lines found:",
-            listOf(
-                // exportSource: the owner refusal, then any failure
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                // saveAttachment's four, pinned as such by [SaveAttachmentCallSiteTest]
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                "discardDocument(uri)",
-                "private suspend fun discardDocument(uri: Uri) = withContext(NonCancellable + Dispatchers.IO) {",
-                "runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }",
-            ),
-            lines.filter { "discardDocument(" in it || "deleteDocument(" in it },
+                "Downloads looking like a saved message. The other save paths are counted, each " +
+                "in its own body, by [SaveAttachmentCallSiteTest]. Lines found:",
+            listOf("discardDocument(uri)", "discardDocument(uri)"),
+            exportSourceBody().filter { "discardDocument(" in it || "deleteDocument(" in it },
         )
+    }
+
+    /** The code lines of `exportSource`, up to the next member declared at class level. */
+    private fun exportSourceBody(): List<String> {
+        val lines = viewModel().readText().lines()
+        val start = lines.indexOfFirst { it.trim().startsWith("fun exportSource(uri: Uri, proposedName: String, ownerId: String)") }
+        assertTrue("MessageViewModel must still declare exportSource(uri, proposedName, ownerId)", start >= 0)
+        val rest = lines.drop(start + 1)
+        val end = rest.indexOfFirst { it.startsWith("    fun ") || it.startsWith("    private ") }
+            .let { if (it < 0) rest.size else it }
+        return codeLines(rest.take(end).joinToString("\n")).also {
+            assertTrue("exportSource must have a body", it.isNotEmpty())
+        }
     }
 
     /**

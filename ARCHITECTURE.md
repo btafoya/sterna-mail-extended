@@ -221,8 +221,9 @@ outbox-bearing tables migrate additively.
   ciphertext blob + `Email/import`; IMAP builds PGP/MIME); decrypted plaintext
   lives only in memory, never in the cache, except an attachment: one you open is
   written to the app's own storage until the cache is cleared, and one you save is
-  streamed from the server into the document the system picker returns, never
-  through the cache. Printing, and saving as a PDF, are the other way out: the
+  streamed from the server into the document the system picker returns (with Save
+  all, each into a document of its own in the folder it returns), never through
+  the cache. Printing, and saving as a PDF, are the other way out: the
   in-memory plaintext body goes to the system print service. See
   [ENCRYPTION.md](ENCRYPTION.md).
 - **Outbox & scheduled send:** sends are persisted Room rows delivered by
