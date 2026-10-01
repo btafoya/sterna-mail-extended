@@ -18,6 +18,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
@@ -44,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.showOnlySubscribedFoldersOf
+import app.sterna.ui.components.ReorderableColumn
 import app.sterna.ui.inbox.mailboxDisplayName
 
 /**
@@ -72,7 +74,8 @@ internal fun FolderManagementScreen(
     val specialRows = specialFolderRows(folders, showOnlySubscribedFoldersOf(account), account.specialFolders, account.inboxId, account.protocol == MailProtocol.IMAP, account.folderOrder)
     // Saveable: a rotation recreates the activity, and the user is in the middle of a task.
     var reordering by rememberSaveable(accountId) { mutableStateOf(false) }
-    val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId, account.folderOrder, reordering)
+    val rowsFor = { order: List<String> -> folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId, order, reordering) }
+    val rows = rowsFor(account.folderOrder)
     BackHandler(enabled = reordering) { reordering = false }
     DetailScaffold(
         title = stringResource(R.string.folders_manage_title),
@@ -83,23 +86,32 @@ internal fun FolderManagementScreen(
             }
         },
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            if (reordering) {
+        if (reordering) {
+            Column(Modifier.fillMaxSize().padding(padding)) {
                 Text(
                     stringResource(R.string.folders_reorder_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                rows.forEach { row ->
-                    FolderReorderRow(row) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }
+                ReorderableColumn(
+                    items = rows,
+                    key = { it.mailbox.id },
+                    canMove = { from, to -> folderDrop(rows, from, to, account.folderOrder, rowsFor) != null },
+                    onMove = { from, to -> folderDrop(rows, from, to, account.folderOrder, rowsFor)?.let { viewModel.moveFolderTo(accountId, it.siblings, it.folderId, it.toIndex) } },
+                    span = { folderSubtreeSize(rows, it) },
+                    modifier = Modifier.weight(1f),
+                ) { row, handle ->
+                    FolderReorderRow(row, handle) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }
                 }
-            } else {
+            }
+        } else {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 SettingsSection(stringResource(R.string.folders_special_title)) {
                     Text(
                         stringResource(R.string.folders_special_subtitle),
@@ -140,19 +152,33 @@ internal fun FolderManagementScreen(
     }
 }
 
-/** One folder in the reorder mode: its name at its depth, and the Up and Down its row may take. */
+/** One folder in the reorder mode: the handle to drag it by, its name at its depth, and the Up and
+ *  Down its row may take. The buttons stay beside the handle: a screen reader cannot drag. */
 @Composable
-private fun FolderReorderRow(row: FolderManagementRow, onMove: (FolderMoves, Boolean) -> Unit) {
+private fun FolderReorderRow(row: FolderManagementRow, handle: Modifier, onMove: (FolderMoves, Boolean) -> Unit) {
     val name = mailboxDisplayName(row.mailbox.role, row.mailbox.name)
+    val moves = row.moves
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .padding(start = (16 + row.depth * 16).dp, end = 4.dp),
+            .padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        val moves = row.moves
+        if (moves != null) {
+            Icon(
+                Icons.Filled.DragHandle,
+                contentDescription = stringResource(R.string.folders_reorder_drag),
+                modifier = handle.size(48.dp).padding(12.dp),
+            )
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f).padding(start = (row.depth * 16).dp),
+        )
         if (moves != null) {
             MoveSlot(moves.mayMoveUp, Icons.Filled.KeyboardArrowUp, stringResource(R.string.folders_reorder_up, name)) { onMove(moves, true) }
             MoveSlot(moves.mayMoveDown, Icons.Filled.KeyboardArrowDown, stringResource(R.string.folders_reorder_down, name)) { onMove(moves, false) }

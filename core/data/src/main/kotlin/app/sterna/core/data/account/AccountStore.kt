@@ -590,6 +590,11 @@ class AccountStore(context: Context) : AccountStorage {
     }
 
     @Synchronized
+    fun moveFolderTo(id: String, siblings: List<String>, folderId: String, toIndex: Int) {
+        saveAccounts(withFolderDropped(accounts(), id, siblings, folderId, toIndex))
+    }
+
+    @Synchronized
     override fun replaceFolderOrder(id: String, oldId: String, newId: String, delimiter: String) {
         saveAccounts(withRenamedFolderOrder(accounts(), id, oldId, newId, delimiter))
     }

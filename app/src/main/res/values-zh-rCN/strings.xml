@@ -95,8 +95,9 @@
     <string name="inbox_move_to_folder">移动到文件夹</string>
     <string name="inbox_filter_folders">筛选文件夹</string>
     <string name="inbox_no_folder_matches">没有匹配的文件夹</string>
-    <string name="inbox_move_suggestions">建议</string>
+    <string name="inbox_move_suggestions">最近</string>
     <string name="inbox_move_all_folders">所有文件夹</string>
+    <string name="inbox_move_usual_for_sender">此发件人的常用文件夹</string>
     <string name="inbox_cancel">取消</string>
     <string name="inbox_new_folder">新建文件夹</string>
     <string name="inbox_new_subfolder">新建子文件夹</string>
@@ -1142,6 +1143,7 @@
     <string name="folders_reorder_hint">标准文件夹始终在最前。文件夹只能在其上级文件夹内移动。</string>
     <string name="folders_reorder_up">上移 %1$s</string>
     <string name="folders_reorder_down">下移 %1$s</string>
+    <string name="folders_reorder_drag">拖动以重新排序</string>
     <string name="folders_manage_show_title">显示此文件夹</string>
     <string name="folders_manage_show_subtitle">隐藏的文件夹仍会保留其中的邮件，搜索也仍能找到它</string>
     <string name="folders_manage_watch_subtitle">在后台获取此文件夹的邮件</string>

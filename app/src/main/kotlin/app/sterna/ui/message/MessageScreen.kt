@@ -119,14 +119,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -179,19 +176,9 @@ import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.EmailBodyPart
 import android.text.format.DateUtils
 import app.sterna.ui.canSnoozeIn
-import app.sterna.ui.inbox.FolderPickerRow
-import app.sterna.ui.inbox.FolderPickerRowItem
-import app.sterna.ui.inbox.FolderPickerSectionTitle
-import app.sterna.ui.inbox.FrozenSuggestions
-import app.sterna.ui.inbox.freezeSuggestions
-import app.sterna.ui.inbox.pickerAccount
-import app.sterna.ui.inbox.suggestedRows
-import app.sterna.ui.inbox.MoveAccountRow
-import app.sterna.ui.inbox.filterFolderRows
-import app.sterna.ui.inbox.mailboxDisplayName
-import app.sterna.ui.inbox.mailboxPathLabel
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.inbox.MoveFolderSheet
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberLeaveOnce
 import app.sterna.ui.sender.trashFilePath
@@ -226,6 +213,10 @@ private val LocalSignatureSheet = staticCompositionLocalOf<SignatureSheetOpen> {
     error("SignatureSheetOpen is provided by MessageScreen")
 }
 
+private val LocalMoveSheet = staticCompositionLocalOf<MoveSheetOpen> {
+    error("MoveSheetOpen is provided by MessageScreen")
+}
+
 /**
  * The identity of a pager entry, (email id, owning account), as one string. Same-server accounts
  * under a single login can hold messages with identical ids (#31), so the pager identifies entries
@@ -255,6 +246,7 @@ fun MessageScreen(
     onMove: (Email, String, String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
     signatureSheet: SignatureSheetOpen,
+    moveSheet: MoveSheetOpen,
     /** Composed in the reading pane beside the list (#103): no back arrow, the system Back and
      *  the actions suffice, as on Gmail's tablet layout, and nothing else changes. */
     paneMode: Boolean = false,
@@ -262,7 +254,7 @@ fun MessageScreen(
      *  the only moment the pane's anchor follows the pager. Null on the full-screen route. */
     onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
-    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet) {
+    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet) {
         when {
             listSource != null -> {
                 val items = listSource.collectAsLazyPagingItems()
@@ -841,7 +833,10 @@ private fun MessageActions(
     // Keyed on the settled message so an open menu never carries over across a page settle.
     var menuOpen by remember(active.emailId) { mutableStateOf(false) }
     var snoozeSubmenu by remember(active.emailId) { mutableStateOf(false) }
-    var movePicker by remember(active.emailId) { mutableStateOf(false) }
+    // Shown only for the message it was opened on: another page settling never inherits it.
+    val moveSheet = LocalMoveSheet.current
+    val moveOpenFor by moveSheet.openFor.collectAsStateWithLifecycle()
+    val movePicker = MoveSheetOpen.shows(moveOpenFor, active.emailId, active.accountId)
     // "Save as .eml": the system picker, then the message's exact server bytes into the document it
     // returns. Declared here, outside the DropdownMenu: registered inside it, the launcher is
     // disposed when the menu closes on the very tap that opened the picker, and the result has
@@ -979,7 +974,7 @@ private fun MessageActions(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.inbox_move_to_folder)) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
-                    onClick = { menuOpen = false; movePicker = true },
+                    onClick = { menuOpen = false; moveSheet.open(active.emailId, active.accountId) },
                 )
             }
             // Spam-reporting acts on incoming mail; in Drafts and Sent the open message is the user's
@@ -1069,126 +1064,36 @@ private fun MessageActions(
             }
         }
     }
-    // The move-to-folder picker (#73): the same dialog the list's selection bar opens, fed the open
+    // The move-to-folder picker (#73): the same sheet the list's selection bar opens, fed the open
     // message's own account's folders. Picking one hands the message (stamped with the resolved
     // folder and its owning account) to the shared inbox ViewModel.
     if (movePicker) {
-        // The filter field's text (#182). Held inside the `if`, so leaving the dialog drops the
-        // composition group and the field comes back empty next time.
-        var folderQuery by remember { mutableStateOf("") }
+        val moveQuery by moveSheet.query.collectAsStateWithLifecycle()
         val folderHistory by viewModel.moveHistory.collectAsStateWithLifecycle()
-        val folderListedAccountId = pickerAccount(moveAccountId, moveOwnerAccountId)
-        // Held inside the `if`, like the query: the section is computed at each opening.
-        var folderFrozen by remember { mutableStateOf<FrozenSuggestions?>(null) }
-        val folderSuggestions = freezeSuggestions(folderFrozen, folderListedAccountId, folderHistory, folders, loaded.email.from.firstOrNull()?.email, System.currentTimeMillis())
-        SideEffect { folderFrozen = folderSuggestions }
-        // Same rows as the list's picker, parent path included (#109), resolved against the account's
-        // whole folder list. Memoized: each call walks a map rebuilt over that whole list, and the
-        // filter field re-runs this block on every keystroke.
-        val folderPaths = remember(folders, accountFolders) {
-            folders.map { folder -> mailboxPathLabel(folder, accountFolders) }
-        }
-        // Painted over the whole offered list, never over the filtered one: what the filter compares
-        // is what the row shows, and how many rows are painted must not depend on what has been
-        // typed.
-        val folderRows = ArrayList<FolderPickerRow>(folders.size)
-        for ((folder, path) in folders.zip(folderPaths)) {
-            folderRows += FolderPickerRow(folder, mailboxDisplayName(folder.role, folder.name), path)
-        }
-        val shownFolderRows = filterFolderRows(folderRows, folderQuery)
-        val suggestedFolderRows = suggestedRows(folderSuggestions, folderListedAccountId, folderRows, folderQuery)
-        // One tap handler for both lists: a suggested row moves exactly as the same row below.
-        val pickFolderRow: (FolderPickerRow) -> Unit = { row ->
-            movePicker = false
-            onMove(
-                loaded.email.copy(
-                    mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
-                    accountId = accountId ?: loaded.email.accountId,
-                ),
-                // The row's own folder, never a rank in the list.
-                row.folder.id,
-                // The account chosen on the row, null for the message's own (#189).
-                moveAccountId,
-            )
-            viewModel.chooseMoveAccount(null)
-        }
-        AlertDialog(
-            onDismissRequest = { movePicker = false; viewModel.chooseMoveAccount(null) },
-            title = { Text(stringResource(R.string.inbox_move_to_folder)) },
-            text = {
-                Column {
-                    // The account whose folders are listed, and the way to list another's (#189).
-                    MoveAccountRow(accounts, moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)
-                    // The filter field (#182), outside the scroller so it stays put while the list
-                    // moves under it. Deliberately without a FocusRequester, the keyboard does not
-                    // come up on its own, and without an IME "search" action: this filters what is
-                    // already on screen and asks the server nothing.
-                    Box(Modifier.fillMaxWidth()) {
-                        if (folderQuery.isEmpty()) {
-                            Text(
-                                stringResource(R.string.inbox_filter_folders),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                // Bounded, for the reason spelled out in InboxScreen's copy: a
-                                // Box is as tall as its tallest child.
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .align(Alignment.CenterStart)
-                                    .padding(horizontal = 16.dp),
-                            )
-                        }
-                        TextField(
-                            value = folderQuery,
-                            onValueChange = { folderQuery = it },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
-                            trailingIcon = {
-                                if (folderQuery.isNotEmpty()) {
-                                    IconButton(onClick = { folderQuery = "" }) {
-                                        Icon(
-                                            Icons.Filled.Close,
-                                            contentDescription = stringResource(R.string.inbox_clear),
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    // `weight(1f, fill = false)` on the scroller and nothing on the field, as
-                    // in InboxScreen's copy: the unweighted child is measured first.
-                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                        if (shownFolderRows.isEmpty() && folderQuery.isNotEmpty()) {
-                            Text(
-                                text = stringResource(R.string.inbox_no_folder_matches),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 12.dp),
-                            )
-                        }
-                        if (suggestedFolderRows.isNotEmpty()) {
-                            FolderPickerSectionTitle(stringResource(R.string.inbox_move_suggestions))
-                            suggestedFolderRows.forEach { row ->
-                                FolderPickerRowItem(row) { pickFolderRow(row) }
-                            }
-                            FolderPickerSectionTitle(stringResource(R.string.inbox_move_all_folders))
-                        }
-                        shownFolderRows.forEach { row ->
-                            FolderPickerRowItem(row) { pickFolderRow(row) }
-                        }
-                    }
-                }
+        MoveFolderSheet(
+            // The plain account list, not a selection's: the reader opens on one message.
+            accounts = accounts,
+            ownerAccountId = moveOwnerAccountId,
+            chosenAccountId = moveAccountId,
+            onChooseAccount = viewModel::chooseMoveAccount,
+            targets = folders,
+            allMailboxes = accountFolders,
+            history = folderHistory,
+            sender = loaded.email.from.firstOrNull()?.email,
+            query = moveQuery,
+            onQueryChange = moveSheet::filter,
+            onPick = { folderId ->
+                onMove(
+                    loaded.email.copy(
+                        mailboxId = resolvedMailbox ?: loaded.email.mailboxId,
+                        accountId = accountId ?: loaded.email.accountId,
+                    ),
+                    folderId,
+                    // The account chosen on the row, null for the message's own (#189).
+                    moveAccountId,
+                )
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { movePicker = false; viewModel.chooseMoveAccount(null) }) { Text(stringResource(R.string.inbox_cancel)) }
-            },
+            onDismiss = moveSheet::close,
         )
     }
     // The unsubscribe confirmation (D7: systematic, and no setting to switch it off). Rendered here

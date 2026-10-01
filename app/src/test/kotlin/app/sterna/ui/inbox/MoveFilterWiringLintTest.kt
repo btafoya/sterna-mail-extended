@@ -10,84 +10,76 @@ import org.junit.Test
  */
 class MoveFilterWiringLintTest {
 
-    @Test fun `the list picker draws the FILTERED rows, and each row carries its own mailbox`() {
+    @Test fun `the sheet draws the FILTERED rows, and each row carries its own mailbox`() {
         assertEquals(
-            "the list picker no longer filters what it draws — the field would type and the list " +
+            "the sheet no longer filters what it draws — the field would type and the list " +
                 "would not move, which is #182 handed straight back.",
-            listOf("val shownMoveRows = filterFolderRows(moveRows, moveQuery)"),
-            block(MOVE_DIALOG, "val shownMoveRows =", 1),
+            listOf("val shownMoveRows = filterFolderRows(moveRows, query)"),
+            block(MOVE_SHEET, "val shownMoveRows =", 1),
         )
         assertEquals(
-            "the list picker must iterate the FILTERED rows.",
-            listOf("shownMoveRows.forEach { row ->"),
-            block(MOVE_DIALOG, "shownMoveRows.forEach", 1),
+            "the sheet must iterate the FILTERED rows.",
+            listOf("items(shownMoveRows) { row ->"),
+            block(MOVE_SHEET, "items(shownMoveRows)", 1),
         )
         assertEquals(
-            "the tapped row must move the selection into ITS OWN folder. Anything indexed — a " +
-                "rank in either list — files mail into a folder nobody pointed at.",
-            listOf("viewModel.moveSelectedTo(row.folder.id, moveAccountId, fromPicker = true)"),
-            block(MOVE_DIALOG, "viewModel.moveSelectedTo(row.folder.id", 1),
+            "the tapped row must name ITS OWN folder. Anything indexed — a rank in either list — " +
+                "files mail into a folder nobody pointed at.",
+            listOf("onPick(row.folder.id)"),
+            block(MOVE_SHEET, "onPick(", 1),
+        )
+        assertEquals(
+            "the list picker must move the selection into the folder the sheet names.",
+            listOf("onPick = { folderId -> viewModel.moveSelectedTo(folderId, moveAccountId, fromPicker = true) },"),
+            block(MOVE_SHEET, "onPick = ", 1),
         )
     }
 
-    @Test fun `the reader's picker draws the FILTERED rows, and each row carries its own mailbox`() {
+    @Test fun `the reader hands the sheet its query and its offered folders, and moves into the named folder`() {
         assertEquals(
-            "the reader's picker no longer filters what it draws (#182).",
-            listOf("val shownFolderRows = filterFolderRows(folderRows, folderQuery)"),
-            block(MESSAGE_SCREEN, "val shownFolderRows =", 1),
+            "the reader must hand the sheet its own offered folders, the account's whole list and its query.",
+            listOf("targets = folders,", "allMailboxes = accountFolders,"),
+            block(MESSAGE_SCREEN, "targets = ", 2),
         )
         assertEquals(
-            "the reader's picker must iterate the FILTERED rows.",
-            listOf("shownFolderRows.forEach { row ->"),
-            block(MESSAGE_SCREEN, "shownFolderRows.forEach", 1),
+            listOf("query = moveQuery,", "onQueryChange = moveSheet::filter,"),
+            block(MESSAGE_SCREEN, "query = ", 2),
         )
         assertEquals(
-            "the reader's move must name the tapped row's OWN folder, and still stamp the message " +
-                "with the folder the VM resolved and its owning account.",
+            "the reader's move must name the folder the sheet hands back, and still stamp the " +
+                "message with the folder the VM resolved and its owning account.",
             listOf(
+                "onPick = { folderId ->",
                 "onMove(",
                 "loaded.email.copy(",
                 "mailboxId = resolvedMailbox ?: loaded.email.mailboxId,",
                 "accountId = accountId ?: loaded.email.accountId,",
                 "),",
-                "row.folder.id,",
+                "folderId,",
                 "moveAccountId,",
                 ")",
             ),
-            block(MESSAGE_SCREEN, "onMove(", 8),
+            block(MESSAGE_SCREEN, "onPick = ", 9),
         )
     }
 
-    @Test fun `the query is held INSIDE the dialog, so it never survives a reopening`() {
-        assertEquals(
-            "the list picker's query must be remembered inside `if (showMoveSheet)`. Hoisted to " +
-                "the screen it outlives the dialog, which reopens already filtered.",
-            listOf("var moveQuery by remember { mutableStateOf(\"\") }"),
-            block(MOVE_DIALOG, "var moveQuery by", 1),
-        )
-        assertEquals(
-            "the reader's query must be remembered inside `if (movePicker)`.",
-            listOf("var folderQuery by remember { mutableStateOf(\"\") }"),
-            block(MESSAGE_SCREEN, "var folderQuery by", 1),
-        )
-        // One picker for two screens: the query lives in it, and each screen opens it under its own `if`.
+    @Test fun `the query is held INSIDE each screen's if, so it never survives a reopening`() {
         for ((screen, call) in listOf(
-            INBOX_SCREEN to "SelectionMoveDialog(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, onDismiss = { showMoveSheet = false })",
-            SEARCH_SCREEN to "SelectionMoveDialog(inbox, accounts, selectedKeys, currentMailboxId = null, onDismiss = { showMoveSheet = false })",
+            INBOX_SCREEN to "MoveFolderSheet(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })",
+            SEARCH_SCREEN to "MoveFolderSheet(inbox, accounts, selectedKeys, currentMailboxId = null, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })",
         )) {
             assertEquals(
-                "${screen.name} must compose the list picker only while its sheet is open, and hold no query of its own.",
-                listOf("if (showMoveSheet) {", call),
-                block(screen, "if (showMoveSheet) {", 2),
+                "${screen.name} must hold the query inside `if (showMoveSheet)`: hoisted above it, " +
+                    "it outlives the sheet, which reopens already filtered.",
+                listOf("if (showMoveSheet) {", "var moveQuery by rememberSaveable { mutableStateOf(\"\") }", call),
+                block(screen, "if (showMoveSheet) {", 3),
             )
-            assertEquals("${screen.name} holds a picker query of its own", 0, codeLines(screen).count { it.startsWith("var moveQuery") })
         }
         assertEquals(
-            "the list picker's query must be the first thing its composable holds",
-            1,
-            opensBefore(MOVE_DIALOG, "internal fun SelectionMoveDialog(", "var moveQuery by"),
+            "the sheet holds no query of its own: the screens' survives a rotation, one in the sheet would be a second.",
+            0,
+            codeLines(MOVE_SHEET).count { it.startsWith("var ") && "uery" in it },
         )
-        assertEquals("the reader's query is declared outside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "var folderQuery by"))
     }
 
     @Test fun `the empty line is drawn only when something was actually typed`() {
@@ -95,42 +87,35 @@ class MoveFilterWiringLintTest {
             "'No folder matches' must need BOTH halves: no row left AND a non-empty query. On the " +
                 "query alone it never shows; on the rows alone it claims a failed search in a " +
                 "picker that simply has nothing to offer.",
-            listOf("if (shownMoveRows.isEmpty() && moveQuery.isNotEmpty()) {"),
-            block(MOVE_DIALOG, "if (shownMoveRows.isEmpty()", 1),
-        )
-        assertEquals(
-            "the reader's empty line must need both halves too.",
-            listOf("if (shownFolderRows.isEmpty() && folderQuery.isNotEmpty()) {"),
-            block(MESSAGE_SCREEN, "if (shownFolderRows.isEmpty()", 1),
+            listOf("if (shownMoveRows.isEmpty() && query.isNotEmpty()) {"),
+            block(MOVE_SHEET, "if (shownMoveRows.isEmpty()", 1),
         )
     }
 
     @Test fun `the rows are painted over the WHOLE offered list, with the paths resolved once`() {
         assertEquals(
-            "the list picker must paint every OFFERED row and filter afterwards: painting the " +
-                "filtered list makes the number of composable calls in the loop depend on what " +
-                "has been typed, and the paths are memoized per target, by position.",
+            "the sheet must paint every OFFERED row and filter afterwards: painting the filtered " +
+                "list makes the rows depend on what has been typed, and the paths are memoized " +
+                "per target, by position.",
             listOf("for ((folder, path) in targets.zip(movePaths)) {"),
-            block(MOVE_DIALOG, "for ((folder, path) in", 1),
+            block(MOVE_SHEET, "for ((folder, path) in", 1),
         )
         assertEquals(
-            "the reader's picker must paint every offered row and filter afterwards.",
-            listOf("for ((folder, path) in folders.zip(folderPaths)) {"),
-            block(MESSAGE_SCREEN, "for ((folder, path) in", 1),
-        )
-        assertEquals(
-            "the reader's parent paths must be resolved against the account's WHOLE folder list " +
-                "(#109) and OUTSIDE the painting loop: mailboxPathLabel walks a map rebuilt over " +
-                "that whole list, and the filter field re-runs this block on every keystroke.",
+            "the parent paths must be resolved against the account's WHOLE folder list (#109) and " +
+                "OUTSIDE the painting loop: mailboxPathLabel walks a map rebuilt over that whole " +
+                "list, and the filter field re-runs this block on every keystroke.",
             listOf(
-                "val folderPaths = remember(folders, accountFolders) {",
-                "folders.map { folder -> mailboxPathLabel(folder, accountFolders) }",
+                "val movePaths = remember(targets, allMailboxes) {",
+                "targets.map { folder -> mailboxPathLabel(folder, allMailboxes) }",
                 "}",
             ),
-            block(MESSAGE_SCREEN, "val folderPaths = remember(", 3),
+            block(MOVE_SHEET, "val movePaths = remember(", 3),
         )
-        // The list picker's own copy of that block is pinned by SubscribedFoldersSurfaceWiringTest,
-        // where the #109 guard it carries is already spelled out.
+        assertEquals(
+            "the list picker must hand the sheet the selection account's whole folder list.",
+            listOf("allMailboxes = moveTargetMailboxes,"),
+            block(MOVE_SHEET, "allMailboxes = ", 1),
+        )
     }
 
     // ── instrument (copied from SubscribedFoldersSurfaceWiringTest) ──────────────────────────────
@@ -140,12 +125,6 @@ class MoveFilterWiringLintTest {
         val lines = codeLines(file)
         val at = only(lines, prefix)
         return lines.subList(at, minOf(at + count, lines.size))
-    }
-
-    /** 1 when the one line starting with [outer] comes before the one starting with [inner]. */
-    private fun opensBefore(file: File, outer: String, inner: String): Int {
-        val lines = codeLines(file)
-        return if (only(lines, outer) < only(lines, inner)) 1 else 0
     }
 
     /** The index of the single matching code line; fails loudly on none or several. */
@@ -173,7 +152,7 @@ class MoveFilterWiringLintTest {
         }
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
-        val MOVE_DIALOG: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val MOVE_SHEET: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
         val SEARCH_SCREEN: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/search/SearchScreen.kt") }
         val MESSAGE_SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")

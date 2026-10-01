@@ -131,10 +131,11 @@ class FolderManagementWiringLintTest {
                 "Recomputing any of them here would put the rule in a Composable no test can run; " +
                 "dropping the mode lists hidden folders among the ones Up and Down trade places with.",
             listOf(
-                "val rows = folderManagementRows(folders, showOnlySubscribedFoldersOf(account), " +
-                    "account.hiddenFolders, account.watchedFolders, account.inboxId, account.folderOrder, reordering)",
+                "val rowsFor = { order: List<String> -> folderManagementRows(folders, showOnlySubscribedFoldersOf(account), " +
+                    "account.hiddenFolders, account.watchedFolders, account.inboxId, order, reordering) }",
+                "val rows = rowsFor(account.folderOrder)",
             ),
-            block(SCREEN, "val rows =", 1),
+            block(SCREEN, "val rowsFor =", 2),
         )
         assertEquals(
             "the 'show this folder' switch must write the NEGATION of what it reads, on the account " +
@@ -284,8 +285,8 @@ class FolderManagementWiringLintTest {
             "the move tap no longer hands the fratrie the rule computed for THIS row. Any other list " +
                 "(the top level, a list rebuilt here) moves a subfolder among folders it is not " +
                 "drawn with.",
-            listOf("FolderReorderRow(row) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }"),
-            block(SCREEN, "FolderReorderRow(row) {", 1),
+            listOf("FolderReorderRow(row, handle) { moves, up -> viewModel.moveFolder(accountId, moves.siblings, row.mailbox.id, up) }"),
+            block(SCREEN, "FolderReorderRow(row, handle) {", 1),
         )
         assertEquals(
             "the Up and Down buttons are no longer drawn on their own flag, or no longer say which " +
@@ -304,6 +305,53 @@ class FolderManagementWiringLintTest {
                 "store.moveFolder(id, siblings, folderId, up)",
             ),
             block(ACCOUNTS_VIEW_MODEL, "fun moveFolder(", 2),
+        )
+    }
+
+    /**
+     * The drag. What [folderDrop] accepts and writes is executed in [FolderDropTest], and the
+     * column's placing in `ReorderDropTest`. Holes 1 and 2 of `CONTRIBUTING.md` apply: `rows` is
+     * the value `val rows =` above pins only because no other `rows` is in scope, and nothing here
+     * sees an expression wrapped around the calls. Hole 4 too: what the column hands back as
+     * `from` and `to` is never observed here.
+     */
+    @Test fun `a drop is judged and written by the rule, on the rows drawn, for the account managed`() {
+        assertEquals(
+            "the reorder mode no longer hands the column the rows it draws with folderDrop as its " +
+                "judge, or no longer writes what folderDrop answers through moveFolderTo on the " +
+                "account the screen manages. A judge of its own here, or one that stops at the " +
+                "standard folders, lets a subfolder be written among another parent's folders; " +
+                "a write of `to` itself puts the folder at a row index, not a place in its fratrie; " +
+                "and without `span` a parent is carried without its subfolders, so the list shown " +
+                "at the release is not the one drawn after the write.",
+            listOf(
+                "ReorderableColumn(",
+                "items = rows,",
+                "key = { it.mailbox.id },",
+                "canMove = { from, to -> folderDrop(rows, from, to, account.folderOrder, rowsFor) != null },",
+                "onMove = { from, to -> folderDrop(rows, from, to, account.folderOrder, rowsFor)?.let { viewModel.moveFolderTo(accountId, it.siblings, it.folderId, it.toIndex) } },",
+                "span = { folderSubtreeSize(rows, it) },",
+            ),
+            block(SCREEN, "ReorderableColumn(", 6),
+        )
+        assertEquals(
+            "the drop no longer goes to AccountStore.moveFolderTo, the one write that reads the " +
+                "order under the store's lock, or no longer hands it the index it was given.",
+            listOf(
+                "fun moveFolderTo(id: String, siblings: List<String>, folderId: String, toIndex: Int) {",
+                "store.moveFolderTo(id, siblings, folderId, toIndex)",
+            ),
+            block(ACCOUNTS_VIEW_MODEL, "fun moveFolderTo(", 2),
+        )
+        assertEquals(
+            "the drag handle no longer carries the modifier the column hands it, or no longer says " +
+                "what it is to a screen reader: without the modifier a long press starts nothing.",
+            listOf(
+                "Icons.Filled.DragHandle,",
+                "contentDescription = stringResource(R.string.folders_reorder_drag),",
+                "modifier = handle.size(48.dp).padding(12.dp),",
+            ),
+            block(SCREEN, "Icons.Filled.DragHandle,", 3),
         )
     }
 

@@ -75,7 +75,7 @@ class FolderOrderWiringTest {
         assertEquals(
             "the list's picker must be handed that order and no other.",
             listOf("val moveTargetsOrder by viewModel.selectionFolderOrder.collectAsStateWithLifecycle()"),
-            block(MOVE_DIALOG, "val moveTargetsOrder by", 1),
+            block(MOVE_SHEET, "val moveTargetsOrder by", 1),
         )
     }
 
@@ -107,7 +107,7 @@ class FolderOrderWiringTest {
         }
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
-        val MOVE_DIALOG: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val MOVE_SHEET: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
         val INBOX_VIEW_MODEL: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
         }

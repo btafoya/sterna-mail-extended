@@ -259,7 +259,8 @@ fun InboxScreen(
     // (account, folder) → role, every account: an unfolded conversation's rows span the viewed
     // folder(s) plus Sent, and in the unified list they are not all in the current account (#115).
     val folderRoles by viewModel.folderRoles.collectAsStateWithLifecycle()
-    var showMoveSheet by remember { mutableStateOf(false) }
+    // Saveable, so a rotation does not close the picker.
+    var showMoveSheet by rememberSaveable { mutableStateOf(false) }
     var showCreateFolder by remember { mutableStateOf(false) }
     var folderToRename by remember { mutableStateOf<Mailbox?>(null) }
     var folderToDelete by remember { mutableStateOf<Mailbox?>(null) }
@@ -347,10 +348,15 @@ fun InboxScreen(
     BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }
     BackHandler(enabled = backAction == InboxBackAction.SHOW_INBOX) { viewModel.showInbox() }
 
-    // Move-to-folder picker for the current selection. The offered folders (and their order)
-    // come from [moveTargets], shared with the reader's own picker (#73).
+    // Move-to-folder sheet for the current selection. The offered folders (and their order)
+    // come from [moveTargets], shared with the reader's sheet (#73).
+    // The selection does not survive process death, the open flag does.
+    if (showMoveSheet && selectedKeys.isEmpty()) showMoveSheet = false
     if (showMoveSheet) {
-        SelectionMoveDialog(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, onDismiss = { showMoveSheet = false })
+        // Held inside the `if`, so closing the sheet drops it and the field comes back empty; saveable,
+        // so a rotation keeps what was typed.
+        var moveQuery by rememberSaveable { mutableStateOf("") }
+        MoveFolderSheet(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })
     }
 
     // Create folder.

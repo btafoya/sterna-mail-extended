@@ -48,6 +48,7 @@ import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.send.SendOutbox
 import app.sterna.ui.NotificationFolderSwitch
+import app.sterna.ui.message.MoveSheetOpen
 import app.sterna.ui.message.SignatureSheetOpen
 import app.sterna.ui.search.CriteriaResults
 import app.sterna.ui.search.SearchDisplay
@@ -215,7 +216,7 @@ private const val SIGNATURE_SHEET = "signatureSheet.openFor"
 
 /**
  * Built by the framework through `SavedStateViewModelFactory`. The handle is the "inbox" entry's
- * own and survives process death; it carries the pane's anchor (#103) and the open signature sheet.
+ * own and survives process death; it carries the pane's anchor (#103) and the reader's open sheets.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModel(
@@ -358,6 +359,10 @@ class InboxViewModel(
     val listIdentity: String = UUID.randomUUID().toString()
 
     val signatureSheet = SignatureSheetOpen(savedState[SIGNATURE_SHEET]) { savedState[SIGNATURE_SHEET] = it }
+
+    val moveSheet = MoveSheetOpen({ key -> savedState.get<String>(key) }, { key, value -> savedState[key] = value })
+
+    fun startFreshReading() = moveSheet.close()
 
     /**
      * A tap on a row, on a wide window: the message opens in the pane instead of on a route. The

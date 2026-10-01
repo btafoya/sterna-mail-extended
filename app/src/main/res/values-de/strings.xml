@@ -86,8 +86,9 @@
     <string name="inbox_move_to_folder">In Ordner verschieben</string>
     <string name="inbox_filter_folders">Ordner filtern</string>
     <string name="inbox_no_folder_matches">Kein Ordner passt</string>
-    <string name="inbox_move_suggestions">Vorschläge</string>
+    <string name="inbox_move_suggestions">Zuletzt verwendet</string>
     <string name="inbox_move_all_folders">Alle Ordner</string>
+    <string name="inbox_move_usual_for_sender">Üblich für diesen Absender</string>
     <string name="inbox_cancel">Abbrechen</string>
     <string name="inbox_new_folder">Neuer Ordner</string>
     <string name="inbox_folder_name">Ordnername</string>
@@ -1100,6 +1101,7 @@
     <string name="folders_reorder_hint">Standardordner bleiben oben. Ein Ordner wird nur innerhalb seines übergeordneten Ordners verschoben.</string>
     <string name="folders_reorder_up">%1$s nach oben</string>
     <string name="folders_reorder_down">%1$s nach unten</string>
+    <string name="folders_reorder_drag">Zum Neuordnen ziehen</string>
     <string name="folders_manage_show_title">Diesen Ordner anzeigen</string>
     <string name="folders_manage_show_subtitle">Ein verborgener Ordner behält seine E-Mails und bleibt durchsuchbar</string>
     <string name="folders_manage_watch_subtitle">Ruft diesen Ordner im Hintergrund ab</string>

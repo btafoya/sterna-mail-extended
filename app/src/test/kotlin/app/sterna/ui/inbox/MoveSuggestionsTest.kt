@@ -14,7 +14,7 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
- * The pickers' Suggestions section, executed: which folders it proposes and in which order, when it
+ * The pickers' Recent section, executed: which folders it proposes and in which order, when it
  * is computed and held, what it shows once something is typed, and which moves leave an event.
  */
 class MoveSuggestionsTest {
@@ -36,49 +36,49 @@ class MoveSuggestionsTest {
     // ── the choice ─────────────────────────────────────────────────────────────────────────────
 
     @Test fun `no event, no suggestion`() {
-        assertEquals(emptyList<String>(), moveSuggestions(emptyList(), targets, "a@example.org", now))
+        assertEquals(emptyList<String>(), moveSuggestions(emptyList(), targets, "a@example.org", now).folderIds)
     }
 
     @Test fun `a folder absent from the offered list is never proposed`() {
         val events = listOf(event("Hidden", 0.0), event("Hidden", 0.0), event("Hidden", 0.0), event("Travel", 30.0))
-        assertEquals(listOf("Travel"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Travel"), moveSuggestions(events, targets, null, now).folderIds)
     }
 
     @Test fun `the folder on screen is never proposed, moveTargets having left it out`() {
         val mailboxes = listOf(inbox, receipts, travel)
         val offered = moveTargets(mailboxes, currentMailboxId = "Receipts")
         val events = listOf(event("Receipts", 0.0, "a@example.org"), event("Receipts", 0.0, "a@example.org"), event("Travel", 5.0))
-        assertEquals(listOf("Travel"), moveSuggestions(events, offered, "a@example.org", now))
+        assertEquals(listOf("Travel"), moveSuggestions(events, offered, "a@example.org", now).folderIds)
     }
 
     @Test fun `at most three rows`() {
         val events = listOf(event("Receipts", 0.0), event("Travel", 1.0), event("Work", 2.0), event("Family", 3.0), event("INBOX", 4.0))
-        assertEquals(listOf("Receipts", "Travel", "Work"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Receipts", "Travel", "Work"), moveSuggestions(events, targets, null, now).folderIds)
     }
 
     @Test fun `at an equal count the more recent folder comes first`() {
         val events = listOf(event("Receipts", 20.0), event("Travel", 2.0))
-        assertEquals(listOf("Travel", "Receipts"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Travel", "Receipts"), moveSuggestions(events, targets, null, now).folderIds)
     }
 
     @Test fun `at an equal date the more frequent folder comes first`() {
         val events = listOf(event("Receipts", 3.0), event("Travel", 3.0), event("Travel", 3.0))
-        assertEquals(listOf("Travel", "Receipts"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Travel", "Receipts"), moveSuggestions(events, targets, null, now).folderIds)
     }
 
     @Test fun `a perfect tie keeps the order of the list below`() {
         val events = listOf(event("Work", 3.0), event("Travel", 3.0), event("Receipts", 3.0))
-        assertEquals(listOf("Receipts", "Travel", "Work"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Receipts", "Travel", "Work"), moveSuggestions(events, targets, null, now).folderIds)
     }
 
     @Test fun `the score weighs a week-old move half of today's`() {
         // Two moves a week old weigh exactly one of today: the tie then falls to the list's order.
         val events = listOf(event("Work", 7.0), event("Work", 7.0), event("Travel", 0.0))
-        assertEquals(listOf("Travel", "Work"), moveSuggestions(events, targets, null, now))
+        assertEquals(listOf("Travel", "Work"), moveSuggestions(events, targets, null, now).folderIds)
         val older = listOf(event("Work", 7.1), event("Work", 7.1), event("Travel", 0.0))
-        assertEquals(listOf("Travel", "Work"), moveSuggestions(older, targets, null, now))
+        assertEquals(listOf("Travel", "Work"), moveSuggestions(older, targets, null, now).folderIds)
         val newer = listOf(event("Work", 6.9), event("Work", 6.9), event("Travel", 0.0))
-        assertEquals(listOf("Work", "Travel"), moveSuggestions(newer, targets, null, now))
+        assertEquals(listOf("Work", "Travel"), moveSuggestions(newer, targets, null, now).folderIds)
     }
 
     @Test fun `the sender's folder leads once two moves of that sender went there`() {
@@ -87,7 +87,7 @@ class MoveSuggestionsTest {
             event("Receipts", 50.0, "shop@example.org"),
             event("Travel", 0.0), event("Travel", 0.0), event("Travel", 0.0),
         )
-        assertEquals(listOf("Receipts", "Travel"), moveSuggestions(events, targets, "Shop@Example.org", now))
+        assertEquals(listOf("Receipts", "Travel"), moveSuggestions(events, targets, "Shop@Example.org", now).folderIds)
     }
 
     @Test fun `a sender seen once has no line of its own`() {
@@ -96,7 +96,7 @@ class MoveSuggestionsTest {
             event("Travel", 0.0), event("Travel", 0.0),
             event("Work", 1.0),
         )
-        assertEquals(listOf("Travel", "Work", "Receipts"), moveSuggestions(events, targets, "shop@example.org", now))
+        assertEquals(listOf("Travel", "Work", "Receipts"), moveSuggestions(events, targets, "shop@example.org", now).folderIds)
     }
 
     @Test fun `the sender's folder is the most frequent, then the most recent`() {
@@ -104,17 +104,45 @@ class MoveSuggestionsTest {
             event("Work", 1.0, "a@example.org"), event("Work", 1.0, "a@example.org"),
             event("Family", 90.0, "a@example.org"), event("Family", 90.0, "a@example.org"), event("Family", 90.0, "a@example.org"),
         )
-        assertEquals("Family", moveSuggestions(events, targets, "a@example.org", now).first())
+        assertEquals("Family", moveSuggestions(events, targets, "a@example.org", now).folderIds.first())
         val tied = listOf(
             event("Work", 40.0, "a@example.org"), event("Work", 1.0, "a@example.org"),
             event("Family", 2.0, "a@example.org"), event("Family", 2.0, "a@example.org"),
         )
-        assertEquals("Work", moveSuggestions(tied, targets, "a@example.org", now).first())
+        assertEquals("Work", moveSuggestions(tied, targets, "a@example.org", now).folderIds.first())
     }
 
     @Test fun `the sender's folder is not listed twice`() {
         val events = listOf(event("Receipts", 0.0, "a@example.org"), event("Receipts", 0.0, "a@example.org"))
-        assertEquals(listOf("Receipts"), moveSuggestions(events, targets, "a@example.org", now))
+        assertEquals(listOf("Receipts"), moveSuggestions(events, targets, "a@example.org", now).folderIds)
+    }
+
+    @Test fun `the sender's folder is named apart, even where the score puts another first`() {
+        // Travel scores far higher; Receipts leads only as the sender's folder, and is the one named.
+        val events = listOf(
+            event("Receipts", 60.0, "shop@example.org"),
+            event("Receipts", 50.0, "shop@example.org"),
+            event("Travel", 0.0), event("Travel", 0.0), event("Travel", 0.0),
+            event("Work", 1.0),
+        )
+        val scoredFirst = moveSuggestions(events, targets, null, now)
+        assertEquals("without a sender the score alone leads", MoveSuggestions(null, listOf("Travel", "Work", "Receipts")), scoredFirst)
+        val suggestions = moveSuggestions(events, targets, "shop@example.org", now)
+        assertEquals(MoveSuggestions(senderHabit = "Receipts", others = listOf("Travel", "Work")), suggestions)
+    }
+
+    @Test fun `no sender's folder is named without the habit`() {
+        val events = listOf(event("Receipts", 60.0, "shop@example.org"), event("Travel", 0.0), event("Travel", 0.0))
+        assertEquals(MoveSuggestions(null, listOf("Travel", "Receipts")), moveSuggestions(events, targets, "shop@example.org", now))
+        assertNull(moveSuggestions(events, targets, null, now).senderHabit)
+    }
+
+    @Test fun `the sender's folder is not repeated among the others, and three rows remain the cap`() {
+        val events = listOf(
+            event("Family", 90.0, "a@example.org"), event("Family", 90.0, "a@example.org"),
+            event("Family", 0.0), event("Travel", 0.0), event("Work", 1.0), event("Receipts", 2.0),
+        )
+        assertEquals(MoveSuggestions("Family", listOf("Travel", "Work")), moveSuggestions(events, targets, "a@example.org", now))
     }
 
     @Test fun `a selection with two senders has no sender`() {
@@ -139,7 +167,7 @@ class MoveSuggestionsTest {
 
     @Test fun `once computed the section does not move while the picker stays open`() {
         val first = freezeSuggestions(null, "A", history, targets, null, now)
-        assertEquals(FrozenSuggestions("A", listOf("Travel")), first)
+        assertEquals(FrozenSuggestions("A", MoveSuggestions(null, listOf("Travel"))), first)
         val later = MoveHistory("A", history.events + event("Work", 0.0) + event("Work", 0.0))
         assertSame(first, freezeSuggestions(first, "A", later, targets, null, now))
     }
@@ -148,21 +176,41 @@ class MoveSuggestionsTest {
         val first = freezeSuggestions(null, "A", history, targets, null, now)
         assertNull("B's memory is not read yet", freezeSuggestions(first, "B", history, targets, null, now))
         val b = MoveHistory("B", listOf(event("Work", 0.0)))
-        assertEquals(FrozenSuggestions("B", listOf("Work")), freezeSuggestions(first, "B", b, targets, null, now))
+        assertEquals(FrozenSuggestions("B", MoveSuggestions(null, listOf("Work"))), freezeSuggestions(first, "B", b, targets, null, now))
     }
 
     private val rows = targets.map { FolderPickerRow(it, it.name, if (it == work) "Clients" else null) }
 
     @Test fun `the section goes as soon as something is typed`() {
-        val frozen = FrozenSuggestions("A", listOf("Work", "Travel"))
-        assertEquals(listOf("Work", "Travel"), suggestedRows(frozen, "A", rows, "").map { it.folder.id })
-        assertEquals(emptyList<FolderPickerRow>(), suggestedRows(frozen, "A", rows, "W"))
+        val frozen = FrozenSuggestions("A", MoveSuggestions(null, listOf("Work", "Travel")))
+        assertEquals(listOf("Work", "Travel"), suggestedRows(frozen, "A", rows, "").map { it.row.folder.id })
+        assertEquals(emptyList<SuggestedRow>(), suggestedRows(frozen, "A", rows, "W"))
+    }
+
+    @Test fun `the mark follows senderHabit, never the first row`() {
+        val frozen = FrozenSuggestions("A", MoveSuggestions(senderHabit = "Work", others = listOf("Travel", "Receipts")))
+        assertEquals(
+            listOf("Work" to true, "Travel" to false, "Receipts" to false),
+            suggestedRows(frozen, "A", rows, "").map { it.row.folder.id to it.usualForSender },
+        )
+        val none = FrozenSuggestions("A", MoveSuggestions(senderHabit = null, others = listOf("Travel", "Work")))
+        assertEquals(
+            "without a habit no row is marked, the first one included",
+            listOf("Travel" to false, "Work" to false),
+            suggestedRows(none, "A", rows, "").map { it.row.folder.id to it.usualForSender },
+        )
+        val gone = rows.filterNot { it.folder.id == "Work" }
+        assertEquals(
+            "a habit whose folder is no longer offered marks nothing else in its place",
+            listOf("Travel" to false, "Receipts" to false),
+            suggestedRows(frozen, "A", gone, "").map { it.row.folder.id to it.usualForSender },
+        )
     }
 
     @Test fun `a suggested row is painted like the row below, path included`() {
-        val frozen = FrozenSuggestions("A", listOf("Work"))
-        assertEquals(listOf(rows[3]), suggestedRows(frozen, "A", rows, ""))
-        assertEquals("held for another account", emptyList<FolderPickerRow>(), suggestedRows(frozen, "B", rows, ""))
+        val frozen = FrozenSuggestions("A", MoveSuggestions(null, listOf("Work")))
+        assertEquals(listOf(rows[3]), suggestedRows(frozen, "A", rows, "").map { it.row })
+        assertEquals("held for another account", emptyList<SuggestedRow>(), suggestedRows(frozen, "B", rows, ""))
     }
 
     // ── what leaves an event ───────────────────────────────────────────────────────────────────

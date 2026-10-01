@@ -8,7 +8,7 @@ import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.Mailbox
 
-/** How many rows the Suggestions section of a move-to-folder picker holds at most. */
+/** How many rows the Recent section of a move-to-folder picker holds at most. */
 internal const val MOVE_SUGGESTIONS_MAX = 3
 
 /** How many remembered moves of one sender into one folder make it that sender's folder. */
@@ -17,7 +17,7 @@ internal const val SENDER_HABIT_MIN_EVENTS = 2
 private const val DAY_MS = 86_400_000.0
 
 /**
- * The folder ids a picker suggests, best first, at most [MOVE_SUGGESTIONS_MAX], every one of them
+ * What a picker suggests, best first, at most [MOVE_SUGGESTIONS_MAX] folder ids, every one of them
  * among [targets], so never the current folder, a hidden one, one gone from the server, or one the
  * subscription setting leaves out.
  *
@@ -33,7 +33,7 @@ internal fun moveSuggestions(
     targets: List<Mailbox>,
     sender: String?,
     now: Long,
-): List<String> {
+): MoveSuggestions {
     val rank = targets.withIndex().associate { (index, folder) -> folder.id to index }
     val offered = events.filter { it.mailboxId in rank }
     val habit = sender?.lowercase()?.let { address ->
@@ -53,13 +53,20 @@ internal fun moveSuggestions(
         .entries
         .sortedWith(compareByDescending<Map.Entry<String, Double>> { it.value }.thenBy { rank.getValue(it.key) })
         .map { it.key }
-    return (listOfNotNull(habit) + byScore).distinct().take(MOVE_SUGGESTIONS_MAX)
+    val ids = (listOfNotNull(habit) + byScore).distinct().take(MOVE_SUGGESTIONS_MAX)
+    return MoveSuggestions(habit, if (habit == null) ids else ids.drop(1))
+}
+
+/** What a picker suggests: [senderHabit], the sender's own folder when there is one, then [others],
+ *  none of them repeating it. [folderIds] is the order the section shows. */
+internal data class MoveSuggestions(val senderHabit: String?, val others: List<String>) {
+    val folderIds: List<String> get() = listOfNotNull(senderHabit) + others
 }
 
 private fun recency(at: Long, now: Long): Double = 1.0 / (1.0 + (now - at).coerceAtLeast(0L) / DAY_MS / 7.0)
 
 /** What a picker suggests for [accountId], computed once and held while it stays open. */
-internal data class FrozenSuggestions(val accountId: String, val folderIds: List<String>)
+internal data class FrozenSuggestions(val accountId: String, val suggestions: MoveSuggestions)
 
 /**
  * The suggestions to hold: [frozen] while it was computed for the [listed] account, so a row never
@@ -80,18 +87,22 @@ internal fun freezeSuggestions(
     return FrozenSuggestions(listed, moveSuggestions(history.events, targets, sender, now))
 }
 
-/** The painted rows of the Suggestions section: none as soon as something is typed in the filter,
+/** A row of the Recent section, and whether it is the sender's own folder. */
+internal data class SuggestedRow(val row: FolderPickerRow, val usualForSender: Boolean)
+
+/** The painted rows of the Recent section: none as soon as something is typed in the filter,
  *  which then filters the whole list alone, and none held for another account than [listed]. */
 internal fun suggestedRows(
     frozen: FrozenSuggestions?,
     listed: String?,
     rows: List<FolderPickerRow>,
     query: String,
-): List<FolderPickerRow> {
+): List<SuggestedRow> {
     if (query.isNotEmpty()) return emptyList()
     if (frozen == null || frozen.accountId != listed) return emptyList()
     val byId = rows.associateBy { it.folder.id }
-    return frozen.folderIds.mapNotNull { byId[it] }
+    val habit = frozen.suggestions.senderHabit
+    return frozen.suggestions.folderIds.mapNotNull { id -> byId[id]?.let { SuggestedRow(it, usualForSender = id == habit) } }
 }
 
 /** The one sender of a selection, lower-cased, or null when its messages have several, or when one

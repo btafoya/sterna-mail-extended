@@ -86,8 +86,9 @@
     <string name="inbox_move_to_folder">Mover a carpeta</string>
     <string name="inbox_filter_folders">Filtrar carpetas</string>
     <string name="inbox_no_folder_matches">Ninguna carpeta coincide</string>
-    <string name="inbox_move_suggestions">Sugerencias</string>
+    <string name="inbox_move_suggestions">Recientes</string>
     <string name="inbox_move_all_folders">Todas las carpetas</string>
+    <string name="inbox_move_usual_for_sender">Habitual para este remitente</string>
     <string name="inbox_cancel">Cancelar</string>
     <string name="inbox_new_folder">Nueva carpeta</string>
     <string name="inbox_folder_name">Nombre de la carpeta</string>
@@ -1106,6 +1107,7 @@
     <string name="folders_reorder_hint">Las carpetas estándar quedan arriba. Una carpeta se mueve entre las de su carpeta superior.</string>
     <string name="folders_reorder_up">Subir %1$s</string>
     <string name="folders_reorder_down">Bajar %1$s</string>
+    <string name="folders_reorder_drag">Arrastra para reordenar</string>
     <string name="folders_manage_show_title">Mostrar esta carpeta</string>
     <string name="folders_manage_show_subtitle">Una carpeta oculta conserva su correo y la búsqueda lo encuentra</string>
     <string name="folders_manage_watch_subtitle">Descarga esta carpeta en segundo plano</string>

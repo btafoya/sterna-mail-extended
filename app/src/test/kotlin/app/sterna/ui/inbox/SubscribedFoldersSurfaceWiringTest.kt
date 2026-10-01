@@ -57,7 +57,7 @@ class SubscribedFoldersSurfaceWiringTest {
                 "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
                 "}",
             ),
-            block(MOVE_DIALOG, "val targets = remember(", 3),
+            block(MOVE_SHEET, "val targets = remember(", 3),
         )
         assertEquals(
             "the picker's second line under a folder name must be resolved against the WHOLE list. " +
@@ -66,18 +66,19 @@ class SubscribedFoldersSurfaceWiringTest {
                 "over the whole account each call — but the list it is handed must still be the " +
                 "whole one, or a child whose parent is hidden loses a segment of its path (#109).",
             listOf(
-                "val movePaths = remember(targets, moveTargetMailboxes) {",
-                "targets.map { folder -> mailboxPathLabel(folder, moveTargetMailboxes) }",
+                "val movePaths = remember(targets, allMailboxes) {",
+                "targets.map { folder -> mailboxPathLabel(folder, allMailboxes) }",
                 "}",
+                "allMailboxes = moveTargetMailboxes,",
             ),
-            block(MOVE_DIALOG, "val movePaths = remember(", 3),
+            block(MOVE_SHEET, "val movePaths = remember(", 3) + block(MOVE_SHEET, "allMailboxes = ", 1),
         )
         assertEquals(
             "the flag the picker uses must come from the SELECTION's account, not from a screen-" +
                 "local guess: in the unified inbox the selected message can belong to a sibling " +
                 "account with a different answer (#92).",
             listOf("val moveTargetsOnlySubscribed by viewModel.selectionOnlySubscribed.collectAsStateWithLifecycle()"),
-            block(MOVE_DIALOG, "val moveTargetsOnlySubscribed by", 1),
+            block(MOVE_SHEET, "val moveTargetsOnlySubscribed by", 1),
         )
     }
 
@@ -411,7 +412,7 @@ class SubscribedFoldersSurfaceWiringTest {
         }
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
-        val MOVE_DIALOG: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val MOVE_SHEET: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
         val INBOX_VIEW_MODEL: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
         }

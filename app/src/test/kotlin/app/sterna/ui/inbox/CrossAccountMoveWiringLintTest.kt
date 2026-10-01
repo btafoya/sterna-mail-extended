@@ -365,29 +365,42 @@ class CrossAccountMoveWiringLintTest {
                 "val targets = remember(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding, moveTargetsOrder) {",
                 "moveTargets(moveTargetMailboxes, moveExcludedMailbox, moveTargetsOnlySubscribed, moveTargetsHiding.ids, moveTargetsHiding.inboxId, moveTargetsOrder)",
             ),
-            block(MOVE_DIALOG, "val moveExcludedMailbox =", 3),
+            block(MOVE_SHEET, "val moveExcludedMailbox =", 3),
         )
     }
 
     @Test fun `each picker puts its account choice back when it closes`() {
         assertEquals(
-            "the list's picker must reset the account choice on dismiss.",
-            listOf("onDismissRequest = { onDismiss(); viewModel.chooseMoveAccount(null) },"),
-            block(MOVE_DIALOG, "onDismissRequest = { onDismiss()", 1),
+            "the sheet must reset the account choice on dismiss: system back, a drag down and a " +
+                "tap outside all come through onDismissRequest.",
+            listOf("onDismissRequest = { onDismiss(); onChooseAccount(null) },"),
+            block(MOVE_SHEET, "onDismissRequest = {", 1),
         )
         assertEquals(
-            "the reader's picker must reset the account choice on dismiss.",
-            listOf("onDismissRequest = { movePicker = false; viewModel.chooseMoveAccount(null) },"),
-            block(MESSAGE_SCREEN, "onDismissRequest = { movePicker", 1),
+            "the list's picker must hand the sheet the ViewModel's own account choice.",
+            listOf("onChooseAccount = viewModel::chooseMoveAccount,"),
+            block(MOVE_SHEET, "onChooseAccount = ", 1),
         )
         assertEquals(
-            "the list's tap must hand the chosen account to the move, then close, then reset.",
+            "the reader's picker must hand the sheet the ViewModel's own account choice, and close " +
+                "on its own flag.",
+            listOf("onChooseAccount = viewModel::chooseMoveAccount,", "onDismiss = moveSheet::close,"),
+            block(MESSAGE_SCREEN, "onChooseAccount = ", 1) + block(MESSAGE_SCREEN, "onDismiss = moveSheet", 1),
+        )
+        assertEquals(
+            "the sheet's tap must hand the row's folder to the move, then close, then reset.",
             listOf(
-                "viewModel.moveSelectedTo(row.folder.id, moveAccountId, fromPicker = true)",
+                "val pickMoveRow: (FolderPickerRow) -> Unit = { row ->",
+                "onPick(row.folder.id)",
                 "onDismiss()",
-                "viewModel.chooseMoveAccount(null)",
+                "onChooseAccount(null)",
             ),
-            block(MOVE_DIALOG, "viewModel.moveSelectedTo(row.folder.id", 3),
+            block(MOVE_SHEET, "val pickMoveRow", 4),
+        )
+        assertEquals(
+            "the list's move must carry the chosen account.",
+            listOf("onPick = { folderId -> viewModel.moveSelectedTo(folderId, moveAccountId, fromPicker = true) },"),
+            block(MOVE_SHEET, "onPick = ", 1),
         )
         assertEquals(
             "the reader's move must reach the inbox ViewModel with the chosen account.",
@@ -438,15 +451,24 @@ class CrossAccountMoveWiringLintTest {
             "the list's picker must feed the row selectionPickerAccounts(accounts, selectedKeys), " +
                 "never the raw account list: on a selection spanning accounts the row would offer " +
                 "'B › Archive' while the move skips everything that is not the owner's (spec.md § 1).",
-            listOf("MoveAccountRow(selectionPickerAccounts(accounts, selectedKeys), moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)"),
-            block(MOVE_DIALOG, "MoveAccountRow(", 1),
+            listOf("accounts = selectionPickerAccounts(accounts, selectedKeys),"),
+            block(MOVE_SHEET, "accounts = ", 1),
+        )
+        assertEquals(
+            "the sheet must draw the row over the list it is handed, with the owner and the choice.",
+            listOf("MoveAccountRow(accounts, ownerAccountId, chosenAccountId, onChooseAccount)"),
+            block(MOVE_SHEET, "MoveAccountRow(", 1),
         )
         assertEquals(
             "the reader's picker must keep the plain account list: it opens on ONE message, its " +
                 "owner is that message's account and never a fallback, so scoping it on a " +
                 "selection would take the row away from the case #189 exists for.",
-            listOf("MoveAccountRow(accounts, moveOwnerAccountId, moveAccountId, viewModel::chooseMoveAccount)"),
-            block(MESSAGE_SCREEN, "MoveAccountRow(", 1),
+            listOf(
+                "accounts = accounts,",
+                "ownerAccountId = moveOwnerAccountId,",
+                "chosenAccountId = moveAccountId,",
+            ),
+            block(MESSAGE_SCREEN, "accounts = accounts,", 3),
         )
     }
 
@@ -695,7 +717,7 @@ class CrossAccountMoveWiringLintTest {
         val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
         val MESSAGE_VIEW_MODEL: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageViewModel.kt") }
         val INBOX_SCREEN: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/InboxScreen.kt") }
-        val MOVE_DIALOG: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val MOVE_SHEET: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
         val MOVE_ACCOUNT_ROW: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/MoveAccountRow.kt") }
         val MESSAGE_SCREEN: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageScreen.kt") }
         val STERNA_APP: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/SternaApp.kt") }

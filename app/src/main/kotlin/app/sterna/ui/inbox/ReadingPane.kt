@@ -65,6 +65,7 @@ fun ReadingPane(
             onReply = onReply,
             onComposeTo = onComposeTo,
             signatureSheet = inboxViewModel.signatureSheet,
+            moveSheet = inboxViewModel.moveSheet,
             paneMode = true,
             onPageSettled = inboxViewModel::followPage,
         )

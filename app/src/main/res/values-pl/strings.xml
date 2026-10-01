@@ -86,8 +86,9 @@
     <string name="inbox_move_to_folder">Przenieś do folderu</string>
     <string name="inbox_filter_folders">Filtruj foldery</string>
     <string name="inbox_no_folder_matches">Brak pasujących folderów</string>
-    <string name="inbox_move_suggestions">Sugestie</string>
+    <string name="inbox_move_suggestions">Ostatnie</string>
     <string name="inbox_move_all_folders">Wszystkie foldery</string>
+    <string name="inbox_move_usual_for_sender">Zwykły dla tego nadawcy</string>
     <string name="inbox_cancel">Anuluj</string>
     <string name="inbox_new_folder">Nowy folder</string>
     <string name="inbox_folder_name">Nazwa folderu</string>
@@ -1120,6 +1121,7 @@
     <string name="folders_reorder_hint">Foldery standardowe zostają na górze. Folder przesuwa się tylko w obrębie swojego folderu nadrzędnego.</string>
     <string name="folders_reorder_up">Przenieś %1$s w górę</string>
     <string name="folders_reorder_down">Przenieś %1$s w dół</string>
+    <string name="folders_reorder_drag">Przeciągnij, aby zmienić kolejność</string>
     <string name="folders_manage_show_title">Pokaż ten folder</string>
     <string name="folders_manage_show_subtitle">Ukryty folder zachowuje pocztę i nadal można ją wyszukać</string>
     <string name="folders_manage_watch_subtitle">Pobiera ten folder w tle</string>

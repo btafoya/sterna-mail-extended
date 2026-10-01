@@ -95,8 +95,9 @@
     <string name="inbox_move_to_folder">Move to folder</string>
     <string name="inbox_filter_folders">Filter folders</string>
     <string name="inbox_no_folder_matches">No folder matches</string>
-    <string name="inbox_move_suggestions">Suggestions</string>
+    <string name="inbox_move_suggestions">Recent</string>
     <string name="inbox_move_all_folders">All folders</string>
+    <string name="inbox_move_usual_for_sender">Usual for this sender</string>
     <string name="inbox_cancel">Cancel</string>
     <string name="inbox_new_folder">New folder</string>
     <string name="inbox_new_subfolder">New subfolder</string>
@@ -1158,6 +1159,7 @@
     <string name="folders_reorder_hint">Standard folders stay at the top. A folder moves among the folders of its own parent.</string>
     <string name="folders_reorder_up">Move %1$s up</string>
     <string name="folders_reorder_down">Move %1$s down</string>
+    <string name="folders_reorder_drag">Drag to reorder</string>
     <string name="folders_manage_show_title">Show this folder</string>
     <string name="folders_manage_show_subtitle">A hidden folder keeps its mail, and search still finds it</string>
     <string name="folders_manage_watch_subtitle">Fetches this folder in the background</string>

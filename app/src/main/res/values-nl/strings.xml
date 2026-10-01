@@ -86,8 +86,9 @@
     <string name="inbox_move_to_folder">Naar map verplaatsen</string>
     <string name="inbox_filter_folders">Mappen filteren</string>
     <string name="inbox_no_folder_matches">Geen map komt overeen</string>
-    <string name="inbox_move_suggestions">Suggesties</string>
+    <string name="inbox_move_suggestions">Recent</string>
     <string name="inbox_move_all_folders">Alle mappen</string>
+    <string name="inbox_move_usual_for_sender">Gebruikelijk voor deze afzender</string>
     <string name="inbox_cancel">Annuleren</string>
     <string name="inbox_new_folder">Nieuwe map</string>
     <string name="inbox_folder_name">Mapnaam</string>
@@ -1103,6 +1104,7 @@
     <string name="folders_reorder_hint">Standaardmappen blijven bovenaan. Een map verschuift alleen binnen haar bovenliggende map.</string>
     <string name="folders_reorder_up">%1$s omhoog</string>
     <string name="folders_reorder_down">%1$s omlaag</string>
+    <string name="folders_reorder_drag">Sleep om te herschikken</string>
     <string name="folders_manage_show_title">Deze map tonen</string>
     <string name="folders_manage_show_subtitle">Een verborgen map houdt zijn e-mail en blijft doorzoekbaar</string>
     <string name="folders_manage_watch_subtitle">Haalt deze map op de achtergrond op</string>

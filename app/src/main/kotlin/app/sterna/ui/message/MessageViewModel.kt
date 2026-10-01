@@ -518,7 +518,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** The move memory of the account the picker lists, for its Suggestions section. Beside
+    /** The move memory of the account the picker lists, for its Recent section. Beside
      *  [moveTargets], never folded into it: the section is computed apart from the list. */
     val moveHistory: StateFlow<MoveHistory> =
         movePickerAccountId.flatMapLatest { id -> moveMemory.history(id) }

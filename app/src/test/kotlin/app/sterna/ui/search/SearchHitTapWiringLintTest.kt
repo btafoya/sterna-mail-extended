@@ -93,6 +93,7 @@ class SearchHitTapWiringLintTest {
                 "onBack = { entry.navigateOnce { nav.popBackStack() } },",
                 "onOpenEmail = { id, accountId ->",
                 "entry.navigateOnce {",
+                "inboxViewModel.startFreshReading()",
                 "nav.navigate(\"message/\${Uri.encode(id)}?accountId=\${Uri.encode(accountId.orEmpty())}\")",
                 "}",
                 "},",

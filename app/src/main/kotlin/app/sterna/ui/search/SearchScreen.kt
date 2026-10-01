@@ -57,6 +57,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,8 +101,8 @@ import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.accountColorOf
 import app.sterna.core.data.mail.emailKey
 import app.sterna.ui.inbox.InboxViewModel
+import app.sterna.ui.inbox.MoveFolderSheet
 import app.sterna.ui.inbox.RowTap
-import app.sterna.ui.inbox.SelectionMoveDialog
 import app.sterna.ui.inbox.SelectionTopBar
 import app.sterna.ui.inbox.isLocalDraftRow
 import app.sterna.ui.messageFolderRole
@@ -126,7 +127,7 @@ fun SearchScreen(
     val undo by inbox.undo.collectAsStateWithLifecycle()
     val message by inbox.message.collectAsStateWithLifecycle()
     val pendingDelete by inbox.pendingDelete.collectAsStateWithLifecycle()
-    var showMoveSheet by remember { mutableStateOf(false) }
+    var showMoveSheet by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val undoLabel = stringResource(R.string.inbox_undo)
     val form by viewModel.form.collectAsStateWithLifecycle()
@@ -156,8 +157,10 @@ fun SearchScreen(
 
     BackHandler(enabled = selecting) { inbox.clearSelection() }
 
+    if (showMoveSheet && selectedKeys.isEmpty()) showMoveSheet = false
     if (showMoveSheet) {
-        SelectionMoveDialog(inbox, accounts, selectedKeys, currentMailboxId = null, onDismiss = { showMoveSheet = false })
+        var moveQuery by rememberSaveable { mutableStateOf("") }
+        MoveFolderSheet(inbox, accounts, selectedKeys, currentMailboxId = null, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })
     }
 
     LaunchedEffect(message) {

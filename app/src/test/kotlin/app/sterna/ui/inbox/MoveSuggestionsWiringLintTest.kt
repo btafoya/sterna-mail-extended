@@ -106,8 +106,8 @@ class MoveSuggestionsWiringLintTest {
         )
         assertEquals(
             "and the picker says it is.",
-            listOf("viewModel.moveSelectedTo(row.folder.id, moveAccountId, fromPicker = true)"),
-            codeLines(MOVE_DIALOG).filter { "moveSelectedTo(" in it },
+            listOf("onPick = { folderId -> viewModel.moveSelectedTo(folderId, moveAccountId, fromPicker = true) },"),
+            codeLines(MOVE_SHEET).filter { "moveSelectedTo(" in it },
         )
     }
 
@@ -149,40 +149,44 @@ class MoveSuggestionsWiringLintTest {
 
     @Test fun `both pickers draw the section from the executed decision, over the whole painted list`() {
         assertEquals(
-            listOf("val suggestedMoveRows = suggestedRows(moveSuggestions, moveListedAccountId, moveRows, moveQuery)"),
-            codeLines(MOVE_DIALOG).filter { "suggestedRows(" in it },
+            listOf("val suggestedMoveRows = suggestedRows(moveSuggestions, moveListedAccountId, moveRows, query)"),
+            codeLines(MOVE_SHEET).filter { "suggestedRows(" in it },
         )
         assertEquals(
-            listOf("val suggestedFolderRows = suggestedRows(folderSuggestions, folderListedAccountId, folderRows, folderQuery)"),
-            codeLines(MESSAGE_SCREEN).filter { "suggestedRows(" in it },
+            "the section must follow pickerAccount(chosen, owner).",
+            listOf("val moveListedAccountId = pickerAccount(chosenAccountId, ownerAccountId)"),
+            codeLines(MOVE_SHEET).filter { it.startsWith("val moveListedAccountId") },
         )
         assertEquals(
-            "the list picker's section must follow pickerAccount(chosen, owner).",
-            listOf("val moveListedAccountId = pickerAccount(moveAccountId, moveOwnerAccountId)"),
-            codeLines(MOVE_DIALOG).filter { it.startsWith("val moveListedAccountId") },
+            "the list picker must hand the sheet the owner and the choice it lists on.",
+            listOf("ownerAccountId = moveOwnerAccountId,", "chosenAccountId = moveAccountId,"),
+            block(MOVE_SHEET, "ownerAccountId = ", 2),
         )
         assertEquals(
-            "the reader's section must follow pickerAccount(chosen, owner).",
-            listOf("val folderListedAccountId = pickerAccount(moveAccountId, moveOwnerAccountId)"),
-            codeLines(MESSAGE_SCREEN).filter { it.startsWith("val folderListedAccountId") },
+            "the reader must hand the sheet the owner and the choice it lists on.",
+            listOf("ownerAccountId = moveOwnerAccountId,", "chosenAccountId = moveAccountId,"),
+            block(MESSAGE_SCREEN, "ownerAccountId = ", 2),
         )
-        for ((file, rows) in listOf(MOVE_DIALOG to "suggestedMoveRows", MESSAGE_SCREEN to "suggestedFolderRows")) {
-            assertEquals(
-                "${file.name}: the titles and the section are drawn only when there is a section.",
-                listOf("if ($rows.isNotEmpty()) {"),
-                codeLines(file).filter { it.startsWith("if ($rows") },
-            )
+        assertEquals(
+            "the titles and the section are drawn only when there is a section.",
+            listOf("if (suggestedMoveRows.isNotEmpty()) {"),
+            codeLines(MOVE_SHEET).filter { it.startsWith("if (suggestedMoveRows") },
+        )
+        for (name in listOf("suggestedRows(", "freezeSuggestions(", "FolderPickerRowItem(")) {
+            assertEquals("MessageScreen computes or draws a section of its own (`$name`)", 0, codeLines(MESSAGE_SCREEN).count { name in it })
         }
     }
 
     @Test fun `a suggested row does exactly what the same row below does`() {
-        for ((file, pick) in listOf(MOVE_DIALOG to "pickMoveRow", MESSAGE_SCREEN to "pickFolderRow")) {
-            assertEquals(
-                "${file.name}: both lists must hand their row to the one tap handler.",
-                listOf("FolderPickerRowItem(row) { $pick(row) }", "FolderPickerRowItem(row) { $pick(row) }"),
-                codeLines(file).filter { it.startsWith("FolderPickerRowItem(") },
-            )
-        }
+        assertEquals(
+            "both lists must hand their row to the one tap handler, and the mark must be the " +
+                "executed decision's, never a rank.",
+            listOf(
+                "FolderPickerRowItem(suggested.row, suggested.usualForSender) { pickMoveRow(suggested.row) }",
+                "FolderPickerRowItem(row) { pickMoveRow(row) }",
+            ),
+            codeLines(MOVE_SHEET).filter { it.startsWith("FolderPickerRowItem(") },
+        )
         assertEquals(
             "the reader keeps one move call.",
             1,
@@ -194,29 +198,35 @@ class MoveSuggestionsWiringLintTest {
         assertEquals(
             listOf(
                 "var moveFrozen by remember { mutableStateOf<FrozenSuggestions?>(null) }",
-                "val moveSuggestions = freezeSuggestions(moveFrozen, moveListedAccountId, moveHistory, targets, moveSender, System.currentTimeMillis())",
+                "val moveSuggestions = freezeSuggestions(moveFrozen, moveListedAccountId, history, targets, sender, System.currentTimeMillis())",
                 "SideEffect { moveFrozen = moveSuggestions }",
             ),
-            codeLines(MOVE_DIALOG).filter { "moveFrozen" in it },
+            codeLines(MOVE_SHEET).filter { "moveFrozen" in it },
         )
         assertEquals(
-            listOf(
-                "var folderFrozen by remember { mutableStateOf<FrozenSuggestions?>(null) }",
-                "val folderSuggestions = freezeSuggestions(folderFrozen, folderListedAccountId, folderHistory, folders, loaded.email.from.firstOrNull()?.email, System.currentTimeMillis())",
-                "SideEffect { folderFrozen = folderSuggestions }",
-            ),
-            codeLines(MESSAGE_SCREEN).filter { "folderFrozen" in it },
+            "the list picker must hand the sheet the selection's memory and sender.",
+            listOf("history = moveHistory,", "sender = moveSender,"),
+            block(MOVE_SHEET, "history = ", 2),
         )
-        assertEquals("the reader's frozen section is held inside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "var folderFrozen by"))
+        assertEquals(
+            "the reader must hand the sheet its picker's memory and the open message's sender.",
+            listOf(
+                "val folderHistory by viewModel.moveHistory.collectAsStateWithLifecycle()",
+                "history = folderHistory,",
+                "sender = loaded.email.from.firstOrNull()?.email,",
+            ),
+            block(MESSAGE_SCREEN, "val folderHistory by", 1) + block(MESSAGE_SCREEN, "history = ", 2),
+        )
+        assertEquals("the reader's sheet is composed inside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "MoveFolderSheet("))
     }
 
-    @Test fun `the two titles exist in the ten languages`() {
+    @Test fun `the two titles and the sender mark exist in the ten languages`() {
         val files = listOf(File(res, "values/strings.xml")) + (res.listFiles() ?: emptyArray())
             .filter { it.isDirectory && it.name.startsWith("values-") }
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
         assertEquals("ten string files", 10, files.size)
-        val expected = setOf("inbox_move_suggestions", "inbox_move_all_folders")
+        val expected = setOf("inbox_move_suggestions", "inbox_move_all_folders", "inbox_move_usual_for_sender")
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }.filterValues { it.isNotEmpty() }
         assertEquals(emptyMap<String, Set<String>>(), missing)
     }
@@ -317,7 +327,7 @@ class MoveSuggestionsWiringLintTest {
         }
         val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
         val MESSAGE_VIEW_MODEL: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageViewModel.kt") }
-        val MOVE_DIALOG: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/SelectionMoveDialog.kt") }
+        val MOVE_SHEET: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
         val SELECTION_TOP_BAR: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/inbox/SelectionTopBar.kt") }
         val MESSAGE_SCREEN: File by lazy { File(root, "$APP/kotlin/app/sterna/ui/message/MessageScreen.kt") }
         val res: File by lazy { File(root, "$APP/res") }

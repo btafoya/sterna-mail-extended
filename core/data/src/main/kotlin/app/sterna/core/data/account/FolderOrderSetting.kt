@@ -81,3 +81,30 @@ internal fun withFolderMoved(
     accounts.map {
         if (it.id == id) it.copy(folderOrder = folderOrderAfterMove(it.folderOrder, siblings, folderId, up)) else it
     }
+
+/**
+ * The folder order after [folderId] is dropped at [toIndex] among [siblings], as drawn: the order
+ * the same number of single moves of [folderOrderAfterMove] would write, in one write. [order] itself
+ * when nothing moves (dropped where it stood, not among the siblings, an index out of the fratrie).
+ */
+fun folderOrderAfterDrop(order: List<String>, siblings: List<String>, folderId: String, toIndex: Int): List<String> {
+    val shown = siblingsInFolderOrder(order, siblings)
+    val from = shown.indexOf(folderId)
+    if (from < 0 || toIndex !in shown.indices || toIndex == from) return order
+    val moved = shown.toMutableList().apply { add(toIndex, removeAt(from)) }
+    val fratrie = siblings.toSet()
+    return order.filterNot { it in fratrie } + moved
+}
+
+/** [accounts] with [folderId] dropped at [toIndex] among [siblings] in [id]'s folder order, decided
+ *  on the record [accounts] holds, for the reasons given on [withFolderMoved]. */
+internal fun withFolderDropped(
+    accounts: List<StoredAccount>,
+    id: String,
+    siblings: List<String>,
+    folderId: String,
+    toIndex: Int,
+): List<StoredAccount> =
+    accounts.map {
+        if (it.id == id) it.copy(folderOrder = folderOrderAfterDrop(it.folderOrder, siblings, folderId, toIndex)) else it
+    }

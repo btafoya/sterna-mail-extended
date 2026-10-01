@@ -1,6 +1,8 @@
 package app.sterna.ui.settings
 
+import app.sterna.core.data.account.folderOrderAfterDrop
 import app.sterna.core.jmap.model.Mailbox
+import app.sterna.ui.components.movedBlock
 import app.sterna.ui.inbox.folderMayBeHidden
 import app.sterna.ui.inbox.folderParentId
 import app.sterna.ui.inbox.folderRank
@@ -101,4 +103,42 @@ internal fun folderMovesOf(mailbox: Mailbox, fratrie: List<String>): FolderMoves
     val at = fratrie.indexOf(mailbox.id)
     if (at < 0 || fratrie.size < 2) return null
     return FolderMoves(fratrie, mayMoveUp = at > 0, mayMoveDown = at < fratrie.lastIndex)
+}
+
+/** A drag of the reorder mode, as the store writes it: [folderId] moved to [toIndex] in [siblings]. */
+internal data class FolderDrop(val siblings: List<String>, val folderId: String, val toIndex: Int)
+
+/** How many rows move with the one at [index]: itself and the subfolders drawn under it. */
+internal fun folderSubtreeSize(rows: List<FolderManagementRow>, index: Int): Int {
+    val depth = rows.getOrNull(index)?.depth ?: return 1
+    var end = index + 1
+    while (end < rows.size && rows[end].depth > depth) end++
+    return end - index
+}
+
+/**
+ * What the row at [from], carried with its subfolders, writes when it lands at [to], or null when
+ * that drop is refused. [rows] are what [rowsFor] draws for [order], the account's stored one.
+ *
+ * Accepted only if the rows [rowsFor] draws once the write is made are exactly the rows shown at
+ * the release, subfolders included: this refuses in one rule a place under another parent, one
+ * between a parent and its first subfolder, and one among the folders [folderMayBeReordered] pins,
+ * each a place the drawer never draws the folder at. A row without [FolderManagementRow.moves] has
+ * no place of its own to be written to.
+ */
+internal fun folderDrop(
+    rows: List<FolderManagementRow>,
+    from: Int,
+    to: Int,
+    order: List<String>,
+    rowsFor: (List<String>) -> List<FolderManagementRow>,
+): FolderDrop? {
+    val held = rows.getOrNull(from) ?: return null
+    val siblings = held.moves?.siblings ?: return null
+    val shown = rows.movedBlock(from, folderSubtreeSize(rows, from), to).map { it.mailbox.id }
+    if (shown == rows.map { it.mailbox.id }) return null
+    val fratrie = siblings.toSet()
+    val drop = FolderDrop(siblings, held.mailbox.id, shown.filter { it in fratrie }.indexOf(held.mailbox.id))
+    val drawn = rowsFor(folderOrderAfterDrop(order, siblings, drop.folderId, drop.toIndex)).map { it.mailbox.id }
+    return drop.takeIf { drawn == shown }
 }

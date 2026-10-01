@@ -274,6 +274,7 @@ private fun MainNavHost(
     var pendingFolderOpen by remember { mutableStateOf<EmailOpenTarget?>(null) }
     // The message a tapped notification posts in the reading pane, held until the list exists (#103).
     var pendingPaneOpen by remember { mutableStateOf<MessageAnchor?>(null) }
+    var pendingFreshReading by remember { mutableStateOf(false) }
     // A tapped new-mail notification opens that message standalone, and makes its account current
     // (#31) so Back returns to the mailbox just read.
     LaunchedEffect(pendingEmailOpen) {
@@ -291,6 +292,7 @@ private fun MainNavHost(
         // Both ids or nothing: the folder is judged inside its own account, two accounts on one
         // server routinely sharing mailbox ids.
         pendingFolderOpen = target.takeIf { it.accountId != null && it.mailboxId != null }
+        if (listViewModel != null) listViewModel.startFreshReading() else pendingFreshReading = true
         // A reading pane shown with the list on screen: the pane (#103); anywhere else the reader
         // stacks. [PaneOrders] owns that verdict: do not inline it.
         when (PaneOrders.emailOpen(readingPane, nav.currentBackStack.value.map { it.destination.route })) {
@@ -324,6 +326,12 @@ private fun MainNavHost(
         // openFromNotification, never openInPane: this message must survive the account switch the
         // same notification asked for a moment ago (#103).
         list.openFromNotification(anchor)
+    }
+    LaunchedEffect(pendingFreshReading, listViewModel) {
+        if (!pendingFreshReading) return@LaunchedEffect
+        val list = listViewModel ?: return@LaunchedEffect
+        pendingFreshReading = false
+        list.startFreshReading()
     }
     // A tapped home-screen widget puts the list on the unified inbox (#112).
     //
@@ -398,6 +406,7 @@ private fun MainNavHost(
                     // Carry the tapped position and its context so the reader pages over the same
                     // entries.
                     val anchor = MessageAnchor(id, accountId, if (fromSearch) "search" else "list", index, null, inboxViewModel.listIdentity)
+                    inboxViewModel.startFreshReading()
                     if (readingPane) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
@@ -407,6 +416,7 @@ private fun MainNavHost(
                 // account's homonymous conversation (#92).
                 onOpenThreadMessage = { id, accountId, threadKey, index ->
                     val anchor = MessageAnchor(id, accountId, "thread", index, threadKey.encode())
+                    inboxViewModel.startFreshReading()
                     if (readingPane) inboxViewModel.openInPane(anchor)
                     else entry.navigateOnce { nav.navigate(anchor.toRoute(Uri::encode)) }
                 },
@@ -577,6 +587,7 @@ private fun MainNavHost(
                         }
                     },
                     signatureSheet = inboxViewModel.signatureSheet,
+                    moveSheet = inboxViewModel.moveSheet,
                 )
             }
         }
@@ -653,6 +664,7 @@ private fun MainNavHost(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
                 onOpenEmail = { id, accountId ->
                     entry.navigateOnce {
+                        inboxViewModel.startFreshReading()
                         nav.navigate("message/${Uri.encode(id)}?accountId=${Uri.encode(accountId.orEmpty())}")
                     }
                 },
