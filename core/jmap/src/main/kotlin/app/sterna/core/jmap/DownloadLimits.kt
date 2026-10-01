@@ -1,8 +1,8 @@
 package app.sterna.core.jmap
 
-    /** Something a message asked us to load is bigger than we are willing to hold in memory. Carries
-     *  the sizes so the caller can say which limit was hit; the user-facing wording is the caller's
-     *  business. */
+    /** Something a message asked us to load is bigger than we are willing to hold in memory, or a
+     *  file the user attached is bigger than the server accepts in one upload. Carries the sizes so
+     *  the caller can say which limit was hit; the user-facing wording is the caller's business. */
 class ContentTooLargeException(
     message: String,
     /** Announced size in bytes, or -1 when the server didn't say. */

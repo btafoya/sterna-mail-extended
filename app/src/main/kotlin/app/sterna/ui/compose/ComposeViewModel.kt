@@ -785,13 +785,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             } catch (t: Throwable) {
                 // The exception text is a resolver/HTTP string; logcat keeps it for diagnosis.
                 Log.w(TAG, "Attachment failed", t)
-                // Offline confirmed: "Unable to resolve host…" told the reader nothing actionable.
-                // Every other failure keeps its raw technical message.
-                _attachmentStatus.value = if (isOfflineFailure(t, online = hasUsableNetwork(app))) {
-                    app.getString(R.string.status_attach_offline)
-                } else {
-                    app.getString(R.string.status_attach_failed, t.message ?: "error")
-                }
+                _attachmentStatus.value = app.getString(composedAttachFailure(t, online = hasUsableNetwork(app)), t.message ?: "error")
             } finally {
                 afterRead()
             }

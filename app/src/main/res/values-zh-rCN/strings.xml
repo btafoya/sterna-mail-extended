@@ -1028,7 +1028,7 @@
     <string name="status_read_file_failed">无法读取所选文件。</string>
     <string name="status_open_attachment_failed">无法打开附件：%1$s</string>
     <string name="status_save_attachment_failed">无法保存附件：%1$s</string>
-    <string name="status_attachment_too_large">此附件过大，无法打开。</string>
+    <string name="status_attachment_too_large">此附件过大。</string>
     <string name="status_inline_images_too_large">此邮件中的部分图片过大，无法显示。</string>
     <string name="status_message_too_large">此邮件过大，无法显示。</string>
     <string name="status_message_unavailable">服务器未返回此邮件。请稍后重试。</string>

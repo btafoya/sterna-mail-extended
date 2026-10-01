@@ -66,6 +66,10 @@ data class JmapSession(
          */
     fun getBatchSize(): Int = advertisedLimit("maxObjectsInGet")
 
+    fun maxSizeUpload(): Long? =
+        (capabilities[Jmap.CORE_CAPABILITY]?.get("maxSizeUpload") as? JsonPrimitive)
+            ?.longOrNull?.takeIf { it > 0 }
+
         /** A per-call object limit of the core capability, guarded: absent, non-numeric, zero or
          *  negative falls back to [JMAP_BATCH_FALLBACK], anything above [JMAP_BATCH_CEILING] is capped,
          *  and a value SMALLER than the fallback is respected, that is the server's limit. Read as a

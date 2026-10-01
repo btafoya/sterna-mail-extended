@@ -143,6 +143,27 @@ class JmapSessionTest {
         assertEquals(100, setOnly.getBatchSize())
     }
 
+    @Test fun maxSizeUpload_isTheAdvertisedValue() {
+        assertEquals(50_000_000L, sessionAdvertising("""{"maxSizeUpload":50000000}""").maxSizeUpload())
+        assertEquals(1L, sessionAdvertising("""{"maxSizeUpload":1}""").maxSizeUpload())
+    }
+
+    @Test fun maxSizeUpload_keepsAValuePastIntMaxExact() {
+        assertEquals(9_999_999_999L, sessionAdvertising("""{"maxSizeUpload":9999999999}""").maxSizeUpload())
+    }
+
+    @Test fun maxSizeUpload_isUnknownWhenNothingUsableIsAdvertised() {
+        assertEquals(null, sessionAdvertising("""{}""").maxSizeUpload())
+        assertEquals(null, sessionAdvertising("""{"maxSizeUpload":0}""").maxSizeUpload())
+        assertEquals(null, sessionAdvertising("""{"maxSizeUpload":-7}""").maxSizeUpload())
+        assertEquals(null, sessionAdvertising("""{"maxSizeUpload":"lots"}""").maxSizeUpload())
+        assertEquals(null, sessionAdvertising("""{"maxSizeUpload":null}""").maxSizeUpload())
+        assertEquals(null, sessionAdvertising(null).maxSizeUpload())
+    }
+
+    @Test fun maxSizeUpload_isNotReadFromAnotherLimit() {
+        assertEquals(null, sessionAdvertising("""{"maxObjectsInSet":500,"maxSizeRequest":10000000}""").maxSizeUpload())
+    }
 
     private val contactsSession = mapOf(
         Jmap.CORE_CAPABILITY to buildJsonObject { },

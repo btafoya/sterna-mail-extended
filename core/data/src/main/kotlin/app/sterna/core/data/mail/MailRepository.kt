@@ -4267,6 +4267,15 @@ class MailRepository(
         // Blobs are account-scoped, and a sub-account's outgoing Email is created under the
         // LOGIN's account (see performSend). Upload where the send will reference it.
         val uploadAccountId = ctx.session.mailAccountId() ?: ctx.accountId
+        // Checked before sending: otherwise the whole file crosses the network only to be refused.
+        val maxBytes = ctx.session.maxSizeUpload()
+        if (maxBytes != null && bytes.size > maxBytes) {
+            throw ContentTooLargeException(
+                "Attachment is ${bytes.size} bytes, over the server's $maxBytes upload limit.",
+                bytes = bytes.size.toLong(),
+                maxBytes = maxBytes,
+            )
+        }
         val blob = client.uploadBlob(ctx.session, uploadAccountId, bytes, type, ctx.auth)
         return EmailBodyPart(
             blobId = blob.blobId,

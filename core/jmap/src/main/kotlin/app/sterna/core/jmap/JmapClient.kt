@@ -2238,7 +2238,7 @@ class JmapClient internal constructor(
         return out.toByteArray()
     }
 
-    /** Upload bytes as a blob via the session uploadUrl template; returns its blobId. */
+    /** Returns the blobId. A size refusal is read from the body, not the status: a server may send 400, not 413. */
     suspend fun uploadBlob(
         session: JmapSession,
         accountId: String,
@@ -2257,7 +2257,14 @@ class JmapClient internal constructor(
         httpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw JmapException("Upload failed: HTTP ${response.code} ${response.message}")
+                val status = "HTTP ${response.code} ${response.message}"
+                if (isUploadSizeRefusal(body)) {
+                    throw ContentTooLargeException(
+                        "Upload refused over the server's size limit: $status",
+                        bytes = bytes.size.toLong(),
+                    )
+                }
+                throw JmapException("Upload failed: $status", httpCode = response.code)
             }
             val obj = json.parseToJsonElement(body).jsonObject
             UploadedBlob(
@@ -2267,6 +2274,12 @@ class JmapClient internal constructor(
                 size = obj["size"]?.jsonPrimitive?.longOrNull ?: bytes.size.toLong(),
             )
         }
+    }
+
+    private fun isUploadSizeRefusal(body: String): Boolean {
+        val problem = runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject ?: return false
+        fun field(name: String) = (problem[name] as? JsonPrimitive)?.contentOrNull
+        return field("type") == JMAP_ERROR_LIMIT && field("limit") == "maxSizeUpload"
     }
 
     private fun encodePathSegment(value: String): String =
