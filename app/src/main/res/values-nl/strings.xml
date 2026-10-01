@@ -154,6 +154,7 @@
     <string name="filter_unread">Ongelezen</string>
     <string name="filter_starred">Met ster</string>
     <string name="filter_attachment">Met bijlage</string>
+    <string name="inbox_filter_active">Filter actief</string>
     <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sorteren</string>
     <string name="inbox_search">Zoeken</string>

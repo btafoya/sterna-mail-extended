@@ -5,48 +5,126 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, not a behaviour test. What the list screen does with the toggles: the chip row it
- * asks for and draws, the ViewModel's toggles, and the empty state's scene, sentence and "Clear
- * filters". The decisions are run by `FilterChipRowTest` and `EmptyListSceneTest`; this pins that
- * the screen asks them. Holes (CONTRIBUTING.md, Tests):
- *  1. `ui.filterToggles` and `selectionActive` are names: nothing here proves they hold the toggles
- *     the pager reads, or the selection `selectAll` fills.
- *  2. Whole calls are pinned, not what wraps them: a `?.let` dropped for a `!!` still reads the same
- *     call, and nothing here says the row is drawn only when the function answers.
- *  3. The row's place is pinned as source order between the banners and `PullToRefreshBox`, not as
- *     a position in the layout: a `Box` wrapped around it would put it over the list unseen.
- *  4. Nothing here holds the value the composable collects, nor proves a chip is drawn checked or
- *     disabled: `FilterChip` is trusted.
- *  5. That the overflow button carries no filter dot is `OutboxCountWiringTest`'s rule, which pins
- *     that button's content whole.
+ * Source lint, not a behaviour test. What the list screen does with the toggles: the bar's funnel
+ * and the menu it opens, the search's own chip row, the ViewModel's toggles, and the empty state's
+ * scene, sentence and "Clear filters". The decisions are run by `FilterMenuTest` and
+ * `EmptyListSceneTest`; this pins that the screen asks them. Holes (CONTRIBUTING.md, Tests):
+ *  1. `ui.filterToggles` and `ui.unreadView` are names: nothing here proves they hold the toggles
+ *     the pager reads, or the view the list pages.
+ *  2. Whole calls and whole blocks are pinned, not what wraps the funnel's block: an `if` around it
+ *     would hide the funnel and still read the same block.
+ *  3. The funnel's place is pinned as source order inside the browse bar's `actions`, not as a
+ *     position on screen; that the menu stays open after a tick is pinned as the absence of a
+ *     closing assignment, not as what `DropdownMenu` does on a click.
+ *  4. Nothing here holds the value the composable collects, nor proves an item is drawn ticked or a
+ *     dot drawn: `DropdownMenuItem`, `Checkbox` and `Badge` are trusted.
+ *  The overflow button's own content is `OutboxCountWiringTest`'s rule.
  */
 class FilterEntryWiringLintTest {
 
     @Test
-    fun `the chip row is asked once, with the view, the selection, the typed query and the toggles`() {
+    fun `the funnel's menu is asked once, with the view and the toggles`() {
         val text = codeText(INBOX_SCREEN)
-        val calls = Regex("""\bfilterChipRow\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
+        val calls = Regex("""\bfilterMenu\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
         assertEquals(
-            "The row must be asked with the screen's own view flag (no Unread chip in the unread " +
-                "view), the selection (chips inert while selectAll reads the filter) and the open " +
-                "search bar, whose own row takes this one's place: one row of chips at a time, and " +
-                "search results are not filtered by these toggles. " +
+            "The menu must be asked with the screen's own view flag (no Unread entry in the unread " +
+                "view, and no dot for the view's own unread) and the toggles the pager reads (#126): " +
+                "one filter state, two places to read it is how a funnel came to lie about the list. " +
                 "Calls found were:\n${calls.joinToString("\n")}",
-            listOf(EXPECTED_ROW_QUESTION),
+            listOf(EXPECTED_MENU_QUESTION),
             calls,
         )
     }
 
     @Test
-    fun `the chip row is drawn once, each chip flipping its own toggle`() {
+    fun `the funnel is drawn whole, lit by the menu's answer, each entry flipping its own toggle`() {
         val text = codeText(INBOX_SCREEN)
+        val icons = Regex("""\bIcons\.Filled\.FilterList\b""").findAll(text).toList()
+        assertEquals("Exactly one funnel in the screen, the browse bar's.", 1, icons.size)
+        val funnel = balancedFrom(text, text.lastIndexOf("Box {", icons.single().range.first))
+        assertEquals(
+            "The funnel must be boxed with its menu (#74), say 'Filters' and, when lit, 'Filter on'; " +
+                "its dot and tint must read menu.active, never the raw toggles (the unread view's " +
+                "own unread would light it). Each entry must show the tick of the toggle it flips and " +
+                "flip only it: a crossed arm of the when compiles, and an entry then lies about the " +
+                "list. Block found was:\n$funnel",
+            EXPECTED_FUNNEL,
+            funnel,
+        )
+        val items = Regex("""(?<!fun )\bFilterMenuItem\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
+        assertEquals("One FilterMenuItem call, the funnel's.", listOf(EXPECTED_ITEM), items)
+        val writes = Regex("""(\w+ = \{ )?\bfilterOpen\s*=(?!=)\s*[^,;})]+""").findAll(text).map { it.value.trim() }.toList()
+        assertEquals(
+            "A tick must leave the menu open: the filters combine, so the funnel's menu is opened " +
+                "by its button and closed only by its dismissal (tap outside, Back). Writes found were:" +
+                "\n${writes.joinToString("\n")}",
+            listOf("onClick = { filterOpen = true", "onDismissRequest = { filterOpen = false"),
+            writes,
+        )
+        assertEquals(
+            "A funnel entry must not close the overflow menu either.",
+            false,
+            Regex("""\boverflowOpen\b""").containsMatchIn(items.single()),
+        )
+    }
+
+    @Test
+    fun `each menu entry carries its checkbox semantics and its own icon`() {
+        val text = codeText(INBOX_SCREEN)
+        val item = text.indexOf("private fun FilterMenuItem(")
+        check(item >= 0) { "InboxScreen.kt no longer declares FilterMenuItem" }
+        assertEquals(
+            "The item, not the Checkbox, carries the state: 'onCheckedChange = null' leaves the box " +
+                "without semantics, so a dropped Role.Checkbox or toggleableState leaves TalkBack " +
+                "reading a plain menu entry with no tick.",
+            EXPECTED_ITEM_DECLARATION,
+            balancedFrom(text, item),
+        )
+        val icon = text.indexOf("private fun filterIcon(")
+        check(icon >= 0) { "InboxScreen.kt no longer declares filterIcon" }
+        assertEquals(
+            "Each filter has its own icon; two arms swapped compile.",
+            EXPECTED_ICON_DECLARATION,
+            balancedFrom(text, icon),
+        )
+    }
+
+    @Test
+    fun `the funnel comes first in the browse bar, before sort, search and the overflow`() {
+        val actions = browseBarActions(codeText(INBOX_SCREEN))
+        val offsets = listOf(
+            "Icons.Filled.FilterList",
+            "Icons.AutoMirrored.Filled.Sort",
+            "Icons.Filled.Search",
+            "Icons.Filled.MoreVert",
+        ).map { actions.indexOf(it) }
+        assertEquals(
+            "Order in the browse bar's actions must be funnel, sort, search, overflow. Offsets " +
+                "were $offsets in:\n$actions",
+            true,
+            offsets.all { it >= 0 } && offsets.zipWithNext().all { (a, b) -> a < b },
+        )
+    }
+
+    @Test
+    fun `the list draws no chip row of its own, only the open search does`() {
+        val text = codeText(INBOX_SCREEN)
+        val outside = Regex("""(?<!fun )\bFilterChipRow\s*\(""").findAll(text)
+            .filterNot { hit -> searchingBlocks(text).any { hit.range.first in it } }
+            .map { callAt(text, it.range.first) }
+            .toList()
+        assertEquals(
+            "A FilterChipRow outside 'if (ui.searching)' is the band of chips the funnel replaced: " +
+                "a second control for the same toggles. Calls found outside were:" +
+                "\n${outside.joinToString("\n")}",
+            emptyList<String>(),
+            outside,
+        )
         val calls = Regex("""(?<!fun )\bFilterChipRow\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
         assertEquals(
-            "Each chip must show the state of the toggle it flips and flip only it: a crossed arm of " +
-                "the when compiles, and a chip then lies about the list. 'enabled = true' compiles " +
-                "and lets a chip change what a selection covers. Calls found were:" +
+            "The search's row must show the state of the criterion each chip flips. Calls found were:" +
                 "\n${calls.joinToString("\n")}",
-            listOf(EXPECTED_ROW_DRAWN, EXPECTED_SEARCH_ROW_DRAWN),
+            listOf(EXPECTED_SEARCH_ROW_DRAWN),
             calls,
         )
     }
@@ -68,29 +146,6 @@ class FilterEntryWiringLintTest {
                     "enabled = !selectionActive, onClick = { viewModel.toggleSearchScope() }, )",
             ),
             listOf(condition, entry),
-        )
-    }
-
-    @Test
-    fun `the chip row sits under the banners, above the pulled list, outside the bar`() {
-        val text = codeText(INBOX_SCREEN)
-        val body = text.indexOf("Column(Modifier.fillMaxSize().padding(padding))")
-        val banner = text.indexOf("OutboxFailureBanner(onClick = onOpenOutbox)")
-        val row = text.indexOf("FilterChipRow(")
-        val pulled = text.indexOf("PullToRefreshBox(")
-        assertEquals(
-            "Source order must be: the body's Column, the outbox banner, the chip row, the " +
-                "PullToRefreshBox. Inside the box the row would scroll away with the list; in the " +
-                "bar it would enter inboxBarHeight. Offsets were: column $body, banner $banner, " +
-                "row $row, box $pulled.",
-            true,
-            body in 0 until banner && banner < row && row < pulled,
-        )
-        assertEquals(
-            "No funnel and no menu entry may survive beside the chips: a second control for the " +
-                "same toggle is how starred-only ended up unreachable from the funnel.",
-            emptyList<String>(),
-            Regex("""\bFilterMenuItem\b|\bIcons\.Filled\.FilterList\b|\bIconToggleButton\b""").findAll(text).map { it.value }.toList(),
         )
     }
 
@@ -141,6 +196,42 @@ class FilterEntryWiringLintTest {
             EXPECTED_SHOW_ALL,
             callAt(text, button),
         )
+    }
+
+    /** The ranges of every `if (ui.searching) { … }` body in [text]. */
+    private fun searchingBlocks(text: String): List<IntRange> =
+        Regex("""\bif \(ui\.searching\) \{""").findAll(text).map { hit ->
+            val block = balancedFrom(text, hit.range.first)
+            hit.range.first until hit.range.first + block.length
+        }.toList()
+
+    /** The `actions = { … }` lambda of the browse bar: the `TopAppBar` after `titleSwitchTargets`. */
+    private fun browseBarActions(text: String): String {
+        val anchor = text.indexOf("val titleSwitchTargets")
+        check(anchor >= 0) { "InboxScreen.kt no longer declares titleSwitchTargets above the browse bar" }
+        val bar = text.indexOf("TopAppBar(", anchor)
+        check(bar >= 0) { "no TopAppBar after titleSwitchTargets" }
+        val call = callAt(text, bar)
+        val at = call.indexOf("actions =")
+        check(at >= 0) { "the browse bar has no actions block:\n$call" }
+        return balancedFrom(call, at)
+    }
+
+    /** [text] from [from] up to the `}` that balances the first `{` at or after it. */
+    private fun balancedFrom(text: String, from: Int): String {
+        val open = text.indexOf('{', from)
+        check(open >= 0) { "no block opens after offset $from" }
+        var depth = 0
+        var i = open
+        while (i < text.length) {
+            when (text[i]) {
+                '{' -> depth++
+                '}' -> depth--
+            }
+            i++
+            if (depth == 0) break
+        }
+        return text.substring(from, i).trim()
     }
 
     /** The whole call starting at [from], up to the `)` that balances its first `(`. */
@@ -205,17 +296,38 @@ class FilterEntryWiringLintTest {
     }
 
     companion object {
-        private const val EXPECTED_ROW_QUESTION =
-            "filterChipRow( unreadView = ui.unreadView, selectionActive = selectionActive, " +
-                "searching = ui.searching, toggles = ui.filterToggles, )"
+        private const val EXPECTED_MENU_QUESTION = "filterMenu(unreadView = ui.unreadView, toggles = ui.filterToggles)"
 
-        private const val EXPECTED_ROW_DRAWN =
-            "FilterChipRow( entries = row.filters.map { filter -> FilterChipEntry( " +
-                "label = stringResource(filterLabel(filter.criterion)), selected = filter.checked, " +
-                "enabled = row.enabled, onClick = { when (filter.criterion) { " +
+        private const val EXPECTED_ITEM =
+            "FilterMenuItem( label = stringResource(filterLabel(filter.criterion)), " +
+                "icon = filterIcon(filter.criterion), checked = filter.checked, onClick = { " +
+                "when (filter.criterion) { " +
                 "ListCriterion.UNREAD -> viewModel.toggleUnreadOnly() " +
                 "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly() " +
-                "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment() } }, ) }, )"
+                "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment() } }, )"
+
+        private const val EXPECTED_FUNNEL =
+            "Box { IconButton( onClick = { filterOpen = true }, " +
+                "modifier = if (menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier, ) { " +
+                "val dotColor = LocalContentColor.current " +
+                "BadgedBox(badge = { if (menu.active) Badge(containerColor = dotColor) }) { " +
+                "Icon( Icons.Filled.FilterList, contentDescription = stringResource(R.string.search_filters), " +
+                "tint = if (menu.active) MaterialTheme.colorScheme.primary else LocalContentColor.current, ) } } " +
+                "DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, " +
+                "shape = MaterialTheme.shapes.medium) { menu.filters.forEach { filter -> " +
+                EXPECTED_ITEM + " } } }"
+
+        private const val EXPECTED_ITEM_DECLARATION =
+            "private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, onClick: () -> Unit) { " +
+                "DropdownMenuItem( text = { Text(label) }, leadingIcon = { Icon(icon, contentDescription = null) }, " +
+                "trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) }, onClick = onClick, " +
+                "modifier = Modifier.semantics { role = Role.Checkbox toggleableState = ToggleableState(checked) }, ) }"
+
+        private const val EXPECTED_ICON_DECLARATION =
+            "private fun filterIcon(criterion: ListCriterion): ImageVector = when (criterion) { " +
+                "ListCriterion.UNREAD -> Icons.Filled.MarkEmailUnread " +
+                "ListCriterion.FLAGGED -> Icons.Filled.Star " +
+                "ListCriterion.ATTACHMENT -> Icons.Filled.AttachFile }"
 
         private const val EXPECTED_SEARCH_ROW_DRAWN =
             "FilterChipRow( entries = scopeChip + SearchToggle.entries.map { toggle -> FilterChipEntry( " +

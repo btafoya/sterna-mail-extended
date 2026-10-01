@@ -120,20 +120,12 @@ private fun offeredCriteria(unreadView: Boolean): List<ListCriterion> =
 
 internal data class QuickFilter(val criterion: ListCriterion, val checked: Boolean)
 
-internal data class QuickFilterRow(val filters: List<QuickFilter>, val enabled: Boolean)
+/** [active] reads offered filters only: in the unread view, `unreadOnly` is the view itself. */
+internal data class FilterMenu(val filters: List<QuickFilter>, val active: Boolean)
 
-/** Null while the search bar is open, whose own chips take this row's place; inert under a selection (`selectAll`, #126). */
-internal fun filterChipRow(
-    unreadView: Boolean,
-    selectionActive: Boolean,
-    searching: Boolean,
-    toggles: ListFilter,
-): QuickFilterRow? {
-    if (searching) return null
-    return QuickFilterRow(
-        filters = offeredCriteria(unreadView).map { QuickFilter(it, toggles.has(it)) },
-        enabled = !selectionActive,
-    )
+internal fun filterMenu(unreadView: Boolean, toggles: ListFilter): FilterMenu {
+    val filters = offeredCriteria(unreadView).map { QuickFilter(it, toggles.has(it)) }
+    return FilterMenu(filters, active = filters.any { it.checked })
 }
 
 internal fun filterLabel(criterion: ListCriterion): Int = when (criterion) {

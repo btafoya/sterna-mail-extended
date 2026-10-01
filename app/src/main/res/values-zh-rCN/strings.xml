@@ -169,6 +169,7 @@
     <string name="filter_unread">未读</string>
     <string name="filter_starred">星标</string>
     <string name="filter_attachment">有附件</string>
+    <string name="inbox_filter_active">筛选已开启</string>
     <string name="filter_list_separator">"、"</string>
     <string name="inbox_sort">排序</string>
     <string name="inbox_search">搜索</string>

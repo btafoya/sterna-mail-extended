@@ -68,7 +68,10 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.AllInbox
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MarkEmailUnread
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -83,6 +86,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -91,6 +95,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -140,7 +145,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -849,6 +859,45 @@ fun InboxScreen(
                             }
                         },
                         actions = {
+                            val menu = filterMenu(unreadView = ui.unreadView, toggles = ui.filterToggles)
+                            var filterOpen by remember { mutableStateOf(false) }
+                            val filterOnLabel = stringResource(R.string.inbox_filter_active)
+                            // Boxed with its button for the anchoring reason spelled out on the
+                            // overflow menu below (#74).
+                            Box {
+                                IconButton(
+                                    onClick = { filterOpen = true },
+                                    modifier = if (menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,
+                                ) {
+                                    // The dot reads by its shape, not by an accent colour.
+                                    val dotColor = LocalContentColor.current
+                                    BadgedBox(badge = { if (menu.active) Badge(containerColor = dotColor) }) {
+                                        Icon(
+                                            Icons.Filled.FilterList,
+                                            contentDescription = stringResource(R.string.search_filters),
+                                            tint = if (menu.active) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                        )
+                                    }
+                                }
+                                // A tick leaves the menu open: the filters combine, and closing on
+                                // each one would cost a reopen per filter.
+                                DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, shape = MaterialTheme.shapes.medium) {
+                                    menu.filters.forEach { filter ->
+                                        FilterMenuItem(
+                                            label = stringResource(filterLabel(filter.criterion)),
+                                            icon = filterIcon(filter.criterion),
+                                            checked = filter.checked,
+                                            onClick = {
+                                                when (filter.criterion) {
+                                                    ListCriterion.UNREAD -> viewModel.toggleUnreadOnly()
+                                                    ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly()
+                                                    ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment()
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                             var sortOpen by remember { mutableStateOf(false) }
                             // Boxed with its button for the anchoring reason spelled out on the
                             // overflow menu below (#74).
@@ -1181,31 +1230,6 @@ fun InboxScreen(
             // A calm, tappable line when a send has permanently failed: route to the outbox.
             if (outboxHasFailures) {
                 OutboxFailureBanner(onClick = onOpenOutbox)
-            }
-            // Here, not in the bar nor in the list: the chips stay put while the list scrolls, and
-            // inboxBarHeight keeps measuring the two title lines only.
-            filterChipRow(
-                unreadView = ui.unreadView,
-                selectionActive = selectionActive,
-                searching = ui.searching,
-                toggles = ui.filterToggles,
-            )?.let { row ->
-                FilterChipRow(
-                    entries = row.filters.map { filter ->
-                        FilterChipEntry(
-                            label = stringResource(filterLabel(filter.criterion)),
-                            selected = filter.checked,
-                            enabled = row.enabled,
-                            onClick = {
-                                when (filter.criterion) {
-                                    ListCriterion.UNREAD -> viewModel.toggleUnreadOnly()
-                                    ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly()
-                                    ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment()
-                                }
-                            },
-                        )
-                    },
-                )
             }
             if (ui.searching) {
                 val scopeChip = if (searchScopeChipShown(accounts.size)) {
@@ -2808,6 +2832,27 @@ private fun SyncErrorBanner(message: String) {
             )
         }
     }
+}
+
+private fun filterIcon(criterion: ListCriterion): ImageVector = when (criterion) {
+    ListCriterion.UNREAD -> Icons.Filled.MarkEmailUnread
+    ListCriterion.FLAGGED -> Icons.Filled.Star
+    ListCriterion.ATTACHMENT -> Icons.Filled.AttachFile
+}
+
+/** `onCheckedChange = null` leaves the box without semantics: the item carries the checked state. */
+@Composable
+private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        trailingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+        onClick = onClick,
+        modifier = Modifier.semantics {
+            role = Role.Checkbox
+            toggleableState = ToggleableState(checked)
+        },
+    )
 }
 
 /** A discreet, tappable banner shown above the list when a send has permanently failed. */

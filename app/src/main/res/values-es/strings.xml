@@ -154,6 +154,7 @@
     <string name="filter_unread">No leídos</string>
     <string name="filter_starred">Destacados</string>
     <string name="filter_attachment">Con adjunto</string>
+    <string name="inbox_filter_active">Filtro activado</string>
     <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Ordenar</string>
     <string name="inbox_search">Buscar</string>

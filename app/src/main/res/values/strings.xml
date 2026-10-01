@@ -170,6 +170,7 @@
     <string name="filter_unread">Unread</string>
     <string name="filter_starred">Starred</string>
     <string name="filter_attachment">Has attachment</string>
+    <string name="inbox_filter_active">Filter on</string>
     <!-- Placed between two filter labels in empty_filtered_body; quoted so the trailing space survives. -->
     <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Sort</string>

@@ -89,8 +89,8 @@ class OutboxCountWiringTest {
         assertEquals(
             "the overflow button must draw its icon and nothing else. The Outbox is no longer in " +
                 "that menu, so an outbox dot there points at an entry that is not behind it; the " +
-                "filters are shown by the chips under the bar, so a filter dot there repeats them " +
-                "in a place that no longer changes them. Content was:\n$content",
+                "filters are shown by the funnel's own dot, so a filter dot there repeats it in a " +
+                "place that does not change them. Content was:\n$content",
             OVERFLOW_CONTENT,
             content,
         )

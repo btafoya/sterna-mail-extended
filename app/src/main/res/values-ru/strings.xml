@@ -154,6 +154,7 @@
     <string name="filter_unread">Непрочитанные</string>
     <string name="filter_starred">Помеченные</string>
     <string name="filter_attachment">С вложением</string>
+    <string name="inbox_filter_active">Фильтр включён</string>
     <string name="filter_list_separator">", "</string>
     <string name="inbox_sort">Сортировка</string>
     <string name="inbox_search">Поиск</string>

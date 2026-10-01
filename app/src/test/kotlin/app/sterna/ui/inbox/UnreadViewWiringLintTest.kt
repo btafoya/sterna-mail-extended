@@ -79,23 +79,30 @@ class UnreadViewWiringLintTest {
     @Test
     fun `the unread control is not offered in a view that is already filtered`() {
         val actions = toolbarActions()
+        val asked = callsTo("filterMenu", actions).map { argumentsOf(it) }
         assertEquals(
-            "The toolbar must offer no list filter at all: the chip row under it carries all three, " +
-                "and a second control for the same toggle is how the funnel came to flip unread " +
-                "while starred alone was on. Matches found in the toolbar's actions were:",
-            emptyList<String>(),
-            Regex("""\b(toggleUnreadOnly|toggleFlaggedOnly|toggleWithAttachment)\s*\(|\bFilterList\b""")
-                .findAll(actions).map { it.value }.toList(),
+            "The funnel's menu must be asked with the view flag itself: filterMenu drops the Unread " +
+                "entry in the unread view (FilterMenuTest), where listFilter forces unread on and the " +
+                "entry would be drawn unticked over a filtered list. 'unreadView = false' compiles. " +
+                "Arguments found were:\n${asked.joinToString("\n")}",
+            listOf(listOf("unreadView = ui.unreadView", "toggles = ui.filterToggles")),
+            asked,
         )
-        val text = codeText(INBOX_SCREEN)
-        val asked = callsTo("filterChipRow", text).map { argumentsOf(it) }
         assertEquals(
-            "The chip row must be asked with the view flag itself: filterChipRow drops the Unread " +
-                "chip in the unread view (FilterChipRowTest), where listFilter forces unread on and " +
-                "the chip would be drawn off over a filtered list. 'unreadView = false' compiles. " +
-                "First arguments found were:\n${asked.joinToString("\n")}",
-            listOf("unreadView = ui.unreadView"),
-            asked.map { it.firstOrNull() },
+            "The toolbar must reach the list filters only through the menu's own entries, one arm " +
+                "per criterion of menu.filters: an unconditional unread control (the old funnel " +
+                "toggle) or a loop over ListCriterion.entries offers Unread in the unread view. " +
+                "Matches found in the toolbar's actions were:",
+            listOf(
+                "menu.filters.forEach",
+                "ListCriterion.UNREAD -> viewModel.toggleUnreadOnly(",
+                "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly(",
+                "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment(",
+            ),
+            Regex(
+                """(\bListCriterion\.\w+ -> )?\bviewModel\.(toggleUnreadOnly|toggleFlaggedOnly|toggleWithAttachment)\s*\(""" +
+                    """|\bIconToggleButton\b|\bListCriterion\.entries\b|\bmenu\.filters\.forEach\b""",
+            ).findAll(actions).map { it.value }.toList(),
         )
     }
 
@@ -109,8 +116,8 @@ class UnreadViewWiringLintTest {
         val lines = codeLines(INBOX_VIEW_MODEL).map { it.trim() }
             .filter { Regex("""\bunreadView(Count)?\b""").containsMatchIn(it) }
         assertEquals(
-            "MailUi.unreadView is what the drawer tick, the title, the search hint and the hidden " +
-                "chip row are all decided on, and 'sel is Sel.Unified' would compile in its place; " +
+            "MailUi.unreadView is what the drawer tick, the title, the search hint and the funnel" +
+                "'s menu are all decided on, and 'sel is Sel.Unified' would compile in its place; " +
                 "MailUi.unreadViewCount is the number on the entry, and any other Int compiles " +
                 "there. Whole lines, because a fragment is blind to a term added. Lines found were:" +
                 "\n${lines.joinToString("\n")}",
