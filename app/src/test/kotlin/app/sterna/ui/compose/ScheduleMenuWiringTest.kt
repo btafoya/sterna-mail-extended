@@ -75,16 +75,17 @@ class ScheduleMenuWiringTest {
         val at = all.indexOf(PICKER_SCHEDULE)
         assertTrue("the hand-picked schedule must read '$PICKER_SCHEDULE'", at >= 0)
         assertEquals(
-            "the picker's tap must end on the schedule: remember the hour, schedule, close the " +
-                "`if (millis != null)` and the onClick. A toast after it announces a write that " +
-                "has not happened yet; the Undo snackbar is opened by the view model once it has.",
+            "the picker's `onPicked` must end on the schedule: close the clock, remember the " +
+                "hour, schedule, close the lambda. A toast after it announces a write that has not " +
+                "happened yet; the Undo snackbar is opened by the view model once it has.",
             listOf(
-                "viewModel.rememberScheduleTime(timeState.hour, timeState.minute)",
+                "onPicked = { millis, hour, minute ->",
+                "viewModel.clearScheduleTime()",
+                "viewModel.rememberScheduleTime(hour, minute)",
                 PICKER_SCHEDULE,
-                "}",
                 "},",
             ),
-            all.subList(at - 1, at + 3),
+            all.subList((at - 3).coerceAtLeast(0), (at + 2).coerceAtMost(all.size)),
         )
     }
 

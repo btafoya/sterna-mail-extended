@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, not a behaviour test, it reads `ComposeScreen.kt` and `ComposeViewModel.kt` as text
+ * Source lint, not a behaviour test: reads `ComposeScreen.kt`, `PickInstantDialogs.kt`, `ComposeViewModel.kt` as text.
  */
 class DialogFlagsSurviveRotationTest {
 
@@ -134,7 +134,7 @@ class DialogFlagsSurviveRotationTest {
     }
 
     @Test fun `a tap outside, and the system Back, still close every dialog`() {
-        DIALOGS.forEach { d ->
+        DIALOGS.filter { it.drawnInScreen }.forEach { d ->
             assertPinned(
                 SCREEN,
                 "onDismissRequest = { viewModel.${d.clear}() },",
@@ -142,11 +142,7 @@ class DialogFlagsSurviveRotationTest {
                     "Back gesture land on. Emptied to `{ }` — which is what a careless move of the " +
                     "flag leaves behind, since there is no longer a local to assign — the dialog " +
                     "would stop closing that way and nothing else in the suite would see it. It " +
-                    "must call the ViewModel's closing door. ⚠ The CALENDAR carries ${d.dismissSites} " +
-                    "of them, one per face: it is drawn in our own shell when it is typed into and " +
-                    "in `DatePickerDialog` when it is a grid, and a face that lost the line would " +
-                    "stop closing on a tap outside while the other face still did.",
-                times = d.dismissSites,
+                    "must call the ViewModel's closing door.",
             )
         }
     }
@@ -191,7 +187,7 @@ class DialogFlagsSurviveRotationTest {
     }
 
     @Test fun `every dialog is drawn behind its own flag`() {
-        DIALOGS.forEach { d ->
+        DIALOGS.filter { it.drawnInScreen }.forEach { d ->
             assertPinned(
                 SCREEN, "if (${d.local}) {",
                 "${d.what}: the dialog must be drawn only while its flag is raised. Remove this " +
@@ -240,7 +236,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the calendar's year list starts on the current year, not on Material's 1900`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "yearRange = scheduleFirstYear(System.currentTimeMillis(), ZoneId.systemDefault()).." +
                 "DatePickerDefaults.YearRange.last,",
             "⛔ this line is the only thing bounding the CALENDAR's year list (#161). " +
@@ -259,7 +255,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the clock's OK is greyed out until the chosen instant is ahead`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "enabled = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, " +
                 "System.currentTimeMillis()) != null,",
             "⛔ this is the second lock against scheduling into the PAST (#161), and the only one " +
@@ -274,7 +270,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the clock opens on an hour its own OK accepts, decided by the pure rule`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "val opensAt = scheduleClockOpensAt(day, System.currentTimeMillis(), zone)",
             "⛔ the dial's opening hour and the OK button's refusal are two readings of the same " +
                 "question (#161), and this line is what keeps them together. Back to " +
@@ -290,7 +286,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `in landscape the clock is the keyboard entry, never the dial that gets cut off`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "val configuration = LocalConfiguration.current",
             "⛔ the two dimensions below are only worth what this line is (#161). Pinning the " +
                 "CALL and not where its arguments come from is the old trap one notch up: a bare " +
@@ -301,7 +297,7 @@ class DialogFlagsSurviveRotationTest {
                 "the choice follow the phone being turned.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "val clockAsInput = schedulePickerAsInput(configuration.screenHeightDp, " +
                 "configuration.screenWidthDp)",
             "⛔ this line is what keeps the clock INSIDE its dialog when the phone is turned " +
@@ -316,7 +312,7 @@ class DialogFlagsSurviveRotationTest {
                 "comes back with nothing on screen saying why.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "if (clockAsInput) TimeInput(state = timeState) else TimePicker(state = timeState)",
             "⛔ back to an unconditional `TimePicker(state = timeState)` here and the " +
                 "landscape defect is exactly as it was measured (#161): half the dial outside " +
@@ -329,9 +325,9 @@ class DialogFlagsSurviveRotationTest {
     }
 
     @Test fun `the clock's Cancel and OK can never be pushed under the software keyboard`() {
-        val code = codeLines(SCREEN)
+        val code = codeLines(PICKER)
         assertPinned(
-            SCREEN,
+            PICKER,
             "properties = DialogProperties(decorFitsSystemWindows = false),",
             "⛔ this is what turns the software keyboard into an INSET the clock dialog can " +
                 "subtract (#161). With the default, `true`, the platform PANS the dialog window " +
@@ -347,7 +343,7 @@ class DialogFlagsSurviveRotationTest {
                 "mechanism left.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "modifier = Modifier.safeDrawingPadding(),",
             "⛔ the other half of the same fix (#161): `decorFitsSystemWindows = false` makes " +
                 "the keyboard an inset, and THIS line is what subtracts it. The dialog window " +
@@ -364,7 +360,7 @@ class DialogFlagsSurviveRotationTest {
             times = 2,
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             ".weight(1f, fill = false)",
             "⛔ in a `Column`, the children WITHOUT a weight are measured FIRST (#161). This " +
                 "weight is on the picker's box and on nothing else, which is what makes the " +
@@ -376,7 +372,7 @@ class DialogFlagsSurviveRotationTest {
                 "very reason this shell exists.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "modifier = Modifier.align(Alignment.End).padding(top = 24.dp),",
             "⛔ the clock's action row must carry NO weight — this is the whole line, so " +
                 "adding one lands here (#161). Given a weight, the row joins the picker in being " +
@@ -432,9 +428,9 @@ class DialogFlagsSurviveRotationTest {
     }
 
     @Test fun `both typed faces are drawn in that shell, and only the grid in Material's dialog`() {
-        val code = codeLines(SCREEN)
+        val code = codeLines(PICKER)
         assertPinned(
-            SCREEN, "if (dayAsInput) {",
+            PICKER, "if (dayAsInput) {",
             "⛔ this branch IS the volet (#161): in landscape the calendar must not be drawn in " +
                 "`DatePickerDialog` at all. Measured on `emu` at 914×411 dp, 2026-08-21, with the " +
                 "keyboard up on the typed face: the `ime` inset started at y=502, the Cancel/OK " +
@@ -444,15 +440,21 @@ class DialogFlagsSurviveRotationTest {
                 "block survives as it is, this suite included, with that tap dead again.",
         )
         assertPinned(
-            SCREEN, "SchedulePickerDialog(",
+            PICKER, "SchedulePickerDialog(",
             "⛔ TWO call sites, and no more: the clock, and the calendar's typed face (#161). One " +
                 "means a face went back into a Material dialog that cannot hold a keyboard over " +
                 "it; three means a dialog nobody measured is wearing the shell.",
             times = 2,
         )
-        val dayDismissAts = code.indices.filter {
-            code[it] == "onDismissRequest = { viewModel.clearScheduleDay() },"
-        }
+        val dayBranchAt = code.indexOf("PickInstantStep.Day -> {")
+        val timeBranchAt = code.indexOf("PickInstantStep.Time -> {")
+        assertTrue(
+            "the calendar's branch must come before the clock's in $PICKER, or the dismissal " +
+                "lines below cannot be told apart. Found Day at $dayBranchAt, Time at $timeBranchAt.",
+            dayBranchAt in 0 until timeBranchAt,
+        )
+        val dismissAts = code.indices.filter { code[it] == "onDismissRequest = onDismiss," }
+        val dayDismissAts = dismissAts.filter { it in dayBranchAt until timeBranchAt }
         assertEquals(
             "⛔ the calendar's TWO faces must be drawn in these two dialogs, in this order (#161): " +
                 "the typed face in our shell, the grid in Material's `DatePickerDialog`. Swapped, " +
@@ -471,7 +473,7 @@ class DialogFlagsSurviveRotationTest {
             listOf("picker = {", "modifier = Modifier.safeDrawingPadding(),"),
             dayDismissAts.map { code.getOrNull(it + 1) },
         )
-        val clockDismissAt = code.indexOf("onDismissRequest = { viewModel.clearScheduleTime() },")
+        val clockDismissAt = dismissAts.singleOrNull { it > timeBranchAt } ?: -1
         assertEquals(
             "⛔ the CLOCK is drawn in the shell too, and this is what says so (#161) — it used to " +
                 "be anchored to the inset line right under it, which now lives in the shell " +
@@ -485,7 +487,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the shell never composes the calendar's GRID face, which would STOP the app`() {
         assertBody(
-            SCREEN,
+            PICKER,
             "if (dayState.displayMode == DisplayMode.Input) {",
             "DatePicker(state = dayState, showModeToggle = false)",
             "⛔ the shell composes the calendar only on the TYPED face, and this guard is not the " +
@@ -501,7 +503,7 @@ class DialogFlagsSurviveRotationTest {
                 "gesture is the price.",
         )
         assertPinned(
-            SCREEN, "DatePicker(state = dayState, showModeToggle = false)",
+            PICKER, "DatePicker(state = dayState, showModeToggle = false)",
             "⛔ `showModeToggle = false` is the other half of the guard above (#161). Material's " +
                 "default is `true`: the typed face would carry a calendar icon that is a SINGLE " +
                 "TAP into a grid inside the shell's infinite height — the year chevron there opens " +
@@ -513,7 +515,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the shell actually draws what it is handed, in the order Material draws it`() {
         assertPinned(
-            SCREEN, "picker()",
+            PICKER, "picker()",
             "⛔ the shell's picker slot must be CALLED (#161). Deleting this one line leaves both " +
                 "\"pick date and time\" dialogs composing an empty box with a Cancel and an OK in " +
                 "it — no dial, no fields, no calendar, and nothing on screen saying what is being " +
@@ -521,14 +523,14 @@ class DialogFlagsSurviveRotationTest {
                 "in this suite moves: it is this pin or nothing.",
         )
         assertPinned(
-            SCREEN, "buttons()",
+            PICKER, "buttons()",
             "⛔ and the action slot must be CALLED too (#161). Without it the dialog has no " +
                 "Cancel and no OK at all: the clock can no longer schedule anything, and the only " +
                 "way out of either dialog is a tap outside — the whole gesture ends in silence, " +
                 "having done nothing.",
         )
         assertPinned(
-            SCREEN, "buttons = { dayCancel(); dayOk() },",
+            PICKER, "buttons = { dayCancel(); dayOk() },",
             "⛔ Cancel BEFORE OK on the calendar's typed face (#161), the order Material's own " +
                 "`AlertDialogFlowRow` puts them in and the order the GRID face keeps through " +
                 "`dismissButton`/`confirmButton`. Swapped, the two faces of the same calendar " +
@@ -539,9 +541,9 @@ class DialogFlagsSurviveRotationTest {
     }
 
     @Test fun `the shell hands each slot on, and to the right box`() {
-        val code = codeLines(SCREEN)
+        val code = codeLines(PICKER)
         assertPinned(
-            SCREEN, "onDismissRequest = onDismissRequest,",
+            PICKER, "onDismissRequest = onDismissRequest,",
             "⛔ the shell must PASS ITS PARAMETER ON (#161). The three call sites are pinned, but " +
                 "a pinned call site proves only that the argument was written down — emptied to " +
                 "`{ }` HERE, every one of them stays exactly as it is and this whole suite is " +
@@ -570,7 +572,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the calendar answers with the same two buttons on both of its faces`() {
         assertBody(
-            SCREEN, "confirmButton = dayOk,", "dismissButton = dayCancel,",
+            PICKER, "confirmButton = dayOk,", "dismissButton = dayCancel,",
             "⛔ the grid face's two slots, and they are not interchangeable (#161). The bodies are " +
                 "hoisted above the branch so both faces share them, which means NOTHING else in " +
                 "this file distinguishes them any more: swap the two names here and Material draws " +
@@ -581,7 +583,7 @@ class DialogFlagsSurviveRotationTest {
                 "`dismissButton` that grey lands on the wrong button.",
         )
         assertPinned(
-            SCREEN, "viewModel.chooseScheduleDay(dayState.selectedDateMillis ?: 0L)",
+            PICKER, "onClick = { onDayChosen(dayState.selectedDateMillis ?: 0L) },",
             "⛔ the day handed on is the one the CALENDAR returned (#161) — `selectedDateMillis`, " +
                 "which is a UTC midnight, and that is how `pickedScheduleMillis` reads it back. " +
                 "Any other Long here — `System.currentTimeMillis()` being the one that looks " +
@@ -595,7 +597,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `in landscape the calendar is the keyboard entry, never the grid that gets cut off`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "val dayConfiguration = LocalConfiguration.current",
             "⛔ the two dimensions below are only worth what this line is (#161). A bare " +
                 "`Configuration()` reads back 0 by 0 — Material's own SCREEN_WIDTH_DP_UNDEFINED " +
@@ -607,7 +609,7 @@ class DialogFlagsSurviveRotationTest {
                 "kind, so a second copy under the same name would fail it instead of this one.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "val dayAsInput = schedulePickerAsInput(dayConfiguration.screenHeightDp, " +
                 "dayConfiguration.screenWidthDp)",
             "⛔ this line is what keeps the CALENDAR inside the screen when the phone is turned " +
@@ -625,7 +627,7 @@ class DialogFlagsSurviveRotationTest {
                 "nothing on screen saying why.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "initialDisplayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker,",
             "⛔ the typed entry is Material's own answer to a constrained height, and this is the " +
                 "SAME decision the clock takes one dialog down (#161). Frozen to " +
@@ -637,7 +639,7 @@ class DialogFlagsSurviveRotationTest {
                 "traded for the app stopping.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "LaunchedEffect(dayAsInput) {",
             "⛔ without this effect the defect's OWN gesture survives the fix (#161): " +
                 "`rememberDatePickerState` SAVES its displayMode, so after the rotation the " +
@@ -649,7 +651,7 @@ class DialogFlagsSurviveRotationTest {
                 "must not be undone under her fingers.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "dayState.displayMode = if (dayAsInput) DisplayMode.Input else DisplayMode.Picker",
             "⛔ the BODY of that effect is what actually moves the face (#161). An empty " +
                 "`LaunchedEffect(dayAsInput) { }` keeps the key, keeps the pin above green, and " +
@@ -658,7 +660,7 @@ class DialogFlagsSurviveRotationTest {
                 "disagree about which face is owed.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "properties = DialogProperties(usePlatformDefaultWidth = false, " +
                 "decorFitsSystemWindows = false),",
             "⛔ the calendar's own properties line, and it is NOT the clock's (#161): " +
@@ -674,7 +676,7 @@ class DialogFlagsSurviveRotationTest {
                 "the keyboard comes up and Cancel/OK need an inset to subtract.",
         )
         assertPinned(
-            SCREEN,
+            PICKER,
             "DatePicker(state = dayState, showModeToggle = true)",
             "⛔ the calendar must be drawn from `dayState` and from nothing else (#161) — every " +
                 "line above is a property OF that state, so handing the picker a fresh " +
@@ -696,7 +698,7 @@ class DialogFlagsSurviveRotationTest {
 
     @Test fun `the tap re-reads the instant in the DEVICE's zone, not the button's word`() {
         assertPinned(
-            SCREEN,
+            PICKER,
             "val millis = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, " +
                 "System.currentTimeMillis())",
             "⛔ the schedule is written from THIS read, not from the one that lit the button " +
@@ -706,6 +708,151 @@ class DialogFlagsSurviveRotationTest {
                 "picked, with the toast and the Scheduled list both agreeing with the error. " +
                 "Dropped altogether, a minute that turned between composition and tap schedules " +
                 "into the past, which `ScheduledSends.enqueue` turns into sending AT ONCE.",
+        )
+    }
+
+    @Test fun `the composer hands the day on, then swaps the calendar for the clock, in that order`() {
+        val code = codeLines(SCREEN)
+        val at = code.indexOf("onDayChosen = { dayUtcMidnightMillis ->")
+        assertTrue("$SCREEN must hand `PickInstantDialogs` an `onDayChosen` taking the picked day", at >= 0)
+        assertEquals(
+            "⛔ the day the calendar returned is stored FIRST, from the lambda's own argument " +
+                "(#161), then the calendar's flag is lowered, then the clock's raised. Any other " +
+                "Long in the first line, `System.currentTimeMillis()` being the one that looks " +
+                "harmless, schedules the message for TODAY whatever day was picked, and " +
+                "`ScheduledSends.enqueue` turns \"today, earlier\" into sending ON THE SPOT. " +
+                "The clock raised before the day is stored opens over 1970 with OK greyed for " +
+                "good. Lines found:",
+            listOf(
+                "viewModel.chooseScheduleDay(dayUtcMidnightMillis)",
+                "viewModel.clearScheduleDay()",
+                "viewModel.askScheduleTime()",
+                "},",
+            ),
+            code.subList(at + 1, (at + 5).coerceAtMost(code.size)),
+        )
+    }
+
+    @Test fun `the two flags decide which dialog is drawn, and one way out closes both`() {
+        val code = codeLines(SCREEN)
+        assertPinned(
+            SCREEN,
+            "step = if (pendingScheduleDay) PickInstantStep.Day else if (pendingScheduleTime) " +
+                "PickInstantStep.Time else PickInstantStep.None,",
+            "⛔ each step is drawn only while its own flag is raised (#161), and this line is the " +
+                "whole of that condition now that the dialogs live in `PickInstantDialogs`. Frozen " +
+                "to one step, that dialog is on screen permanently; with the two flags swapped, " +
+                "the clock opens over no day at all and the calendar comes back after OK.",
+        )
+        val dismissAt = code.indexOf("onDismiss = {")
+        assertTrue("$SCREEN must hand `PickInstantDialogs` an `onDismiss` block", dismissAt >= 0)
+        assertEquals(
+            "⛔ `onDismiss` is what Cancel, a tap outside and the system Back land on, for BOTH " +
+                "steps (#161). It must lower both flags through the ViewModel's closing doors: " +
+                "emptied to `{ }`, the dialog stops closing and the window swallows Back; " +
+                "dropping one of the two, that step can no longer be left except by OK. Lines found:",
+            listOf("viewModel.clearScheduleDay()", "viewModel.clearScheduleTime()", "},"),
+            code.subList(dismissAt + 1, (dismissAt + 4).coerceAtMost(code.size)),
+        )
+        assertPinned(
+            SCREEN, "chosenDay = scheduleDay,",
+            "⛔ the clock reads the day held by the ViewModel (#161). Handed anything else, the " +
+                "collected `scheduleDay` becomes dead code and a rotation taken between the " +
+                "calendar and the clock brings the clock back over 1970, OK greyed for good.",
+        )
+        assertPinned(
+            PICKER, "val day = chosenDay ?: 0L",
+            "⛔ the clock's `day` is the one the caller handed in (#161), and `?: 0L` is 1970, " +
+                "which is never strictly ahead, so a clock with no day behind it can only refuse.",
+        )
+        assertPinned(
+            PICKER, "onDismissRequest = onDismiss,",
+            "⛔ the three dialogs of the two steps (the calendar's two faces and the clock) must " +
+                "each close through the caller's `onDismiss` (#161). One emptied to `{ }` stops " +
+                "that face closing on a tap outside and on Back, while the others still do.",
+            times = 3,
+        )
+        listOf("PickInstantStep.Day -> {", "PickInstantStep.Time -> {").forEach {
+            assertPinned(
+                PICKER, it,
+                "⛔ each step has exactly one branch in `PickInstantDialogs` (#161); a step with " +
+                    "no branch draws nothing while its flag stays raised.",
+            )
+        }
+    }
+
+    @Test fun `the clock hands on only an instant it has just found ahead`() {
+        val picker = codeLines(PICKER)
+        val readAt = picker.indexOf(
+            "val millis = pickedScheduleMillis(day, timeState.hour, timeState.minute, zone, " +
+                "System.currentTimeMillis())",
+        )
+        assertTrue("the tap's own read of the instant is missing from $PICKER", readAt >= 0)
+        assertEquals(
+            "⛔ the instant read at the tap is the one handed on, and only when it is ahead " +
+                "(#161). Without the guard a refused instant is scheduled anyway, which " +
+                "`ScheduledSends.enqueue` turns into sending AT ONCE; handing on anything but " +
+                "`millis` schedules what the button saw at composition, not what the tap read. " +
+                "Lines found:",
+            listOf(
+                "if (millis != null) {",
+                "onPicked(millis, timeState.hour, timeState.minute)",
+                "}",
+            ),
+            picker.subList(readAt + 1, (readAt + 4).coerceAtMost(picker.size)),
+        )
+    }
+
+    @Test fun `only the pickers' own ways out call onDismiss`() {
+        val found = codeLines(PICKER).filter { ON_DISMISS.containsMatchIn(it) }
+        assertEquals(
+            "⛔ these are the ONLY lines of $PICKER allowed to name `onDismiss` (#161), whole and " +
+                "in source order: the parameter, the calendar's Cancel, the three dialogs' tap " +
+                "outside and Back, the clock's Cancel. A Cancel emptied to `{}` leaves its dialog " +
+                "closable only by OK; an extra `onDismiss()` (after the clock's refusal, or in the " +
+                "`LaunchedEffect` that replays on every rotation) closes a dialog nobody left. " +
+                "Lines found:",
+            listOf(
+                "onDismiss: () -> Unit,",
+                "TextButton(onClick = onDismiss) {",
+                "onDismissRequest = onDismiss,",
+                "onDismissRequest = onDismiss,",
+                "onDismissRequest = onDismiss,",
+                "TextButton(onClick = onDismiss) {",
+            ),
+            found,
+        )
+        assertBody(
+            PICKER, "val dayCancel: @Composable () -> Unit = {", "TextButton(onClick = onDismiss) {",
+            "⛔ the calendar's Cancel is the slot both faces hand on as Cancel (#161); emptied, " +
+                "neither face of the calendar can be left except by OK.",
+        )
+    }
+
+    @Test fun `the clock answers Cancel then OK, and Cancel closes it`() {
+        val code = codeLines(PICKER)
+        val at = code.indexOf("buttons = {")
+        assertTrue("the clock's `buttons = {` slot is missing from $PICKER", at >= 0)
+        assertEquals(
+            "⛔ the clock's two buttons, in Material's order, Cancel then OK, as the calendar " +
+                "answers on both its faces (#161). Swapped, the confirming button sits under the " +
+                "finger that reached for Cancel, and the clock's OK schedules a send. Lines found:",
+            listOf(
+                "TextButton(onClick = onDismiss) {",
+                "Text(stringResource(R.string.settings_cancel))",
+                "}",
+                "TextButton(",
+            ),
+            code.subList(at + 1, (at + 5).coerceAtMost(code.size)),
+        )
+    }
+
+    @Test fun `the clock follows the device's 12 or 24 hour setting`() {
+        assertPinned(
+            PICKER, "is24Hour = android.text.format.DateFormat.is24HourFormat(context),",
+            "the dial is read by whoever set the device's 12/24-hour preference (#161). Forced to " +
+                "`true` or `false`, a reader of the other convention picks 7 meaning 19, and the " +
+                "message is scheduled twelve hours off.",
         )
     }
 
@@ -818,8 +965,8 @@ class DialogFlagsSurviveRotationTest {
         val clear: String,
         /** Every line of the screen allowed to call `clear`, whole and in order. */
         val closes: List<String>,
-        /** How many `onDismissRequest` lines this dialog has, two when it is drawn on two faces. */
-        val dismissSites: Int = 1,
+        /** False when `PickInstantDialogs` draws it: its `if (flag)` and `onDismissRequest` are not in [SCREEN]. */
+        val drawnInScreen: Boolean = true,
     ) {
         val backing = "_$flow"
 
@@ -830,9 +977,12 @@ class DialogFlagsSurviveRotationTest {
     private companion object {
         const val SCREEN = "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
         const val VIEW_MODEL = "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"
+        const val PICKER = "app/src/main/kotlin/app/sterna/ui/components/PickInstantDialogs.kt"
 
         /** `remember` and `rememberSaveable` both, and `\b` keeps the first from matching the second. */
         val REMEMBER = Regex("""\bremember(Saveable)?\b""")
+
+        val ON_DISMISS = Regex("""\bonDismiss\b""")
 
         val DIALOGS = listOf(
             Dialog(
@@ -880,28 +1030,23 @@ class DialogFlagsSurviveRotationTest {
                 what = "the \"pick date and time\" CALENDAR (#161)",
                 flow = "pendingScheduleDay", local = "pendingScheduleDay",
                 ask = "askScheduleDay", clear = "clearScheduleDay",
-                // In source order, and the order changed with the two faces: the buttons are
-                // hoisted above the branch so their bodies exist once, and each face then carries
+                // In source order: `onDayChosen`, then `onDismiss`.
                 closes = listOf(
                     "viewModel.clearScheduleDay()",
-                    "TextButton(onClick = { viewModel.clearScheduleDay() }) {",
-                    "onDismissRequest = { viewModel.clearScheduleDay() },",
-                    "onDismissRequest = { viewModel.clearScheduleDay() },",
+                    "viewModel.clearScheduleDay()",
                 ),
-                dismissSites = 2,
+                drawnInScreen = false,
             ),
             Dialog(
                 what = "the \"pick date and time\" CLOCK (#161)",
                 flow = "pendingScheduleTime", local = "pendingScheduleTime",
                 ask = "askScheduleTime", clear = "clearScheduleTime",
-                // Cancel before OK: this list is compared in source order, and the two
-                // buttons now sit in an action Row of our own, Cancel first, instead of Material's
-                // `dismissButton`/`confirmButton` slots which took them the other way round.
+                // In source order: `onDismiss`, then `onPicked`.
                 closes = listOf(
-                    "onDismissRequest = { viewModel.clearScheduleTime() },",
-                    "TextButton(onClick = { viewModel.clearScheduleTime() }) {",
+                    "viewModel.clearScheduleTime()",
                     "viewModel.clearScheduleTime()",
                 ),
+                drawnInScreen = false,
             ),
         )
 

@@ -50,7 +50,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Optional "mark as read when deleting", so deleted mail does not sit unread in
   the Trash.
 - ✅ Quick filters for unread-only, starred-only and has-attachment, which combine.
-- ✅ Snooze a message until later.
+- ✅ Snooze a message until later, or until a day and time you pick.
 - ✅ Report spam and not-spam.
 - ✅ Unarchive on reply (JMAP only).
 - ✅ Empty trash, behind Undo, limited to what the folder held when you confirmed.

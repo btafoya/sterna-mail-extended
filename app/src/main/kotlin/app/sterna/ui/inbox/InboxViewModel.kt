@@ -51,6 +51,7 @@ import app.sterna.contacts.AndroidContacts
 import app.sterna.contacts.ContactSuggestion
 import app.sterna.ui.compose.RecipientSuggester
 import app.sterna.ui.compose.ownAddresses
+import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.message.MoveSheetOpen
 import app.sterna.ui.message.SignatureSheetOpen
 import app.sterna.ui.search.AddressField
@@ -381,7 +382,13 @@ class InboxViewModel(
 
     val moveSheet = MoveSheetOpen({ key -> savedState.get<String>(key) }, { key, value -> savedState[key] = value })
 
-    fun startFreshReading() = moveSheet.close()
+    /** Shared by the reader and the selection, told apart by their target. */
+    val pickInstant = PickInstantOpen({ key -> savedState.get<String>(key) }, { key, value -> savedState[key] = value })
+
+    fun startFreshReading() {
+        moveSheet.close()
+        if (PickInstantOpen.readerLeft(pickInstant.target.value, activeKey = null)) pickInstant.close()
+    }
 
     /**
      * A tap on a row, on a wide window: the message opens in the pane instead of on a route. The

@@ -322,10 +322,7 @@
     <string name="calendar_responded_tentative">Du hast vorläufig zugesagt</string>
     <string name="calendar_reply_sending">Antwort wird gesendet…</string>
     <string name="calendar_reply_failed">Antwort konnte nicht gesendet werden.</string>
-    <string name="snooze_in_1_hour">In 1 Stunde</string>
-    <string name="snooze_this_evening">Heute Abend, 18 Uhr</string>
-    <string name="snooze_tomorrow">Morgen, 8 Uhr</string>
-    <string name="snooze_next_week">Nächste Woche (Mo, 8 Uhr)</string>
+    <string name="snooze_next_week">Nächste Woche (Mo, %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">Einstellungen</string>

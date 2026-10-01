@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
+import app.sterna.ui.components.PickInstantDialogs
+import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.message.snoozePresets
 
 /**
@@ -53,6 +55,7 @@ fun SnoozedScreen(
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val pickInstant = viewModel.pickInstant
 
     Scaffold(
         topBar = {
@@ -133,6 +136,10 @@ fun SnoozedScreen(
                                     },
                                 )
                             }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.schedule_pick_date_time)) },
+                                onClick = { presetsOpen = false; pickInstant.open(snoozedRowKey(item)) },
+                            )
                         }
                     }
                     IconButton(onClick = { viewModel.cancel(item.accountId, item.emailId) }) {
@@ -142,6 +149,20 @@ fun SnoozedScreen(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
+    }
+
+    val pickTarget by pickInstant.target.collectAsStateWithLifecycle()
+    val pickRow = items.firstOrNull { PickInstantOpen.shows(pickTarget, snoozedRowKey(it)) }
+    if (pickRow != null) {
+        val pickStep by pickInstant.step.collectAsStateWithLifecycle()
+        val pickDay by pickInstant.day.collectAsStateWithLifecycle()
+        PickInstantDialogs(
+            step = pickStep,
+            chosenDay = pickDay,
+            onDayChosen = pickInstant::chooseDay,
+            onDismiss = pickInstant::close,
+            onPicked = { at, _, _ -> viewModel.reschedule(pickRow.emailId, pickRow.accountId, at); pickInstant.close() },
+        )
     }
 }
 

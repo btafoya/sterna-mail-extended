@@ -464,10 +464,7 @@
     <string name="calendar_responded_tentative">您已暂定接受</string>
     <string name="calendar_reply_sending">正在发送回复…</string>
     <string name="calendar_reply_failed">无法发送您的回复。</string>
-    <string name="snooze_in_1_hour">1 小时后</string>
-    <string name="snooze_this_evening">今晚 6 点</string>
-    <string name="snooze_tomorrow">明早 8 点</string>
-    <string name="snooze_next_week">下周 (周一 8 点)</string>
+    <string name="snooze_next_week">下周 (周一 %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">设置</string>

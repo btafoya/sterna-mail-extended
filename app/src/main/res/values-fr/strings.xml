@@ -324,10 +324,7 @@
     <string name="calendar_responded_tentative">Vous avez accepté provisoirement</string>
     <string name="calendar_reply_sending">Envoi de la réponse…</string>
     <string name="calendar_reply_failed">Impossible d\'envoyer votre réponse.</string>
-    <string name="snooze_in_1_hour">Dans 1 heure</string>
-    <string name="snooze_this_evening">Ce soir, 18 h</string>
-    <string name="snooze_tomorrow">Demain, 8 h</string>
-    <string name="snooze_next_week">La semaine prochaine (lun, 8 h)</string>
+    <string name="snooze_next_week">La semaine prochaine (lun, %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">Paramètres</string>

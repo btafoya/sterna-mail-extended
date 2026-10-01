@@ -55,7 +55,7 @@ class MoveSheetHostLintTest {
             "MessageScreen must take the holder as a parameter WITHOUT a default and provide it. Lines found:",
             listOf(
                 "moveSheet: MoveSheetOpen,",
-                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet) {",
+                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {",
             ),
             lines.filter { it.startsWith("moveSheet: ") || "LocalMoveSheet provides" in it },
         )
@@ -83,8 +83,17 @@ class MoveSheetHostLintTest {
             "the move sheet must be closed from one place in InboxViewModel, its fresh-reading entry. " +
                 "Closing it from `openInPane` or `closePane` drops it on a rotation, whose route-to-pane " +
                 "conversion goes through both. Lines found:",
-            listOf("fun startFreshReading() = moveSheet.close()"),
+            listOf("moveSheet.close()"),
             lines.filter { "moveSheet.close()" in it },
+        )
+        assertEquals(
+            "any other line in `startFreshReading`, such as an early return, can leave the move sheet open on a fresh reading. Body:",
+            listOf(
+                "moveSheet.close()",
+                "if (PickInstantOpen.readerLeft(pickInstant.target.value, activeKey = null)) pickInstant.close()",
+                "}",
+            ),
+            body(lines, "fun startFreshReading()"),
         )
         for (carrier in listOf("fun openInPane(", "fun closePane(")) {
             assertEquals(

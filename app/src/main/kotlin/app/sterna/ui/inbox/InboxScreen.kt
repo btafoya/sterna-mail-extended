@@ -86,7 +86,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import app.sterna.ui.message.snoozePresets
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -187,6 +186,8 @@ import app.sterna.ui.components.EmptyState
 import app.sterna.ui.components.FilterChipEntry
 import app.sterna.ui.components.FilterChipRow
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.PickInstantDialogs
+import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.components.TernRefreshIndicator
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.accountColorOf
@@ -363,6 +364,25 @@ fun InboxScreen(
         // so a rotation keeps what was typed.
         var moveQuery by rememberSaveable { mutableStateOf("") }
         MoveFolderSheet(viewModel, accounts, selectedKeys, currentMailboxId = ui.selectedMailboxId, query = moveQuery, onQueryChange = { moveQuery = it }, onDismiss = { showMoveSheet = false })
+    }
+
+    // "Pick date and time" for the selection's snooze. Here and not in the top bar, which leaves the
+    // composition with the selection. The selection does not survive a process death, the target
+    // does: restored on an empty selection, it closes.
+    val pickInstant = viewModel.pickInstant
+    val pickTarget by pickInstant.target.collectAsStateWithLifecycle()
+    val selectionEmpty = selectedKeys.isEmpty()
+    LaunchedEffect(pickTarget, selectionEmpty) { if (PickInstantOpen.selectionGone(pickTarget, selectionEmpty)) pickInstant.close() }
+    if (!selectionEmpty && PickInstantOpen.shows(pickTarget, PickInstantOpen.SELECTION)) {
+        val pickStep by pickInstant.step.collectAsStateWithLifecycle()
+        val pickDay by pickInstant.day.collectAsStateWithLifecycle()
+        PickInstantDialogs(
+            step = pickStep,
+            chosenDay = pickDay,
+            onDayChosen = pickInstant::chooseDay,
+            onDismiss = pickInstant::close,
+            onPicked = { until, _, _ -> viewModel.snoozeSelected(until); pickInstant.close() },
+        )
     }
 
     // A sheet is a window of its own: system Back dismisses it before CLOSE_SEARCH is asked.

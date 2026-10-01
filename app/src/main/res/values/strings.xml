@@ -472,10 +472,7 @@
     <string name="calendar_responded_tentative">You tentatively accepted</string>
     <string name="calendar_reply_sending">Sending reply…</string>
     <string name="calendar_reply_failed">Couldn\'t send your reply.</string>
-    <string name="snooze_in_1_hour">In 1 hour</string>
-    <string name="snooze_this_evening">This evening, 6 PM</string>
-    <string name="snooze_tomorrow">Tomorrow, 8 AM</string>
-    <string name="snooze_next_week">Next week (Mon, 8 AM)</string>
+    <string name="snooze_next_week">Next week (Mon, %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">Settings</string>

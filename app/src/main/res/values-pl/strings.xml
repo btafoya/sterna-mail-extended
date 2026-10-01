@@ -326,10 +326,7 @@
     <string name="calendar_responded_tentative">Zaakceptowano wstępnie</string>
     <string name="calendar_reply_sending">Wysyłanie odpowiedzi…</string>
     <string name="calendar_reply_failed">Nie udało się wysłać odpowiedzi.</string>
-    <string name="snooze_in_1_hour">Za 1 godzinę</string>
-    <string name="snooze_this_evening">Dziś wieczorem, 18:00</string>
-    <string name="snooze_tomorrow">Jutro, 8:00</string>
-    <string name="snooze_next_week">W przyszłym tygodniu (pon, 8:00)</string>
+    <string name="snooze_next_week">W przyszłym tygodniu (pon, %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">Ustawienia</string>

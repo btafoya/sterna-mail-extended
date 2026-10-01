@@ -587,6 +587,7 @@ private fun MainNavHost(
                     },
                     signatureSheet = inboxViewModel.signatureSheet,
                     moveSheet = inboxViewModel.moveSheet,
+                    pickInstant = inboxViewModel.pickInstant,
                 )
             }
         }

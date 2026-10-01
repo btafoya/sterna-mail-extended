@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.isOutgoingFolder
+import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.message.snoozePresets
 
 /**
@@ -141,6 +142,10 @@ internal fun SelectionTopBar(
                                 onClick = { selMenu = false; selSnooze = false; viewModel.snoozeSelected(until) },
                             )
                         }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.schedule_pick_date_time)) },
+                            onClick = { selMenu = false; selSnooze = false; viewModel.pickInstant.open(PickInstantOpen.SELECTION) },
+                        )
                     } else {
                         val inJunk = currentRole == "junk"
                         DropdownMenuItem(

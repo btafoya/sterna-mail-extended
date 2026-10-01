@@ -25,6 +25,7 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.send.SendOutbox
 import app.sterna.util.isValidEmail
 import java.io.File
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -628,6 +629,21 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
         SchedulePreset.TOMORROW_EVENING to at(now.plusDays(1), 18),
     ).filter { (_, time) -> time.isAfter(now) }
         .map { (preset, time) -> preset to time.toInstant().toEpochMilli() }
+}
+
+internal enum class SnoozePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, NEXT_WEEK }
+
+internal fun snoozePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<SnoozePreset, Long>> {
+    val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+    fun at(day: ZonedDateTime, hour: Int) = day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
+    return listOf(
+        SnoozePreset.IN_1_HOUR to now.plusHours(1),
+        SnoozePreset.THIS_EVENING to at(now, 18),
+        SnoozePreset.TOMORROW_MORNING to at(now.plusDays(1), 8),
+        SnoozePreset.NEXT_WEEK to at(now.with(DayOfWeek.MONDAY).plusWeeks(1), 8),
+    ).map { (preset, time) -> preset to time.toInstant().toEpochMilli() }
+        .filter { (_, millis) -> millis > nowMillis }
+        .distinctBy { (_, millis) -> millis }
 }
 
 /**

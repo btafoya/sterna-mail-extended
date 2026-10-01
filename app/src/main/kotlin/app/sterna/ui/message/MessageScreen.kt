@@ -179,7 +179,11 @@ import app.sterna.ui.attachmentLook
 import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
+import app.sterna.ui.compose.SnoozePreset
+import app.sterna.ui.compose.snoozePresetsAt
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.PickInstantDialogs
+import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.inbox.MoveFolderSheet
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberLeaveOnce
@@ -219,6 +223,10 @@ private val LocalMoveSheet = staticCompositionLocalOf<MoveSheetOpen> {
     error("MoveSheetOpen is provided by MessageScreen")
 }
 
+private val LocalPickInstant = staticCompositionLocalOf<PickInstantOpen> {
+    error("PickInstantOpen is provided by MessageScreen")
+}
+
 /**
  * The identity of a pager entry, (email id, owning account), as one string. Same-server accounts
  * under a single login can hold messages with identical ids (#31), so the pager identifies entries
@@ -249,6 +257,7 @@ fun MessageScreen(
     onComposeTo: (address: String) -> Unit,
     signatureSheet: SignatureSheetOpen,
     moveSheet: MoveSheetOpen,
+    pickInstant: PickInstantOpen,
     /** Composed in the reading pane beside the list (#103): no back arrow, the system Back and
      *  the actions suffice, as on Gmail's tablet layout, and nothing else changes. */
     paneMode: Boolean = false,
@@ -256,7 +265,7 @@ fun MessageScreen(
      *  the only moment the pane's anchor follows the pager. Null on the full-screen route. */
     onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
-    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet) {
+    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {
         when {
             listSource != null -> {
                 val items = listSource.collectAsLazyPagingItems()
@@ -839,6 +848,12 @@ private fun MessageActions(
     val moveSheet = LocalMoveSheet.current
     val moveOpenFor by moveSheet.openFor.collectAsStateWithLifecycle()
     val movePicker = MoveSheetOpen.shows(moveOpenFor, active.emailId, active.accountId)
+    // "Pick date and time" of a snooze: drawn for the settled message only, and dropped once
+    // another one is settled, so the clock never snoozes a message it was not opened on.
+    val pickInstant = LocalPickInstant.current
+    val pickTarget by pickInstant.target.collectAsStateWithLifecycle()
+    val pickKey = MessagePaging.entryKey(active.emailId, active.accountId)
+    LaunchedEffect(pickTarget, pickKey) { if (PickInstantOpen.readerLeft(pickTarget, pickKey)) pickInstant.close() }
     // "Save as .eml": the system picker, then the message's exact server bytes into the document it
     // returns. Declared here, outside the DropdownMenu: registered inside it, the launcher is
     // disposed when the menu closes on the very tap that opened the picker, and the result has
@@ -884,6 +899,10 @@ private fun MessageActions(
                     },
                 )
             }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.schedule_pick_date_time)) },
+                onClick = { menuOpen = false; snoozeSubmenu = false; pickInstant.open(pickKey) },
+            )
         } else {
             // Reply variants (plain Reply is the toolbar icon).
             DropdownMenuItem(
@@ -1096,6 +1115,17 @@ private fun MessageActions(
                 )
             },
             onDismiss = moveSheet::close,
+        )
+    }
+    if (PickInstantOpen.shows(pickTarget, pickKey)) {
+        val pickStep by pickInstant.step.collectAsStateWithLifecycle()
+        val pickDay by pickInstant.day.collectAsStateWithLifecycle()
+        PickInstantDialogs(
+            step = pickStep,
+            chosenDay = pickDay,
+            onDayChosen = pickInstant::chooseDay,
+            onDismiss = pickInstant::close,
+            onPicked = { until, _, _ -> viewModel.snooze(until, onBack); pickInstant.close() },
         )
     }
     // The unsubscribe confirmation (D7: systematic, and no setting to switch it off). Rendered here
@@ -4684,19 +4714,19 @@ private fun formatFull(iso: String?): String = MailDates.formatFull(iso)
 private fun formatWith(iso: String?, formatter: DateTimeFormatter): String =
     MailDates.formatWith(iso, formatter)
 
-/** Snooze presets (label → epoch-millis), computed in the device's time zone. Shared by the message
- *  view and the inbox selection menu. */
+/** Snooze presets (label → epoch-millis), in the device's time zone and time format. Shared by
+ *  the message view, the inbox selection menu and the Snoozed list. */
 internal fun snoozePresets(context: android.content.Context): List<Pair<String, Long>> {
-    val zone = java.time.ZoneId.systemDefault()
-    val now = java.time.ZonedDateTime.now(zone)
-    fun at(day: java.time.ZonedDateTime, hour: Int) =
-        day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
-    val thisEvening = at(now, 18).let { if (it.isAfter(now)) it else at(now.plusDays(1), 18) }
-    val nextWeek = at(now.with(java.time.DayOfWeek.MONDAY).plusWeeks(1), 8)
-    return listOf(
-        context.getString(R.string.snooze_in_1_hour) to now.plusHours(1),
-        context.getString(R.string.snooze_this_evening) to thisEvening,
-        context.getString(R.string.snooze_tomorrow) to at(now.plusDays(1), 8),
-        context.getString(R.string.snooze_next_week) to nextWeek,
-    ).map { (label, time) -> label to time.toInstant().toEpochMilli() }
+    val time = android.text.format.DateFormat.getTimeFormat(context)
+    return snoozePresetsAt(System.currentTimeMillis(), java.time.ZoneId.systemDefault())
+        .map { (preset, millis) ->
+            val hour = time.format(java.util.Date(millis))
+            val label = when (preset) {
+                SnoozePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)
+                SnoozePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening, hour)
+                SnoozePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning, hour)
+                SnoozePreset.NEXT_WEEK -> context.getString(R.string.snooze_next_week, hour)
+            }
+            label to millis
+        }
 }

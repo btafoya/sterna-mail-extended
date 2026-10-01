@@ -322,10 +322,7 @@
     <string name="calendar_responded_tentative">Je hebt voorlopig geaccepteerd</string>
     <string name="calendar_reply_sending">Antwoord verzenden…</string>
     <string name="calendar_reply_failed">Kan je antwoord niet verzenden.</string>
-    <string name="snooze_in_1_hour">Over 1 uur</string>
-    <string name="snooze_this_evening">Vanavond, 18:00</string>
-    <string name="snooze_tomorrow">Morgen, 08:00</string>
-    <string name="snooze_next_week">Volgende week (ma, 08:00)</string>
+    <string name="snooze_next_week">Volgende week (ma, %1$s)</string>
 
     <!-- Settings -->
     <string name="settings_hub_title">Instellingen</string>
