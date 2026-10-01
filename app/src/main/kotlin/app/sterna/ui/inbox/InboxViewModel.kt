@@ -51,6 +51,7 @@ import app.sterna.ui.NotificationFolderSwitch
 import app.sterna.ui.message.MoveSheetOpen
 import app.sterna.ui.message.SignatureSheetOpen
 import app.sterna.ui.search.CriteriaResults
+import app.sterna.ui.snoozed.pendingSnoozes
 import app.sterna.ui.search.SearchDisplay
 import app.sterna.ui.search.excerptsByResultKey
 import app.sterna.ui.search.barSuggestions
@@ -240,21 +241,31 @@ class InboxViewModel(
      *  tearing down the very coroutine that would fire the reopen. */
     val restoredDraft: StateFlow<SendOutbox.ComposeDraft?> = outbox.restored
 
-    /** Discreet badge: outbox items that failed, or that are still waiting a while after sending. */
-    val outboxCount: StateFlow<Int> = repo.sending.outboxActiveCount().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = 0,
-    )
-
-    /** The count on the overflow menu's Outbox entry: what is in the Outbox now, with no delay
-     *  (#70). Not [outboxCount], whose grace exists because the dot is always in view; during that
-     *  grace the dot is absent while this reads 1. */
+    /** The count on the drawer's Outbox entry: what is in the Outbox now, with no delay (#70).
+     *  Not `outboxActiveCount`, whose grace is for an indicator always in view; the entry is only
+     *  seen once the drawer is opened on purpose. */
     val outboxQueuedCount: StateFlow<Int> = repo.sending.outboxQueuedCount().stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = 0,
     )
+
+    /** Off the observed query: the count must drop the moment a scheduled send goes out. */
+    val scheduledCount: StateFlow<Int> = repo.sending.scheduledSendsFlow()
+        .map { it.size }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
+
+    val snoozedCount: StateFlow<Int> = repo.snoozedFlow()
+        .map { pendingSnoozes(it, System.currentTimeMillis()).size }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
 
     /** Whether any outbox item is parked as failed (drives the failure banner). Through
      *  [OutboxLogic.needsFailureBanner], never by testing a state here: a row saved as a draft on
@@ -805,6 +816,7 @@ class InboxViewModel(
         // The restored view's missing folder name, from this cached list. After the line above:
         // a tapped notification already wrote the header, and [restoredFolderMeta] lets it win.
         applyRestoredMeta(folders)
+        applyDraftsLanding(folders)
         // Recorded for what derives from it: [accountUnreadScopes] and [inboxFallback].
         folderSnapshot.value = currentAccountId.value to folders
     }
@@ -1534,6 +1546,26 @@ class InboxViewModel(
         if (!step.settled) return
         restoredFolder = null
         step.meta?.let { meta.value = it }
+    }
+
+    private var draftsLandingFor: DraftsLandingRequest? = null
+
+    fun showDraftsAfterCancel(accountId: String, message: String) {
+        _message.value = message
+        draftsLandingFor = draftsLandingRequest(accountId, store.currentId(), currentAccountId.value)
+        val (listedFor, folders) = folderSnapshot.value
+        if (listedFor == accountId) applyDraftsLanding(folders)
+    }
+
+    private fun applyDraftsLanding(folders: List<Mailbox>) {
+        when (val step = draftsLanding(draftsLandingFor, currentAccountId.value, folders)) {
+            DraftsLanding.Wait -> Unit
+            DraftsLanding.Plain -> draftsLandingFor = null
+            is DraftsLanding.Folder -> {
+                draftsLandingFor = null
+                select(step.mailbox)
+            }
+        }
     }
 
     /** Return to the account's Inbox, Back from any other folder lands here ([backLandsOnUnified]). */

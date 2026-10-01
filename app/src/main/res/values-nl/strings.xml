@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Datum</string>
     <string name="compose_could_not_send">Kon niet verzenden: %1$s</string>
     <string name="compose_could_not_save">Kon het concept niet opslaan: %1$s</string>
+    <string name="compose_could_not_schedule">Kon niet inplannen: %1$s</string>
     <string name="compose_prefill_failed">Kon het oorspronkelijke bericht niet laden.</string>
     <string name="compose_draft_original_kept">Opgeslagen als nieuw concept. Origineel behouden.</string>
     <string name="compose_draft_offline">Kon dit concept niet laden: geen verbinding. Kom terug met een verbinding en open het opnieuw.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">Wordt bij het verzenden onder je notitie toegevoegd, met de oorspronkelijke opmaak.</string>
     <string name="compose_forwarded_loading">Oorspronkelijk bericht laden…</string>
     <string name="compose_forwarded_close">Sluiten</string>
-    <string name="compose_scheduled_toast">Gepland — %1$s</string>
+    <string name="compose_scheduled_for">Gepland voor %1$s</string>
     <string name="compose_discard_title">Bericht verwijderen?</string>
     <string name="compose_discard_message">Je hebt je wijzigingen niet opgeslagen.</string>
     <string name="compose_discard_message_encrypted">Dit bericht is versleuteld en kan daarom niet als concept worden bewaard: een concept wordt precies zoals je het schreef op de mailserver opgeslagen, leesbaar voor iedereen met toegang. Als je nu weggaat, wordt het bericht verwijderd.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Verwijderen</string>
     <string name="compose_discard_cancel">Annuleren</string>
     <string name="schedule_in_1_hour">Over 1 uur</string>
-    <string name="schedule_this_evening">Vanavond, 18:00</string>
-    <string name="schedule_tomorrow_morning">Morgen, 08:00</string>
-    <string name="schedule_tomorrow_evening">Morgen, 18:00</string>
+    <string name="schedule_this_evening">Vanavond, %1$s</string>
+    <string name="schedule_tomorrow_morning">Morgen, %1$s</string>
+    <string name="schedule_tomorrow_evening">Morgen, %1$s</string>
     <string name="schedule_pick_date_time">Datum en tijd kiezen</string>
+    <string name="schedule_last_used">Laatst gebruikt · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Naar map verplaatsen</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">Het onderwerp wordt niet versleuteld.</string>
     <string name="compose_pgp_not_encrypted_no_key">Dit bericht wordt niet versleuteld: geen publieke sleutel voor %1$s.</string>
     <string name="compose_pgp_no_draft">Versleutelde berichten kunnen niet als concept worden opgeslagen of ingepland.</string>
-    <string name="compose_schedule_attachment_unavailable">de bijlage %1$s kon niet van de server worden opgehaald, er is niets ingepland.</string>
+    <string name="compose_pgp_no_schedule">Ondertekende of versleutelde berichten kunnen niet worden ingepland: later verzenden gebeurt zonder OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Voeg eerst een ontvanger toe.</string>
+    <string name="compose_schedule_invalid_address">Een van de adressen is ongeldig. Verbeter het eerst.</string>
+    <string name="compose_schedule_attachment_unavailable">de bijlage %1$s kon niet van de server worden opgehaald</string>
     <string name="compose_pgp_not_configured">OpenPGP is niet ingesteld voor dit account.</string>
     <string name="compose_pgp_missing_keys">Geen openbare sleutel voor een of meer ontvangers.</string>
     <string name="compose_pgp_too_large">Bijlagen zijn te groot om te versleutelen (max. 25 MB).</string>
@@ -905,8 +910,10 @@
     <string name="inbox_scheduled">Gepland</string>
     <string name="scheduled_title">Gepland</string>
     <string name="scheduled_empty">Geen geplande berichten.</string>
-    <string name="scheduled_cancel">Geplande verzending annuleren</string>
     <string name="scheduled_send_at">Verzendt %1$s</string>
+    <string name="scheduled_cancel_send">Verzending annuleren</string>
+    <string name="scheduled_no_longer_scheduled">Dit bericht is niet meer gepland.</string>
+    <string name="scheduled_cancel_failed">Annuleren mislukt: het concept kon niet worden opgeslagen. Het bericht blijft gepland.</string>
     <string name="scheduled_cancelled_to_drafts">Geannuleerd. Het bericht staat weer bij Concepten.</string>
     <string name="scheduled_cancelled_no_account">Geannuleerd. Het bijbehorende account bestaat niet meer, dus er is geen concept bewaard.</string>
     <string name="inbox_snoozed">Gesnoozed</string>

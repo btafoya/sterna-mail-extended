@@ -51,57 +51,50 @@ class ScheduleMenuWiringTest {
         )
     }
 
-    @Test fun `closing, scheduling and the banner all live inside the guard`() {
+    @Test fun `closing and scheduling both live inside the guard, and nothing else does`() {
         assertEquals(
             "everything between '$GUARD' and '$ELSE' must be exactly the schedule path, in this " +
                 "order. Moving the menu close out takes the choice off screen having scheduled " +
-                "nothing. ⛔ And the banner is INSIDE the schedule's own answer: `scheduleSend` " +
-                "returns false on every refusal it owns — the PGP/attachment choke point, and a " +
-                "body this composer LOST — so the confirmation and the schedule arrive together " +
-                "or not at all. Announced unconditionally it reads \"Scheduled — Mon 1 Sep, " +
-                "09:00\" over a message that was refused, and the refusal's own notice " +
-                "contradicts it one toast later.",
+                "nothing. And no confirmation of its own here: the Undo snackbar is opened by " +
+                "`scheduleSend` once the row is written, so a toast here would be a second, " +
+                "earlier sentence about a write that may still fail.",
             listOf(
                 "scheduleMenu = false",
-                "if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)) {",
-                "Toast.makeText(",
-                "context,",
-                "context.getString(R.string.compose_scheduled_toast, label),",
-                "Toast.LENGTH_SHORT,",
-                ").show()",
-                "}",
+                PRESET_SCHEDULE,
             ),
             guardedBlock(),
         )
     }
 
     /**
-     * The other confirmation, on the free picker three hundred lines above, the same rule, and it
-     * has no `else` branch to bound it, so it is read as the lines that follow the schedule.
+     * The other path, on the free picker three hundred lines above, the same rule, and it has no
+     * `else` branch to bound it, so it is read as the lines that follow the schedule.
      */
-    @Test fun `the hand-picked confirmation lives inside the same answer`() {
+    @Test fun `the hand-picked schedule is the last thing its tap does`() {
         val all = lines(COMPOSE_SCREEN)
         val at = all.indexOf(PICKER_SCHEDULE)
-        assertTrue(
-            "the hand-picked schedule must read '$PICKER_SCHEDULE' — the confirmation belongs to " +
-                "the schedule's own answer, not to the tap.",
-            at >= 0,
-        )
+        assertTrue("the hand-picked schedule must read '$PICKER_SCHEDULE'", at >= 0)
         assertEquals(
-            "everything under '$PICKER_SCHEDULE' must be exactly the confirmation, then the brace " +
-                "that closes it. Outside that block, \"Scheduled — <date>\" is announced over a " +
-                "send `scheduleSend` refused (PGP, attachments, or a body this composer LOST) and " +
-                "the notice saying why arrives right after it.",
+            "the picker's tap must end on the schedule: remember the hour, schedule, close the " +
+                "`if (millis != null)` and the onClick. A toast after it announces a write that " +
+                "has not happened yet; the Undo snackbar is opened by the view model once it has.",
             listOf(
-                "val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)",
-                "Toast.makeText(",
-                "context,",
-                "context.getString(R.string.compose_scheduled_toast, shown),",
-                "Toast.LENGTH_SHORT,",
-                ").show()",
+                "viewModel.rememberScheduleTime(timeState.hour, timeState.minute)",
+                PICKER_SCHEDULE,
                 "}",
+                "},",
             ),
-            all.drop(at + 1).take(7),
+            all.subList(at - 1, at + 3),
+        )
+    }
+
+    @Test fun `the composer toasts nothing but the view model's notices`() {
+        assertEquals(
+            "the only toast left in ComposeScreen is the notices collector: a scheduled send is " +
+                "confirmed by the Undo snackbar on the list, and a toast beside it says the same " +
+                "thing with nothing to tap. Toast lines were:",
+            listOf("viewModel.notices.collect { res -> Toast.makeText(context, res, Toast.LENGTH_LONG).show() }"),
+            lines(COMPOSE_SCREEN).filter { "Toast." in it },
         )
     }
 
@@ -140,10 +133,9 @@ class ScheduleMenuWiringTest {
     }
 
     @Test fun `the label table pairs each preset with its own string`() {
-        // Nothing else pins this table: `schedulePresets` is private and needs a Context, so no JVM
-        // test executes it. Permute two branches, or hard-wire the Triple's first field, and the
-        // menu offers "Tomorrow, 8 AM" while the tap schedules an hour from now, the label and the
-        // instant would disagree, and the confirmation repeats the label.
+        // The table itself is `schedulePresetLabel`, run by SchedulePresetLabelTest; this pins what
+        // it is handed. Hard-wire the Triple's first field, or hand the label another instant, and
+        // the menu names one hour while the tap schedules another.
         assertEquals(
             "schedulePresets' label table and its Triple must be exactly these lines, in order",
             LABEL_TABLE,
@@ -180,15 +172,103 @@ class ScheduleMenuWiringTest {
         // every line pinned above stays present.
         val calls = lines(COMPOSE_SCREEN).filter { "viewModel.scheduleSend(" in it }
         assertEquals(
-            "ComposeScreen must schedule from exactly two places, both deciding at the tap, and " +
-                "both reading the answer: a call whose Boolean is dropped confirms a schedule that " +
-                "may not have happened. Found: $calls",
-            listOf(
-                PICKER_SCHEDULE,
-                "if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)) {",
-            ).sorted(),
+            "ComposeScreen must schedule from exactly two places, both deciding at the tap. Found: $calls",
+            listOf(PICKER_SCHEDULE, PRESET_SCHEDULE).sorted(),
             calls.sorted(),
         )
+    }
+
+    @Test fun `the overflow entry only asks the decision, and is drawn in every mode`() {
+        val all = lines(COMPOSE_SCREEN)
+        val entry = all.indexOf(SCHEDULE_ENTRY_TEXT)
+        assertTrue("the overflow's schedule entry must read '$SCHEDULE_ENTRY_TEXT'", entry >= 0)
+        assertEquals(
+            "the entry stays lit without a recipient and under OpenPGP, so a tap can say why it is " +
+                "refused; greyed, it says nothing",
+            listOf(SCHEDULE_ENTRY_TEXT, STAMP_ON_OPEN, "enabled = !sending,", ")"),
+            all.subList(entry, entry + 4),
+        )
+        val block = all.indexOf("if (draftSaveAllowed(pgpMode)) {")
+        assertTrue("the draft entry's block is missing", block >= 0)
+        assertTrue(
+            "the schedule entry must sit outside 'if (draftSaveAllowed(pgpMode))': inside, an " +
+                "encrypted message has no entry at all and never hears why",
+            entry > closingOf(all, block),
+        )
+    }
+
+    @Test fun `the view model refuses at its choke point with the same decision`() {
+        val vm = lines(COMPOSE_VIEW_MODEL)
+        val head = vm.indexOf("fun mayScheduleOrSay(to: String, cc: String, bcc: String): Boolean {")
+        assertTrue("ComposeViewModel.mayScheduleOrSay is missing", head >= 0)
+        assertEquals(
+            listOf(
+                "val refusal = scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true",
+                "_notices.tryEmit(refusal)",
+                "return false",
+                "}",
+            ),
+            vm.subList(head + 1, head + 5),
+        )
+        val body = scheduleSendBody()
+        assertEquals(
+            "scheduleSend must refuse first, itself: the entry is a convenience, and a signed " +
+                "message let through here goes out unsigned with nothing said",
+            "if (!mayScheduleOrSay(to, cc, bcc)) return false",
+            body.firstOrNull(),
+        )
+    }
+
+    @Test fun `a failed schedule says so, not that a send failed`() {
+        val body = scheduleSendBody()
+        assertEquals(
+            "both failures of the schedule coroutine must be marked whileScheduling",
+            listOf(
+                "_state.value = ComposeState.Error(",
+                "getApplication<Application>().getString(R.string.compose_schedule_attachment_unavailable, e.name ?: \"?\"),",
+                "whileScheduling = true,",
+                ")",
+                "} catch (t: Throwable) {",
+                "_state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName, whileScheduling = true)",
+            ),
+            body.dropWhile { it != "} catch (e: ScheduledAttachmentFetchFailed) {" }.drop(1).take(6),
+        )
+        assertEquals(
+            listOf("text = stringResource(composeErrorWording(it), it.message),"),
+            lines(COMPOSE_SCREEN).filter { "it.message" in it && "stringResource(" in it },
+        )
+    }
+
+    @Test fun `an immediate send's failure is never worded as a schedule's`() {
+        val vm = lines(COMPOSE_VIEW_MODEL)
+        val head = vm.indexOf("private fun sendInternal(args: SendArgs, interactionResult: Intent?) {")
+        assertTrue("ComposeViewModel.sendInternal is missing", head >= 0)
+        val body = vm.drop(head + 1).takeWhile { !it.startsWith("fun mayScheduleOrSay(") }
+        assertEquals(
+            "a message that failed to go now, worded \"Couldn't schedule\", reads as nothing having been tried",
+            listOf("_state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName)"),
+            body.filter { "ComposeState.Error(" in it },
+        )
+    }
+
+    /** The code lines of `scheduleSend`'s body, up to the next declaration. */
+    private fun scheduleSendBody(): List<String> {
+        val vm = lines(COMPOSE_VIEW_MODEL)
+        val head = vm.indexOf("fun scheduleSend(")
+        assertTrue("ComposeViewModel.scheduleSend is missing", head >= 0)
+        val open = vm.drop(head).indexOf("): Boolean {")
+        return vm.drop(head + open + 1).takeWhile { !it.startsWith("private suspend fun bodiesForSend(") }
+    }
+
+    /** Index of the line that closes the block opened on [open], braces counted outside strings. */
+    private fun closingOf(all: List<String>, open: Int): Int {
+        var depth = 0
+        for (i in open until all.size) {
+            val line = all[i].replace(Regex("\"(\\\\.|[^\"\\\\])*\""), "")
+            depth += line.count { it == '{' } - line.count { it == '}' }
+            if (depth == 0) return i
+        }
+        return all.size
     }
 
     // -- locating the pieces ---------------------------------------------------------------------
@@ -258,14 +338,15 @@ class ScheduleMenuWiringTest {
             "val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())"
         private const val GUARD = "if (sendAt != null) {"
 
-        /** The free picker's own call, whole: the confirmation hangs off the answer, or off nothing. */
         private const val PICKER_SCHEDULE =
-            "if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {"
+            "viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)"
+        private const val PRESET_SCHEDULE =
+            "viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)"
         private const val ELSE = "} else {"
         private const val STAMP_STATE = "var menuOpenedAt by remember { mutableLongStateOf(0L) }"
         private const val STAMP_ON_OPEN =
-            "onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); " +
-                "scheduleMenu = true },"
+            "onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { " +
+                "menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },"
         private const val LIST_FROM_STAMP =
             "schedulePresets(context, menuOpenedAt, lastScheduleMinutes).forEach { (preset, label, drawnAt) ->"
         private const val PRESETS_SIGNATURE =
@@ -275,16 +356,18 @@ class ScheduleMenuWiringTest {
 
         /** From the `when` that resolves the labels to the end of the file, whole lines. */
         private val LABEL_TABLE = listOf(
-            "val label = when (preset) {",
-            "SchedulePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)",
-            "SchedulePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening)",
-            "SchedulePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning)",
-            "SchedulePreset.TOMORROW_EVENING -> context.getString(R.string.schedule_tomorrow_evening)",
-            "SchedulePreset.LAST_PICKED -> DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)",
-            "}",
+            "val label = schedulePresetLabel(",
+            "preset,",
+            "millis,",
+            "{ android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(it)) },",
+            "{ DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH) },",
+            "{ res, arg -> if (arg == null) context.getString(res) else context.getString(res, arg) },",
+            ")",
             "Triple(preset, label, millis)",
             "}",
         )
+
+        private const val SCHEDULE_ENTRY_TEXT = "text = { Text(stringResource(R.string.compose_schedule_send)) },"
 
         private const val COMPOSE_SCREEN_PATH =
             "app/src/main/kotlin/app/sterna/ui/compose/ComposeScreen.kt"
@@ -300,5 +383,6 @@ class ScheduleMenuWiringTest {
         }
 
         private val COMPOSE_SCREEN: File by lazy { File(root, COMPOSE_SCREEN_PATH) }
+        private val COMPOSE_VIEW_MODEL: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt") }
     }
 }

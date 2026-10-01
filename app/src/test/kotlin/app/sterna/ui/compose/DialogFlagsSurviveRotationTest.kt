@@ -722,15 +722,15 @@ class DialogFlagsSurviveRotationTest {
         )
     }
 
-    @Test fun `the schedule toast names the instant, never a preset label`() {
+    @Test fun `the schedule's confirmation names the instant, never a preset label`() {
         assertPinned(
-            SCREEN,
-            "val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or " +
-                "DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)",
-            "a hand-picked instant is announced by FORMATTING that instant, in the same call the " +
-                "Scheduled list uses. A preset label slipped back in here would name a time the " +
-                "message is not going out at (WYSIWYG) — the very defect the preset volet just " +
-                "removed one commit earlier.",
+            VIEW_MODEL,
+            "val label = scheduledHoldLabel(sendAtMillis, { millis, flags -> " +
+                "DateUtils.formatDateTime(app, millis, flags) }) {",
+            "a scheduled instant, hand-picked or preset, is announced by FORMATTING the instant " +
+                "handed to `scheduleSend`, with the flags the Scheduled list uses " +
+                "(ScheduledHoldLabelTest). A preset label slipped back in would name a time the " +
+                "message is not going out at (WYSIWYG).",
         )
     }
 

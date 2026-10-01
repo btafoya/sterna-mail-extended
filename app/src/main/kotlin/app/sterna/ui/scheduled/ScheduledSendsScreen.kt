@@ -1,7 +1,7 @@
 package app.sterna.ui.scheduled
 
 import android.text.format.DateUtils
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,15 +40,21 @@ import app.sterna.R
 @Composable
 fun ScheduledSendsScreen(
     onBack: () -> Unit,
+    onOpen: (Long) -> Unit,
     viewModel: ScheduledSendsViewModel = viewModel(),
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
+    val outcome by viewModel.outcome.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // What became of a cancelled message: back in Drafts, or (no account left) not kept at all.
-    // Without it the X is silent, and the user has no way to know the text was saved (#170).
+    // The answer of a cancellation whose screen was left before it came: said here, since
+    // nobody else will, and the user has no other way to know whether the text was saved (#170).
+    LaunchedEffect(outcome) {
+        val exit = viewModel.takeAnyOutcome() ?: return@LaunchedEffect
+        viewModel.say(context.getString(scheduledCancelExitMessage(exit)))
+    }
     LaunchedEffect(message) {
         val m = message ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(m)
@@ -84,6 +89,7 @@ fun ScheduledSendsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onOpen(item.id) }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -102,20 +108,10 @@ fun ScheduledSendsScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            stringResource(
-                                R.string.scheduled_send_at,
-                                DateUtils.formatDateTime(
-                                    context,
-                                    item.sendAtMillis,
-                                    DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
-                                ),
-                            ),
+                            scheduledSendAtLabel(item.sendAtMillis),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                    }
-                    IconButton(onClick = { viewModel.cancel(item.id) }) {
-                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.scheduled_cancel))
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -123,3 +119,13 @@ fun ScheduledSendsScreen(
         }
     }
 }
+
+@Composable
+internal fun scheduledSendAtLabel(sendAtMillis: Long): String = stringResource(
+    R.string.scheduled_send_at,
+    DateUtils.formatDateTime(
+        LocalContext.current,
+        sendAtMillis,
+        DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
+    ),
+)

@@ -37,9 +37,8 @@ class OutboxCountWiringTest {
     }
 
     @Test fun `the dot keeps the graced count`() {
-        // The other direction of the same edit, and the one that reopens #82: the dot sits on the
-        // toolbar button and is in the field of view whether or not the user went looking, so a
-        // send that goes out fine must never draw the eye to nothing.
+        // No screen reads `outboxActiveCount`. The rule keeps its grace (#82) for any dot that
+        // reads it: a dot is in view whether or not the user went looking.
         val body = body(MAIL_SENDER, "outboxActiveCount")
         assertTrue(
             "MailSender.outboxActiveCount must stay on OutboxLogic.badgeCount — the count that " +
@@ -61,90 +60,87 @@ class OutboxCountWiringTest {
         )
     }
 
-    // -- the ViewModel: one flow each, from the repository ------------------------------------
+    // -- the ViewModel: the immediate count, and no dot to feed ---------------------------------
 
-    @Test fun `the ViewModel keeps the two counts on their own repository flows`() {
-        val dot = body(INBOX_VIEW_MODEL, "outboxCount")
-        assertTrue(
-            "InboxViewModel.outboxCount — the dot — must come from repo.sending.outboxActiveCount(). " +
-                "Body was:\n$dot",
-            "repo.sending.outboxActiveCount(" in dot && "outboxQueuedCount" !in dot,
+    @Test fun `the ViewModel feeds the Outbox entry from the immediate count, and no dot`() {
+        val dot = codeLines(INBOX_VIEW_MODEL).filter { Regex("""\b(val|var|fun)\s+$DOT\b""").containsMatchIn(it) }
+        assertEquals(
+            "InboxViewModel must declare no $DOT: the Outbox lives in the drawer, the overflow " +
+                "button carries no dot, and a graced count nobody draws is the " +
+                "flow the next edit wires back onto the Outbox entry. Declarations found:\n" +
+                dot.joinToString("\n"),
+            emptyList<String>(),
+            dot,
         )
-        val menu = body(INBOX_VIEW_MODEL, "outboxQueuedCount")
+        val entry = body(INBOX_VIEW_MODEL, MENU_COUNT)
         assertTrue(
-            "InboxViewModel.outboxQueuedCount — the menu entry — must come from " +
-                "repo.sending.outboxQueuedCount(). Collapsing it onto outboxActiveCount() here reverts #70 " +
-                "one layer above the repository, where the rules on MailRepository cannot see it. " +
-                "Body was:\n$menu",
-            "repo.sending.outboxQueuedCount(" in menu && "outboxActiveCount" !in menu,
+            "InboxViewModel.outboxQueuedCount, the drawer entry's count, must come from " +
+                "repo.sending.outboxQueuedCount(). On outboxActiveCount() it reverts #70 one layer " +
+                "above the repository, where the rules on MailRepository cannot see it. " +
+                "Body was:\n$entry",
+            "repo.sending.outboxQueuedCount(" in entry && "outboxActiveCount" !in entry,
         )
     }
 
     // -- the screen: which count each indicator draws ------------------------------------------
 
-    @Test fun `the toolbar dot is drawn from the graced count`() {
-        val badge = toolbarBadge()
-        assertTrue(
-            "the BadgedBox on the overflow button must test $DOT — the count that keeps its " +
-                "thirty-second grace (#82). Drawn from $MENU_COUNT it appears the instant any send " +
-                "is queued, which is the flashing dot #82 exists to remove, and no behaviour test " +
-                "here can see it. Badge was:\n$badge",
-            DOT_READ.containsMatchIn(badge) && MENU_COUNT !in badge,
+    @Test fun `the overflow button carries no dot at all`() {
+        val content = overflowButtonContent()
+        assertEquals(
+            "the overflow button must draw its icon and nothing else. The Outbox is no longer in " +
+                "that menu, so an outbox dot there points at an entry that is not behind it; the " +
+                "filters are shown by the chips under the bar, so a filter dot there repeats them " +
+                "in a place that no longer changes them. Content was:\n$content",
+            OVERFLOW_CONTENT,
+            content,
         )
     }
 
-    @Test fun `the Outbox entry in the overflow menu is drawn from the immediate count`() {
-        val trailing = outboxMenuTrailingIcon()
+    @Test fun `the Outbox entry in the drawer is drawn from the immediate count`() {
+        val label = outboxDrawerEntry()
         assertTrue(
-            "the Outbox DropdownMenuItem's trailingIcon must test and print $MENU_COUNT — the count " +
-                "with no grace. This is the fix for #70 itself: the entry does not exist on screen " +
-                "until the menu is opened, and opening it is looking on purpose, so there is " +
-                "nothing to hold back. Back on $DOT it says nothing for thirty seconds after a " +
-                "message is queued, which is the report. trailingIcon was:\n$trailing",
-            MENU_READ.containsMatchIn(trailing) && !DOT_READ.containsMatchIn(trailing),
+            "the Outbox NavigationDrawerItem must print $MENU_COUNT, the count with no grace. " +
+                "This is the fix for #70 itself: the entry is only seen when the drawer is opened, " +
+                "and opening it is looking on purpose, so there is nothing to hold back. On a " +
+                "graced count it says nothing for thirty seconds after a message is queued, which " +
+                "is the report. Entry was:\n$label",
+            MENU_READ.containsMatchIn(label) && !DOT_READ.containsMatchIn(label),
         )
+        val menu = callArguments(code(INBOX_SCREEN), "DropdownMenuItem").filter { OUTBOX_LABEL in it }
         assertEquals(
-            "the badge must print the same count it tested — printing the other one is the same " +
-                "revert, spelled over two lines. trailingIcon was:\n$trailing",
-            2, Regex("""\b$MENU_COUNT\b""").findAll(trailing).count(),
+            "no DropdownMenuItem may be labelled $OUTBOX_LABEL: the Outbox is opened from the " +
+                "drawer. Found:\n${menu.joinToString("\n")}",
+            emptyList<String>(),
+            menu,
         )
     }
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The arguments of the `BadgedBox(` on the overflow button, the screen's only one: a second
-     *  fails here instead of being skipped. */
-    private fun toolbarBadge(): String {
-        val all = callArguments(code(INBOX_SCREEN), "BadgedBox")
+    /** The content lambda of the overflow button, found by the `onClick` that opens the menu: a
+     *  second such button fails here instead of being skipped. Whitespace collapsed. */
+    private fun overflowButtonContent(): String {
+        val text = code(INBOX_SCREEN).replace(Regex("""\s+"""), " ")
+        val starts = Regex(Regex.escape(OVERFLOW_BUTTON)).findAll(text).map { it.range.last + 1 }.toList()
         assertEquals(
-            "InboxScreen is expected to host exactly one BadgedBox, the overflow button's dot. " +
-                "Found ${all.size}:\n${all.joinToString("\n")}",
-            1, all.size,
+            "InboxScreen is expected to open the overflow menu from exactly one '$OVERFLOW_BUTTON'. " +
+                "Found ${starts.size}.",
+            1, starts.size,
         )
-        assertEquals(
-            "The BadgedBox must read $DOT (the overflow button's). Badge was:\n${all.single()}",
-            true, DOT_READ.containsMatchIn(all.single()),
-        )
-        return all.single()
+        return balanced(text, starts.single(), '{', '}')
     }
 
-    /** The `trailingIcon` lambda of the menu entry that opens the Outbox, found by the string it
-     *  labels itself with, not by its position among the entries. */
-    private fun outboxMenuTrailingIcon(): String {
-        val entry = callArguments(code(INBOX_SCREEN), "DropdownMenuItem")
+    /** The drawer entry that opens the Outbox, found by the string it labels itself with, not by
+     *  its position among the entries. */
+    private fun outboxDrawerEntry(): String {
+        val entry = callArguments(code(INBOX_SCREEN), "NavigationDrawerItem")
             .filter { OUTBOX_LABEL in it }
         assertEquals(
-            "exactly one DropdownMenuItem must be labelled $OUTBOX_LABEL — the entry that opens the " +
-                "Outbox, whose badge is the whole of #70. Found ${entry.size}.",
+            "exactly one NavigationDrawerItem must be labelled $OUTBOX_LABEL: the entry that opens " +
+                "the Outbox, whose count is the whole of #70. Found ${entry.size}.",
             1, entry.size,
         )
-        val at = entry.single().indexOf(TRAILING)
-        assertTrue(
-            "the Outbox menu entry must carry a $TRAILING: without one it announces no count at " +
-                "all, which is the report itself. Entry was:\n${entry.single()}",
-            at >= 0,
-        )
-        return balanced(entry.single(), at + TRAILING.length, '{', '}')
+        return entry.single()
     }
 
     /**
@@ -224,10 +220,10 @@ class OutboxCountWiringTest {
     }
 
     companion object {
-        /** The dot's count: graced, always in the field of view (#82). */
+        /** The graced count (#82), which no longer has a dot to draw on this screen. */
         private const val DOT = "outboxCount"
 
-        /** The menu entry's count: immediate, only visible once the menu was opened (#70). */
+        /** The Outbox entry's count: immediate, only visible once the drawer was opened (#70). */
         private const val MENU_COUNT = "outboxQueuedCount"
 
         /** Read as a whole word, `outboxQueuedCount` must not answer for `outboxCount`. */
@@ -250,10 +246,15 @@ class OutboxCountWiringTest {
                 """OutboxLogic\.isWaitingInOutbox\(\s*it\.state\s*,?\s*\)\s*}\s*}""",
         )
 
-        /** The label the Outbox menu entry is found by. */
-        private const val OUTBOX_LABEL = "R.string.inbox_outbox"
+        /** The call that opens the overflow menu, up to the content lambda it is followed by. */
+        private const val OVERFLOW_BUTTON = "IconButton(onClick = { overflowOpen = true })"
 
-        private const val TRAILING = "trailingIcon ="
+        /** The overflow button's content, whole: the icon and no badge of any kind. */
+        private const val OVERFLOW_CONTENT =
+            "Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))"
+
+        /** The label the Outbox drawer entry is found by. */
+        private const val OUTBOX_LABEL = "R.string.inbox_outbox"
 
         private const val APP_SOURCES = "app/src/main/kotlin"
         private const val INBOX_VIEW_MODEL_PATH = "$APP_SOURCES/app/sterna/ui/inbox/InboxViewModel.kt"

@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Data</string>
     <string name="compose_could_not_send">Nie udało się wysłać: %1$s</string>
     <string name="compose_could_not_save">Nie udało się zapisać wersji roboczej: %1$s</string>
+    <string name="compose_could_not_schedule">Nie udało się zaplanować: %1$s</string>
     <string name="compose_prefill_failed">Nie udało się wczytać oryginalnej wiadomości.</string>
     <string name="compose_draft_original_kept">Zapisano jako nową wersję roboczą. Oryginał zachowano.</string>
     <string name="compose_draft_offline">Nie udało się wczytać tej wersji roboczej: brak połączenia. Wróć z połączeniem i otwórz ją ponownie.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">Zostanie dodana pod Twoją notatką przy wysyłaniu, z oryginalnym formatowaniem.</string>
     <string name="compose_forwarded_loading">Wczytywanie oryginalnej wiadomości…</string>
     <string name="compose_forwarded_close">Zamknij</string>
-    <string name="compose_scheduled_toast">Zaplanowano — %1$s</string>
+    <string name="compose_scheduled_for">Zaplanowano na %1$s</string>
     <string name="compose_discard_title">Odrzucić wiadomość?</string>
     <string name="compose_discard_message">Nie zapisano wprowadzonych zmian.</string>
     <string name="compose_discard_message_encrypted">Ta wiadomość jest zaszyfrowana, więc nie można zachować jej jako wersji roboczej: wersja robocza jest przechowywana na serwerze pocztowym dokładnie w takiej postaci, w jakiej ją napisano, czytelna dla każdego, kto ma do niej dostęp. Wyjście teraz odrzuca wiadomość.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Odrzuć</string>
     <string name="compose_discard_cancel">Anuluj</string>
     <string name="schedule_in_1_hour">Za 1 godzinę</string>
-    <string name="schedule_this_evening">Dziś wieczorem, 18:00</string>
-    <string name="schedule_tomorrow_morning">Jutro, 8:00</string>
-    <string name="schedule_tomorrow_evening">Jutro, 18:00</string>
+    <string name="schedule_this_evening">Dziś wieczorem, %1$s</string>
+    <string name="schedule_tomorrow_morning">Jutro, %1$s</string>
+    <string name="schedule_tomorrow_evening">Jutro, %1$s</string>
     <string name="schedule_pick_date_time">Wybierz datę i godzinę</string>
+    <string name="schedule_last_used">Ostatnio użyte · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Przenieś do folderu</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">Temat nie jest szyfrowany.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ta wiadomość nie zostanie zaszyfrowana: brak klucza publicznego dla %1$s.</string>
     <string name="compose_pgp_no_draft">Zaszyfrowanych wiadomości nie można zapisać jako wersji roboczej ani zaplanować.</string>
-    <string name="compose_schedule_attachment_unavailable">nie udało się pobrać z serwera załącznika %1$s, niczego nie zaplanowano.</string>
+    <string name="compose_pgp_no_schedule">Wiadomości podpisanych ani zaszyfrowanych nie można zaplanować: wysyłka później odbywa się bez OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Najpierw dodaj odbiorcę.</string>
+    <string name="compose_schedule_invalid_address">Jeden z adresów jest nieprawidłowy. Najpierw go popraw.</string>
+    <string name="compose_schedule_attachment_unavailable">nie udało się pobrać z serwera załącznika %1$s</string>
     <string name="compose_pgp_not_configured">OpenPGP nie jest skonfigurowany dla tego konta.</string>
     <string name="compose_pgp_missing_keys">Brak klucza publicznego dla co najmniej jednego odbiorcy.</string>
     <string name="compose_pgp_too_large">Załączniki są za duże do zaszyfrowania (maks. 25 MB).</string>
@@ -917,8 +922,10 @@
     <string name="inbox_scheduled">Zaplanowane</string>
     <string name="scheduled_title">Zaplanowane</string>
     <string name="scheduled_empty">Brak zaplanowanych wiadomości.</string>
-    <string name="scheduled_cancel">Anuluj zaplanowane wysłanie</string>
     <string name="scheduled_send_at">Wysyłka %1$s</string>
+    <string name="scheduled_cancel_send">Anuluj wysłanie</string>
+    <string name="scheduled_no_longer_scheduled">Ta wiadomość nie jest już zaplanowana.</string>
+    <string name="scheduled_cancel_failed">Nie udało się anulować: nie można było zapisać wersji roboczej. Wiadomość pozostaje zaplanowana.</string>
     <string name="scheduled_cancelled_to_drafts">Anulowano. Wiadomość wróciła do wersji roboczych.</string>
     <string name="scheduled_cancelled_no_account">Anulowano. Powiązane konto już nie istnieje, więc nie zapisano wersji roboczej.</string>
     <string name="inbox_snoozed">Odłożone</string>

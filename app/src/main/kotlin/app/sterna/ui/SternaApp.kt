@@ -69,7 +69,9 @@ import app.sterna.ui.message.LocalNavTransitionActive
 import app.sterna.ui.message.MessageScreen
 import app.sterna.ui.message.NavFadeGuard
 import app.sterna.ui.outbox.OutboxScreen
+import app.sterna.ui.scheduled.ScheduledSendScreen
 import app.sterna.ui.scheduled.ScheduledSendsScreen
+import app.sterna.ui.scheduled.draftsLandingAccountSwitch
 import app.sterna.ui.sender.MailBySenderScreen
 import app.sterna.ui.snoozed.SnoozedScreen
 import app.sterna.ui.search.SearchScreen
@@ -715,7 +717,33 @@ private fun MainNavHost(
             )
         }
         composable("scheduled") { entry ->
-            ScheduledSendsScreen(onBack = { entry.navigateOnce { nav.popBackStack() } })
+            ScheduledSendsScreen(
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
+                onOpen = { id -> entry.navigateOnce { nav.navigate("scheduled/$id") } },
+            )
+        }
+        composable(
+            route = "scheduled/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.LongType }),
+        ) { entry ->
+            val id = entry.arguments?.getLong("id") ?: return@composable
+            // unguarded: one-shot answers, not taps; a paused destination would drop them.
+            val leave = { route: String -> nav.popBackStack(route, inclusive = false) }
+            val listEntry = remember(entry) { nav.getBackStackEntry("scheduled") }
+            val inboxEntry = remember(entry) { nav.getBackStackEntry("inbox") }
+            val inboxViewModel: InboxViewModel = viewModel(inboxEntry)
+            ScheduledSendScreen(
+                id = id,
+                viewModel = viewModel(listEntry),
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
+                onClose = { leave("scheduled") },
+                onLandOnDrafts = { accountId, message ->
+                    draftsLandingAccountSwitch(accountId, currentAccountId, accounts.map { it.id })
+                        ?.let(onSwitchAccount)
+                    inboxViewModel.showDraftsAfterCancel(accountId, message)
+                    leave("inbox")
+                },
+            )
         }
         composable("snoozed") { entry ->
             SnoozedScreen(onBack = { entry.navigateOnce { nav.popBackStack() } })
@@ -729,7 +757,6 @@ private fun MainNavHost(
         composable("bysender") { entry ->
             MailBySenderScreen(
                 onBack = { entry.navigateOnce { nav.popBackStack() } },
-                // The address travels as the search's `from` criterion.
                 onOpenSearch = { from ->
                     entry.navigateOnce { nav.navigate("search?from=${Uri.encode(from)}") }
                 },

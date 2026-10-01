@@ -847,19 +847,9 @@ fun ComposeScreen(
                         if (millis != null) {
                             viewModel.clearScheduleTime()
                             viewModel.rememberScheduleTime(timeState.hour, timeState.minute)
-                            // The confirmation belongs to the schedule, not to the tap: the view
-                            // model answers `false` on every refusal it owns. Announced regardless,
-                            // "Scheduled, …" is a sentence about a message that was not scheduled.
-                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)) {
-                                // The instant, formatted as the Scheduled list formats it, never a
-                                // preset label, a sentence about another time.
-                                val shown = DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.compose_scheduled_toast, shown),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            }
+                            // No confirmation here: the view model opens the Undo snackbar once the
+                            // row is written, never before.
+                            viewModel.scheduleSend(to, cc, bcc, subject.text, rich, millis, requestReceipt)
                         }
                     },
                 ) { Text(stringResource(R.string.settings_ok)) }
@@ -1177,23 +1167,22 @@ fun ComposeScreen(
                             onDismissRequest = { moreMenu = false },
                             shape = MaterialTheme.shapes.medium,
                         ) {
-                            // Encrypting can't carry plaintext to the server: no draft, no schedule.
-                            // Same rule, same function as the leave dialog above (#35).
+                            // Encrypting can't carry plaintext to the server: no draft. Same rule,
+                            // same function as the leave dialog above (#35).
                             if (draftSaveAllowed(pgpMode)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_save_draft)) },
                                     onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },
                                     enabled = !sending && canSaveDraft,
                                 )
-                                // A scheduled send is fired by a headless worker that can't sign:
-                                // disabled for a sign/encrypt message (A3). The tap closes this menu
-                                // and opens the presets beside it, no submenu nested inside an overflow.
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.compose_schedule_send)) },
-                                    onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },
-                                    enabled = !sending && canSend && scheduleSendAllowed(pgpMode),
-                                )
                             }
+                            // Lit in every mode, so a refused tap can say why (A3). The tap closes this
+                            // menu and opens the presets beside it, no submenu nested inside an overflow.
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.compose_schedule_send)) },
+                                onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },
+                                enabled = !sending,
+                            )
                             // Deleting the draft (#127). Outside the draftSaveAllowed block: a delete
                             // persists nothing, so it has no reason to disappear when the padlock
                             // closes. When it is offered is [draftDeleteOffered].
@@ -1227,26 +1216,13 @@ fun ComposeScreen(
                                         // Decided again at the tap, against a fresh clock: the menu can
                                         // stand open for minutes, and an entry drawn at 5:55 PM still
                                         val sendAt = presetMillisAtTap(preset, drawnAt, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
-                                        // Closing, scheduling and confirming happen together or not at
+                                        // Closing and scheduling happen together or not at
                                         // all. On the refused path the menu stays up and is redrawn from
                                         // a new stamp: the lapsed entry vanishes under the finger, and
                                         // that is the message.
                                         if (sendAt != null) {
                                             scheduleMenu = false
-                                            // Scheduled and confirmed, or neither: the view model
-                                            // answers `false` on the refusals it owns, and the banner
-                                            // below is a sentence about a message that would not have
-                                            // been scheduled at all.
-                                            if (viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)) {
-                                                // The label, true of what was just scheduled: "In 1
-                                                // hour" is an hour from this tap, and "6 PM" is the 6 PM
-                                                // the entry was drawn for.
-                                                Toast.makeText(
-                                                    context,
-                                                    context.getString(R.string.compose_scheduled_toast, label),
-                                                    Toast.LENGTH_SHORT,
-                                                ).show()
-                                            }
+                                            viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)
                                         } else {
                                             menuOpenedAt = System.currentTimeMillis()
                                         }
@@ -1517,10 +1493,7 @@ fun ComposeScreen(
             if (sending) LoadingRing(Modifier.padding(horizontal = 16.dp))
             (state as? ComposeState.Error)?.let {
                 Text(
-                    text = stringResource(
-                        if (it.whileSaving) R.string.compose_could_not_save else R.string.compose_could_not_send,
-                        it.message,
-                    ),
+                    text = stringResource(composeErrorWording(it), it.message),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -2227,12 +2200,12 @@ private fun schedulePresets(context: android.content.Context, nowMillis: Long, l
             )
         }
         .map { (preset, millis) ->
-            val label = when (preset) {
-                SchedulePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)
-                SchedulePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening)
-                SchedulePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning)
-                SchedulePreset.TOMORROW_EVENING -> context.getString(R.string.schedule_tomorrow_evening)
-                SchedulePreset.LAST_PICKED -> DateUtils.formatDateTime(context, millis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH)
-            }
+            val label = schedulePresetLabel(
+                preset,
+                millis,
+                { android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(it)) },
+                { DateUtils.formatDateTime(context, it, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH) },
+                { res, arg -> if (arg == null) context.getString(res) else context.getString(res, arg) },
+            )
             Triple(preset, label, millis)
         }

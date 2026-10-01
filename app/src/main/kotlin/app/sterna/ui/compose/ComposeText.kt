@@ -1,5 +1,6 @@
 package app.sterna.ui.compose
 
+import android.text.format.DateUtils
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Lock
@@ -595,6 +596,17 @@ internal fun draftSaveAllowed(pgpMode: PgpMode): Boolean = !pgpMode.encrypts
  * sent in the clear (A3). Attachments do not enter it: the scheduled row keeps its own copy.
  */
 internal fun scheduleSendAllowed(pgpMode: PgpMode): Boolean = pgpMode == PgpMode.OFF
+
+/** A schedule offers Undo for [SendOutbox.HOLD_MS]; its work booked sooner would send under the Undo. */
+internal fun heldScheduleDelayMillis(delayMillis: Long): Long = delayMillis.coerceAtLeast(SendOutbox.HOLD_MS)
+
+internal fun scheduledHoldLabel(
+    sendAtMillis: Long,
+    formatInstant: (millis: Long, flags: Int) -> String,
+    sentence: (instant: String) -> String,
+): String = sentence(
+    formatInstant(sendAtMillis, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH),
+)
 
 /** The quick "send later" choices in menu order; [LAST_PICKED] comes from [lastPickedPresetMillis]. */
 internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING, LAST_PICKED }

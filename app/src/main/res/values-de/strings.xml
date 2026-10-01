@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Datum</string>
     <string name="compose_could_not_send">Senden fehlgeschlagen: %1$s</string>
     <string name="compose_could_not_save">Entwurf konnte nicht gespeichert werden: %1$s</string>
+    <string name="compose_could_not_schedule">Planen fehlgeschlagen: %1$s</string>
     <string name="compose_prefill_failed">Ursprüngliche Nachricht konnte nicht geladen werden.</string>
     <string name="compose_draft_original_kept">Als neuer Entwurf gespeichert. Original behalten.</string>
     <string name="compose_draft_offline">Dieser Entwurf konnte nicht geladen werden: keine Verbindung. Komm mit einer Verbindung zurück und öffne ihn erneut.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">Wird beim Senden unter deiner Notiz angefügt, mit der ursprünglichen Formatierung.</string>
     <string name="compose_forwarded_loading">Ursprüngliche Nachricht wird geladen…</string>
     <string name="compose_forwarded_close">Schließen</string>
-    <string name="compose_scheduled_toast">Geplant — %1$s</string>
+    <string name="compose_scheduled_for">Geplant für %1$s</string>
     <string name="compose_discard_title">Nachricht verwerfen?</string>
     <string name="compose_discard_message">Du hast deine Änderungen nicht gespeichert.</string>
     <string name="compose_discard_message_encrypted">Diese Nachricht ist verschlüsselt und kann deshalb nicht als Entwurf behalten werden: Ein Entwurf wird genau so, wie du ihn geschrieben hast, auf dem Mailserver gespeichert und ist für alle mit Zugriff lesbar. Wenn du jetzt gehst, wird die Nachricht verworfen.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Verwerfen</string>
     <string name="compose_discard_cancel">Abbrechen</string>
     <string name="schedule_in_1_hour">In 1 Stunde</string>
-    <string name="schedule_this_evening">Heute Abend, 18 Uhr</string>
-    <string name="schedule_tomorrow_morning">Morgen, 8 Uhr</string>
-    <string name="schedule_tomorrow_evening">Morgen, 18 Uhr</string>
+    <string name="schedule_this_evening">Heute Abend, %1$s</string>
+    <string name="schedule_tomorrow_morning">Morgen, %1$s</string>
+    <string name="schedule_tomorrow_evening">Morgen, %1$s</string>
     <string name="schedule_pick_date_time">Datum und Uhrzeit wählen</string>
+    <string name="schedule_last_used">Zuletzt verwendet · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">In Ordner verschieben</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">Der Betreff wird nicht verschlüsselt.</string>
     <string name="compose_pgp_not_encrypted_no_key">Diese Nachricht wird nicht verschlüsselt: kein öffentlicher Schlüssel für %1$s.</string>
     <string name="compose_pgp_no_draft">Verschlüsselte Nachrichten können nicht als Entwurf gespeichert oder geplant werden.</string>
-    <string name="compose_schedule_attachment_unavailable">Der Anhang %1$s konnte nicht vom Server abgerufen werden, es wurde nichts geplant.</string>
+    <string name="compose_pgp_no_schedule">Signierte oder verschlüsselte Nachrichten können nicht geplant werden: Späteres Senden erfolgt ohne OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Füge zuerst einen Empfänger hinzu.</string>
+    <string name="compose_schedule_invalid_address">Eine der Adressen ist ungültig. Korrigiere sie zuerst.</string>
+    <string name="compose_schedule_attachment_unavailable">Der Anhang %1$s konnte nicht vom Server abgerufen werden</string>
     <string name="compose_pgp_not_configured">OpenPGP ist für dieses Konto nicht eingerichtet.</string>
     <string name="compose_pgp_missing_keys">Kein öffentlicher Schlüssel für einen oder mehrere Empfänger.</string>
     <string name="compose_pgp_too_large">Anhänge sind zu groß zum Verschlüsseln (max. 25 MB).</string>
@@ -905,8 +910,10 @@
     <string name="inbox_scheduled">Geplant</string>
     <string name="scheduled_title">Geplant</string>
     <string name="scheduled_empty">Keine geplanten Nachrichten.</string>
-    <string name="scheduled_cancel">Geplanten Versand abbrechen</string>
     <string name="scheduled_send_at">Wird %1$s gesendet</string>
+    <string name="scheduled_cancel_send">Versand abbrechen</string>
+    <string name="scheduled_no_longer_scheduled">Diese Nachricht ist nicht mehr geplant.</string>
+    <string name="scheduled_cancel_failed">Abbrechen nicht möglich: Der Entwurf konnte nicht gespeichert werden. Die Nachricht bleibt geplant.</string>
     <string name="scheduled_cancelled_to_drafts">Abgebrochen. Die Nachricht liegt wieder in den Entwürfen.</string>
     <string name="scheduled_cancelled_no_account">Abgebrochen. Das zugehörige Konto gibt es nicht mehr, daher wurde kein Entwurf gespeichert.</string>
     <string name="inbox_snoozed">Zurückgestellt</string>

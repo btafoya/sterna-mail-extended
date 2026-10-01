@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Date</string>
     <string name="compose_could_not_send">Échec de l\'envoi : %1$s</string>
     <string name="compose_could_not_save">Échec de l\'enregistrement du brouillon : %1$s</string>
+    <string name="compose_could_not_schedule">Programmation impossible : %1$s</string>
     <string name="compose_prefill_failed">Impossible de charger le message d\'origine.</string>
     <string name="compose_draft_original_kept">Enregistré comme nouveau brouillon. Original conservé.</string>
     <string name="compose_draft_offline">Impossible de charger ce brouillon : pas de connexion. Revenez avec une connexion et rouvrez-le.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">Ajouté sous votre note à l\'envoi, avec sa mise en forme d\'origine.</string>
     <string name="compose_forwarded_loading">Chargement du message d\'origine…</string>
     <string name="compose_forwarded_close">Fermer</string>
-    <string name="compose_scheduled_toast">Programmé — %1$s</string>
+    <string name="compose_scheduled_for">Programmé pour le %1$s</string>
     <string name="compose_discard_title">Abandonner le message ?</string>
     <string name="compose_discard_message">Vous n\'avez pas enregistré vos modifications.</string>
     <string name="compose_discard_message_encrypted">Ce message est chiffré : il ne peut pas être conservé en brouillon, car un brouillon est stocké sur le serveur de courrier tel que vous l\'avez écrit, lisible par qui y a accès. Quitter maintenant abandonne le message.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Abandonner</string>
     <string name="compose_discard_cancel">Annuler</string>
     <string name="schedule_in_1_hour">Dans 1 heure</string>
-    <string name="schedule_this_evening">Ce soir, 18 h</string>
-    <string name="schedule_tomorrow_morning">Demain, 8 h</string>
-    <string name="schedule_tomorrow_evening">Demain, 18 h</string>
+    <string name="schedule_this_evening">Ce soir, %1$s</string>
+    <string name="schedule_tomorrow_morning">Demain, %1$s</string>
+    <string name="schedule_tomorrow_evening">Demain, %1$s</string>
     <string name="schedule_pick_date_time">Choisir la date et l\'heure</string>
+    <string name="schedule_last_used">Dernier choix · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Déplacer vers un dossier</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">L\'objet n\'est pas chiffré.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ce message ne sera pas chiffré : pas de clé publique pour %1$s.</string>
     <string name="compose_pgp_no_draft">Les messages chiffrés ne peuvent pas être enregistrés en brouillon ni programmés.</string>
-    <string name="compose_schedule_attachment_unavailable">la pièce jointe %1$s n\'a pas pu être récupérée sur le serveur, rien n\'a été programmé.</string>
+    <string name="compose_pgp_no_schedule">Les messages signés ou chiffrés ne peuvent pas être programmés : l\'envoi différé se fait sans OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Ajoutez d\'abord un destinataire.</string>
+    <string name="compose_schedule_invalid_address">L\'une des adresses n\'est pas valide. Corrigez-la d\'abord.</string>
+    <string name="compose_schedule_attachment_unavailable">la pièce jointe %1$s n\'a pas pu être récupérée sur le serveur</string>
     <string name="compose_pgp_not_configured">OpenPGP n\'est pas configuré pour ce compte.</string>
     <string name="compose_pgp_missing_keys">Aucune clé publique pour un ou plusieurs destinataires.</string>
     <string name="compose_pgp_too_large">Pièces jointes trop volumineuses pour le chiffrement (25 Mo max).</string>
@@ -911,8 +916,10 @@
     <string name="inbox_scheduled">Programmés</string>
     <string name="scheduled_title">Programmés</string>
     <string name="scheduled_empty">Aucun message programmé.</string>
-    <string name="scheduled_cancel">Annuler l\'envoi programmé</string>
     <string name="scheduled_send_at">Envoi %1$s</string>
+    <string name="scheduled_cancel_send">Annuler l\'envoi</string>
+    <string name="scheduled_no_longer_scheduled">Ce message n\'est plus programmé.</string>
+    <string name="scheduled_cancel_failed">Annulation impossible : le brouillon n\'a pas pu être enregistré. Le message reste programmé.</string>
     <string name="scheduled_cancelled_to_drafts">Annulé. Le message est de retour dans les brouillons.</string>
     <string name="scheduled_cancelled_no_account">Annulé. Son compte n\'existe plus, aucun brouillon n\'a été conservé.</string>
     <string name="inbox_snoozed">Reportés</string>

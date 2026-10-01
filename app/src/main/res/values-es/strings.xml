@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Fecha</string>
     <string name="compose_could_not_send">No se pudo enviar: %1$s</string>
     <string name="compose_could_not_save">No se pudo guardar el borrador: %1$s</string>
+    <string name="compose_could_not_schedule">No se pudo programar: %1$s</string>
     <string name="compose_prefill_failed">No se pudo cargar el mensaje original.</string>
     <string name="compose_draft_original_kept">Guardado como borrador nuevo. Se conservó el original.</string>
     <string name="compose_draft_offline">No se pudo cargar este borrador: no hay conexión. Vuelve cuando tengas conexión y ábrelo de nuevo.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">Se añade debajo de tu nota al enviar, con su formato original.</string>
     <string name="compose_forwarded_loading">Cargando el mensaje original…</string>
     <string name="compose_forwarded_close">Cerrar</string>
-    <string name="compose_scheduled_toast">Programado — %1$s</string>
+    <string name="compose_scheduled_for">Programado para el %1$s</string>
     <string name="compose_discard_title">¿Descartar mensaje?</string>
     <string name="compose_discard_message">No has guardado los cambios.</string>
     <string name="compose_discard_message_encrypted">Este mensaje está cifrado, así que no puede guardarse como borrador: un borrador se almacena en el servidor de correo tal como lo escribiste, legible por cualquiera que tenga acceso. Si sales ahora, el mensaje se descarta.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Descartar</string>
     <string name="compose_discard_cancel">Cancelar</string>
     <string name="schedule_in_1_hour">En 1 hora</string>
-    <string name="schedule_this_evening">Esta tarde, 18:00</string>
-    <string name="schedule_tomorrow_morning">Mañana, 8:00</string>
-    <string name="schedule_tomorrow_evening">Mañana, 18:00</string>
+    <string name="schedule_this_evening">Esta tarde, %1$s</string>
+    <string name="schedule_tomorrow_morning">Mañana, %1$s</string>
+    <string name="schedule_tomorrow_evening">Mañana, %1$s</string>
     <string name="schedule_pick_date_time">Elegir fecha y hora</string>
+    <string name="schedule_last_used">Última elección · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Mover a carpeta</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">El asunto no se cifra.</string>
     <string name="compose_pgp_not_encrypted_no_key">Este mensaje no se cifrará: no hay clave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Los mensajes cifrados no se pueden guardar como borrador ni programar.</string>
-    <string name="compose_schedule_attachment_unavailable">no se pudo recuperar del servidor el archivo adjunto %1$s, no se ha programado nada.</string>
+    <string name="compose_pgp_no_schedule">Los mensajes firmados o cifrados no se pueden programar: el envío diferido se hace sin OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Añade primero un destinatario.</string>
+    <string name="compose_schedule_invalid_address">Una de las direcciones no es válida. Corrígela primero.</string>
+    <string name="compose_schedule_attachment_unavailable">no se pudo recuperar del servidor el archivo adjunto %1$s</string>
     <string name="compose_pgp_not_configured">OpenPGP no está configurado para esta cuenta.</string>
     <string name="compose_pgp_missing_keys">No hay clave pública para uno o más destinatarios.</string>
     <string name="compose_pgp_too_large">Los adjuntos son demasiado grandes para cifrar (máx. 25 MB).</string>
@@ -907,8 +912,10 @@
     <string name="inbox_scheduled">Programados</string>
     <string name="scheduled_title">Programados</string>
     <string name="scheduled_empty">No hay mensajes programados.</string>
-    <string name="scheduled_cancel">Cancelar envío programado</string>
     <string name="scheduled_send_at">Se envía %1$s</string>
+    <string name="scheduled_cancel_send">Cancelar envío</string>
+    <string name="scheduled_no_longer_scheduled">Este mensaje ya no está programado.</string>
+    <string name="scheduled_cancel_failed">No se pudo cancelar: no se pudo guardar el borrador. El mensaje sigue programado.</string>
     <string name="scheduled_cancelled_to_drafts">Cancelado. El mensaje ha vuelto a Borradores.</string>
     <string name="scheduled_cancelled_no_account">Cancelado. Su cuenta ya no existe, así que no se guardó ningún borrador.</string>
     <string name="inbox_snoozed">Pospuestos</string>

@@ -239,15 +239,18 @@ class SubscribedFoldersSurfaceWiringTest {
                 "never be read here — the box being ticked does not make this flow emit. The third " +
                 "line is the restored view's missing folder name, filled in from this cached list " +
                 "and pinned in ORDER by RestoredHeaderWiringLintTest: it must stay AFTER the " +
-                "notification's folder, whose select() the memory then stands down for.",
+                "notification's folder, whose select() the memory then stands down for. The fourth " +
+                "is a cancelled scheduled send's Drafts, a one-shot that likewise waits for its " +
+                "account's list.",
             listOf(
                 "}.onEach { folders ->",
                 "applyNotificationFolder(folders)",
                 "applyRestoredMeta(folders)",
+                "applyDraftsLanding(folders)",
                 "folderSnapshot.value = currentAccountId.value to folders",
                 "}",
             ),
-            block(INBOX_VIEW_MODEL, "}.onEach { folders ->", 5),
+            block(INBOX_VIEW_MODEL, "}.onEach { folders ->", 6),
         )
         assertEquals(
             "the folder list must be recorded WITH the account it belongs to. Recomputing the scope " +

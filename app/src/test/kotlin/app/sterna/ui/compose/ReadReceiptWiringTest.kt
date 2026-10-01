@@ -122,7 +122,8 @@ class ReadReceiptWiringTest {
                 // SendArgs, which is also what the OpenPGP round-trip re-enters with.
                 "requestReceipt = args.requestReceipt,",
                 "requestReceipt = args.requestReceipt,",
-                // scheduleSend() then saveDraft(): the screen's answer, straight through.
+                // scheduleSend() (Undo's record, then the row) and saveDraft(): straight through.
+                "requestReceipt = requestReceipt,",
                 "requestReceipt = requestReceipt,",
                 "requestReceipt = requestReceipt,",
             ),

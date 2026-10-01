@@ -49,6 +49,7 @@
     <string name="compose_forward_date">日期</string>
     <string name="compose_could_not_send">无法发送：%1$s</string>
     <string name="compose_could_not_save">无法保存草稿：%1$s</string>
+    <string name="compose_could_not_schedule">无法定时发送：%1$s</string>
     <string name="compose_prefill_failed">无法加载原始邮件。</string>
     <string name="compose_draft_original_kept">已另存为新草稿。原始草稿已保留。</string>
     <string name="compose_draft_offline">无法加载此草稿：当前没有网络连接。请在恢复连接后重新打开。</string>
@@ -62,7 +63,7 @@
     <string name="compose_forwarded_sent_below">发送时会添加在您的附言下方，并保留原有格式。</string>
     <string name="compose_forwarded_loading">正在加载原始邮件…</string>
     <string name="compose_forwarded_close">关闭</string>
-    <string name="compose_scheduled_toast">已定时 — %1$s</string>
+    <string name="compose_scheduled_for">已定时：%1$s</string>
     <string name="compose_discard_title">放弃此邮件？</string>
     <string name="compose_discard_message">您尚未保存所做的更改。</string>
     <string name="compose_discard_message_encrypted">此邮件已加密，因此无法保存为草稿：草稿会按照您键入的内容原样存储在邮件服务器上，任何有权访问的人都可以读取。现在离开将放弃此邮件。</string>
@@ -86,10 +87,11 @@
     <string name="compose_forgot_attachment_send">仍然发送</string>
     <string name="compose_forgot_attachment_back">返回</string>
     <string name="schedule_in_1_hour">1 小时后</string>
-    <string name="schedule_this_evening">今晚 6 点</string>
-    <string name="schedule_tomorrow_morning">明早 8 点</string>
-    <string name="schedule_tomorrow_evening">明晚 6 点</string>
+    <string name="schedule_this_evening">今晚 %1$s</string>
+    <string name="schedule_tomorrow_morning">明早 %1$s</string>
+    <string name="schedule_tomorrow_evening">明晚 %1$s</string>
     <string name="schedule_pick_date_time">选择日期和时间</string>
+    <string name="schedule_last_used">上次选择 · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">移动到文件夹</string>
@@ -178,8 +180,10 @@
     <string name="inbox_empty_trash">清空回收站</string>
     <string name="scheduled_title">定时</string>
     <string name="scheduled_empty">没有已定时的邮件。</string>
-    <string name="scheduled_cancel">取消定时发送</string>
     <string name="scheduled_send_at">%1$s 发送</string>
+    <string name="scheduled_cancel_send">取消发送</string>
+    <string name="scheduled_no_longer_scheduled">这封邮件已不再定时发送。</string>
+    <string name="scheduled_cancel_failed">无法取消：草稿未能保存。邮件仍会定时发送。</string>
     <string name="scheduled_cancelled_to_drafts">已取消。邮件已放回“草稿”。</string>
     <string name="scheduled_cancelled_no_account">已取消。该账户已不存在，因此未保留草稿。</string>
     <!-- Overflow-menu entry, one word for the same reason as inbox_scheduled: it sits
@@ -870,7 +874,10 @@
     <string name="compose_pgp_subject_note">主题不会被加密。</string>
     <string name="compose_pgp_not_encrypted_no_key">此邮件不会加密：没有 %1$s 的公钥。</string>
     <string name="compose_pgp_no_draft">加密邮件无法保存为草稿或定时发送。</string>
-    <string name="compose_schedule_attachment_unavailable">无法从服务器取回附件 %1$s，未安排任何定时发送。</string>
+    <string name="compose_pgp_no_schedule">已签名或加密的邮件无法定时发送：定时发送不经过 OpenPGP。</string>
+    <string name="compose_schedule_needs_recipient">请先添加收件人。</string>
+    <string name="compose_schedule_invalid_address">有一个地址无效，请先更正。</string>
+    <string name="compose_schedule_attachment_unavailable">无法从服务器取回附件 %1$s</string>
     <string name="compose_pgp_not_configured">此账户尚未配置 OpenPGP。</string>
     <string name="compose_pgp_missing_keys">一个或多个收件人没有公钥。</string>
     <string name="compose_pgp_too_large">附件过大，无法加密 (上限 25 MB)。</string>

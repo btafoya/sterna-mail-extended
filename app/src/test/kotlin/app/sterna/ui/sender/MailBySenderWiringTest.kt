@@ -21,17 +21,17 @@ class MailBySenderWiringTest {
         )
     }
 
-    @Test fun `the entry sits after the Outbox and before anything destructive`() {
-        // #48: the rarely-visited lists come after the frequent actions, and the destructive
+    @Test fun `the entry sits after the frequent actions and before anything destructive`() {
+        // #48: the rarely-visited list comes after the frequent actions, and the destructive
         // "Empty trash" stays last so the finger never finds it where a harmless entry was.
         val text = code(INBOX_SCREEN)
-        val outbox = text.indexOf("R.string.inbox_outbox")
+        val markAllRead = text.indexOf("R.string.inbox_mark_all_read")
         val bySender = text.indexOf(BY_SENDER_LABEL)
         val emptyTrash = text.indexOf("R.string.inbox_empty_trash")
-        assertTrue("R.string.inbox_outbox is no longer in InboxScreen", outbox >= 0)
+        assertTrue("R.string.inbox_mark_all_read is no longer in InboxScreen", markAllRead >= 0)
         assertTrue("$BY_SENDER_LABEL is no longer in InboxScreen", bySender >= 0)
         assertTrue("R.string.inbox_empty_trash is no longer in InboxScreen", emptyTrash >= 0)
-        assertTrue("the by-sender entry must come after the Outbox entry", outbox < bySender)
+        assertTrue("the by-sender entry must come after Mark all read", markAllRead < bySender)
         assertTrue("the by-sender entry must come before Empty trash", bySender < emptyTrash)
     }
 
@@ -40,9 +40,8 @@ class MailBySenderWiringTest {
         val at = lines.indexOfFirst { BY_SENDER_LABEL in it }
         assertTrue("$BY_SENDER_LABEL is no longer in InboxScreen", at >= 0)
         assertTrue(
-            "the by-sender entry must sit inside an 'if (!isTrash)' block, like the scheduled " +
-                "and snoozed entries: it counts the folders mail is kept in, and the Trash is " +
-                "not one of them",
+            "the by-sender entry must sit inside an 'if (!isTrash)' block: it counts the " +
+                "folders mail is kept in, and the Trash is not one of them",
             lines.enclosedBy(at, "if (!isTrash)"),
         )
     }

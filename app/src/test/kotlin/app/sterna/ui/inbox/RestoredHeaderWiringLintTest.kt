@@ -320,6 +320,7 @@ class RestoredHeaderWiringLintTest {
         private val EXPECTED_ONEACH_BODY = listOf(
             "applyNotificationFolder(folders)",
             "applyRestoredMeta(folders)",
+            "applyDraftsLanding(folders)",
             "folderSnapshot.value = currentAccountId.value to folders",
         )
 

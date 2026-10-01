@@ -17,6 +17,8 @@ import java.io.File
  *     a position in the layout: a `Box` wrapped around it would put it over the list unseen.
  *  4. Nothing here holds the value the composable collects, nor proves a chip is drawn checked or
  *     disabled: `FilterChip` is trusted.
+ *  5. That the overflow button carries no filter dot is `OutboxCountWiringTest`'s rule, which pins
+ *     that button's content whole.
  */
 class FilterEntryWiringLintTest {
 

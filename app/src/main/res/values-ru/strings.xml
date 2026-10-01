@@ -47,6 +47,7 @@
     <string name="compose_forward_date">Дата</string>
     <string name="compose_could_not_send">Не удалось отправить: %1$s</string>
     <string name="compose_could_not_save">Не удалось сохранить черновик: %1$s</string>
+    <string name="compose_could_not_schedule">Не удалось запланировать: %1$s</string>
     <string name="compose_prefill_failed">Не удалось загрузить исходное сообщение.</string>
     <string name="compose_draft_original_kept">Сохранено как новый черновик. Оригинал оставлен.</string>
     <string name="compose_draft_offline">Не удалось загрузить этот черновик: нет подключения. Вернитесь с подключением и откройте его снова.</string>
@@ -60,7 +61,7 @@
     <string name="compose_forwarded_sent_below">При отправке добавляется под вашей заметкой, с исходным форматированием.</string>
     <string name="compose_forwarded_loading">Загрузка исходного сообщения…</string>
     <string name="compose_forwarded_close">Закрыть</string>
-    <string name="compose_scheduled_toast">Запланировано — %1$s</string>
+    <string name="compose_scheduled_for">Запланировано на %1$s</string>
     <string name="compose_discard_title">Удалить сообщение?</string>
     <string name="compose_discard_message">Вы не сохранили изменения.</string>
     <string name="compose_discard_message_encrypted">Это письмо зашифровано, поэтому его нельзя сохранить как черновик: черновик хранится на почтовом сервере ровно в том виде, в каком вы его написали, и доступен для чтения любому, у кого есть доступ. Если выйти сейчас, письмо будет удалено.</string>
@@ -77,10 +78,11 @@
     <string name="compose_discard_discard">Удалить</string>
     <string name="compose_discard_cancel">Отмена</string>
     <string name="schedule_in_1_hour">Через 1 час</string>
-    <string name="schedule_this_evening">Сегодня вечером, 18:00</string>
-    <string name="schedule_tomorrow_morning">Завтра, 8:00</string>
-    <string name="schedule_tomorrow_evening">Завтра, 18:00</string>
+    <string name="schedule_this_evening">Сегодня вечером, %1$s</string>
+    <string name="schedule_tomorrow_morning">Завтра, %1$s</string>
+    <string name="schedule_tomorrow_evening">Завтра, %1$s</string>
     <string name="schedule_pick_date_time">Выбрать дату и время</string>
+    <string name="schedule_last_used">Последний выбор · %1$s</string>
 
     <!-- Inbox -->
     <string name="inbox_move_to_folder">Переместить в папку</string>
@@ -703,7 +705,10 @@
     <string name="compose_pgp_subject_note">Тема письма не шифруется.</string>
     <string name="compose_pgp_not_encrypted_no_key">Это письмо не будет зашифровано: нет открытого ключа для %1$s.</string>
     <string name="compose_pgp_no_draft">Зашифрованные письма нельзя сохранить как черновик или запланировать.</string>
-    <string name="compose_schedule_attachment_unavailable">не удалось получить вложение %1$s с сервера, ничего не запланировано.</string>
+    <string name="compose_pgp_no_schedule">Подписанные или зашифрованные письма нельзя запланировать: отложенная отправка идёт без OpenPGP.</string>
+    <string name="compose_schedule_needs_recipient">Сначала добавьте получателя.</string>
+    <string name="compose_schedule_invalid_address">Один из адресов недействителен. Сначала исправьте его.</string>
+    <string name="compose_schedule_attachment_unavailable">не удалось получить вложение %1$s с сервера</string>
     <string name="compose_pgp_not_configured">OpenPGP не настроен для этой учётной записи.</string>
     <string name="compose_pgp_missing_keys">Нет открытого ключа для одного или нескольких получателей.</string>
     <string name="compose_pgp_too_large">Вложения слишком велики для шифрования (макс. 25 МБ).</string>
@@ -919,8 +924,10 @@
     <string name="inbox_scheduled">Запланированные</string>
     <string name="scheduled_title">Отложенные</string>
     <string name="scheduled_empty">Нет отложенных сообщений.</string>
-    <string name="scheduled_cancel">Отменить отложенную отправку</string>
     <string name="scheduled_send_at">Отправка %1$s</string>
+    <string name="scheduled_cancel_send">Отменить отправку</string>
+    <string name="scheduled_no_longer_scheduled">Это письмо больше не отложено.</string>
+    <string name="scheduled_cancel_failed">Не удалось отменить: черновик не сохранён. Письмо остаётся в отложенных.</string>
     <string name="scheduled_cancelled_to_drafts">Отменено. Письмо вернулось в черновики.</string>
     <string name="scheduled_cancelled_no_account">Отменено. Учётной записи больше нет, поэтому черновик не сохранён.</string>
     <string name="inbox_snoozed">Отложенные</string>

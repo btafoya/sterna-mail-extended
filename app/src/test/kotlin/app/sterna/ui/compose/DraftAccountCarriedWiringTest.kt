@@ -76,13 +76,13 @@ class DraftAccountCarriedWiringTest {
         )
         assertEquals(
             "⛔ the fidelity verdict and the account guard are DIFFERENT questions, and the row " +
-                "must be gated by both, in this order, on the one pair: drop the first and a " +
+                "must be gated by both on the one pair, the Undo record by the account alone: drop the first and a " +
                 "scheduled send destroys an original this composer could not reproduce; drop the " +
                 "second and it expunges a number in the wrong account's Drafts. Lines were:",
             listOf(
-                "val sendTarget = sendDraftTarget(",
-                ").unlessBodyIsLossy(editingDraftLossy)",
-                ".unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
+                "val undoTarget = sendDraftTarget(",
+                ").unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)",
+                "val sendTarget = undoTarget.unlessBodyIsLossy(editingDraftLossy)",
             ),
             linesNaming(body, "sendDraftTarget(", "unlessBodyIsLossy(", "unlessDraftBelongsElsewhere("),
         )

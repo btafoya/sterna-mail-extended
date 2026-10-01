@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import android.os.SystemClock
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -78,8 +79,6 @@ import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -279,9 +278,6 @@ fun InboxScreen(
     val message by viewModel.message.collectAsStateWithLifecycle()
     val outboxPending by viewModel.outboxPending.collectAsStateWithLifecycle()
     val restoredDraft by viewModel.restoredDraft.collectAsStateWithLifecycle()
-    val outboxCount by viewModel.outboxCount.collectAsStateWithLifecycle()
-    // Two counts on purpose (#70): this one has no grace and feeds the menu entry only.
-    val outboxQueuedCount by viewModel.outboxQueuedCount.collectAsStateWithLifecycle()
     val outboxHasFailures by viewModel.outboxHasFailures.collectAsStateWithLifecycle()
     val highlightId by viewModel.highlightId.collectAsStateWithLifecycle()
     // The message open in the reading pane beside the list, on a wide window: its row is painted
@@ -851,26 +847,10 @@ fun InboxScreen(
                             // a narrow menu opened under the leftmost icon (#74).
                             Box {
                                 IconButton(onClick = { overflowOpen = true }) {
-                                    BadgedBox(
-                                        badge = {
-                                            // Discreet dot when the outbox has pending or failed items;
-                                            // error-tinted if any failed, otherwise the neutral accent.
-                                            if (outboxCount > 0) {
-                                                Badge(
-                                                    containerColor = if (outboxHasFailures) {
-                                                        MaterialTheme.colorScheme.error
-                                                    } else {
-                                                        MaterialTheme.colorScheme.primary
-                                                    },
-                                                )
-                                            }
-                                        },
-                                    ) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
-                                    }
+                                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
                                 }
                                 // Frequent actions first, nearest the anchor; the rarely-visited
-                                // Outbox comes after them (#48). In the Trash the destructive
+                                // by-sender list comes after them (#48). In the Trash the destructive
                                 // "Empty trash" is pushed to the very bottom.
                                 DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }, shape = MaterialTheme.shapes.medium) {
                                     DropdownMenuItem(
@@ -888,44 +868,8 @@ fun InboxScreen(
                                             onClick = { viewModel.markAllRead(); overflowOpen = false },
                                         )
                                     }
-                                    // The Trash trades the scheduled-messages shortcut for "Empty trash",
-                                    // which is appended below rather than taking this slot.
-                                    if (!isTrash) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_scheduled)) },
-                                            leadingIcon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
-                                            onClick = { overflowOpen = false; onOpenScheduled() },
-                                        )
-                                        // Where snoozed messages can be found again (Codeberg #82):
-                                        // right beside the other "waiting on a clock" list.
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_snoozed)) },
-                                            leadingIcon = { Icon(Icons.Filled.Snooze, contentDescription = null) },
-                                            onClick = { overflowOpen = false; onOpenSnoozed() },
-                                        )
-                                    }
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.inbox_outbox)) },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-                                        // outboxQueuedCount, not the dot's outboxCount: it appears
-                                        // the instant a message is queued, while the dot keeps its
-                                        // 30 s grace (#70). Do not wire them to the same flow.
-                                        trailingIcon = {
-                                            if (outboxQueuedCount > 0) {
-                                                Badge(
-                                                    containerColor = if (outboxHasFailures) {
-                                                        MaterialTheme.colorScheme.error
-                                                    } else {
-                                                        MaterialTheme.colorScheme.primary
-                                                    },
-                                                ) { Text(outboxQueuedCount.toString()) }
-                                            }
-                                        },
-                                        onClick = { overflowOpen = false; onOpenOutbox() },
-                                    )
-                                    // After the Outbox, before anything destructive (#48). Absent in
-                                    // the Trash for the same reason as the two lists above: it counts
-                                    // the folders one keeps mail in.
+                                    // Last before anything destructive (#48). Absent in the Trash:
+                                    // it counts the folders one keeps mail in.
                                     if (!isTrash) {
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.inbox_by_sender)) },
@@ -1517,6 +1461,9 @@ fun InboxScreen(
                         onSwitchAccount = onSwitchAccount,
                         onOpenAccountSettings = onOpenAccountSettings,
                         onOpenSettings = onOpenSettings,
+                        onOpenScheduled = onOpenScheduled,
+                        onOpenSnoozed = onOpenSnoozed,
+                        onOpenOutbox = onOpenOutbox,
                         onManageFolders = onManageFolders,
                         onCreateFolder = { showCreateFolder = true },
                         onAddSubfolder = { folderToAddChild = it },
@@ -1544,6 +1491,9 @@ fun InboxScreen(
                         onSwitchAccount = onSwitchAccount,
                         onOpenAccountSettings = onOpenAccountSettings,
                         onOpenSettings = onOpenSettings,
+                        onOpenScheduled = onOpenScheduled,
+                        onOpenSnoozed = onOpenSnoozed,
+                        onOpenOutbox = onOpenOutbox,
                         onManageFolders = onManageFolders,
                         onCreateFolder = { showCreateFolder = true },
                         onAddSubfolder = { folderToAddChild = it },
@@ -1573,6 +1523,9 @@ private fun DrawerContent(
     onSwitchAccount: (String) -> Unit,
     onOpenAccountSettings: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenScheduled: () -> Unit,
+    onOpenSnoozed: () -> Unit,
+    onOpenOutbox: () -> Unit,
     onManageFolders: () -> Unit,
     /** The four dialogs the drawer opens live with the screen, not with the sheet: hoisted as
      *  callbacks so a dialog outlives the modal sheet closing under it. */
@@ -1744,6 +1697,49 @@ private fun DrawerContent(
                     },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
+                val scheduledCount by viewModel.scheduledCount.collectAsStateWithLifecycle()
+                val snoozedCount by viewModel.snoozedCount.collectAsStateWithLifecycle()
+                // No grace on this count (#70): the entry is seen only when the drawer is opened on
+                // purpose, so a message just queued must already be counted.
+                val outboxQueuedCount by viewModel.outboxQueuedCount.collectAsStateWithLifecycle()
+                drawerListsToShow(
+                    scheduled = scheduledCount,
+                    snoozed = snoozedCount,
+                    outbox = outboxQueuedCount,
+                ).forEach { list ->
+                    when (list) {
+                        DrawerList.SCHEDULED -> NavigationDrawerItem(
+                            icon = { Icon(Icons.Filled.Schedule, contentDescription = null) },
+                            label = { Text(countedDrawerLabel(R.string.inbox_scheduled, scheduledCount)) },
+                            selected = false,
+                            onClick = {
+                                onOpenScheduled()
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        DrawerList.SNOOZED -> NavigationDrawerItem(
+                            icon = { Icon(Icons.Filled.Snooze, contentDescription = null) },
+                            label = { Text(countedDrawerLabel(R.string.inbox_snoozed, snoozedCount)) },
+                            selected = false,
+                            onClick = {
+                                onOpenSnoozed()
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                        DrawerList.OUTBOX -> NavigationDrawerItem(
+                            icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                            label = { Text(countedDrawerLabel(R.string.inbox_outbox, outboxQueuedCount)) },
+                            selected = false,
+                            onClick = {
+                                onOpenOutbox()
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                        )
+                    }
+                }
                 // The one place the registry and the default become "what is folded"; see
                 // [collapsedFolderIds]. The list it resolves against is the one drawn just below.
                 val collapsedIds = collapsedFolderIds(ui.visibleMailboxes, collapsedFolders, folderRowsBadgeUnread)
@@ -1848,6 +1844,13 @@ private fun DrawerContent(
                 )
               }
 }
+
+/** [countedLabel] in the drawer's own "name  (count)" form, the one the folder rows print. */
+@Composable
+private fun countedDrawerLabel(@StringRes name: Int, count: Int): String =
+    countedLabel(stringResource(name), count) { label, n ->
+        stringResource(R.string.inbox_folder_unread, label, n)
+    }
 
 /**
  * The centred ring's own grace, from the same functions that hold the tern back (#178), never a

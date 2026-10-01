@@ -3,35 +3,68 @@ package app.sterna.ui.scheduled
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import app.sterna.R
 import app.sterna.container
 import app.sterna.core.data.db.ScheduledSendEntity
 import app.sterna.core.data.mail.accountDepartureIsProven
 import app.sterna.send.ScheduledSends
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
 
 class ScheduledSendsViewModel(application: Application) : AndroidViewModel(application) {
     private val repo = application.container.mailRepository
 
-    val items = repo.sending.scheduledSendsFlow().stateIn(
+    private val table = repo.sending.scheduledSendsFlow()
+
+    val items = table.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList<ScheduledSendEntity>(),
     )
 
+    /** Null without a fresh table answer: an initial or stale list would read rows as sent. */
+    val rows: StateFlow<List<ScheduledSendEntity>?> = table.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0),
+        initialValue = null,
+    )
+
+    val accountLabels: StateFlow<Map<String, String>> = application.container.accountStore.accountsFlow
+        .map { accounts -> accounts.associate { it.id to it.label() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     /**
-     * The rows whose cancellation is still running, so a second tap on the same X cannot start a
-     * second one (#170).
+     * The rows whose cancellation is still running, so a second tap cannot start a second one (#170).
      */
     private val inFlight: MutableSet<Long> = ConcurrentHashMap.newKeySet()
 
+    private val _cancelling = MutableStateFlow<Set<Long>>(emptySet())
+    val cancelling = _cancelling.asStateFlow()
+
+    /** Set before the row leaves [cancelling]: in between, its disappearance would read as sent. */
+    private val _outcome = MutableStateFlow<ScheduledCancelOutcome?>(null)
+    val outcome = _outcome.asStateFlow()
+
+    fun takeOutcome(id: Long): ScheduledCancelExit? {
+        val current = _outcome.value?.takeIf { it.id == id } ?: return null
+        return if (_outcome.compareAndSet(current, null)) current.exit else null
+    }
+
+    fun takeAnyOutcome(): ScheduledCancelExit? {
+        val current = _outcome.value ?: return null
+        return if (_outcome.compareAndSet(current, null)) current.exit else null
+    }
+
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
+
+    fun say(text: String) { _message.value = text }
 
     fun clearMessage() { _message.value = null }
 
@@ -39,12 +72,13 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
      * Cancel a scheduled send: file the message back in Drafts, then drop its row and then its job,
      * in that order, so that no step can lose the only copy.
      */
-    fun cancel(id: Long) {
+    fun cancel(id: Long, accountId: String) {
         val app = getApplication<Application>()
         if (!inFlight.add(id)) return
+        _cancelling.update { it + id }
         app.container.appScope.launch {
-            val report = try {
-                cancelScheduledSend(
+            try {
+                val report = cancelScheduledSend(
                     id = id,
                     row = { repo.sending.scheduledSend(it) },
                     credentials = { app.container.accountStore.credentials(it) },
@@ -96,16 +130,13 @@ class ScheduledSendsViewModel(application: Application) : AndroidViewModel(appli
                     dropWorker = { ScheduledSends.cancel(app, it) },
                     deleteRow = { repo.sending.deleteScheduledSend(it) },
                 )
+                _outcome.value = ScheduledCancelOutcome(id, scheduledCancelExit(report, accountId))
             } finally {
                 inFlight.remove(id)
-            } ?: return@launch // already fired or already cancelled: nothing happened, say nothing
-            _message.value = app.getString(
-                when (report) {
-                    ScheduledCancelReport.RETURNED_TO_DRAFTS -> R.string.scheduled_cancelled_to_drafts
-                    ScheduledCancelReport.ACCOUNT_GONE -> R.string.scheduled_cancelled_no_account
-                    ScheduledCancelReport.NOT_CANCELLED -> R.string.status_action_failed
-                },
-            )
+                _cancelling.update { it - id }
+            }
         }
     }
 }
+
+data class ScheduledCancelOutcome(val id: Long, val exit: ScheduledCancelExit)

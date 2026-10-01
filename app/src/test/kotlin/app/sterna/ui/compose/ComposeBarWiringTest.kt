@@ -89,10 +89,9 @@ class ComposeBarWiringTest {
     @Test fun `each entry kept the enabled rule its icon had`() {
         assertEquals(
             "the three entries that came down from the bar must keep their `enabled` rules, " +
-                "whole and in order. Dropping the schedule's `scheduleSendAllowed(...)` offers a " +
-                "send later on a signed/encrypted message — the headless worker cannot sign, so " +
-                "the message would go out unsigned. Dropping `!sending` acts on a message already in " +
-                "flight (INV-6).",
+                "whole and in order. The schedule's is `!sending` alone: lit without a recipient and " +
+                "under OpenPGP, its tap says why it is refused (ScheduleMenuWiringTest pins the " +
+                "refusal). Dropping `!sending` acts on a message already in flight (INV-6).",
             ENABLED,
             overflowMenu().filter { it.startsWith("enabled = ") },
         )
@@ -308,14 +307,15 @@ class ComposeBarWiringTest {
 
         private val ENABLED = listOf(
             "enabled = !sending && canSaveDraft,",
-            "enabled = !sending && canSend && scheduleSendAllowed(pgpMode),",
+            "enabled = !sending,",
             "enabled = !sending,",
         )
 
         private const val SAVE_TAP =
             "onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },"
         private const val SCHEDULE_TAP =
-            "onClick = { moreMenu = false; menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true },"
+            "onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { " +
+                "menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },"
         private const val DELETE_TAP = "onClick = { moreMenu = false; viewModel.askDraftDelete() },"
 
         private const val EXPANDED_MORE = "expanded = moreMenu,"

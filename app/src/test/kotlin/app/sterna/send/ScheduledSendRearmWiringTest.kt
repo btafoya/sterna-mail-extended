@@ -110,7 +110,7 @@ class ScheduledSendRearmWiringTest {
                 "coerced seam the startup re-arm uses, and must NOT keep an existing booking — a " +
                 "re-scheduled message has to replace the hour that is still booked under its id:",
             listOf(
-                "ScheduledSends.enqueue(getApplication(), id, scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis()))",
+                "ScheduledSends.enqueue(getApplication(), id, heldScheduleDelayMillis(scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis())))",
             ),
             linesOf(COMPOSER).filter { "ScheduledSends.enqueue(" in it },
         )

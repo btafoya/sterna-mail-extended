@@ -91,8 +91,8 @@ class SendBodiesWiringTest {
     }
 
     /**
-     * The undo round trip, both ends. The record kept for the undo window lives in memory, and the
-     * branch that reopens from it is `prepare()`'s: nothing in this module can execute either.
+     * The undo round trip, both ends, for both records Undo reopens from (send, then schedule). They
+     * live in memory, and the branch that reopens them is `prepare()`'s: nothing here executes either.
      */
     @Test fun `undoing a send gives the styling back, at both ends`() {
         val code = codeLines(COMPOSE_VIEW_MODEL.readText())
@@ -102,14 +102,14 @@ class SendBodiesWiringTest {
                 "`body.ranges` it HELD, never a re-parse of the html that went out, which carries " +
                 "an imported signature substituted verbatim and a forward's original appended and " +
                 "would not read back",
-            listOf("bodyRanges = body.ranges,"),
+            listOf("bodyRanges = body.ranges,", "bodyRanges = body.ranges,"),
             code.filter { it.startsWith("bodyRanges = body.ranges") },
         )
         assertEquals(
             "…and its LISTS, off that same composer state (#131): dropped, undoing a send hands " +
                 "back a message whose list has been flattened, and the re-send delivers the " +
                 "flattening.",
-            listOf("bodyBlocks = body.blocks,"),
+            listOf("bodyBlocks = body.blocks,", "bodyBlocks = body.blocks,"),
             code.filter { it.startsWith("bodyBlocks = body.blocks") },
         )
         assertEquals(
@@ -127,7 +127,7 @@ class SendBodiesWiringTest {
         assertEquals(
             "…and its LINKS, off that same composer state: dropped, undoing a send hands back a " +
                 "message whose addresses have been REMOVED, and the re-send delivers the removal.",
-            listOf("bodyLinks = body.links,"),
+            listOf("bodyLinks = body.links,", "bodyLinks = body.links,"),
             code.filter { it.startsWith("bodyLinks = body.links") },
         )
         assertEquals(

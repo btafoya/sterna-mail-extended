@@ -6,6 +6,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.text.format.DateUtils
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -97,8 +98,9 @@ sealed interface ComposeState {
     data object Sending : ComposeState
     data object Done : ComposeState
 
-    /** [whileSaving] distinguishes a failed draft save from a failed send, for the banner text. */
-    data class Error(val message: String, val whileSaving: Boolean = false) : ComposeState
+    /** [whileSaving] and [whileScheduling] tell a failed draft save or schedule from a failed send,
+     *  for the banner text ([composeErrorWording]). */
+    data class Error(val message: String, val whileSaving: Boolean = false, val whileScheduling: Boolean = false) : ComposeState
 
     /** The OpenPGP provider needs the user (passphrase/key pick) to finish the send: consume it with
      *  ComposeViewModel.consumePgpInteraction, then launch [pendingIntent], result to ComposeViewModel.retryPgpSend. */
@@ -1716,6 +1718,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Whether these recipients and the current OpenPGP mode may be scheduled; the refusal, said as a toast. */
+    fun mayScheduleOrSay(to: String, cc: String, bcc: String): Boolean {
+        val refusal = scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true
+        _notices.tryEmit(refusal)
+        return false
+    }
+
     /**
      * Schedule the message to be sent at [sendAtMillis]. Persisted to Room and fired by WorkManager.
      */
@@ -1728,13 +1737,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         sendAtMillis: Long,
         requestReceipt: Boolean,
     ): Boolean {
-        // A scheduled send is handed to a headless worker that can neither sign nor encrypt, so any
-        // PgpMode but off would go out unsigned (#35). The toolbar disables the button; this is the
-        // choke point.
-        if (!scheduleSendAllowed(_pgpMode.value)) {
-            _notices.tryEmit(R.string.compose_pgp_no_draft)
-            return false
-        }
+        // The choke point: a headless worker can neither sign nor encrypt, so any PgpMode but off
+        // would go out unsigned (#35), and the menu entry asking first does not make this optional.
+        if (!mayScheduleOrSay(to, cc, bcc)) return false
         // …and the same refusal as the immediate send, for the same reason: a scheduled send commits
         // just as truly and consumes the phone's own draft row on the way out. `body.text` is this
         // function's own raw parameter; the `textBody` computed below carries the signature.
@@ -1762,23 +1767,40 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 val identity = selectedIdentity()
                 val (textBody, htmlBody) = bodiesForSend(body, identity)
                 val attachments = _attachments.value
-                // The same one answer as the send above: id and numbering together, the server draft
-                // named off the row when this composer was reopened from one (#95), then withheld
-                // whole when the composer cannot show the message reproduces the draft (#63). The
-                // scheduled row has nowhere to say so, so the id is the carrier.
-                val sendTarget = sendDraftTarget(
+                // The send's one answer: id and numbering together, named off the row when reopened
+                // from one (#95), withheld whole when the draft belongs to another account than
+                // `credentials.id`, which the row fires under. Undo's record takes it so, its lossy
+                // verdict beside it, as an undone send does.
+                val undoTarget = sendDraftTarget(
                     editingDraftId = editingDraftId,
                     editingDraftUidValidity = editingDraftUidValidity,
                     replacedServerDraftId = replacedServerDraftId,
                     replacedServerDraftUidValidity = replacedServerDraftUidValidity,
-                ).unlessBodyIsLossy(editingDraftLossy)
-                    // …and withheld again, whole, when the draft belongs to another account than the
-                    // one this row is written under: a different question from the verdict above. The
-                    // row carries `accountId = credentials.id`, so an id of A on it fires against B's
-                    // server at the hour chosen.
-                    .unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
-                // Same order as the send above (#95): the scheduled row is written and its worker
-                // booked first, and only then does the phone's own draft row go.
+                ).unlessDraftBelongsElsewhere(draftAccountId = carriedDraftAccount(), writingAccountId = credentials.id)
+                // …and withheld again for the row when the composer cannot show the message reproduces
+                // the draft (#63): a different question, and the row has nowhere to say so but the id.
+                val sendTarget = undoTarget.unlessBodyIsLossy(editingDraftLossy)
+                val app = getApplication<Application>()
+                // Undo's record keeps the composer's parts, not the copies `deleteScheduledSend` removes.
+                val draft = SendOutbox.ComposeDraft(
+                    to = to, cc = cc, bcc = bcc, subject = subject, body = body.text,
+                    bodyRanges = body.ranges,
+                    bodyBlocks = body.blocks,
+                    bodyLinks = body.links,
+                    fromAccountId = _selectedFrom.value?.accountId,
+                    fromIdentityEmail = identity?.email,
+                    attachments = attachments, inReplyTo = inReplyTo, references = references,
+                    forwardedText = forwarded?.text, forwardedHtml = forwarded?.html,
+                    draftEmailId = undoTarget.emailId,
+                    draftUidValidity = undoTarget.uidValidity,
+                    draftBodyIsLossy = editingDraftLossy,
+                    requestReceipt = requestReceipt,
+                )
+                val label = scheduledHoldLabel(sendAtMillis, { millis, flags -> DateUtils.formatDateTime(app, millis, flags) }) {
+                    app.getString(R.string.compose_scheduled_for, it)
+                }
+                // Same order as the send above (#95): the row written and its worker booked, then the
+                // Undo offered, and only then does the phone's own draft row go.
                 commitThenConsumeLocalDraft(
                     localDraftId = _editingLocalDraftId.value,
                     commit = {
@@ -1812,7 +1834,15 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                             attachments = attachments,
                             fetchBlob = { part -> repo.downloadAttachment(credentials, part, emailId = "") },
                         )
-                        ScheduledSends.enqueue(getApplication(), id, scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis()))
+                        ScheduledSends.enqueue(getApplication(), id, heldScheduleDelayMillis(scheduledSendDelayMillis(sendAtMillis, System.currentTimeMillis())))
+                        outbox.hold(
+                            label = label,
+                            draft = draft,
+                            holdMs = SendOutbox.HOLD_MS,
+                        ) {
+                            repo.sending.deleteScheduledSend(id)
+                            ScheduledSends.cancel(app, id)
+                        }
                     },
                     consume = { local -> consumeEditingLocalDraft(local) },
                 )
@@ -1823,13 +1853,13 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: ScheduledAttachmentFetchFailed) {
                 _state.value = ComposeState.Error(
                     getApplication<Application>().getString(R.string.compose_schedule_attachment_unavailable, e.name ?: "?"),
+                    whileScheduling = true,
                 )
             } catch (t: Throwable) {
-                _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName)
+                _state.value = ComposeState.Error(t.message ?: t.javaClass.simpleName, whileScheduling = true)
             }
         }
-        // Accepted, the coroutine above owns what happens next. A failure inside it lands on
-        // `ComposeState.Error`; this answer is about the gesture.
+        // Accepted: what follows is the coroutine's, and a failure lands on `ComposeState.Error`.
         return true
     }
 

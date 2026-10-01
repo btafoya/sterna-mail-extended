@@ -315,7 +315,7 @@ class DraftVerdictWiringTest {
                 "the row has nowhere else to say so — and it withholds the PAIR, at the one place " +
                 "that builds it. Dropped here, a scheduled send of a draft this composer could not " +
                 "reproduce destroys the original it was written to spare. Line was:",
-            listOf(").unlessBodyIsLossy(editingDraftLossy)"),
+            listOf("val sendTarget = undoTarget.unlessBodyIsLossy(editingDraftLossy)"),
             codeLinesNaming(bodyOf(COMPOSE_VIEW_MODEL, "scheduleSend"), "unlessBodyIsLossy"),
         )
         assertEquals(

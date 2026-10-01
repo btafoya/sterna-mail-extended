@@ -305,7 +305,9 @@ class LocalDraftReopenWiringTest {
     @Test fun `no send ever carries an id this phone minted`() {
         assertEquals(
             "⛔ every `draftEmailId =` in this class, whole lines and in order: the outbox row, " +
-                "the record an undone send reopens from, and the scheduled row. Each one is what a " +
+                "the record an undone send reopens from, the record an undone schedule reopens " +
+                "from (`undoTarget`: the same id as an undone send's, its lossy verdict beside it), " +
+                "and the scheduled row. Each one is what a " +
                 "delivery worker DESTROYS once the message is on its way — on JMAP an Email/set " +
                 "destroy, on IMAP a name ending in a UID, and a UID always means SOMETHING in a " +
                 "folder. A reopened local draft made the composer hold exactly such an id, and the " +
@@ -319,12 +321,13 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "draftEmailId = sendTarget.emailId,",
                 "draftEmailId = sendTarget.emailId,",
+                "draftEmailId = undoTarget.emailId,",
                 "draftEmailId = sendTarget.emailId,",
             ),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "draftEmailId =" in it },
         )
         assertEquals(
-            "⛔ …and its numbering comes out of the SAME answer, at all three: the pair is one " +
+            "⛔ …and its numbering comes out of the SAME answer, at all four: the pair is one " +
                 "decision. Half of it read off the composer beside the other half read off the row " +
                 "is the worst of both — on IMAP a UID expunged under a UIDVALIDITY it does not " +
                 "belong to hits ANOTHER message of Drafts, and on the other order the destroy is " +
@@ -332,6 +335,7 @@ class LocalDraftReopenWiringTest {
             listOf(
                 "draftUidValidity = sendTarget.uidValidity,",
                 "draftUidValidity = sendTarget.uidValidity,",
+                "draftUidValidity = undoTarget.uidValidity,",
                 "draftUidValidity = sendTarget.uidValidity,",
             ),
             codeLines(codeOf(COMPOSE_VIEW_MODEL.readText())).filter { "draftUidValidity =" in it },
