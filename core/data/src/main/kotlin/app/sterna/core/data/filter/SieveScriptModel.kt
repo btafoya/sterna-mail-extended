@@ -99,7 +99,7 @@ class SieveScript internal constructor(
     fun update(id: Int, edited: FilterRule): SieveScript {
         val rule = asWritten(edited)
         val s = migrated()
-        s.entryIndex(id)?.let { return s.bulwarkUpdated(it, rule) }
+        s.entryIndex(id)?.let { return s.bulwarkUpdated(it, rule).withResponderExclusion() }
         val i = s.indexOf(id)
         val c = s.segments[i] as Command
         val old = requireNotNull(c.form) { "rule $id is Sieve text" }
@@ -116,13 +116,14 @@ class SieveScript internal constructor(
         val updated = c.copy(header = header, statement = statement, form = FormBlock(kept, words, old.guard))
         return s.copy(segments = s.segments.replaced(i, updated))
             .requiring(if (sameBlock) emptySet() else capabilitiesOf(kept))
+            .withResponderExclusion()
     }
 
     /** [rule] added after the last block, or as a Bulwark entry when the script's Bulwark JSON is readable. */
     fun add(added: FilterRule, newBulwarkId: () -> String = ::randomBulwarkId): SieveScript {
         val rule = asWritten(added)
         val s = migrated()
-        if (bulwarkMetadata == BulwarkMetadata.READABLE) return s.bulwarkAdded(rule, newBulwarkId())
+        if (bulwarkMetadata == BulwarkMetadata.READABLE) return s.bulwarkAdded(rule, newBulwarkId()).withResponderExclusion()
         val command = newFormCommand(s.nextId, rule)
         val responder = responderOf(s.segments)?.blockId
         val lastBlock = s.segments.indexOfLast { it is Command && it.id != responder }
@@ -134,13 +135,13 @@ class SieveScript internal constructor(
         }
         val at = outsideNextcloud(s.segments, wanted)
         val segs = s.segments.withBlock(at, command, blankAfter && at == wanted)
-        return s.copy(segments = segs, nextId = s.nextId + 1).requiring(capabilitiesOf(rule))
+        return s.copy(segments = segs, nextId = s.nextId + 1).requiring(capabilitiesOf(rule)).withResponderExclusion()
     }
 
     fun remove(id: Int): SieveScript {
         val s = migrated()
-        s.entryIndex(id)?.let { return s.bulwarkRemoved(it) }
-        return s.copy(segments = s.segments.withoutSegment(s.indexOf(id)))
+        s.entryIndex(id)?.let { return s.bulwarkRemoved(it).withResponderExclusion() }
+        return s.copy(segments = s.segments.withoutSegment(s.indexOf(id))).withResponderExclusion()
     }
 
     /** The block [id] replaced by [text], or null when [text] cannot be cut; blank [text] removes the block. */
@@ -148,7 +149,7 @@ class SieveScript internal constructor(
         val s = migrated()
         require(s.entryIndex(id) == null) { "rule $id is managed by Bulwark" }
         val i = s.indexOf(id)
-        if (text.isBlank()) return s.copy(segments = s.segments.withoutSegment(i))
+        if (text.isBlank()) return s.copy(segments = s.segments.withoutSegment(i)).withResponderExclusion()
         val c = s.segments[i] as Command
         val source = if (text.endsWith("\n")) text else text + c.trailer.substring(c.trailer.trimEnd('\r', '\n').length)
         val parts = try {
@@ -159,6 +160,7 @@ class SieveScript internal constructor(
         val single = parts.count { it is Command } == 1
         val placed = classify(parts.map { if (single && it is Command) it.copy(id = id) else it })
         return s.copy(segments = s.segments.take(i) + placed + s.segments.drop(i + 1), nextId = s.nextId + parts.size)
+            .withResponderExclusion()
     }
 
     /**
@@ -290,6 +292,27 @@ class SieveScript internal constructor(
             if (vacation.fromDate != null || vacation.toDate != null) addAll(listOf("date", "relational"))
         }
         return s.copy(segments = segs, nextId = next).requiring(needs)
+    }
+
+    /**
+     * The auto-reply block with its `not anyof` made of the rules of this script that file into the Trash,
+     * since a rule edit changes who gets no reply. The statement alone is rewritten, and only when it
+     * differs: an edit that leaves that set alone leaves the block byte for byte. An unreadable marker, or
+     * a `vacation` block with no marker of ours, is not ours to rewrite.
+     */
+    private fun withResponderExclusion(): SieveScript {
+        val vacation = (responder as? VacationMarker.Found)?.vacation
+            ?.takeIf { it.isEnabled && it.trashFolder != null } ?: return this
+        val blockId = responderOf(segments)?.blockId ?: return this
+        val at = segments.indexOfFirst { it is Command && it.id == blockId }
+        val c = segments[at] as Command
+        // `migrated` glues our marker to the first `vacation` block, maybe another client's: only one running our command is ours.
+        val command = SieveCodec.vacationToSieve(vacation.copy(fromDate = null, toDate = null, trashFolder = null), emptyList(), lineEnding)
+        if (c.statement != command && !c.statement.endsWith("$lineEnding    $command$lineEnding}")) return this
+        val active = rules.filterIsInstance<ScriptRule.Form>().filter { it.rule.isRunnable }
+        val statement = SieveCodec.vacationToSieve(vacation, active.map { it.rule }, lineEnding, active.map { writtenTest(it.id) })
+        if (statement == c.statement) return this
+        return copy(segments = segments.replaced(at, c.copy(statement = statement)))
     }
 
     /**

@@ -256,6 +256,29 @@ class FiltersOverJmapKeepTheResponderTest {
         assertEquals("the active script is written in place, never activated again", listOf<String?>(null), activations())
     }
 
+    @Test fun `a sender blocked on JMAP after an IMAP account turned the responder on gets no reply`() {
+        serveJmap()
+        scripts = listOf(sterna(SieveCodec.generate(before, away.copy(trashFolder = "Trash")), active = true))
+        val accounts = accounts()
+
+        val outcome = runBlocking {
+            addBlockRule(
+                address = "spam@example.test",
+                trashFolder = "Trash",
+                load = { accounts.loadFilterRules(credentials) },
+                save = { accounts.saveFilterScript(credentials, it) },
+            )
+        }
+
+        assertEquals(BlockOutcome.ADDED, outcome)
+        val uploaded = uploads.single()
+        assertTrue(
+            uploaded,
+            "if not anyof (address :is \"from\" \"spam@example.test\") {\n" +
+                "    vacation :subject \"Away\" :addresses [\"alex@example.test\"] \"Back on the 28th.\";\n}\n" in uploaded,
+        )
+    }
+
     @Test fun `the active script is opened on JMAP, not an inactive sterna, and written under its own name`() {
         serveJmap()
         val roundcube = "require [\"fileinto\"];\n\n# rule:[x]\nif header :contains \"subject\" \"x\" {\n    fileinto \"X\";\n}\n"

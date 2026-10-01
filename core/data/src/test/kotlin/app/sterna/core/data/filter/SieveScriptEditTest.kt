@@ -223,12 +223,15 @@ class SieveScriptEditTest {
         )
     }
 
-    @Test fun `a filters edit keeps the auto-reply block verbatim`() {
+    @Test fun `a filters edit moves the auto-reply's exclusion with the rule into the Trash, and a rename leaves it verbatim`() {
         val away = SieveVacation(isEnabled = true, subject = "Away", textBody = "Back soon", trashFolder = "Trash")
         val script = readable(SieveCodec.generate(listOf(FilterRule(name = "T", value = "t", moveTo = "Trash")), away))
-        val block = SieveCodec.vacationToSieve(away, listOf(FilterRule(name = "T", value = "t", moveTo = "Trash")))
-        val edited = script.update(script.rules[0].id, FilterRule(name = "T", value = "changed", moveTo = "Trash")).emit()
-        assertTrue(edited, edited.endsWith(SieveCodec.vacationMarkerLine(away) + "\n" + block + "\n"))
+        val edited = script.update(script.rules[0].id, FilterRule(name = "T", value = "changed", moveTo = "Trash"))
+        val block = "if not anyof (address :contains \"from\" \"changed\") {\n    vacation :subject \"Away\" \"Back soon\";\n}"
+        assertTrue(edited.emit(), edited.emit().endsWith(SieveCodec.vacationMarkerLine(away) + "\n" + block + "\n"))
+
+        val renamed = edited.update(edited.rules[0].id, FilterRule(name = "T2", value = "changed", moveTo = "Trash")).emit()
+        assertEquals(edited.emit().replace("# T\n", "# T2\n"), renamed)
     }
 
     // ---- Bulwark: the JSON entry and its block move together ----

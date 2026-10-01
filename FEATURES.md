@@ -220,8 +220,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   script whatever its name, shows the rules the form can hold as rules and every other
   block as a rule written by hand, editable as text. Rules are reordered by dragging
   or with Up and Down, since the server applies them from top to bottom. Each rule
-  is saved to the server from its own editor, in place: what you did not touch is
-  kept byte for byte, and saving activates the script only when none is active or
+  is saved to the server from its own editor, in place: the rest of the script is
+  kept, and Sterna's own auto-reply keeps skipping the senders you send to the Trash.
+  Saving activates the script only when none is active or
   the active one is the server's auto-reply, after a warning.
 - ✅ Calendar invites: the first event of a `.ics` shown as a card above the body,
   parsed by a small built-in reader. "Add to calendar" hands it to your calendar

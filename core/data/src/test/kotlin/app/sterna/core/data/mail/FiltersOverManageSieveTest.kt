@@ -51,6 +51,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -960,6 +961,33 @@ class FiltersOverManageSieveTest {
         accounts.saveRules(accounts.opening(), blocked.map { if (it.name == "News") it.copy(value = "digest") else it })
 
         assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(sieve.scripts.getValue("sterna")))
+    }
+
+    @Test fun `a sender blocked after the auto-reply gets no reply, and unblocked gets one again`() {
+        val withTrash = awayInScript.copy(trashFolder = "INBOX.Trash")
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules, withTrash)), active = "sterna")
+        val accounts = accounts(sieve)
+
+        val outcome = runBlocking {
+            addBlockRule(
+                address = "spam@example.test",
+                trashFolder = "INBOX.Trash",
+                load = { accounts.loadFilterRules(imapAccount) },
+                save = { accounts.saveFilterScript(imapAccount, it) },
+            )
+        }
+
+        assertEquals(BlockOutcome.ADDED, outcome)
+        val blocked = sieve.scripts.getValue("sterna")
+        assertTrue(blocked, "if allof (not anyof (address :is \"from\" \"spam@example.test\"), currentdate" in blocked)
+
+        accounts.saveRules(accounts.opening(), rules)
+
+        val unblocked = sieve.scripts.getValue("sterna")
+        assertEquals(rules, sieve.rulesOf("sterna"))
+        assertEquals(VacationMarker.Found(withTrash), SieveCodec.readVacation(unblocked))
+        assertTrue(unblocked, "if allof (currentdate" in unblocked)
+        assertFalse(unblocked, "not anyof" in unblocked)
     }
 
     @Test fun `the auto-reply then the filters, and the final script carries both`() {
