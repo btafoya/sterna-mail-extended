@@ -4,6 +4,7 @@ import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeVerified
 import java.security.KeyStore
+import java.security.PrivateKey
 import java.security.Provider
 import java.security.cert.CertPathBuilder
 import java.security.cert.CertStore
@@ -19,10 +20,15 @@ import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x500.style.IETFUtils
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
+import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder
+import org.bouncycastle.cms.CMSEnvelopedData
 import org.bouncycastle.cms.CMSProcessableByteArray
 import org.bouncycastle.cms.CMSSignedData
+import org.bouncycastle.cms.KeyTransRecipientInformation
+import org.bouncycastle.cms.RecipientInformation
 import org.bouncycastle.cms.SignerInformation
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder
+import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 /**
@@ -57,6 +63,25 @@ class BouncyCastleSmimeEngine(
         val content = cms.signedContent?.content as? ByteArray
             ?: return SmimeVerified(PgpSignatureState.INVALID, null, null)
         return verdict(cms, senderAddress, content)
+    }
+
+    override fun namesRecipient(envelopedData: ByteArray, certificate: X509Certificate): Boolean =
+        recipientFor(envelopedData, certificate) != null
+
+    override fun decrypt(envelopedData: ByteArray, key: PrivateKey, certificate: X509Certificate): ByteArray {
+        val recipient = recipientFor(envelopedData, certificate)
+            ?: error("The message is not encrypted for this certificate")
+        check(recipient is KeyTransRecipientInformation) {
+            "Only RSA key transport is supported, not ${recipient.javaClass.simpleName}"
+        }
+        // No provider for the key: a key from the Android keystore cannot leave it, so only the keystore's own
+        // provider, found by the JCA from the key, can unwrap with it. Bouncy Castle runs the content cipher.
+        return recipient.getContent(JceKeyTransEnvelopedRecipient(key).setContentProvider(provider))
+    }
+
+    private fun recipientFor(envelopedData: ByteArray, certificate: X509Certificate): RecipientInformation? {
+        val holder = JcaX509CertificateHolder(certificate)
+        return CMSEnvelopedData(envelopedData).recipientInfos.recipients.firstOrNull { it.rid.match(holder) }
     }
 
     private fun verdict(cms: CMSSignedData, senderAddress: String?, content: ByteArray?): SmimeVerified {

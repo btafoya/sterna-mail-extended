@@ -704,6 +704,9 @@
     <string name="message_pgp_verify">Verificar</string>
     <string name="message_pgp_decrypted">Mensagem criptografada</string>
     <string name="message_pgp_no_provider">Nenhum aplicativo OpenPGP instalado</string>
+    <string name="message_smime_not_for_certificate">Não criptografada para o certificado escolhido</string>
+    <string name="message_smime_choose_other">Escolher outro certificado</string>
+    <string name="message_smime_not_decrypted">Não foi possível descriptografar esta mensagem</string>
     <string name="message_sig_verified">Remetente verificado: %1$s</string>
     <string name="message_sig_unconfirmed">Assinado por %1$s, mas não foi possível verificar o remetente</string>
     <string name="message_sig_mismatch">Assinado para %1$s, não para o remetente</string>

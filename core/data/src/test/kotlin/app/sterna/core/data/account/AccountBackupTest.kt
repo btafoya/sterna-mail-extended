@@ -52,4 +52,31 @@ class AccountBackupTest {
             keys.filter { "password" in it || "secret" in it || "smtppw" in it }.toSet(),
         )
     }
+
+    private val withAlias = StoredAccount(
+        id = "basic",
+        server = "imap.example.test",
+        username = "a@example.test",
+        smimeCertAlias = "keychain-alias-of-this-phone",
+    )
+
+    @Test fun `the S-MIME certificate chosen on this phone does not leave in a backup`() {
+        assertEquals(
+            "the alias names a key in this phone's keystore; on another it names nothing, or someone else's",
+            listOf(""),
+            backupSnapshotOf(listOf(withAlias)).map { it.smimeCertAlias },
+        )
+        val text = app.sterna.core.data.settings.SettingsBackupCodec.encode(
+            app.sterna.core.data.settings.SettingsBackup(accounts = backupSnapshotOf(listOf(withAlias))),
+        )
+        assertEquals("the backup file names no alias", false, "keychain-alias-of-this-phone" in text)
+    }
+
+    @Test fun `an S-MIME certificate alias in a backup file does not come back from it`() {
+        assertEquals(
+            "a file written with the alias in it must not bring it back",
+            "",
+            importedCopy(withAlias, "new-id").smimeCertAlias,
+        )
+    }
 }

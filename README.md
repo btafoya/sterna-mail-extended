@@ -144,13 +144,16 @@ Running your own server, with a free certificate or one you issued yourself? See
 - **OpenPGP** (via an external OpenPGP app such as
   [OpenKeychain](https://f-droid.org/packages/org.sufficientlysecure.keychain/)):
   read and send signed and/or encrypted mail (PGP/MIME) on both JMAP and
-  IMAP/SMTP. Decrypted content is never written to disk, with attachments as the
-  exception: one you open is written to the app's own storage until the cache is
-  cleared, and one you save goes to the folder you pick and stays there.
+  IMAP/SMTP. Decrypted content, OpenPGP or S/MIME alike, is never written to
+  disk, with attachments as the exception: one you open is written to the app's
+  own storage until the cache is cleared, and one you save goes to the folder
+  you pick and stays there.
   Printing a message, or saving it as a PDF, hands its decrypted text to the
   system print service. See the [encryption guide](ENCRYPTION.md) to get started.
 - **S/MIME**: the signature of a received message is checked when you open it,
-  on both JMAP and IMAP. Decrypting, signing and encrypting are not there yet.
+  on both JMAP and IMAP. A message encrypted for your RSA certificate is
+  decrypted with that certificate, installed in Android's settings and picked
+  the first time you tap Unlock. Signing and encrypting are not there yet.
 
 **🔔 Notifications & server power**
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or

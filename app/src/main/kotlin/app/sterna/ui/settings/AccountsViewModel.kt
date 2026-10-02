@@ -582,6 +582,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
                     _pgpSetup.value = PgpSetup.NeedsInteraction(result.pendingIntent)
                 is PgpResult.Error -> _pgpSetup.value = PgpSetup.Failed(result.message)
                 PgpResult.NotAvailable -> _pgpSetup.value = PgpSetup.Failed(null)
+                is PgpResult.SmimeCertificate -> _pgpSetup.value = PgpSetup.Failed(null)
             }
         }
     }

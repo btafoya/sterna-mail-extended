@@ -702,6 +702,9 @@
     <string name="message_pgp_verify">Prüfen</string>
     <string name="message_pgp_decrypted">Verschlüsselte Nachricht</string>
     <string name="message_pgp_no_provider">Keine OpenPGP-App installiert</string>
+    <string name="message_smime_not_for_certificate">Nicht für das gewählte Zertifikat verschlüsselt</string>
+    <string name="message_smime_choose_other">Anderes Zertifikat wählen</string>
+    <string name="message_smime_not_decrypted">Nachricht konnte nicht entschlüsselt werden</string>
     <string name="message_sig_verified">Absender bestätigt: %1$s</string>
     <string name="message_sig_unconfirmed">Signiert von %1$s, aber der Absender konnte nicht bestätigt werden</string>
     <string name="message_sig_mismatch">Signiert für %1$s, nicht für den Absender</string>

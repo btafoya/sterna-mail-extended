@@ -2363,6 +2363,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)
                     is PgpResult.Error -> error(r.message)
                     PgpResult.NotAvailable -> error(app.getString(R.string.message_pgp_no_provider))
+                    is PgpResult.SmimeCertificate -> error("An OpenPGP call answered about an S/MIME certificate")
                 }
             }
             PgpMode.ENCRYPT, PgpMode.ENCRYPT_UNSIGNED -> {
@@ -2371,6 +2372,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)
                     is PgpResult.Error -> error(app.getString(R.string.compose_pgp_missing_keys))
                     PgpResult.NotAvailable -> error(app.getString(R.string.message_pgp_no_provider))
+                    is PgpResult.SmimeCertificate -> error("An OpenPGP call answered about an S/MIME certificate")
                 }
                 // Who signs and who can read, [pgpEncryptArgs], the pure decision a JVM test runs.
                 // selfKeyId is a recipient in both modes; it is the signer only in encrypt. Do not
@@ -2382,6 +2384,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     is PgpResult.UserInteractionRequired -> throw PgpInteractionNeeded(r.pendingIntent)
                     is PgpResult.Error -> error(r.message)
                     PgpResult.NotAvailable -> error(app.getString(R.string.message_pgp_no_provider))
+                    is PgpResult.SmimeCertificate -> error("An OpenPGP call answered about an S/MIME certificate")
                 }
             }
             PgpMode.OFF -> error("unreachable")

@@ -871,6 +871,9 @@
     <string name="message_pgp_verify">验证</string>
     <string name="message_pgp_decrypted">加密邮件</string>
     <string name="message_pgp_no_provider">未安装 OpenPGP 应用</string>
+    <string name="message_smime_not_for_certificate">未针对所选证书加密</string>
+    <string name="message_smime_choose_other">选择其他证书</string>
+    <string name="message_smime_not_decrypted">无法解密此邮件</string>
     <string name="message_sig_verified">发件人已验证：%1$s</string>
     <string name="message_sig_unconfirmed">由 %1$s 签名，但无法验证发件人</string>
     <string name="message_sig_mismatch">签名对象是 %1$s，而不是发件人</string>

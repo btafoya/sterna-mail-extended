@@ -13,6 +13,7 @@ import app.sterna.core.data.mail.OAuthTokenRefresher
 import app.sterna.core.data.mail.SyncStateStore
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeEngine
+import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
@@ -43,6 +44,7 @@ object DataFactory {
          */
         clientVersion: String? = null,
         smimeEngine: SmimeEngine? = null,
+        smimeKeys: SmimeKeySource? = null,
     ): DataLayer {
         val appContext = context.applicationContext
         val database = SternaDatabase.build(appContext)
@@ -82,6 +84,7 @@ object DataFactory {
                 scheduledFilesDir = java.io.File(appContext.filesDir, "scheduled"),
                 pgpEngine = pgpEngine,
                 smimeEngine = smimeEngine,
+                smimeKeys = smimeKeys,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),
                 flightMarkerStore = FlightMarkerPrefs(appContext),

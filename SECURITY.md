@@ -49,6 +49,10 @@ Two choices deserve to be stated plainly:
 - **The subject travels in the clear.** An encrypted message also carries the real subject inside the encryption (RFC 9788), which protects it from tampering, not from being read. A subject found inside is shown only in the reader; the list, notifications, replies and forwards keep the outer one, so it never leaves in the clear. Sterna does not warn when the two differ.
 - **Public keys travel in an `Autocrypt:` header**, announced on every message sent from an account with a key set up, and imported into the OpenPGP app from received mail. Such a key makes encryption possible and proves nothing about who holds it. Keys are imported only from messages Sterna has downloaded in full, which on JMAP includes the newest Inbox messages before you open them. The key of a message the server dates more than 24 h ahead of the phone's clock is ignored. Nothing here turns encryption on by itself.
 
+### S/MIME
+
+- **The S/MIME private key stays in Android's keystore**: Sterna neither reads nor copies it and has the keystore use it to decrypt, and the decrypted text stays in memory, with the same exceptions as OpenPGP (an attachment you open or save, a message you print or save as PDF).
+
 ### Android platform surface
 
 - Four components are exported by Sterna's own manifest:

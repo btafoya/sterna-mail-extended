@@ -5,6 +5,7 @@ import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailEntity
@@ -21,6 +22,8 @@ import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.pgp.SmimeEngine
+import app.sterna.core.data.pgp.SmimeKey
+import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.pgp.SmimeVerified
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.ImapClient
@@ -32,6 +35,12 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailBodyValue
 import java.io.File
 import java.lang.reflect.Proxy
+import java.security.KeyFactory
+import java.security.PrivateKey
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.security.spec.PKCS8EncodedKeySpec
+import java.util.Base64
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -45,16 +54,36 @@ import org.junit.Test
  * in `:app`, where `BouncyCastleSmimeEngineTest` runs it on the same messages). `decryptMessage` is called
  * the way the reader calls it over a body it already shows, with the kind [smimeSignalOf] read.
  *
- * What this does NOT cover: the JMAP fetch of the source, and the ViewModel that decides what reaches the
- * screen (`SignatureOverlayTest` runs that decision on the results asserted here).
+ * An encrypted message goes the same way, opened with a software key from `reader-key.pem` standing in for
+ * the device keystore; the recording engine hands back what `openssl cms -decrypt` gives for these fixtures,
+ * and `BouncyCastleSmimeEngineTest` decrypts them for real.
+ *
+ * What this does NOT cover: the JMAP fetch of the source, the Android keystore, and the ViewModel that decides
+ * what reaches the screen (`SignatureOverlayTest` runs that decision on the results asserted here).
  */
 class SmimeReadPathTest {
 
-    private class RecordingEngine(private val answer: SmimeVerified) : SmimeEngine {
+    private class RecordingEngine(
+        private val answer: SmimeVerified,
+        private val recipient: Boolean = true,
+        private val clear: ByteArray = ByteArray(0),
+    ) : SmimeEngine {
         val detached = mutableListOf<ByteArray>()
         val signatures = mutableListOf<ByteArray>()
         val opaque = mutableListOf<ByteArray>()
         val senders = mutableListOf<String?>()
+        val asked = mutableListOf<Pair<ByteArray, X509Certificate>>()
+        val decrypted = mutableListOf<Triple<ByteArray, PrivateKey, X509Certificate>>()
+
+        override fun namesRecipient(envelopedData: ByteArray, certificate: X509Certificate): Boolean {
+            asked += envelopedData to certificate
+            return recipient
+        }
+
+        override fun decrypt(envelopedData: ByteArray, key: PrivateKey, certificate: X509Certificate): ByteArray {
+            decrypted += Triple(envelopedData, key, certificate)
+            return clear
+        }
 
         override fun verifyDetached(signedBytes: ByteArray, signature: ByteArray, senderAddress: String?): SmimeVerified {
             detached += signedBytes
@@ -69,8 +98,29 @@ class SmimeReadPathTest {
             return answer
         }
 
-        fun untouched() = detached.isEmpty() && opaque.isEmpty()
+        fun untouched() = detached.isEmpty() && opaque.isEmpty() && asked.isEmpty() && decrypted.isEmpty()
     }
+
+    /** An account store holding one account, whose certificate alias is [alias]. */
+    private class OneAccount(private val alias: String) : RecordingAccountStorage() {
+        override fun account(id: String): StoredAccount? =
+            StoredAccount(id = ACCOUNT, server = "scripted", username = "tester", smimeCertAlias = alias).takeIf { id == ACCOUNT }
+    }
+
+    private val readerCertificate: X509Certificate = CertificateFactory.getInstance("X.509")
+        .generateCertificate(javaClass.getResourceAsStream("/smime/reader-cert.pem")!!) as X509Certificate
+
+    private val readerKey: PrivateKey = KeyFactory.getInstance("RSA").generatePrivate(
+        PKCS8EncodedKeySpec(
+            Base64.getMimeDecoder().decode(
+                javaClass.getResourceAsStream("/smime/reader-key.pem")!!.readBytes().toString(Charsets.US_ASCII)
+                    .lines().filterNot { it.startsWith("-----") }.joinToString(""),
+            ),
+        ),
+    )
+
+    /** The keystore, holding the reader's key under [READER_ALIAS] only. */
+    private val keystore = SmimeKeySource { alias -> if (alias == READER_ALIAS) SmimeKey(readerKey, listOf(readerCertificate)) else null }
 
     private fun source(name: String): String =
         javaClass.getResourceAsStream("/smime/$name")!!.readBytes().toString(Charsets.ISO_8859_1)
@@ -115,8 +165,11 @@ class SmimeReadPathTest {
         }
     } as EmailDao
 
-    private fun repository(engine: SmimeEngine): MailRepository {
-        val store = RecordingAccountStorage()
+    private fun repository(
+        engine: SmimeEngine,
+        store: RecordingAccountStorage = RecordingAccountStorage(),
+        keys: SmimeKeySource? = null,
+    ): MailRepository {
         return MailRepository(
             client = JmapClient(),
             emailDao = emailDao(),
@@ -136,6 +189,7 @@ class SmimeReadPathTest {
             outboxFilesDir = File("outbox-never-read"),
             localDraftFilesDir = File("drafts-never-read"),
             smimeEngine = engine,
+            smimeKeys = keys,
         )
     }
 
@@ -213,21 +267,114 @@ class SmimeReadPathTest {
         assertEquals(true, crypto.smime)
     }
 
+    private fun decryptSource(
+        name: String,
+        engine: RecordingEngine,
+        store: RecordingAccountStorage,
+        keys: SmimeKeySource? = keystore,
+    ): Pair<MailRepository, PgpResult<MessageBody>> {
+        val repository = repository(engine, store, keys)
+        val result = ScriptedImapServer(serving(source(name))).use { server ->
+            runBlocking {
+                runCatching { repository.decryptMessage(credentials(server.host, server.port), ID, lockedKind = CryptoKind.SMIME_OPAQUE_SIGNED) }
+                    .getOrElse { error("decryptMessage threw instead of answering: $it") }
+            }
+        }
+        return repository to result
+    }
+
+    private fun envelopeOf(name: String): ByteArray = MimeParser.detectCrypto(source(name))!!.envelopedDataDer!!
+
     @Test(timeout = 30_000)
-    fun `an encrypted S-MIME message is left as ordinary mail shows it, and nothing is asked of the engine`() {
+    fun `an encrypted message is opened with the account's certificate and shows what it carries, and no smime p7m`() {
         val raw = source("g-enveloped.eml")
         val parsed = MimeParser.parseBody(raw)
         val listed = Email(id = ID, attachments = parsed.attachments.map { EmailBodyPart(partId = it.section, name = it.name, type = it.type) })
-        assertEquals("its part looks like an opaque signature's, so the reader does check it", CryptoKind.SMIME_OPAQUE_SIGNED, smimeSignalOf(listed))
-        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, ByteArray(0)))
+        assertEquals("its part looks like an opaque signature's, so the reader does ask", CryptoKind.SMIME_OPAQUE_SIGNED, smimeSignalOf(listed))
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.INVALID, null, null), clear = MIXED_ENTITY.toByteArray(Charsets.ISO_8859_1))
 
-        val result = check("g-enveloped.eml", engine, CryptoKind.SMIME_OPAQUE_SIGNED)
+        val (repository, result) = decryptSource("g-enveloped.eml", engine, OneAccount(READER_ALIAS))
 
-        val body = (result as? PgpResult.Success)?.value ?: error("expected the message as it is, got $result")
-        assertNull("no verdict, so no seal and no card", body.crypto)
-        assertTrue("the engine is never asked", engine.untouched())
-        assertEquals("the file stays listed", listOf("smime.p7m"), body.email.attachments.map { it.name })
-        assertTrue("and there is still no text", body.email.textContent().isNullOrEmpty())
+        val body = (result as? PgpResult.Success)?.value ?: error("expected the decrypted message, got $result")
+        val (der, key, certificate) = engine.decrypted.single()
+        assertArrayEquals("the engine gets the DER of the envelope, as octets", envelopeOf("g-enveloped.eml"), der)
+        assertEquals("the DER opens as a ContentInfo", 0x30, der[0].toInt())
+        assertTrue("the key is handed over as the keystore gave it, never copied", key === readerKey)
+        assertTrue("with the certificate it belongs to", certificate === readerCertificate)
+        assertTrue("and the envelope is asked whether it names that certificate first", engine.asked.single().second === readerCertificate)
+        val crypto = body.crypto as MessageCrypto.Decrypted
+        assertEquals("an envelope alone is encrypted", true, crypto.wasEncrypted)
+        assertEquals("and worded for a certificate", true, crypto.smime)
+        assertEquals("with no signature", PgpSignatureState.NONE, crypto.signature)
+        assertTrue("no signature was checked", engine.detached.isEmpty() && engine.opaque.isEmpty())
+        assertTrue(body.email.textContent().orEmpty(), "Bonjour, café crème à 8 bits." in body.email.textContent().orEmpty())
+        assertEquals("the file inside is listed, smime.p7m is not", listOf("note.bin"), body.email.attachments.map { it.name })
+        val part = body.email.attachments.single()
+        assertEquals("pgp:2", part.partId)
+
+        val credentials = credentials("127.0.0.1", 1)
+        val bytes = runBlocking { repository.downloadAttachment(credentials, part, ID) }
+        assertArrayEquals("the file comes out of the decrypted entity, its 8-bit octets intact", NOTE_BIN, bytes)
+        val again = runBlocking { repository.decryptMessage(credentials, ID, lockedKind = CryptoKind.SMIME_OPAQUE_SIGNED) }
+        assertEquals("a second open is served from memory, with the server gone", body, (again as? PgpResult.Success)?.value)
+        assertEquals("and the key is not used again", 1, engine.decrypted.size)
+    }
+
+    @Test(timeout = 30_000)
+    fun `a message signed then encrypted shows as encrypted and signed, the signature checked with no second fetch`() {
+        val engine = RecordingEngine(
+            SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null),
+            clear = source("a-detached.eml").toByteArray(Charsets.ISO_8859_1),
+        )
+
+        val (_, result) = decryptSource("m-signed-then-enveloped.eml", engine, OneAccount(READER_ALIAS))
+
+        val body = (result as? PgpResult.Success)?.value ?: error("expected the decrypted message, got $result")
+        assertArrayEquals(
+            "the signature is checked over the signed entity's CRLF octets, inside the envelope",
+            SIGNED_ENTITY.toByteArray(Charsets.ISO_8859_1),
+            engine.detached.single(),
+        )
+        val crypto = body.crypto as MessageCrypto.Decrypted
+        assertEquals("encrypted, though the verdict came from a signature check", true, crypto.wasEncrypted)
+        assertEquals(PgpSignatureState.VALID_CONFIRMED, crypto.signature)
+        assertEquals(SENDER, crypto.signatureUserId)
+        assertEquals(true, crypto.smime)
+        assertTrue(body.email.textContent().orEmpty(), "Bonjour, café crème à 8 bits." in body.email.textContent().orEmpty())
+        assertEquals("neither smime.p7m nor smime.p7s is a file of the message", emptyList<String?>(), body.email.attachments.map { it.name })
+    }
+
+    @Test(timeout = 30_000)
+    fun `an account with no certificate is asked to choose one, and the engine is never asked`() {
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.NONE, null, null))
+        val store = OneAccount("")
+
+        val (_, result) = decryptSource("g-enveloped.eml", engine, store)
+
+        assertEquals(PgpResult.CertificateToChoose, result)
+        assertTrue(engine.untouched())
+    }
+
+    @Test(timeout = 30_000)
+    fun `a certificate the device will not hand over is asked for again`() {
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.NONE, null, null))
+        val store = OneAccount("removed-from-the-device")
+
+        val (_, result) = decryptSource("g-enveloped.eml", engine, store)
+
+        assertEquals(PgpResult.CertificateToChoose, result)
+        assertTrue(engine.untouched())
+    }
+
+    @Test(timeout = 30_000)
+    fun `a message encrypted for another certificate says so, and nothing is decrypted`() {
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.NONE, null, null), recipient = false)
+        val store = OneAccount(READER_ALIAS)
+
+        val (_, result) = decryptSource("g-enveloped.eml", engine, store)
+
+        assertEquals(PgpResult.NotEncryptedForCertificate, result)
+        assertTrue("the decryption is never tried", engine.decrypted.isEmpty())
     }
 
     @Test(timeout = 30_000)
@@ -300,6 +447,18 @@ class SmimeReadPathTest {
         const val INBOX = "INBOX"
         const val UID = 7L
         const val SENDER = "alice@example.test"
+        const val READER_ALIAS = "reader"
+
+        /** The attachment inside `g-enveloped.eml`, every octet class a text reading would damage. */
+        val NOTE_BIN = byteArrayOf(0x00, 0xFF.toByte(), 0x80.toByte(), 0xE9.toByte(), 0x0D, 0x0A, 0x41)
+
+        /** What `g-enveloped.eml` carries, as `openssl cms -encrypt -binary` was given it. */
+        val MIXED_ENTITY = "Content-Type: multipart/mixed; boundary=\"INNER\"\r\n\r\n" +
+            "--INNER\r\nContent-Type: text/plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n" +
+            "Bonjour, café crème à 8 bits.\r\nSecond line.\r\n" +
+            "--INNER\r\nContent-Type: application/octet-stream; name=\"note.bin\"\r\n" +
+            "Content-Disposition: attachment; filename=\"note.bin\"\r\nContent-Transfer-Encoding: base64\r\n\r\n" +
+            Base64.getEncoder().encodeToString(NOTE_BIN) + "\r\n--INNER--\r\n"
         val ID = ImapMailService.emailId(ACCOUNT, INBOX, UID)
 
         /** What `openssl cms -sign -binary` signed for these fixtures. */

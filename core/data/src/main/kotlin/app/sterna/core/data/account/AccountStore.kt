@@ -666,6 +666,11 @@ class AccountStore(context: Context) : AccountStorage {
         )
     }
 
+    @Synchronized
+    fun setSmimeCertAlias(id: String, alias: String) {
+        saveAccounts(accounts().map { if (it.id == id) it.copy(smimeCertAlias = alias) else it })
+    }
+
     /**
      * Write the public key read back for [signKeyId] into that account's cache, and only while the
      * account still carries that key id: see [withCachedPgpPublicKey] for why the guard is the

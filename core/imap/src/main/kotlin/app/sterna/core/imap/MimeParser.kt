@@ -26,10 +26,10 @@ data class MimeBody(
 )
 
 /** How a message carries OpenPGP or S/MIME content. */
-enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE, SMIME_SIGNED, SMIME_OPAQUE_SIGNED }
+enum class CryptoKind { PGP_ENCRYPTED, PGP_SIGNED, PGP_INLINE, SMIME_SIGNED, SMIME_OPAQUE_SIGNED, SMIME_ENCRYPTED }
 
 val CryptoKind.isSmime: Boolean
-    get() = this == CryptoKind.SMIME_SIGNED || this == CryptoKind.SMIME_OPAQUE_SIGNED
+    get() = this == CryptoKind.SMIME_SIGNED || this == CryptoKind.SMIME_OPAQUE_SIGNED || this == CryptoKind.SMIME_ENCRYPTED
 
     /**
      * Legacy inline OpenPGP, recognised on an already-decoded body: the two armour headers a message
@@ -60,6 +60,7 @@ data class CryptoEnvelope(
     val inlineArmorOctets: InlineArmorOctets? = null,
     val signatureDer: ByteArray? = null,
     val signedDataDer: ByteArray? = null,
+    val envelopedDataDer: ByteArray? = null,
 )
 
     /**
@@ -244,8 +245,8 @@ object MimeParser {
         return cte to body
     }
 
-        /** Detect OpenPGP content (RFC 3156 PGP/MIME, legacy inline armor) or an S/MIME signature, detached
-         *  or opaque, in a raw message. An S/MIME `enveloped-data` is not recognised. Null for ordinary mail. */
+        /** Detect OpenPGP (RFC 3156 PGP/MIME, inline armor) or S/MIME content: a signature, detached or opaque, or an
+         *  `enveloped-data`, told by its `ContentInfo` OID when `smime-type` is missing. Null for ordinary mail. */
     fun detectCrypto(raw: String): CryptoEnvelope? {
         val (headerText, body) = splitHeaders(raw)
         val headers = parseHeaders(headerText)
@@ -302,6 +303,13 @@ object MimeParser {
             val der = decodeBytes(body, cte).takeIf { it.isNotEmpty() } ?: return null
             return CryptoEnvelope(CryptoKind.SMIME_OPAQUE_SIGNED, signedDataDer = der)
         }
+        if (mime in SMIME_OPAQUE_MIMES && (smimeType == "enveloped-data" || smimeType == null)) {
+            val cte = headers["content-transfer-encoding"]?.substringBefore(';')?.trim()?.lowercase()
+            val der = decodeBytes(body, cte)
+            if (smimeType != null || isEnvelopedContentInfo(der)) {
+                return CryptoEnvelope(CryptoKind.SMIME_ENCRYPTED, envelopedDataDer = der)
+            }
+        }
 
         // Legacy inline PGP: an armored block inside the displayable text body.
         val (parsed, leaf) = parseWithTextLeaf(raw)
@@ -311,6 +319,23 @@ object MimeParser {
             extractInlineArmor(part.octets())?.let { InlineArmorOctets(it, part.charset) }
         }
         return CryptoEnvelope(CryptoKind.PGP_INLINE, encryptedArmor = armor, inlineArmorOctets = octets)
+    }
+
+    private val ENVELOPED_DATA_OID = byteArrayOf(
+        0x2A, 0x86.toByte(), 0x48, 0x86.toByte(), 0xF7.toByte(), 0x0D, 0x01, 0x07, 0x03,
+    )
+
+    internal fun isEnvelopedContentInfo(der: ByteArray): Boolean {
+        if (der.size < 2 || der[0] != 0x30.toByte()) return false
+        val first = der[1].toInt() and 0xFF
+        val oidAt = when {
+            first <= 0x80 -> 2
+            first <= 0x84 -> 2 + (first and 0x7F)
+            else -> return false
+        }
+        if (der.size < oidAt + 2 + ENVELOPED_DATA_OID.size) return false
+        if (der[oidAt] != 0x06.toByte() || der[oidAt + 1].toInt() != ENVELOPED_DATA_OID.size) return false
+        return ENVELOPED_DATA_OID.indices.all { der[oidAt + 2 + it] == ENVELOPED_DATA_OID[it] }
     }
 
     /** The lowercased content type of a multipart child (its own headers). */

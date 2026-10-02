@@ -178,12 +178,14 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 ## Encryption
 
 - ✅ OpenPGP through an external OpenPGP app: decrypt, verify, sign and encrypt
-  (PGP/MIME) on both protocols. Decrypted content is never written to disk, except
-  an attachment you open or save. Subjects are not encrypted. Guide:
+  (PGP/MIME) on both protocols. Decrypted content, OpenPGP or S/MIME alike, is
+  never written to disk, except an attachment you open or save. Subjects are not
+  encrypted. Guide:
   [ENCRYPTION.md](ENCRYPTION.md).
-- ✅ S/MIME signature check on received messages, on both protocols, against the
-  Android certificate store.
-- 💡 S/MIME: decrypt, sign and encrypt.
+- ✅ S/MIME on received messages, on both protocols: signature check against the
+  Android certificate store, and decryption (RSA) with a certificate installed in
+  Android's settings.
+- 💡 S/MIME: sign and encrypt.
 
 ## UX & accessibility
 

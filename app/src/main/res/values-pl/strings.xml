@@ -708,6 +708,9 @@
     <string name="message_pgp_verify">Zweryfikuj</string>
     <string name="message_pgp_decrypted">Zaszyfrowana wiadomość</string>
     <string name="message_pgp_no_provider">Nie zainstalowano aplikacji OpenPGP</string>
+    <string name="message_smime_not_for_certificate">Nie zaszyfrowano dla wybranego certyfikatu</string>
+    <string name="message_smime_choose_other">Wybierz inny certyfikat</string>
+    <string name="message_smime_not_decrypted">Nie udało się odszyfrować tej wiadomości</string>
     <string name="message_sig_verified">Nadawca zweryfikowany: %1$s</string>
     <string name="message_sig_unconfirmed">Podpisane przez %1$s, ale nie udało się zweryfikować nadawcy</string>
     <string name="message_sig_mismatch">Podpisane dla %1$s, nie dla nadawcy</string>

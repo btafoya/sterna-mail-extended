@@ -1,0 +1,19 @@
+To: reader@example.test
+From: alice@example.test
+Subject: Encrypted
+MIME-Version: 1.0
+Content-Disposition: attachment; filename="smime.p7m"
+Content-Type: application/pkcs7-mime; smime-type=enveloped-data; name="smime.p7m"
+Content-Transfer-Encoding: base64
+
+MIIDKAYJKoZIhvcNAQcDoIIDGTCCAxUCAQAxggFcMIIBWAIBADBAMCgxDzANBgNV
+BAMMBlJlYWRlcjEVMBMGA1UECgwMU3Rlcm5hIHRlc3RzAhQOgkNG+FfZhLAzSKQJ
+PG/CBsAyVzANBgkqhkiG9w0BAQEFAASCAQCYfbsPIAZ0DbaJQpYgQFc5IHZlG/Oy
+sZ6WHXtp2CynIbugTAUVXmedVemHMPSthQeYbb9wNDMGWf01k48NEZj1oACezWxH
+Yog88BHl9ccaOwzuLZKnM7HcYummf+8do8hnZAHQG72wpykWPmzkYK5+jp8KkQPp
+ouTgkfbdTO4whgBRUn5iDAA97DEoafmjvI+QRk/s9i3IMRZUHfbcilfJ+qZROlXH
+TUijPtIOhhSXNyCSInb9D9uNEkPe0LGwfbcr+k/dl6q19kQdF5OohcY69dXTs+lQ
+3FZ8dYXGSf3f35Grs7iXhJyRh0S4q0FA+PUjmUQm47TuFVzuUWyqwATuMIIBrgYJ
+KoZIhvcNAQcBMB0GCWCGSAFlAwQBKgQQTkU6b2hPLmRNJuBS89Mtx4CCAYBrHWZD
+uMWqIYMD2ktbHAx3+kJQrghQtxOXfUnsbJHcCfwQZHzXihHcqIIUxHhNg6V55mnU
+eIJWlAp3cg==

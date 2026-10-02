@@ -1,5 +1,8 @@
 package app.sterna.core.data.pgp
 
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
+
 class SmimeVerified(
     val signature: PgpSignatureState,
     val signer: String?,
@@ -22,4 +25,30 @@ interface SmimeEngine {
     fun verifyDetached(signedBytes: ByteArray, signature: ByteArray, senderAddress: String?): SmimeVerified
 
     fun verifyOpaque(signedData: ByteArray, senderAddress: String?): SmimeVerified
+
+    /**
+     * Whether [envelopedData] names [certificate] among its recipients, by issuer and serial number or by
+     * subject key identifier. Throws on an envelope it cannot read: that is no answer about the certificate.
+     */
+    fun namesRecipient(envelopedData: ByteArray, certificate: X509Certificate): Boolean
+
+    /**
+     * The content [envelopedData] carries, opened with [key] as the recipient [certificate] names. [key] may
+     * be held by a keystore that never lets it out, so it is only ever handed to its own provider, never read
+     * through `getEncoded`. RSA key transport only: any other recipient, or a failure, throws.
+     */
+    fun decrypt(envelopedData: ByteArray, key: PrivateKey, certificate: X509Certificate): ByteArray
+}
+
+/** A private key and the chain of the certificate it belongs to, that certificate first. */
+class SmimeKey(val privateKey: PrivateKey, val chain: List<X509Certificate>)
+
+/**
+ * The user's S/MIME keys, by the alias an account stores (`StoredAccount.smimeCertAlias`). Blocking: called off
+ * the main thread. Null means no key can be used under [alias] now, and the user is asked to choose; a throw
+ * means the store could not answer now. Neither erases the alias: Android's keystore answers a removed
+ * certificate and one whose access was withdrawn alike, and the next choice replaces it anyway.
+ */
+fun interface SmimeKeySource {
+    fun keyFor(alias: String): SmimeKey?
 }

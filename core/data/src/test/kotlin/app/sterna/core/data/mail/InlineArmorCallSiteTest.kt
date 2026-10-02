@@ -26,7 +26,7 @@ class InlineArmorCallSiteTest {
                 "canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),",
                 "detachedSignature = envelope.signatureArmor!!.toByteArray(Charsets.UTF_8),",
             ),
-            codeLines(between("suspend fun decryptMessage(", "private fun canonicalizeCrlf("))
+            codeLines(between("suspend fun decryptMessage(", "private suspend fun smimeVerify("))
                 .filter { line ->
                     listOf("decryptVerify", "toByteArray", "inlineVerifyBytes", "Armor", "plaintext")
                         .any { line.contains(it) }

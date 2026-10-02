@@ -702,6 +702,9 @@
     <string name="message_pgp_verify">Controleren</string>
     <string name="message_pgp_decrypted">Versleuteld bericht</string>
     <string name="message_pgp_no_provider">Geen OpenPGP-app geïnstalleerd</string>
+    <string name="message_smime_not_for_certificate">Niet versleuteld voor het gekozen certificaat</string>
+    <string name="message_smime_choose_other">Ander certificaat kiezen</string>
+    <string name="message_smime_not_decrypted">Dit bericht kon niet worden ontsleuteld</string>
     <string name="message_sig_verified">Afzender geverifieerd: %1$s</string>
     <string name="message_sig_unconfirmed">Ondertekend door %1$s, maar de afzender kon niet worden geverifieerd</string>
     <string name="message_sig_mismatch">Ondertekend voor %1$s, niet voor de afzender</string>

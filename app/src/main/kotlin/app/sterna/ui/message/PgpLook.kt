@@ -6,8 +6,8 @@ import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.imap.CryptoKind
 
 /**
- * What the reader says about an OpenPGP message in [crypto]: the status strip's [title] and [action]
- * while it still waits on the user, and whether the header carries the lock. [title] and [action]
+ * What the reader says about an encrypted or signed message in [crypto]: the status strip's [title] and
+ * [action] while it still waits on the user, and whether the header carries the lock. [title] and [action]
  * are null for the states whose strip says something else ([CryptoUiState.Decrypted],
  * [CryptoUiState.Failed]) or nothing ([CryptoUiState.None]).
  */
@@ -24,6 +24,9 @@ internal fun pgpLook(crypto: CryptoUiState): PgpLook = when (crypto) {
     is CryptoUiState.Locked -> pendingLook(crypto.kind)
     is CryptoUiState.NeedsInteraction -> pendingLook(crypto.kind)
     is CryptoUiState.Failed -> PgpLook(title = null, action = null, headerLock = wearsLock(crypto.kind))
+    CryptoUiState.SmimeNotForCertificate ->
+        PgpLook(R.string.message_smime_not_for_certificate, R.string.message_smime_choose_other, headerLock = true)
+    CryptoUiState.SmimeFailed -> PgpLook(R.string.message_smime_not_decrypted, R.string.message_retry, headerLock = true)
 }
 
 private fun pendingLook(kind: CryptoKind): PgpLook =

@@ -68,12 +68,34 @@ class CryptoRouteTest {
         )
     }
 
+    @Test fun `an S-MIME envelope goes to decryption, whatever kind the reader guessed from its parts`() {
+        (smimeKinds + CryptoKind.SMIME_ENCRYPTED + null).forEach { locked ->
+            listOf(null, "openkeychain").forEach { pgp ->
+                assertEquals(
+                    "locked as $locked, pgp=$pgp",
+                    CryptoRoute.SmimeEncrypted("smime"),
+                    route(CryptoKind.SMIME_ENCRYPTED, locked, pgp, "smime"),
+                )
+            }
+        }
+    }
+
+    @Test fun `an S-MIME envelope with no S-MIME engine is shown as it is`() {
+        listOf(null, "openkeychain").forEach { pgp ->
+            assertEquals(CryptoRoute.Unverifiable, route(CryptoKind.SMIME_ENCRYPTED, CryptoKind.SMIME_OPAQUE_SIGNED, pgp, null))
+        }
+    }
+
+    @Test fun `an opaque signature is still checked, not decrypted`() {
+        assertEquals(CryptoRoute.Smime("smime"), route(CryptoKind.SMIME_OPAQUE_SIGNED, CryptoKind.SMIME_OPAQUE_SIGNED, null, "smime"))
+    }
+
     @Test fun `only an OpenPGP lock with no OpenPGP app is refused before any fetch`() {
         (pgpKinds + null).forEach { kind ->
             assertEquals("$kind, no app", true, notAvailableBeforeFetch(kind, null))
             assertEquals("$kind, app", false, notAvailableBeforeFetch(kind, "openkeychain"))
         }
-        smimeKinds.forEach { kind ->
+        (smimeKinds + CryptoKind.SMIME_ENCRYPTED).forEach { kind ->
             assertEquals("$kind, no app", false, notAvailableBeforeFetch(kind, null))
         }
     }

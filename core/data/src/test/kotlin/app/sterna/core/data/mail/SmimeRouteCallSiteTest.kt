@@ -36,6 +36,7 @@ class SmimeRouteCallSiteTest {
                 "CryptoRoute.NothingFound -> return PgpResult.Error(\"No OpenPGP content found\")",
                 "CryptoRoute.Unverifiable -> return PgpResult.Success(unverifiedBody(credentials, emailId, email))",
                 "is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender)",
+                "is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender)",
                 "is CryptoRoute.OpenPgp -> route.engine.let { pgp ->",
             ),
             body.filter { "CryptoRoute." in it },
@@ -44,16 +45,23 @@ class SmimeRouteCallSiteTest {
 
     @Test fun `the S-MIME engine gets the canonical signed octets and the DER`() {
         assertEquals(
-            "smimeVerify must hand the engine these arguments. Lines found:",
+            "smimeVerified must hand the engine these arguments. Lines found:",
             listOf(
                 "CryptoKind.SMIME_OPAQUE_SIGNED -> engine.verifyOpaque(envelope.signedDataDer!!, sender)",
                 "else -> engine.verifyDetached(",
                 "canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),",
                 "envelope.signatureDer!!,",
             ),
-            DaoQuerySource.mailFunctionBody("MailRepository", "smimeVerify")
+            DaoQuerySource.mailFunctionBody("SmimeDecrypt", "smimeVerified")
                 .lines().map { it.trim() }
                 .filter { "engine.verify" in it || "!!" in it },
+        )
+        assertEquals(
+            "a signature on its own says nothing of encryption. Lines found:",
+            listOf("val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false) }"),
+            DaoQuerySource.mailFunctionBody("MailRepository", "smimeVerify")
+                .lines().map { it.trim() }
+                .filter { "smimeVerified(" in it },
         )
     }
 }

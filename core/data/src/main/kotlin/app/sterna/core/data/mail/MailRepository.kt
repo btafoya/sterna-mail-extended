@@ -48,6 +48,7 @@ import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeEngine
+import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.OutgoingDateZones
@@ -979,6 +980,8 @@ class MailRepository(
     private val pgpEngine: PgpEngine? = null,
     /** S/MIME signature checks (null = none wired: signed mail shows as ordinary mail). */
     private val smimeEngine: SmimeEngine? = null,
+    /** The user's S/MIME keys, to open a message encrypted for one (null = none wired: such a message says so). */
+    private val smimeKeys: SmimeKeySource? = null,
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
     private val settings: SettingsRepository? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
@@ -2300,8 +2303,8 @@ class MailRepository(
         return raw
     }
 
-    /** Decrypt and/or verify an OpenPGP message via [PgpEngine], or check an S/MIME signature via
-     *  [SmimeEngine]; the kind read from the source picks which (see [cryptoRoute]). Nothing decrypted
+    /** Decrypt and/or verify an OpenPGP message via [PgpEngine], or check an S/MIME signature or open an
+     *  S/MIME envelope via [SmimeEngine]; the kind read from the source picks which (see [cryptoRoute]). Nothing decrypted
      *  is persisted; [PgpResult.UserInteractionRequired] asks the caller to run the PendingIntent and retry. */
     suspend fun decryptMessage(
         credentials: AccountCredentials,
@@ -2327,6 +2330,7 @@ class MailRepository(
                 CryptoRoute.NothingFound -> return PgpResult.Error("No OpenPGP content found")
                 CryptoRoute.Unverifiable -> return PgpResult.Success(unverifiedBody(credentials, emailId, email))
                 is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender)
+                is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender)
                 is CryptoRoute.OpenPgp -> route.engine.let { pgp ->
                     when (envelope!!.kind) {
                         CryptoKind.PGP_ENCRYPTED -> pgp.decryptVerify(
@@ -2346,7 +2350,8 @@ class MailRepository(
                             detachedSignature = envelope.signatureArmor!!.toByteArray(Charsets.UTF_8),
                             interactionResult = interactionResult,
                         )
-                        CryptoKind.SMIME_SIGNED, CryptoKind.SMIME_OPAQUE_SIGNED -> error("S/MIME is routed apart")
+                        CryptoKind.SMIME_SIGNED, CryptoKind.SMIME_OPAQUE_SIGNED, CryptoKind.SMIME_ENCRYPTED ->
+                            error("S/MIME is routed apart")
                     }
                 }
             }
@@ -2362,37 +2367,36 @@ class MailRepository(
             is PgpResult.UserInteractionRequired -> result
             is PgpResult.Error -> result
             PgpResult.NotAvailable -> PgpResult.NotAvailable
+            is PgpResult.SmimeCertificate -> result
         }
     }
-
-    /** RFC 3156 and RFC 8551: signatures are computed over the entity with CRLF line endings. */
-    private fun canonicalizeCrlf(entity: String): String =
-        entity.replace("\r\n", "\n").replace("\n", "\r\n")
 
     private suspend fun smimeVerify(
         engine: SmimeEngine,
         envelope: CryptoEnvelope,
         sender: String?,
     ): PgpResult<PgpDecrypted> {
-        val verified = withContext(Dispatchers.Default) {
-            when (envelope.kind) {
-                CryptoKind.SMIME_OPAQUE_SIGNED -> engine.verifyOpaque(envelope.signedDataDer!!, sender)
-                else -> engine.verifyDetached(
-                    canonicalizeCrlf(envelope.signedEntityRaw!!).toByteArray(Charsets.ISO_8859_1),
-                    envelope.signatureDer!!,
-                    sender,
-                )
-            }
+        val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false) }
+        return PgpResult.Success(checked)
+    }
+
+    /** Open an S/MIME envelope with the account's own certificate; [openSmimeEnvelope] says what each answer means. */
+    private suspend fun smimeDecrypt(
+        credentials: AccountCredentials,
+        engine: SmimeEngine,
+        envelope: CryptoEnvelope,
+        sender: String?,
+    ): PgpResult<PgpDecrypted> {
+        val alias = accountStore.account(credentials.id)?.smimeCertAlias.orEmpty()
+        return withContext(Dispatchers.IO) {
+            openSmimeEnvelope(
+                envelopedData = envelope.envelopedDataDer ?: ByteArray(0),
+                alias = alias,
+                keys = smimeKeys,
+                engine = engine,
+                sender = sender,
+            )
         }
-        return PgpResult.Success(
-            PgpDecrypted(
-                plaintext = verified.content ?: ByteArray(0),
-                signature = verified.signature,
-                signatureKeyId = null,
-                signatureUserId = verified.signer,
-                wasEncrypted = false,
-            ),
-        )
     }
 
     /** What `openMessage` shows of ordinary mail, minus the cache write: a signed message is asked
@@ -2423,7 +2427,8 @@ class MailRepository(
             smime = envelope.kind.isSmime,
         )
         return when (envelope.kind) {
-            CryptoKind.SMIME_OPAQUE_SIGNED -> {
+            // An envelope's plaintext is what `clearOfEnvelope` chose to show: the signed entity when it held one.
+            CryptoKind.SMIME_OPAQUE_SIGNED, CryptoKind.SMIME_ENCRYPTED -> {
                 val entity = decrypted.plaintext.toString(Charsets.ISO_8859_1)
                 val shown = displayOfEntity(email, entity)
                 DecryptedEntry(MessageBody(shown.email, shown.inlineImages, crypto), entity)

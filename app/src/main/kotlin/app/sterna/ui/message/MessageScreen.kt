@@ -15,6 +15,7 @@ import app.sterna.core.data.mail.MessageCrypto
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.core.data.unsubscribe.UnsubscribeFailure
+import app.sterna.pgp.chooseSmimeCertificate
 import app.sterna.pgp.rememberPgpInteractionLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1607,9 +1608,14 @@ private fun MessageContent(
                 deliveredToLine = deliveredToInHeader(deliveredTo, identityAddresses, ownMessage),
                 crypto = crypto,
                 onCryptoAction = {
-                    when (val c = crypto) {
-                        is CryptoUiState.NeedsInteraction -> pgpLauncher(c.pendingIntent)
-                        else -> viewModel.decrypt()
+                    val c = crypto
+                    when (cryptoStripActionOf(c)) {
+                        CryptoStripAction.RUN_PROVIDER_INTENT ->
+                            (c as? CryptoUiState.NeedsInteraction)?.let { pgpLauncher(it.pendingIntent) }
+                        CryptoStripAction.CHOOSE_CERTIFICATE -> context.findActivity()?.let { activity ->
+                            chooseSmimeCertificate(activity, viewModel.chosenCertificate(), viewModel::onCertificateChosen)
+                        }
+                        CryptoStripAction.DECRYPT -> viewModel.decrypt()
                     }
                 },
                 unsubscribe = unsubscribe,
@@ -2751,6 +2757,23 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit, onExplain
                             color = verdict.tone.color(),
                         )
                     }
+                }
+            }
+            CryptoUiState.SmimeNotForCertificate, CryptoUiState.SmimeFailed -> {
+                Icon(
+                    Icons.Filled.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp),
+                )
+                Text(
+                    text = look.title?.let { stringResource(it) }.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = onAction) {
+                    Text(look.action?.let { stringResource(it) }.orEmpty())
                 }
             }
             is CryptoUiState.Failed -> {

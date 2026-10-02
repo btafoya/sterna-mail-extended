@@ -145,6 +145,10 @@ sealed interface CryptoUiState {
 
     /** Decrypt/verify failed; null message = no OpenPGP provider installed. */
     data class Failed(val message: String?, val kind: CryptoKind) : CryptoUiState
+
+    data object SmimeNotForCertificate : CryptoUiState
+
+    data object SmimeFailed : CryptoUiState
 }
 
 /** What the sender's row in the participants panel offers about the per-sender filter rule. */
@@ -1434,18 +1438,28 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 PgpResult.Error(t.message ?: t.javaClass.simpleName)
             }
             val crypto = overlayCrypto(result) ?: return@launch
-            val opened = (result as? PgpResult.Success)?.value ?: return@launch
-            val display = anchorDisplay(opened.email)
-            val message = ThreadMessage(
-                id = opened.email.id,
-                header = display,
-                body = display,
-                inlineImages = opened.inlineImages,
-            )
-            if (!publishBody(emailId, forAccount, message) { loadedId == emailId && accountId == forAccount }) return@launch
-            _state.value = MessageState.Loaded(display)
+            logUnopened(result)
+            val opened = (result as? PgpResult.Success)?.value
+            if (opened != null) {
+                val display = anchorDisplay(opened.email)
+                val message = ThreadMessage(
+                    id = opened.email.id,
+                    header = display,
+                    body = display,
+                    inlineImages = opened.inlineImages,
+                )
+                if (!publishBody(emailId, forAccount, message) { loadedId == emailId && accountId == forAccount }) return@launch
+                _state.value = MessageState.Loaded(display)
+            } else {
+                if (loadedId != emailId || accountId != forAccount) return@launch
+                lockedKind = CryptoKind.SMIME_ENCRYPTED
+            }
             _crypto.value = crypto
         }
+    }
+
+    private fun logUnopened(result: PgpResult<*>) {
+        if (result is PgpResult.DecryptFailed) android.util.Log.w("SternaMessage", "S/MIME envelope not opened: ${result.message}")
     }
 
     /**
@@ -1454,7 +1468,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      */
     fun decrypt(interactionResult: Intent? = null) {
         val emailId = loadedId ?: return
-        (_crypto.value as? CryptoUiState.Locked)?.let { _crypto.value = it.copy(decrypting = true) }
+        _crypto.value = decryptingState(_crypto.value)
         viewModelScope.launch {
             val credentials = credentials() ?: return@launch
             // Fail into the status card, never crash: `decryptMessage` returns `PgpResult.Error` for
@@ -1465,38 +1479,41 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             } catch (t: Throwable) {
                 PgpResult.Error(t.message ?: t.javaClass.simpleName)
             }
-            when (result) {
-                is PgpResult.Success -> {
-                    val opened = result.value
-                    val display = anchorDisplay(opened.email)
-                    val message = ThreadMessage(
-                        id = opened.email.id,
-                        header = display,
-                        body = display,
-                        inlineImages = opened.inlineImages,
-                    )
-                    publishBody(emailId, accountId, message)
-                    _state.value = MessageState.Loaded(display)
-                    _crypto.value = when (val c = opened.crypto) {
-                        is MessageCrypto.Decrypted -> CryptoUiState.Decrypted(c)
-                        else -> CryptoUiState.None
-                    }
-                }
-                is PgpResult.UserInteractionRequired -> _crypto.value = CryptoUiState.NeedsInteraction(
-                    result.pendingIntent,
-                    lockedKind ?: CryptoKind.PGP_ENCRYPTED,
+            if (result is PgpResult.Success) {
+                val opened = result.value
+                val display = anchorDisplay(opened.email)
+                val message = ThreadMessage(
+                    id = opened.email.id,
+                    header = display,
+                    body = display,
+                    inlineImages = opened.inlineImages,
                 )
-                is PgpResult.Error -> _crypto.value =
-                    CryptoUiState.Failed(result.message, lockedKind ?: CryptoKind.PGP_ENCRYPTED)
-                PgpResult.NotAvailable -> _crypto.value =
-                    CryptoUiState.Failed(null, lockedKind ?: CryptoKind.PGP_ENCRYPTED)
+                publishBody(emailId, accountId, message)
+                _state.value = MessageState.Loaded(display)
             }
+            logUnopened(result)
+            if (result is PgpResult.SmimeCertificate) lockedKind = CryptoKind.SMIME_ENCRYPTED
+            _crypto.value = cryptoStateAfterDecrypt(result, lockedKind)
         }
     }
 
-    /** The user dismissed the provider's dialog: back to an unlockable state. */
+    /** The user dismissed the provider's dialog or the certificate chooser: back to an unlockable state. */
     fun cancelDecrypt() {
         _crypto.value = CryptoUiState.Locked(lockedKind ?: CryptoKind.PGP_ENCRYPTED)
+    }
+
+    fun chosenCertificate(): String? =
+        credentials()?.id?.let { store.account(it) }?.smimeCertAlias?.takeIf { it.isNotEmpty() }
+
+    fun onCertificateChosen(alias: String?) {
+        viewModelScope.launch {
+            applyCertificateChoice(
+                alias,
+                remember = { chosen -> withContext(Dispatchers.IO) { credentials()?.id?.let { store.setSmimeCertAlias(it, chosen) } } },
+                decrypt = { decrypt() },
+                stayLocked = ::cancelDecrypt,
+            )
+        }
     }
 
     /** Mark the anchor read (once) when this page is both settled and loaded. */

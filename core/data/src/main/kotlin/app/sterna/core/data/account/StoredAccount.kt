@@ -69,6 +69,7 @@ data class StoredAccount(
      *  old key. */
     val pgpPublicKey: String = "",
     val pgpEncryptByDefault: Boolean = false,
+    val smimeCertAlias: String = "",
 ) {
     /** The id whose stored secret/OAuth tokens back this record: its login (or itself if standalone). */
     fun loginKey(): String = loginId ?: id

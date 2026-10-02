@@ -58,6 +58,14 @@ sealed interface PgpResult<out T> {
 
     /** No OpenPGP provider installed (or the service cannot be bound). */
     object NotAvailable : PgpResult<Nothing>
+
+    sealed interface SmimeCertificate : PgpResult<Nothing>
+
+    data object CertificateToChoose : SmimeCertificate
+
+    data object NotEncryptedForCertificate : SmimeCertificate
+
+    data class DecryptFailed(val message: String) : SmimeCertificate
 }
 
 /** Detached-signature output: the armored signature + the micalg for the PGP/MIME wrapper. */

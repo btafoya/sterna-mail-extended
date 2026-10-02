@@ -708,6 +708,9 @@
     <string name="message_pgp_verify">Проверить</string>
     <string name="message_pgp_decrypted">Зашифрованное письмо</string>
     <string name="message_pgp_no_provider">Приложение OpenPGP не установлено</string>
+    <string name="message_smime_not_for_certificate">Зашифровано не для выбранного сертификата</string>
+    <string name="message_smime_choose_other">Выбрать другой сертификат</string>
+    <string name="message_smime_not_decrypted">Не удалось расшифровать это письмо</string>
     <string name="message_sig_verified">Отправитель подтверждён: %1$s</string>
     <string name="message_sig_unconfirmed">Подписано %1$s, но подтвердить отправителя не удалось</string>
     <string name="message_sig_mismatch">Подписано для %1$s, а не для отправителя</string>
