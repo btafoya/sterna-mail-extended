@@ -184,6 +184,7 @@ private fun savedAction(action: Action): ArrayList<String> = when (action) {
     Action.Star -> arrayListOf("star")
     is Action.ForwardTo -> arrayListOf("forward", action.address, if (action.keepCopy) "copy" else "plain")
     Action.Stop -> arrayListOf("stop")
+    is Action.Label -> arrayListOf("label", action.value)
 }
 
 private fun restoredAction(saved: List<String>): Action = when (saved[0]) {
@@ -192,6 +193,7 @@ private fun restoredAction(saved: List<String>): Action = when (saved[0]) {
     "read" -> Action.MarkRead
     "star" -> Action.Star
     "forward" -> Action.ForwardTo(saved[1], keepCopy = saved.getOrNull(2) != "plain")
+    "label" -> Action.Label(saved[1])
     else -> Action.Stop
 }
 

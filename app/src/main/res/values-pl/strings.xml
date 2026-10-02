@@ -559,6 +559,7 @@
     <string name="settings_filter_summary_copy">Kopiuj do %1$s</string>
     <string name="settings_filter_summary_forward">Przekaż do %1$s</string>
     <string name="settings_filter_summary_stop">zatrzymaj</string>
+    <string name="settings_filter_label">Etykieta „%1$s” (z Bulwark)</string>
     <plurals name="settings_filter_summary_more">
         <item quantity="one">%1$s i jeszcze %2$d</item>
         <item quantity="few">%1$s i jeszcze %2$d</item>

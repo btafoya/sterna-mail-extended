@@ -718,6 +718,7 @@
     <string name="settings_filter_summary_copy">复制到 %1$s</string>
     <string name="settings_filter_summary_forward">转发到 %1$s</string>
     <string name="settings_filter_summary_stop">停止</string>
+    <string name="settings_filter_label">标签“%1$s”（来自 Bulwark）</string>
     <plurals name="settings_filter_summary_more">
         <item quantity="other">%1$s，另有 %2$d 个</item>
     </plurals>

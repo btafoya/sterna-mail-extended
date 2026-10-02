@@ -220,7 +220,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   actions (move, copy, delete into the Trash, mark read, star, forward, stop later
   rules; a forward keeps the message in your inbox), what the server does not offer greyed. Sterna opens the account's active
   script whatever its name, shows the rules the form can hold as rules and every other
-  block as a rule written by hand, editable as text. Rules are reordered by dragging
+  block as a rule written by hand, editable as text, except a Bulwark rule the form
+  cannot hold, which is edited in Bulwark; a Bulwark label is kept as it was.
+  Rules are reordered by dragging
   or with Up and Down, since the server applies them from top to bottom. Each rule
   is saved to the server from its own editor, in place: the rest of the script is
   kept, and on an IMAP account Sterna's own auto-reply keeps skipping the senders

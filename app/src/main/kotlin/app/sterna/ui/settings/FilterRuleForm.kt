@@ -11,15 +11,18 @@ import app.sterna.core.data.filter.bulwarkMatches
 import app.sterna.core.data.filter.matchesFor
 import app.sterna.util.isValidEmail
 
-/** What "+ Add action" offers. [DELETE] is a move into the account's Trash, never a `discard`. */
-internal enum class ActionKind { MOVE, COPY, DELETE, MARK_READ, STAR, FORWARD, STOP }
+/**
+ * The kinds of action a rule shows. [DELETE] is a move into the account's Trash, never a `discard`.
+ * [LABEL] is a Bulwark label, shown and never added: see [addableKinds].
+ */
+internal enum class ActionKind { MOVE, COPY, DELETE, MARK_READ, STAR, FORWARD, STOP, LABEL }
 
 internal enum class Availability { OFFERED, ALREADY_THERE, NOT_BY_SERVER, NOT_IN_BULWARK }
 
 private fun extensionsOf(kind: ActionKind): Set<String> = when (kind) {
     ActionKind.MOVE, ActionKind.DELETE -> setOf("fileinto")
     ActionKind.COPY -> setOf("fileinto", "copy")
-    ActionKind.MARK_READ, ActionKind.STAR -> setOf("imap4flags")
+    ActionKind.MARK_READ, ActionKind.STAR, ActionKind.LABEL -> setOf("imap4flags")
     ActionKind.FORWARD -> setOf("copy")
     ActionKind.STOP -> emptySet()
 }
@@ -39,7 +42,11 @@ internal fun kindOf(action: Action, trashFolder: String?): ActionKind = when (ac
     Action.Star -> ActionKind.STAR
     is Action.ForwardTo -> ActionKind.FORWARD
     Action.Stop -> ActionKind.STOP
+    is Action.Label -> ActionKind.LABEL
 }
+
+/** What "+ Add action" lists. Sterna sets no label: it only keeps those a Bulwark rule was read with. */
+internal val addableKinds: List<ActionKind> = ActionKind.entries.filter { it != ActionKind.LABEL }
 
 /** Whether "+ Add action" may add [kind] to [rule]. A rule moves once: a Delete is its move. */
 internal fun actionAvailability(kind: ActionKind, rule: FilterRule, offered: List<String>?, bulwark: Boolean): Availability {
@@ -49,6 +56,7 @@ internal fun actionAvailability(kind: ActionKind, rule: FilterRule, offered: Lis
         ActionKind.STAR -> Action.Star in rule.actions
         ActionKind.STOP -> Action.Stop in rule.actions
         ActionKind.COPY, ActionKind.FORWARD -> false
+        ActionKind.LABEL -> rule.actions.any { it is Action.Label }
     }
     return when {
         present -> Availability.ALREADY_THERE
@@ -79,8 +87,8 @@ internal fun withField(condition: Condition, field: ConditionField, bulwark: Boo
     )
 }
 
-/** The action "+ Add action" adds for [kind]; a folder starts on the first offered, an address empty. */
-internal fun newAction(kind: ActionKind, folders: List<String>, trashFolder: String?): Action = when (kind) {
+/** The action "+ Add action" adds for [kind]; a folder starts on the first offered, an address empty. None for a label. */
+internal fun newAction(kind: ActionKind, folders: List<String>, trashFolder: String?): Action? = when (kind) {
     ActionKind.MOVE -> Action.MoveTo(folders.firstOrNull { it != trashFolder } ?: folders.firstOrNull().orEmpty())
     ActionKind.COPY -> Action.CopyTo(folders.firstOrNull().orEmpty())
     ActionKind.DELETE -> Action.MoveTo(requireNotNull(trashFolder) { "no Trash to delete into" })
@@ -88,6 +96,7 @@ internal fun newAction(kind: ActionKind, folders: List<String>, trashFolder: Str
     ActionKind.STAR -> Action.Star
     ActionKind.FORWARD -> Action.ForwardTo("")
     ActionKind.STOP -> Action.Stop
+    ActionKind.LABEL -> null
 }
 
 /** [rule] with [action] added: a `stop` stays last, whatever is added after it. */
@@ -103,9 +112,12 @@ internal fun withoutCondition(rule: FilterRule, index: Int): FilterRule {
     return rule.copy(conditions = left, mode = if (left.size < 2) RuleMode.ALL else rule.mode)
 }
 
-/** Whether the row of [action] may be removed: a `stop` the rule was read with is never dropped by the form. */
+/**
+ * Whether the row of [action] may be removed: a `stop` the rule was read with is never dropped by the
+ * form, and a Bulwark label never is: Sterna shows it and does not edit it.
+ */
 internal fun actionRemovable(action: Action, original: FilterRule?): Boolean =
-    !(action == Action.Stop && original != null && Action.Stop in original.actions)
+    action !is Action.Label && !(action == Action.Stop && original != null && Action.Stop in original.actions)
 
 private const val KILOBYTE = 1024L
 

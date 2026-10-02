@@ -34,6 +34,8 @@ sealed interface Action {
     data class ForwardTo(val address: String, val keepCopy: Boolean = true) : Action
 
     data object Stop : Action
+
+    data class Label(val value: String) : Action
 }
 
 data class FilterRule(

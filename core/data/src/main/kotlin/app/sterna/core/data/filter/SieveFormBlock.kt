@@ -333,6 +333,7 @@ private fun actionKeys(actions: List<Action>): List<String> {
             is Action.MoveTo -> "fileinto"
             is Action.ForwardTo -> "redirect"
             Action.Stop -> "stop"
+            is Action.Label -> "label"
         }
         val n = seen.getOrDefault(kind, 0)
         seen[kind] = n + 1
@@ -349,7 +350,11 @@ private fun actionLine(action: Action): String = when (action) {
     is Action.MoveTo -> "fileinto \"${SieveCodec.escape(action.folder)}\";"
     is Action.ForwardTo -> "redirect ${if (action.keepCopy) ":copy " else ""}\"${SieveCodec.escape(action.address)}\";"
     Action.Stop -> "stop;"
+    is Action.Label -> labelLine(action.value)
 }
+
+/** The line Bulwark's generator writes for an `add_label`: it escapes the value as [SieveCodec.escape] does. */
+internal fun labelLine(value: String): String = "addflag \"\$label:${SieveCodec.escape(value)}\";"
 
 /** [rule] with the `stop` of a block read with one: dropped by no rewrite, or every later rule would act on its mail. */
 internal fun keptStop(rule: FilterRule, order: List<String>): FilterRule =
@@ -395,7 +400,7 @@ internal fun actionOrder(statement: String): List<String> = recognizeForm(statem
 internal fun capabilitiesOf(rule: FilterRule): Set<String> = buildSet {
     if (rule.actions.any { it is Action.MoveTo || it is Action.CopyTo }) add("fileinto")
     if (rule.actions.any { it is Action.CopyTo || (it is Action.ForwardTo && it.keepCopy) }) add("copy")
-    if (Action.MarkRead in rule.actions || Action.Star in rule.actions) add("imap4flags")
+    if (rule.actions.any { it == Action.MarkRead || it == Action.Star || it is Action.Label }) add("imap4flags")
     if (rule.conditions.any { it.field == ConditionField.BODY }) add("body")
 }
 

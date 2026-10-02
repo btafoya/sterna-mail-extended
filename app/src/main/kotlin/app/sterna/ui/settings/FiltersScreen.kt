@@ -862,7 +862,7 @@ private fun RuleEditScreen(
                     offered = state.offered,
                     bulwark = bulwark,
                     trashFolder = state.trashFolder,
-                    onAdd = { kind -> rule = withAction(rule, newAction(kind, folders, state.trashFolder)) },
+                    onAdd = { kind -> newAction(kind, folders, state.trashFolder)?.let { rule = withAction(rule, it) } },
                 )
             }
             FiltersErrorBlock(state)
@@ -1036,6 +1036,11 @@ private fun ActionEditor(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
+                ActionKind.LABEL -> Text(
+                    stringResource(R.string.settings_filter_label, (action as Action.Label).value),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
                 else -> Text(
                     actionLabel(context, kind),
                     style = MaterialTheme.typography.bodyLarge,
@@ -1068,7 +1073,7 @@ private fun AddActionButton(
             Text(stringResource(R.string.settings_filter_add_action))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ActionKind.entries
+            addableKinds
                 .filter { it != ActionKind.DELETE || trashFolder != null }
                 .map { it to actionAvailability(it, rule, offered, bulwark) }
                 .filter { (_, availability) -> availability != Availability.ALREADY_THERE }
@@ -1116,27 +1121,33 @@ private fun conditionSummary(context: Context, condition: Condition): String {
     return "${fieldLabel(context, condition.field)} ${matchLabel(context, condition.match)} $value"
 }
 
-private fun actionSummary(context: Context, action: Action, trashFolder: String?): String = when (kindOf(action, trashFolder)) {
-    ActionKind.MOVE -> context.getString(R.string.settings_filter_summary_move, (action as Action.MoveTo).folder)
-    ActionKind.COPY -> context.getString(R.string.settings_filter_summary_copy, (action as Action.CopyTo).folder)
-    ActionKind.DELETE -> context.getString(R.string.settings_filter_action_delete)
-    ActionKind.MARK_READ -> context.getString(R.string.settings_filter_mark_read)
-    ActionKind.STAR -> context.getString(R.string.settings_filter_flag)
-    ActionKind.FORWARD -> context.getString(R.string.settings_filter_summary_forward, (action as Action.ForwardTo).address)
-    ActionKind.STOP -> context.getString(R.string.settings_filter_summary_stop)
+private fun actionSummary(context: Context, action: Action, trashFolder: String?): String =
+    actionSummaryText(action, trashFolder).let { (res, args) -> context.getString(res, *args.toTypedArray()) }
+
+internal fun actionSummaryText(action: Action, trashFolder: String?): Pair<Int, List<String>> = when (kindOf(action, trashFolder)) {
+    ActionKind.MOVE -> R.string.settings_filter_summary_move to listOf((action as Action.MoveTo).folder)
+    ActionKind.COPY -> R.string.settings_filter_summary_copy to listOf((action as Action.CopyTo).folder)
+    ActionKind.DELETE -> R.string.settings_filter_action_delete to emptyList()
+    ActionKind.MARK_READ -> R.string.settings_filter_mark_read to emptyList()
+    ActionKind.STAR -> R.string.settings_filter_flag to emptyList()
+    ActionKind.FORWARD -> R.string.settings_filter_summary_forward to listOf((action as Action.ForwardTo).address)
+    ActionKind.STOP -> R.string.settings_filter_summary_stop to emptyList()
+    ActionKind.LABEL -> R.string.settings_filter_label to listOf((action as Action.Label).value)
 }
 
-private fun actionLabel(context: Context, kind: ActionKind): String = context.getString(
-    when (kind) {
-        ActionKind.MOVE -> R.string.settings_filter_move_to
-        ActionKind.COPY -> R.string.settings_filter_copy_to
-        ActionKind.DELETE -> R.string.settings_filter_action_delete
-        ActionKind.MARK_READ -> R.string.settings_filter_mark_read
-        ActionKind.STAR -> R.string.settings_filter_flag
-        ActionKind.FORWARD -> R.string.settings_filter_forward_to
-        ActionKind.STOP -> R.string.settings_filter_stop
-    },
-)
+// Only the label's string has an argument, which the others ignore: a label row shows its own value instead.
+private fun actionLabel(context: Context, kind: ActionKind): String = context.getString(actionLabelRes(kind), "…")
+
+internal fun actionLabelRes(kind: ActionKind): Int = when (kind) {
+    ActionKind.MOVE -> R.string.settings_filter_move_to
+    ActionKind.COPY -> R.string.settings_filter_copy_to
+    ActionKind.DELETE -> R.string.settings_filter_action_delete
+    ActionKind.MARK_READ -> R.string.settings_filter_mark_read
+    ActionKind.STAR -> R.string.settings_filter_flag
+    ActionKind.FORWARD -> R.string.settings_filter_forward_to
+    ActionKind.STOP -> R.string.settings_filter_stop
+    ActionKind.LABEL -> R.string.settings_filter_label
+}
 
 private fun availabilityNote(context: Context, availability: Availability): String? = when (availability) {
     Availability.OFFERED, Availability.ALREADY_THERE -> null

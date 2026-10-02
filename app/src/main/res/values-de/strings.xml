@@ -555,6 +555,7 @@
     <string name="settings_filter_summary_copy">Kopieren nach %1$s</string>
     <string name="settings_filter_summary_forward">Weiterleiten an %1$s</string>
     <string name="settings_filter_summary_stop">Stopp</string>
+    <string name="settings_filter_label">Label „%1$s“ (aus Bulwark)</string>
     <plurals name="settings_filter_summary_more">
         <item quantity="one">%1$s und %2$d weitere</item>
         <item quantity="other">%1$s und %2$d weitere</item>

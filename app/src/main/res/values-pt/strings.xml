@@ -557,6 +557,7 @@
     <string name="settings_filter_summary_copy">Copiar para %1$s</string>
     <string name="settings_filter_summary_forward">Reencaminhar para %1$s</string>
     <string name="settings_filter_summary_stop">parar</string>
+    <string name="settings_filter_label">Etiqueta “%1$s” (do Bulwark)</string>
     <plurals name="settings_filter_summary_more">
         <item quantity="one">%1$s e mais %2$d</item>
         <item quantity="other">%1$s e mais %2$d</item>

@@ -96,20 +96,21 @@ internal object BulwarkFormat {
                 "move" -> Action.MoveTo(action.string("value") ?: return null)
                 "mark_read" -> Action.MarkRead
                 "star" -> Action.Star
+                "add_label" -> Action.Label(action.string("value") ?: return null)
                 else -> return null
             }
         } + listOfNotNull(Action.Stop.takeIf { entry.bool("stopProcessing") })
         return FilterRule(name(entry), entry.bool("enabled"), mode, conditions, actions).takeIf { holds(it) }
     }
 
-    /** Whether Bulwark's JSON can hold [rule] whole: its fields, comparators and actions, one of each action at most. */
+    /** Whether Bulwark's JSON can hold [rule] whole: its fields, comparators and actions, one of each action but labels at most. */
     fun holds(rule: FilterRule): Boolean {
         val actions = rule.actions.filter { it != Action.Stop }
         return rule.conditions.isNotEmpty() &&
             rule.conditions.all { it.field in BULWARK_FIELDS && it.match in bulwarkMatches(it.field) } &&
             (rule.actions.indexOf(Action.Stop).let { it < 0 || it == rule.actions.lastIndex }) &&
-            actions.all { it is Action.MoveTo || it == Action.MarkRead || it == Action.Star } &&
-            actions.groupingBy { it::class }.eachCount().values.all { it == 1 }
+            actions.all { it is Action.MoveTo || it == Action.MarkRead || it == Action.Star || it is Action.Label } &&
+            actions.filter { it !is Action.Label }.groupingBy { it::class }.eachCount().values.all { it == 1 }
     }
 
     /** What Bulwark can hold of [field]: the comparators known from its generator. */
@@ -123,7 +124,8 @@ internal object BulwarkFormat {
     /**
      * [entry] rewritten to hold [rule]. Everything else in it stays: `id`, `includeSpam`, unknown keys,
      * and in each condition and action what the form does not edit. A move keeps its `mailboxId` only
-     * while the folder is the same, or Bulwark would follow the old id.
+     * while the folder is the same, or Bulwark would follow the old id. A label is its object as read.
+     * Kept actions stay in the JSON's order and added ones follow, so an unchanged rule writes back as it was.
      */
     fun updated(entry: JsonObject, rule: FilterRule): JsonObject {
         val oldConditions = (entry["conditions"] as JsonArray).map { it as JsonObject }
@@ -138,18 +140,26 @@ internal object BulwarkFormat {
                 ),
             )
         }
-        val old = (entry["actions"] as JsonArray).map { it as JsonObject }.toMutableList()
-        fun take(type: String): JsonObject? = old.firstOrNull { it.string("type") == type }?.also { old.remove(it) }
-        val actions = rule.actions.mapNotNull { a ->
+        val read = (entry["actions"] as JsonArray).map { it as JsonObject }
+        val left = read.indices.toMutableList()
+        fun take(type: String, value: String? = null): Int? =
+            left.firstOrNull { read[it].string("type") == type && (value == null || read[it].string("value") == value) }?.also { left.remove(it) }
+        val kept = sortedMapOf<Int, JsonObject>()
+        val added = mutableListOf<JsonObject>()
+        fun keep(at: Int?, json: JsonObject) = if (at != null) kept[at] = json else added += json
+        rule.actions.forEach { a ->
             when (a) {
-                is Action.MoveTo -> take("move")
-                    ?.let { if (it.string("value") == a.folder) it else JsonObject(it - "mailboxId" + ("value" to JsonPrimitive(a.folder))) }
-                    ?: action("move", a.folder)
-                Action.MarkRead -> take("mark_read") ?: action("mark_read")
-                Action.Star -> take("star") ?: action("star")
-                else -> null
+                is Action.MoveTo -> take("move").let { at ->
+                    val old = at?.let(read::get)
+                    keep(at, old?.let { if (it.string("value") == a.folder) it else JsonObject(it - "mailboxId" + ("value" to JsonPrimitive(a.folder))) } ?: action("move", a.folder))
+                }
+                Action.MarkRead -> take("mark_read").let { keep(it, it?.let(read::get) ?: action("mark_read")) }
+                Action.Star -> take("star").let { keep(it, it?.let(read::get) ?: action("star")) }
+                is Action.Label -> take("add_label", a.value).let { keep(it, it?.let(read::get) ?: action("add_label", a.value)) }
+                is Action.CopyTo, is Action.ForwardTo, Action.Stop -> Unit
             }
         }
+        val actions = kept.values + added
         return JsonObject(
             entry + mapOf(
                 "name" to JsonPrimitive(rule.name),
@@ -179,7 +189,8 @@ internal object BulwarkFormat {
 
     /**
      * The `if` block Bulwark would write for [entry]: `header` with a capitalised name, `body` and `size`
-     * as they are, flags before `fileinto`, `stop` last. The [guard] stays and with every condition.
+     * as they are, flags and labels in the JSON's order before `fileinto`, `stop` last. The [guard]
+     * stays and with every condition.
      */
     fun statement(entry: JsonObject, guard: String?, indent: String, lineEnding: String): String {
         val tests = (entry["conditions"] as JsonArray).map { element ->
@@ -204,6 +215,7 @@ internal object BulwarkFormat {
             when (it.string("type")) {
                 "mark_read" -> "addflag \"\\\\Seen\";"
                 "star" -> "addflag \"\\\\Flagged\";"
+                "add_label" -> labelLine(it.string("value").orEmpty())
                 else -> null
             }
         }

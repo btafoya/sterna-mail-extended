@@ -557,6 +557,7 @@
     <string name="settings_filter_summary_copy">Copia in %1$s</string>
     <string name="settings_filter_summary_forward">Inoltra a %1$s</string>
     <string name="settings_filter_summary_stop">stop</string>
+    <string name="settings_filter_label">Etichetta «%1$s» (da Bulwark)</string>
     <plurals name="settings_filter_summary_more">
         <item quantity="one">%1$s e %2$d altra</item>
         <item quantity="other">%1$s e altre %2$d</item>

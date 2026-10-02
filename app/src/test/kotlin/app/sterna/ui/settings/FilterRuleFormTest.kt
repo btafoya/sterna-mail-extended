@@ -1,5 +1,6 @@
 package app.sterna.ui.settings
 
+import app.sterna.R
 import app.sterna.core.data.filter.Action
 import app.sterna.core.data.filter.Condition
 import app.sterna.core.data.filter.ConditionField
@@ -10,6 +11,7 @@ import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.loadedFilterRules
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -19,7 +21,7 @@ class FilterRuleFormTest {
     private val rule = FilterRule(name = "r", value = "a@example.com")
 
     @Test fun `a server that announced nothing is offered everything`() {
-        ActionKind.entries.forEach { assertEquals("$it", Availability.OFFERED, actionAvailability(it, rule, offered = null, bulwark = false)) }
+        addableKinds.forEach { assertEquals("$it", Availability.OFFERED, actionAvailability(it, rule, offered = null, bulwark = false)) }
         ConditionField.entries.forEach { assertEquals("$it", Availability.OFFERED, fieldAvailability(it, offered = null, bulwark = false)) }
     }
 
@@ -84,6 +86,24 @@ class FilterRuleFormTest {
         assertTrue(actionRemovable(Action.MoveTo("A"), original = read))
     }
 
+    @Test fun `a Bulwark label is shown, never added and never removed, and a rule of labels alone can be saved`() {
+        assertFalse(ActionKind.LABEL in addableKinds)
+        assertNull(newAction(ActionKind.LABEL, listOf("A"), "Trash"))
+        assertEquals(ActionKind.LABEL, kindOf(Action.Label("red"), null))
+        val read = rule.copy(actions = listOf(Action.MarkRead, Action.Label("red")))
+        assertFalse(actionRemovable(Action.Label("red"), original = read))
+        assertFalse(actionRemovable(Action.Label("red"), original = null))
+        assertTrue(actionRemovable(Action.MarkRead, original = read))
+        assertTrue(ruleComplete(rule.copy(actions = listOf(Action.Label("red"), Action.Label("blue")))))
+    }
+
+    @Test fun `a Bulwark label is named with its value in the rule's summary, and every kind has a name`() {
+        assertEquals(R.string.settings_filter_label to listOf("red"), actionSummaryText(Action.Label("red"), null))
+        assertEquals(R.string.settings_filter_summary_move to listOf("A"), actionSummaryText(Action.MoveTo("A"), null))
+        assertEquals(R.string.settings_filter_label, actionLabelRes(ActionKind.LABEL))
+        assertEquals(R.string.settings_filter_flag, actionLabelRes(ActionKind.STAR))
+    }
+
     @Test fun `removing a condition down to one drops the any`() {
         val any = rule.copy(mode = RuleMode.ANY, conditions = listOf(Condition(value = "a"), Condition(value = "b"), Condition(value = "c")))
         assertEquals(RuleMode.ANY, withoutCondition(any, 0).mode)
@@ -132,6 +152,8 @@ class FilterRuleFormTest {
             actions = listOf(Action.MoveTo("A"), Action.CopyTo("B"), Action.MarkRead, Action.Star, Action.ForwardTo("f@example.com"), Action.Stop),
         )
         assertEquals(every, restoredRule(savedRule(every)))
+        val labelled = every.copy(actions = listOf(Action.Label("red"), Action.MarkRead, Action.Label("blue"), Action.MoveTo("A")))
+        assertEquals("a Bulwark label is no stop after a restore", labelled, restoredRule(savedRule(labelled)))
         val plainForward = loadedFilterRules("s", "if header :contains \"subject\" \"x\" {\n    redirect \"p@example.com\";\n}\n").rules.single()
         assertEquals("a forward read without copy stays so", plainForward, restoredRule(savedRule(plainForward)))
     }
