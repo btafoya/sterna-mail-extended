@@ -19,8 +19,14 @@ class PgpModeEncryptsTest {
                 PgpMode.SIGN to false,
                 PgpMode.ENCRYPT to true,
                 PgpMode.ENCRYPT_UNSIGNED to true,
+                PgpMode.SMIME_SIGN to false,
+                PgpMode.SMIME_ENCRYPT to true,
             ),
             PgpMode.entries.associateWith { it.encrypts },
         )
+    }
+
+    @Test fun `only the two S-MIME modes are carried out with S-MIME`() {
+        assertEquals(setOf(PgpMode.SMIME_SIGN, PgpMode.SMIME_ENCRYPT), PgpMode.entries.filter { it.isSmime }.toSet())
     }
 }

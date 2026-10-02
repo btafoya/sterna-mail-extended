@@ -47,6 +47,7 @@ import app.sterna.core.data.db.MailboxIdRole
 import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
+import app.sterna.core.data.pgp.SmimeCertificates
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.rethrowIfCancelled
@@ -508,8 +509,10 @@ internal fun outboxPayload(prebuiltEntity: String?, pgpMode: PgpMode?): OutboxPa
 /** The pre-built entity of an outbox row about to be delivered: null when there is none, a hard
  *  failure when the named file cannot be read, the row's own body is blank or a shadow of the
  *  payload, so falling back would send a shell nobody wrote. Called once, before the fork. */
-internal fun prebuiltEntityAt(path: String?, readText: (String) -> String?): String? {
-    if (path == null) return null
+internal fun prebuiltEntityAt(path: String?, pgpMode: String?, readText: (String) -> String?): String? {
+    // A signing or encrypting mode with no entity is a row the process died under before the entity was written:
+    // its body is the plaintext the mode promised never to send as such.
+    if (path == null) return if (pgpMode == null) null else error("The signed or encrypted message was never prepared.")
     return readText(path) ?: error("The prepared message payload is missing.")
 }
 
@@ -982,6 +985,8 @@ class MailRepository(
     private val smimeEngine: SmimeEngine? = null,
     /** The user's S/MIME keys, to open a message encrypted for one (null = none wired: such a message says so). */
     private val smimeKeys: SmimeKeySource? = null,
+    /** Where the certificates confirmed signatures bring are kept (null = none wired: nothing is kept). */
+    private val smimeCertificates: SmimeCertificates? = null,
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
     private val settings: SettingsRepository? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
@@ -2322,6 +2327,7 @@ class MailRepository(
             .getOrElse { return PgpResult.Error(it.message ?: "Cannot parse message structure") }
         val sender = email.from.firstOrNull()?.email
         val route = cryptoRoute(envelope?.kind, lockedKind, pgpEngine, smimeEngine)
+        val keep: (SmimeCertificateFound) -> Unit = { keepSmimeCertificate(credentials, emailId, email, it) }
 
         // Contain any escaping exception as an Error so the reader shows the status card (#14).
         val result = runCatching {
@@ -2329,8 +2335,8 @@ class MailRepository(
                 CryptoRoute.OpenPgpMissing -> return PgpResult.NotAvailable
                 CryptoRoute.NothingFound -> return PgpResult.Error("No OpenPGP content found")
                 CryptoRoute.Unverifiable -> return PgpResult.Success(unverifiedBody(credentials, emailId, email))
-                is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender)
-                is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender)
+                is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender, keep)
+                is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender, keep)
                 is CryptoRoute.OpenPgp -> route.engine.let { pgp ->
                     when (envelope!!.kind) {
                         CryptoKind.PGP_ENCRYPTED -> pgp.decryptVerify(
@@ -2375,9 +2381,35 @@ class MailRepository(
         engine: SmimeEngine,
         envelope: CryptoEnvelope,
         sender: String?,
+        found: (SmimeCertificateFound) -> Unit,
     ): PgpResult<PgpDecrypted> {
-        val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false) }
+        val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false, found = found) }
         return PgpResult.Success(checked)
+    }
+
+    /** Fire and forget on [bgScope], like [importAutocryptKey]: the verdict is already on its way to the reader,
+     *  and on IMAP the date takes a round trip. No date, no certificate: undated, it could not be outranked.
+     *  The `runCatching` is the only guard: [bgScope] has no exception handler, and on Android a throw escaping
+     *  it kills the app. */
+    private fun keepSmimeCertificate(credentials: AccountCredentials, emailId: String, email: Email, found: SmimeCertificateFound) {
+        val store = smimeCertificates ?: return
+        bgScope.launch {
+            runCatching {
+                val date = serverDateOf(credentials, emailId, email) ?: return@runCatching
+                store.retain(found.address, found.certificate, smimeCertificateRank(found, date))
+            }.onFailure { logWarn("MailRepository", "S/MIME certificate of $emailId not kept", it) }
+        }
+    }
+
+    /** The server's date for [email], in epoch millis: JMAP's `receivedAt`, IMAP's `INTERNALDATE`. Not the
+     *  `receivedAt` of an IMAP envelope, which is the sender's own `Date:` (see [autocryptInternalDate]). */
+    private suspend fun serverDateOf(credentials: AccountCredentials, emailId: String, email: Email): Long? {
+        if (credentials.protocol != MailProtocol.IMAP) {
+            return email.receivedAt?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+        }
+        val mailboxId = emailDao.mailboxOf(credentials.id, emailId) ?: email.mailboxId ?: return null
+        val uid = ImapMailService.uidOf(emailId) ?: return null
+        return imap.fetchInternalDate(credentials, mailboxId, uid)
     }
 
     /** Open an S/MIME envelope with the account's own certificate; [openSmimeEnvelope] says what each answer means. */
@@ -2386,6 +2418,7 @@ class MailRepository(
         engine: SmimeEngine,
         envelope: CryptoEnvelope,
         sender: String?,
+        found: (SmimeCertificateFound) -> Unit,
     ): PgpResult<PgpDecrypted> {
         val alias = accountStore.account(credentials.id)?.smimeCertAlias.orEmpty()
         return withContext(Dispatchers.IO) {
@@ -2395,6 +2428,7 @@ class MailRepository(
                 keys = smimeKeys,
                 engine = engine,
                 sender = sender,
+                found = found,
             )
         }
     }

@@ -5,6 +5,7 @@ import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.pgp.PgpSignatureState
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeKeySource
+import app.sterna.core.data.pgp.SmimeVerified
 import app.sterna.core.imap.CryptoEnvelope
 import app.sterna.core.imap.CryptoKind
 import app.sterna.core.imap.MimeParser
@@ -13,15 +14,33 @@ import app.sterna.core.imap.MimeParser
 internal fun canonicalizeCrlf(entity: String): String =
     entity.replace("\r\n", "\n").replace("\n", "\r\n")
 
+/** A certificate a confirmed signature came with, to keep for [address], the message's `From`; [signedAt] is the
+ *  signature's own signing time, if it states one. */
+internal class SmimeCertificateFound(val address: String, val certificate: ByteArray, val signedAt: Long? = null)
+
+/** The rank [found] is kept under, given the server's date for its message (see `SmimeCertificates.retain`). */
+internal fun smimeCertificateRank(found: SmimeCertificateFound, serverDate: Long): Long =
+    found.signedAt?.let { minOf(it, serverDate) } ?: serverDate
+
+/** What [verified] teaches about [sender]: nothing unless the signature is confirmed and named a certificate. */
+internal fun smimeCertificateFound(verified: SmimeVerified, sender: String?): SmimeCertificateFound? {
+    val certificate = verified.encryptionCertificate ?: return null
+    if (verified.signature != PgpSignatureState.VALID_CONFIRMED || sender.isNullOrBlank()) return null
+    return SmimeCertificateFound(sender, certificate, verified.signedAt)
+}
+
 /**
  * An S/MIME signature, detached or opaque, checked by [engine]. [wasEncrypted] is true when the signed entity
  * was itself the content of an envelope: the reader then shows the message as encrypted, and signed.
+ * [found] is handed what the check teaches about the sender (see [smimeCertificateFound]); whatever it throws
+ * is dropped, as keeping a certificate is never a reason for the verdict not to reach the reader.
  */
 internal fun smimeVerified(
     engine: SmimeEngine,
     envelope: CryptoEnvelope,
     sender: String?,
     wasEncrypted: Boolean,
+    found: (SmimeCertificateFound) -> Unit = {},
 ): PgpDecrypted {
     val verified = when (envelope.kind) {
         CryptoKind.SMIME_OPAQUE_SIGNED -> engine.verifyOpaque(envelope.signedDataDer!!, sender)
@@ -31,6 +50,7 @@ internal fun smimeVerified(
             sender,
         )
     }
+    smimeCertificateFound(verified, sender)?.let { runCatching { found(it) } }
     return PgpDecrypted(
         plaintext = verified.content ?: ByteArray(0),
         signature = verified.signature,
@@ -54,6 +74,7 @@ internal fun openSmimeEnvelope(
     keys: SmimeKeySource?,
     engine: SmimeEngine,
     sender: String?,
+    found: (SmimeCertificateFound) -> Unit = {},
 ): PgpResult<PgpDecrypted> = try {
     if (alias.isEmpty()) {
         PgpResult.CertificateToChoose
@@ -67,7 +88,7 @@ internal fun openSmimeEnvelope(
                 PgpResult.NotEncryptedForCertificate
             } else {
                 val content = engine.decrypt(envelopedData, key.privateKey, certificate)
-                PgpResult.Success(clearOfEnvelope(content, engine, sender))
+                PgpResult.Success(clearOfEnvelope(content, engine, sender, found))
             }
         }
     }
@@ -81,12 +102,18 @@ internal fun openSmimeEnvelope(
  * signature is checked on the spot, with no fetch, and the plaintext is what was signed. One level only: a signed
  * entity carrying another envelope is shown as it is.
  */
-internal fun clearOfEnvelope(content: ByteArray, engine: SmimeEngine, sender: String?): PgpDecrypted {
+internal fun clearOfEnvelope(
+    content: ByteArray,
+    engine: SmimeEngine,
+    sender: String?,
+    found: (SmimeCertificateFound) -> Unit = {},
+): PgpDecrypted {
     val inner = MimeParser.detectCrypto(content.toString(Charsets.ISO_8859_1))
     return when (inner?.kind) {
         CryptoKind.SMIME_SIGNED ->
-            smimeVerified(engine, inner, sender, wasEncrypted = true).withPlaintext(inner.signedEntityRaw!!.toByteArray(Charsets.ISO_8859_1))
-        CryptoKind.SMIME_OPAQUE_SIGNED -> smimeVerified(engine, inner, sender, wasEncrypted = true)
+            smimeVerified(engine, inner, sender, wasEncrypted = true, found = found)
+                .withPlaintext(inner.signedEntityRaw!!.toByteArray(Charsets.ISO_8859_1))
+        CryptoKind.SMIME_OPAQUE_SIGNED -> smimeVerified(engine, inner, sender, wasEncrypted = true, found = found)
         else -> PgpDecrypted(
             plaintext = content,
             signature = PgpSignatureState.NONE,

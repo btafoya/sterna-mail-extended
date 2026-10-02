@@ -1,6 +1,7 @@
 package app.sterna.core.data.db
 
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.jmap.JmapException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -87,10 +88,10 @@ object OutboxLogic {
         if (attemptCount >= MAX_ATTEMPTS) OutboxState.FAILED else OutboxState.QUEUED
 
     /**
-     * Whether an outbox item can be reopened in the composer. Three things must hold.
+     * Whether an outbox item can be reopened in the composer: never on a mode name no [PgpMode] answers to.
      */
     fun canEdit(pgpMode: String?, state: OutboxState, carriesUnreplayablePrebuiltEntity: Boolean): Boolean =
-        !carriesUnreplayablePrebuiltEntity && !pgpMode.equals("ENCRYPT", ignoreCase = true) &&
+        !carriesUnreplayablePrebuiltEntity && !storedModeEncrypts(pgpMode) &&
             when (state) {
                 OutboxState.QUEUED, OutboxState.HELD, OutboxState.FAILED -> true
                 OutboxState.SENDING, OutboxState.EDITING, OutboxState.INTERRUPTED, OutboxState.KEPT_AS_DRAFT -> false
@@ -110,6 +111,13 @@ object OutboxLogic {
         null, PgpMode.OFF -> null
         PgpMode.ENCRYPT, PgpMode.ENCRYPT_UNSIGNED -> "ENCRYPT"
         PgpMode.SIGN -> "SIGN"
+        PgpMode.SMIME_SIGN, PgpMode.SMIME_ENCRYPT -> mode.name
+    }
+
+    internal fun storedModeEncrypts(pgpMode: String?): Boolean {
+        if (pgpMode == null) return false
+        val mode = PgpMode.entries.firstOrNull { it.name.equals(pgpMode, ignoreCase = true) } ?: return true
+        return mode.encrypts
     }
 
     /**

@@ -8,6 +8,7 @@ import app.sterna.core.data.account.RecordingAccountStorage
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
+import app.sterna.core.data.db.JdbcSmimeCertificateDao
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.LocalDraftDao
@@ -21,6 +22,7 @@ import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.pgp.PgpSignatureState
+import app.sterna.core.data.pgp.SmimeCertificates
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeKey
 import app.sterna.core.data.pgp.SmimeKeySource
@@ -41,7 +43,10 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.Base64
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -84,6 +89,9 @@ class SmimeReadPathTest {
             decrypted += Triple(envelopedData, key, certificate)
             return clear
         }
+
+        override fun sign(signedBytes: ByteArray, key: SmimeKey): ByteArray = error("a read path never signs")
+        override fun encrypt(content: ByteArray, recipients: List<X509Certificate>): ByteArray = error("a read path never encrypts")
 
         override fun verifyDetached(signedBytes: ByteArray, signature: ByteArray, senderAddress: String?): SmimeVerified {
             detached += signedBytes
@@ -133,6 +141,8 @@ class SmimeReadPathTest {
                 "* 1 EXISTS\r\n* OK [UIDVALIDITY 9] ok\r\n* OK [UIDNEXT 20] ok\r\n$tag OK [READ-WRITE] selected\r\n"
             line == "UID FETCH $UID (BODY.PEEK[])" ->
                 "* 1 FETCH (UID $UID BODY[] {${source.length}}\r\n$source)\r\n$tag OK fetch completed\r\n"
+            line == "UID FETCH $UID (INTERNALDATE)" ->
+                "* 1 FETCH (UID $UID INTERNALDATE \"$INTERNALDATE\")\r\n$tag OK fetch completed\r\n"
             else -> "$tag OK done\r\n"
         }
     }
@@ -169,6 +179,8 @@ class SmimeReadPathTest {
         engine: SmimeEngine,
         store: RecordingAccountStorage = RecordingAccountStorage(),
         keys: SmimeKeySource? = null,
+        certificates: SmimeCertificates? = null,
+        logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
     ): MailRepository {
         return MailRepository(
             client = JmapClient(),
@@ -190,6 +202,8 @@ class SmimeReadPathTest {
             localDraftFilesDir = File("drafts-never-read"),
             smimeEngine = engine,
             smimeKeys = keys,
+            smimeCertificates = certificates,
+            logWarn = logWarn,
         )
     }
 
@@ -391,6 +405,131 @@ class SmimeReadPathTest {
         assertTrue(engine.untouched())
     }
 
+    /** A certificate store that records what it is asked to keep, and can be made to fail. */
+    private class RecordingCertificates(
+        private val failing: Boolean = false,
+        private val hanging: Boolean = false,
+        private val into: SmimeCertificates? = null,
+    ) : SmimeCertificates {
+        val kept = CompletableDeferred<Triple<String, ByteArray, Long>>()
+
+        override suspend fun retain(address: String, certificate: ByteArray, messageDate: Long) {
+            into?.retain(address, certificate, messageDate)
+            kept.complete(Triple(address, certificate, messageDate))
+            if (failing) error(DISK_FULL)
+            if (hanging) awaitCancellation()
+        }
+
+        override suspend fun certificatesFor(addresses: Collection<String>, now: Long): Map<String, ByteArray> = error("not read here")
+    }
+
+    /** [name] opened as [kind] by a repository keeping into [certificates], and what it kept, awaited while the
+     *  server is still up: the keeping runs after the verdict is back, and asks the server for the date. */
+    private fun keptFrom(
+        name: String,
+        kind: CryptoKind,
+        engine: RecordingEngine,
+        certificates: RecordingCertificates,
+        logWarn: (String, String, Throwable?) -> Unit = { _, _, _ -> },
+        afterKept: suspend () -> Unit = {},
+    ): Pair<PgpResult<MessageBody>, Triple<String, ByteArray, Long>> =
+        ScriptedImapServer(serving(source(name))).use { server ->
+            runBlocking {
+                val result = repository(engine, OneAccount(READER_ALIAS), keystore, certificates, logWarn)
+                    .decryptMessage(credentials(server.host, server.port), ID, lockedKind = kind)
+                val kept = withTimeout(20_000) { certificates.kept.await() }
+                afterKept()
+                result to kept
+            }
+        }
+
+    @Test(timeout = 30_000)
+    fun `a confirmed signature's certificate is kept for the From address, dated by the server`() {
+        val der = byteArrayOf(0x30, 0x03, 0x02, 0x01, 0x07)
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null, der))
+
+        val (result, kept) = keptFrom("a-detached.eml", CryptoKind.SMIME_SIGNED, engine, RecordingCertificates())
+
+        assertTrue("$result", result is PgpResult.Success)
+        assertEquals(SENDER, kept.first)
+        assertArrayEquals(der, kept.second)
+        assertEquals(
+            "the date is INTERNALDATE, not the cached row's receivedAt, which on IMAP is the sender's own Date:",
+            java.time.Instant.parse("2026-06-01T10:00:00Z").toEpochMilli(),
+            kept.third,
+        )
+    }
+
+    @Test(timeout = 30_000)
+    fun `the certificate of a signature found inside an envelope is kept too`() {
+        val der = byteArrayOf(0x30, 0x03, 0x02, 0x01, 0x08)
+        val engine = RecordingEngine(
+            SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null, der),
+            clear = source("a-detached.eml").toByteArray(Charsets.ISO_8859_1),
+        )
+
+        val (result, kept) = keptFrom("m-signed-then-enveloped.eml", CryptoKind.SMIME_OPAQUE_SIGNED, engine, RecordingCertificates())
+
+        assertTrue("$result", result is PgpResult.Success)
+        assertEquals(SENDER, kept.first)
+        assertArrayEquals(der, kept.second)
+    }
+
+    @Test(timeout = 30_000)
+    fun `a store that never answers leaves the verdict shown at once`() {
+        val engine = RecordingEngine(SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null, byteArrayOf(0x30)))
+
+        val (result, _) = keptFrom("a-detached.eml", CryptoKind.SMIME_SIGNED, engine, RecordingCertificates(hanging = true))
+
+        val crypto = ((result as? PgpResult.Success)?.value ?: error("expected a checked body, got $result")).crypto as MessageCrypto.Decrypted
+        assertEquals(PgpSignatureState.VALID_CONFIRMED, crypto.signature)
+    }
+
+    /**
+     * On Android a throw that escapes the repository's background scope kills the app; on the JVM it only reaches the
+     * default uncaught-exception handler, which this test watches until the failure has been either logged or let out.
+     */
+    @Test(timeout = 30_000)
+    fun `a store that fails is logged, and lets nothing escape its coroutine`() {
+        val settled = CompletableDeferred<String>()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, failure ->
+            if (failure.message == DISK_FULL) settled.complete("escaped on ${thread.name}: $failure") else previous?.uncaughtException(thread, failure)
+        }
+        try {
+            val engine = RecordingEngine(SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null, byteArrayOf(0x30)))
+
+            val (result, _) = keptFrom(
+                "a-detached.eml", CryptoKind.SMIME_SIGNED, engine, RecordingCertificates(failing = true),
+                logWarn = { _, _, failure -> if (failure?.message == DISK_FULL) settled.complete("logged") },
+                afterKept = { withTimeout(20_000) { settled.await() } },
+            )
+
+            assertEquals("logged", runBlocking { settled.await() })
+            val crypto = ((result as? PgpResult.Success)?.value ?: error("expected a checked body, got $result")).crypto as MessageCrypto.Decrypted
+            assertEquals(PgpSignatureState.VALID_CONFIRMED, crypto.signature)
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previous)
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an old signed message delivered again today does not bring its certificate back over a newer one`() {
+        val signedIn2020 = java.time.Instant.parse("2020-01-15T09:00:00Z").toEpochMilli()
+        val keptIn2025 = java.time.Instant.parse("2025-03-01T00:00:00Z").toEpochMilli()
+        val newer = byteArrayOf(0x30, 0x03, 0x02, 0x01, 0x25)
+        val old = byteArrayOf(0x30, 0x03, 0x02, 0x01, 0x20)
+        JdbcSmimeCertificateDao().use { dao ->
+            runBlocking { dao.retain(SENDER, newer, keptIn2025) }
+            val engine = RecordingEngine(SmimeVerified(PgpSignatureState.VALID_CONFIRMED, SENDER, null, old, signedAt = signedIn2020))
+
+            val (_, kept) = keptFrom("a-detached.eml", CryptoKind.SMIME_SIGNED, engine, RecordingCertificates(into = dao))
+
+            assertEquals("ranked at its signing time, not at the 2026 INTERNALDATE", signedIn2020, kept.third)
+            assertEquals(listOf(Triple(SENDER, newer.toList(), keptIn2025)), dao.rows())
+        }
+    }
+
     @Test fun `only a signature or signed-data part as a mail client writes it makes the reader check`() {
         fun part(type: String?, name: String?) = EmailBodyPart(partId = "2", type = type, name = name)
         fun listed(vararg parts: EmailBodyPart, text: String? = null) = Email(
@@ -448,6 +587,8 @@ class SmimeReadPathTest {
         const val UID = 7L
         const val SENDER = "alice@example.test"
         const val READER_ALIAS = "reader"
+        const val INTERNALDATE = "01-Jun-2026 10:00:00 +0000"
+        const val DISK_FULL = "disk full"
 
         /** The attachment inside `g-enveloped.eml`, every octet class a text reading would damage. */
         val NOTE_BIN = byteArrayOf(0x00, 0xFF.toByte(), 0x80.toByte(), 0xE9.toByte(), 0x0D, 0x0A, 0x41)

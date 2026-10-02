@@ -35,8 +35,8 @@ class SmimeRouteCallSiteTest {
                 "CryptoRoute.OpenPgpMissing -> return PgpResult.NotAvailable",
                 "CryptoRoute.NothingFound -> return PgpResult.Error(\"No OpenPGP content found\")",
                 "CryptoRoute.Unverifiable -> return PgpResult.Success(unverifiedBody(credentials, emailId, email))",
-                "is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender)",
-                "is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender)",
+                "is CryptoRoute.Smime -> smimeVerify(route.engine, envelope!!, sender, keep)",
+                "is CryptoRoute.SmimeEncrypted -> smimeDecrypt(credentials, route.engine, envelope!!, sender, keep)",
                 "is CryptoRoute.OpenPgp -> route.engine.let { pgp ->",
             ),
             body.filter { "CryptoRoute." in it },
@@ -58,10 +58,23 @@ class SmimeRouteCallSiteTest {
         )
         assertEquals(
             "a signature on its own says nothing of encryption. Lines found:",
-            listOf("val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false) }"),
+            listOf("val checked = withContext(Dispatchers.Default) { smimeVerified(engine, envelope, sender, wasEncrypted = false, found = found) }"),
             DaoQuerySource.mailFunctionBody("MailRepository", "smimeVerify")
                 .lines().map { it.trim() }
                 .filter { "smimeVerified(" in it },
+        )
+    }
+
+    @Test fun `what both S-MIME routes find is kept against this message`() {
+        assertEquals(
+            "decryptMessage must hand both routes this keeper. Lines found:",
+            listOf("val keep: (SmimeCertificateFound) -> Unit = { keepSmimeCertificate(credentials, emailId, email, it) }"),
+            body.filter { "keepSmimeCertificate" in it },
+        )
+        assertEquals(
+            "the envelope's signature must reach the same keeper. Lines found:",
+            listOf("found = found,"),
+            DaoQuerySource.mailFunctionBody("MailRepository", "smimeDecrypt").lines().map { it.trim() }.filter { "found" in it && "->" !in it },
         )
     }
 }

@@ -12,6 +12,7 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OAuthTokenRefresher
 import app.sterna.core.data.mail.SyncStateStore
 import app.sterna.core.data.pgp.PgpEngine
+import app.sterna.core.data.pgp.SmimeCertificates
 import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.search.SearchHistoryRepository
@@ -30,6 +31,7 @@ object DataFactory {
     class DataLayer(
         val mailRepository: MailRepository,
         val storageRepository: StorageRepository,
+        val smimeCertificates: SmimeCertificates,
     )
 
     fun create(
@@ -66,6 +68,7 @@ object DataFactory {
             pendingExpunges,
             outgoingDates = outgoingDates,
         )
+        val smimeCertificates = database.smimeCertificateDao()
         return DataLayer(
             mailRepository = MailRepository(
                 client, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
@@ -85,6 +88,7 @@ object DataFactory {
                 pgpEngine = pgpEngine,
                 smimeEngine = smimeEngine,
                 smimeKeys = smimeKeys,
+                smimeCertificates = smimeCertificates,
                 settings = settings,
                 syncStateStore = SyncStateStore(appContext),
                 flightMarkerStore = FlightMarkerPrefs(appContext),
@@ -108,6 +112,7 @@ object DataFactory {
                 localDraftFilesDir = localDraftFiles,
                 serverContactDao = database.serverContactDao(),
             ),
+            smimeCertificates = smimeCertificates,
         )
     }
 }

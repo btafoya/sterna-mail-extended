@@ -374,8 +374,8 @@ class SubscribedFolderMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v32: `recent_contacts.sendCount`",
-            32,
+            "the schema declares v33: `smime_certificates`",
+            33,
             SCHEMA_VERSION,
         )
     }

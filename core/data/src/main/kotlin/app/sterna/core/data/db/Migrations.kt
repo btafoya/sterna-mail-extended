@@ -404,3 +404,16 @@ val MIGRATION_31_32 = object : Migration(31, 32) {
         db.execSQL("ALTER TABLE `recent_contacts` ADD COLUMN `sendCount` INTEGER NOT NULL DEFAULT 1")
     }
 }
+
+const val SMIME_CERTIFICATES_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `smime_certificates` (" +
+        "`address` TEXT NOT NULL, " +
+        "`certificate` BLOB NOT NULL, " +
+        "`messageDate` INTEGER NOT NULL, " +
+        "PRIMARY KEY(`address`))"
+
+val MIGRATION_32_33 = object : Migration(32, 33) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(SMIME_CERTIFICATES_CREATE_SQL)
+    }
+}

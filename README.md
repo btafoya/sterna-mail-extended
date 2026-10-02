@@ -153,7 +153,12 @@ Running your own server, with a free certificate or one you issued yourself? See
 - **S/MIME**: the signature of a received message is checked when you open it,
   on both JMAP and IMAP. A message encrypted for your RSA certificate is
   decrypted with that certificate, installed in Android's settings and picked
-  the first time you tap Unlock. Signing and encrypting are not there yet.
+  the first time you tap Unlock. Once that certificate is chosen in the
+  account's settings, a message you send can be signed, or signed and
+  encrypted. Encrypting needs a certificate for each recipient: Sterna keeps
+  one from a signed message the recipient sent you, once its signature checks
+  out. The subject is not encrypted, and an encrypted message can't have Bcc
+  recipients.
 
 **🔔 Notifications & server power**
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or

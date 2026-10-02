@@ -47,10 +47,9 @@ class SmimeCertificateCallSiteTest {
     }
 
     @Test fun `the app reads keys from Android's keystore`() {
-        assertTrue(
-            "smimeKeys = KeyChainSmimeKeys(context.applicationContext)," in
-                text("app/src/main/kotlin/app/sterna/SternaApplication.kt").lines().map { it.trim() },
-        )
+        val application = text("app/src/main/kotlin/app/sterna/SternaApplication.kt").lines().map { it.trim() }
+        assertTrue("val smimeKeys: SmimeKeySource = KeyChainSmimeKeys(context.applicationContext)" in application)
+        assertTrue("the reader is handed the composer's keystore", "smimeKeys = smimeKeys," in application)
     }
 
     private fun lines(source: String, signature: String): List<String> {

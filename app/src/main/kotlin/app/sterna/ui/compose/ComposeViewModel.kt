@@ -49,6 +49,7 @@ import app.sterna.core.data.mail.unlessBodyIsLossy
 import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
+import app.sterna.core.data.pgp.isSmime
 import app.sterna.core.data.pgp.PgpResult
 import app.sterna.core.data.settings.resolveOutgoingDateZone
 import app.sterna.core.data.text.Block
@@ -64,6 +65,8 @@ import app.sterna.core.imap.OutgoingAttachment
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.PgpMime
+import app.sterna.pgp.SmimeSendRefused
+import app.sterna.pgp.smimeEntity
 import app.sterna.mail.MessageDestroyWorker
 import app.sterna.send.Outbox
 import app.sterna.send.ScheduledSends
@@ -176,6 +179,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val repo = application.container.mailRepository
     private val outbox = application.container.sendOutbox
     private val pgp = application.container.pgpEngine
+    private val smimeEngine = application.container.smimeEngine
+    private val smimeKeys = application.container.smimeKeys
+    private val smimeCertificates = application.container.smimeCertificates
     private val settings = application.container.settingsRepository
     private val storage = application.container.storageRepository
 
@@ -455,6 +461,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val _pgpAvailable = MutableStateFlow(false)
     val pgpAvailable: StateFlow<Boolean> = _pgpAvailable.asStateFlow()
 
+    private val _smimeAvailable = MutableStateFlow<List<PgpMode>>(emptyList())
+    val smimeAvailable: StateFlow<List<PgpMode>> = _smimeAvailable.asStateFlow()
+
     /** Per-address key availability for encrypt mode: whether each address has a usable key. */
     private val _recipientKeys = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val recipientKeys: StateFlow<Map<String, Boolean>> = _recipientKeys.asStateFlow()
@@ -464,6 +473,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     /** The recipient set [_recipientKeys] was last computed for; null when it never was, or when a
      *  change invalidated the answer. Gate of the anti-flicker rule, see [recipientKeysStale] (#35). */
     private var keyedRecipients: List<String>? = null
+
+    private var keyedSmime = false
 
     /** True once the user sets the lock by hand: the mode then reflects their intent and is never
      *  auto-downgraded. While false the mode is derived from recipient-key availability (#35). */
@@ -485,38 +496,55 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             ?.let { store.account(it) }
             ?.takeIf { it.pgpEnabled && it.pgpSignKeyId != 0L }
 
+    /** Counts [refreshPgp]s, so one that reads the keystore slowly cannot land over a later From's answer. */
+    private var lockRefreshes = 0
+
+    private suspend fun smimeOfferedNow(): List<PgpMode> {
+        val credentials = credentials() ?: return emptyList()
+        val alias = store.account(credentials.id)?.smimeCertAlias.orEmpty()
+        val from = sentFromAddress(selectedIdentity()?.email, credentials.username)
+        return withContext(Dispatchers.IO) { smimeOffered(alias, from, smimeKeys, java.util.Date()) }
+    }
+
     /** Re-evaluate availability (on open, on From changes, and once a restored message has put its own
      *  mode back); drops the mode if PGP is gone, and says so when that costs the user a lock they
-     *  were shown (#35). The verdict itself is [pgpRefresh]. */
+     *  were shown (#35). The verdict itself is [lockRefresh]. */
     private fun refreshPgp() {
+        val refresh = ++lockRefreshes
         composerBinding.track(viewModelScope.launch {
             val account = pgpAccount()
             val available = account != null && pgp.isAvailable()
+            if (refresh != lockRefreshes) return@launch
             _pgpAvailable.value = available
             // Another account means another keyring: whatever was looked up no longer answers for
             // these recipients (#35).
             keyedRecipients = null
-            val outcome = pgpRefresh(
-                current = _pgpMode.value,
-                available = available,
-                accountConfigured = account != null,
-                encryptByDefault = account?.pgpEncryptByDefault == true,
-                userSet = pgpModeUserSet,
-            )
-            _pgpMode.value = outcome.mode
             if (!available) _pgpKeylessRecipients.value = emptyList()
-            // The padlock is the one indicator that has to be trusted, and it is about to disappear
-            // from the top bar entirely. Losing it in silence is how a message the user encrypted
-            // comes back looking ordinary, so name what went missing (#35).
-            when (outcome.dropped) {
-                PgpDropReason.NONE -> Unit
-                PgpDropReason.NOT_CONFIGURED -> _notices.tryEmit(R.string.compose_pgp_not_configured)
-                PgpDropReason.NO_PROVIDER -> _notices.tryEmit(R.string.message_pgp_no_provider)
-            }
+            if (!_pgpMode.value.isSmime) settleLock(account, available, smimeOffered = emptyList())
+            val smime = smimeOfferedNow()
+            if (refresh != lockRefreshes) return@launch
+            _smimeAvailable.value = smime
+            if (_pgpMode.value.isSmime) settleLock(account, available, smimeOffered = smime)
             // Last, and never in front of the mode: this writes nothing on screen and must not delay
             // what does.
             if (available) cachePgpPublicKey(account)
         })
+    }
+
+    private fun settleLock(account: StoredAccount?, available: Boolean, smimeOffered: List<PgpMode>) {
+        val outcome = lockRefresh(
+            current = _pgpMode.value,
+            available = available,
+            accountConfigured = account != null,
+            encryptByDefault = account?.pgpEncryptByDefault == true,
+            userSet = pgpModeUserSet,
+            smimeOffered = smimeOffered,
+        )
+        _pgpMode.value = outcome.mode
+        // The padlock is the one indicator that has to be trusted, and it is about to disappear
+        // from the top bar entirely. Losing it in silence is how a message the user encrypted
+        // comes back looking ordinary, so name what went missing (#35).
+        lockDropNotice(outcome.dropped)?.let { _notices.tryEmit(it) }
     }
 
     /** Accounts whose public key this composer has already tried to read; see
@@ -536,8 +564,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Lock toggle (short tap): off, sign, encrypt, off. The cycle itself is [nextPgpMode]. */
-    fun cyclePgpMode() = setPgpMode(nextPgpMode(_pgpMode.value))
+    fun cyclePgpMode() = setPgpMode(nextLockMode(_pgpMode.value, openPgp = _pgpAvailable.value, smime = _smimeAvailable.value))
 
     /**
      * The mode the user picked by hand: the lock's short tap, or the long-press menu.
@@ -554,22 +581,33 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     fun updateRecipientKeys(to: String, cc: String, bcc: String) {
         val account = pgpAccount()
-        val care = _pgpAvailable.value &&
-            (account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)
+        val smime = _pgpMode.value.isSmime
+        val care = if (smime) {
+            _pgpMode.value.encrypts
+        } else {
+            _pgpAvailable.value &&
+                (account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)
+        }
         if (!care) {
             _recipientKeys.value = emptyMap()
             keyedRecipients = null
             return
         }
         val addresses = encryptionRecipients(to, cc, bcc)
-        if (!recipientKeysStale(keyedRecipients, addresses)) return
+        if (smime == keyedSmime && !recipientKeysStale(keyedRecipients, addresses)) return
         keyedRecipients = addresses
+        keyedSmime = smime
         recipientKeysJob?.cancel()
         recipientKeysJob = viewModelScope.launch {
-            _recipientKeys.value =
-                if (addresses.isEmpty()) emptyMap()
-                else runCatching { pgp.findKeysEach(addresses) }.getOrDefault(emptyMap())
-            deriveAutoMode(addresses)
+            _recipientKeys.value = when {
+                addresses.isEmpty() -> emptyMap()
+                smime -> runCatching {
+                    val sender = sentFromAddress(selectedIdentity()?.email, credentials()?.username.orEmpty())
+                    smimeCertificatesHeld(addresses, smimeCertificates.certificatesFor(addresses, System.currentTimeMillis()), sender)
+                }.getOrDefault(emptyMap())
+                else -> runCatching { pgp.findKeysEach(addresses) }.getOrDefault(emptyMap())
+            }
+            if (!smime) deriveAutoMode(addresses)
         }
     }
 
@@ -1714,6 +1752,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                             credentials, recipients + ccList + bccList,
                             textBody, htmlBody, attachments, mode,
                             protectedSubject(mode, subject), interactionResult,
+                            sentFromAddress(identity?.email, credentials.username), bccList,
                         )
                     } catch (e: PgpInteractionNeeded) {
                         pendingSendArgs = args
@@ -2313,8 +2352,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         mode: PgpMode,
         protectedSubject: String?,
         interactionResult: Intent?,
+        fromAddress: String,
+        bccRecipients: List<String>,
     ): String {
         val app = getApplication<Application>()
+        if (mode.isSmime) return buildSmimeEntity(credentials, allRecipients, bccRecipients, textBody, htmlBody, attachments, mode, protectedSubject, fromAddress)
         val account = pgpAccount()
             ?: error(app.getString(R.string.compose_pgp_not_configured))
         // Named for the role that survives both modes. This key is the signer and a recipient
@@ -2322,39 +2364,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // "drop the signer" read as "drop this key", which would make every unsigned encrypted message
         // unreadable for ever. See [pgpEncryptArgs].
         val selfKeyId = account.pgpSignKeyId
-
-        // Attachment bytes must be local to ride inside the entity. Staged files read back directly; a
-        // blob attached before the user enabled PGP is fetched back once.
-        val outAttachments = attachments.map { part ->
-            val bytes = when {
-                part.partId != null -> withContext(Dispatchers.IO) { File(part.partId!!).readBytes() }
-                part.blobId != null -> repo.downloadAttachment(credentials, part, emailId = "")
-                else -> error(app.getString(R.string.status_read_file_failed))
-            }
-            OutgoingAttachment(
-                name = part.name ?: "attachment",
-                type = part.type ?: "application/octet-stream",
-                bytes = bytes,
-                cid = part.cid,
-                inline = part.disposition.equals("inline", true) && !part.cid.isNullOrBlank(),
-            )
-        }
-        require(outAttachments.sumOf { it.bytes.size.toLong() } <= PGP_MAX_ATTACHMENT_BYTES) {
-            app.getString(R.string.compose_pgp_too_large)
-        }
-        val boundarySeed = java.util.UUID.randomUUID().toString().replace("-", "")
-        // The subject goes in twice, and only one of them is this one. The message's real `Subject:`
-        // is written by `OutgoingMime.build` on the envelope, in the clear, the `subject = ""` below
-        val inner = OutgoingMime.buildBodyEntity(
-            OutgoingMessage(
-                from = "-", to = listOf("-"), subject = "",
-                body = textBody, html = htmlBody,
-                messageId = "$boundarySeed@pgp", dateMillis = System.currentTimeMillis(),
-                attachments = outAttachments,
-            ),
-            protectedSubject = protectedSubject,
-        )
-        val payload = PgpMime.signablePayload(inner)
+        val (payload, boundarySeed) = signablePayload(credentials, textBody, htmlBody, attachments, protectedSubject)
         return when (mode) {
             PgpMode.SIGN -> {
                 when (val r = pgp.detachedSign(payload.toByteArray(Charsets.UTF_8), selfKeyId, interactionResult)) {
@@ -2387,8 +2397,77 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     is PgpResult.SmimeCertificate -> error("An OpenPGP call answered about an S/MIME certificate")
                 }
             }
-            PgpMode.OFF -> error("unreachable")
+            PgpMode.OFF, PgpMode.SMIME_SIGN, PgpMode.SMIME_ENCRYPT -> error("unreachable")
         }
+    }
+
+    private suspend fun buildSmimeEntity(
+        credentials: AccountCredentials,
+        allRecipients: List<String>,
+        bccRecipients: List<String>,
+        textBody: String,
+        htmlBody: String?,
+        attachments: List<EmailBodyPart>,
+        mode: PgpMode,
+        protectedSubject: String?,
+        fromAddress: String,
+    ): String {
+        val alias = store.account(credentials.id)?.smimeCertAlias.orEmpty()
+        val (payload, boundarySeed) = signablePayload(credentials, textBody, htmlBody, attachments, protectedSubject)
+        val now = java.util.Date()
+        val kept = if (mode.encrypts) smimeCertificates.certificatesFor(allRecipients, now.time) else emptyMap()
+        return try {
+            withContext(Dispatchers.IO) {
+                smimeEntity(
+                    payload, "----sterna_smime_$boundarySeed", mode, alias, fromAddress, smimeKeys, smimeEngine, now,
+                    recipients = allRecipients - bccRecipients.toSet(), bcc = bccRecipients, kept = kept,
+                )
+            }
+        } catch (refused: SmimeSendRefused) {
+            error(getApplication<Application>().getString(smimeRefusalWording(refused.reason)))
+        }
+    }
+
+    private suspend fun signablePayload(
+        credentials: AccountCredentials,
+        textBody: String,
+        htmlBody: String?,
+        attachments: List<EmailBodyPart>,
+        protectedSubject: String?,
+    ): Pair<String, String> {
+        val app = getApplication<Application>()
+        // Attachment bytes must be local to ride inside the entity. Staged files read back directly; a
+        // blob attached before the user enabled PGP is fetched back once.
+        val outAttachments = attachments.map { part ->
+            val bytes = when {
+                part.partId != null -> withContext(Dispatchers.IO) { File(part.partId!!).readBytes() }
+                part.blobId != null -> repo.downloadAttachment(credentials, part, emailId = "")
+                else -> error(app.getString(R.string.status_read_file_failed))
+            }
+            OutgoingAttachment(
+                name = part.name ?: "attachment",
+                type = part.type ?: "application/octet-stream",
+                bytes = bytes,
+                cid = part.cid,
+                inline = part.disposition.equals("inline", true) && !part.cid.isNullOrBlank(),
+            )
+        }
+        require(outAttachments.sumOf { it.bytes.size.toLong() } <= PGP_MAX_ATTACHMENT_BYTES) {
+            app.getString(R.string.compose_pgp_too_large)
+        }
+        val boundarySeed = java.util.UUID.randomUUID().toString().replace("-", "")
+        // The subject goes in twice, and only one of them is this one. The message's real `Subject:`
+        // is written by `OutgoingMime.build` on the envelope, in the clear, the `subject = ""` below
+        val inner = OutgoingMime.buildBodyEntity(
+            OutgoingMessage(
+                from = "-", to = listOf("-"), subject = "",
+                body = textBody, html = htmlBody,
+                messageId = "$boundarySeed@pgp", dateMillis = System.currentTimeMillis(),
+                attachments = outAttachments,
+            ),
+            protectedSubject = protectedSubject,
+        )
+        return PgpMime.signablePayload(inner) to boundarySeed
     }
 
     private companion object {

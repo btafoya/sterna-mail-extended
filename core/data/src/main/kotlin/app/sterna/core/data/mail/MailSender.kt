@@ -434,7 +434,7 @@ class MailSender(
 
         // A pre-built entity (PGP/MIME, or an RFC 8098 receipt), read once above the fork: what
         // sends the message verbatim is the entity, never the PGP mode.
-        val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath) { path ->
+        val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath, item.pgpMode) { path ->
             runCatching { java.io.File(path).readText() }.getOrNull()
         }
 

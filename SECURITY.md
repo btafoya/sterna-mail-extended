@@ -51,7 +51,11 @@ Two choices deserve to be stated plainly:
 
 ### S/MIME
 
-- **The S/MIME private key stays in Android's keystore**: Sterna neither reads nor copies it and has the keystore use it to decrypt, and the decrypted text stays in memory, with the same exceptions as OpenPGP (an attachment you open or save, a message you print or save as PDF).
+- **The S/MIME private key stays in Android's keystore**: Sterna neither reads nor copies it and has the keystore use it to decrypt and to sign, and the decrypted text stays in memory, with the same exceptions as OpenPGP (an attachment you open or save, a message you print or save as PDF).
+- **Only the certificate of a verified signature is kept.** A correspondent's certificate, used to encrypt to them, is kept only from a signed message whose signature checks out, chains to an authority Android trusts and is issued for the message's From address. A self-signed certificate Android does not trust, or the one of a signature that fails, is never kept. A message encrypted to a recipient with no such certificate, or with one that has expired, is not sent.
+- **An encrypted message is also encrypted to your own certificate**, so the copy in Sent can be opened again.
+- **The subject travels in the clear.** The envelope also names the certificate of every recipient, readable by each of them, so a message with Bcc recipients is not encrypted: the send is refused instead.
+- **There is no revocation check.** A certificate its authority has revoked is still accepted, for a signature and to encrypt to, until it expires.
 
 ### Android platform surface
 

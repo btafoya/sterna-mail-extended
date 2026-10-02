@@ -4,16 +4,21 @@ import android.app.PendingIntent
 import android.content.Intent
 
 /**
- * Per-message crypto mode. [encrypt] signs and encrypts; [ENCRYPT_UNSIGNED] encrypts without a
- * signature. Subject and SMTP envelope are never hidden either way.
+ * Per-message crypto mode. [ENCRYPT] signs and encrypts, [ENCRYPT_UNSIGNED] without a signature, the `SMIME_` pair with the
+ * S/MIME certificate, always signed. Subject and SMTP envelope are never hidden. The names are persisted: keep them.
  */
-enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED }
+enum class PgpMode { OFF, SIGN, ENCRYPT, ENCRYPT_UNSIGNED, SMIME_SIGN, SMIME_ENCRYPT }
 
 /**
  * "Does this mode turn the body into ciphertext?", draft-keep, outbox-at-rest blanking and
  * of encrypting hangs off this single question and they must never disagree:
  */
-val PgpMode.encrypts: Boolean get() = this == PgpMode.ENCRYPT || this == PgpMode.ENCRYPT_UNSIGNED
+val PgpMode.encrypts: Boolean get() = when (this) {
+    PgpMode.ENCRYPT, PgpMode.ENCRYPT_UNSIGNED, PgpMode.SMIME_ENCRYPT -> true
+    PgpMode.OFF, PgpMode.SIGN, PgpMode.SMIME_SIGN -> false
+}
+
+val PgpMode.isSmime: Boolean get() = this == PgpMode.SMIME_SIGN || this == PgpMode.SMIME_ENCRYPT
 
 /** Outcome of verifying an OpenPGP signature, mapped for UI badge semantics. */
 enum class PgpSignatureState {

@@ -208,6 +208,7 @@ fun ComposeScreen(
     val selectedFrom by viewModel.selectedFrom.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val pgpAvailable by viewModel.pgpAvailable.collectAsStateWithLifecycle()
+    val smimeAvailable by viewModel.smimeAvailable.collectAsStateWithLifecycle()
     val pgpMode by viewModel.pgpMode.collectAsStateWithLifecycle()
     val recipientKeys by viewModel.recipientKeys.collectAsStateWithLifecycle()
     val pgpKeylessRecipients by viewModel.pgpKeylessRecipients.collectAsStateWithLifecycle()
@@ -279,6 +280,8 @@ fun ComposeScreen(
                         PgpMode.SIGN -> R.string.compose_pgp_snack_sign
                         PgpMode.ENCRYPT -> R.string.compose_pgp_snack_encrypt
                         PgpMode.ENCRYPT_UNSIGNED -> R.string.compose_pgp_snack_encrypt_unsigned
+                        PgpMode.SMIME_SIGN -> R.string.compose_smime_snack_sign
+                        PgpMode.SMIME_ENCRYPT -> R.string.compose_smime_snack_encrypt
                     },
                 ),
                 duration = SnackbarDuration.Short,
@@ -940,11 +943,11 @@ fun ComposeScreen(
                   // cannot be. Whole block, not each button disabled one by one: every one acts on
                   // fields that hold nothing. The X in navigationIcon deliberately stays.
                   if (reopen is DraftReopenView.Editor) {
-                    // OpenPGP lock. Short tap keeps the three-stop cycle ([nextPgpMode]); long press
-                    // opens the list of all four modes, the only way to reach ENCRYPT_UNSIGNED, a
-                    // short tap must not walk anyone into sending unsigned mail. The gesture is
-                    // announced in the button's own contentDescription.
-                    if (pgpAvailable) {
+                    // The lock. Short tap walks [nextLockMode]; long press opens [lockMenuModes], the
+                    // only way to reach ENCRYPT_UNSIGNED, a short tap must not walk anyone into
+                    // sending unsigned mail. The gesture is announced in the button's own
+                    // contentDescription.
+                    if (pgpAvailable || smimeAvailable.isNotEmpty()) {
                         var pgpMenu by remember { mutableStateOf(false) }
                         // Box, not IconButton: an IconButton has no long press. The 48 dp size and the
                         // circular clip are what it was giving for free. `enabled = !sending` sits on
@@ -978,7 +981,7 @@ fun ComposeScreen(
                                     .padding(12.dp),
                             )
                             DropdownMenu(expanded = pgpMenu, onDismissRequest = { pgpMenu = false }) {
-                                PgpMode.entries.forEach { entry ->
+                                lockMenuModes(openPgp = pgpAvailable, smime = smimeAvailable).forEach { entry ->
                                     DropdownMenuItem(
                                         text = { Text(stringResource(pgpModeLabel(entry))) },
                                         leadingIcon = {
@@ -1982,6 +1985,8 @@ private fun pgpModeLabel(mode: PgpMode): Int = when (mode) {
     PgpMode.SIGN -> R.string.compose_pgp_sign
     PgpMode.ENCRYPT -> R.string.compose_pgp_encrypt
     PgpMode.ENCRYPT_UNSIGNED -> R.string.compose_pgp_encrypt_unsigned
+    PgpMode.SMIME_SIGN -> R.string.compose_smime_sign
+    PgpMode.SMIME_ENCRYPT -> R.string.compose_smime_encrypt
 }
 
 /**

@@ -111,7 +111,7 @@ class RecentContactsSendCountMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumn() {
-        assertEquals(32, SCHEMA_VERSION)
+        assertTrue("the schema is past the step", SCHEMA_VERSION >= 32)
         assertEquals(
             SCHEMA_VERSION,
             SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion },

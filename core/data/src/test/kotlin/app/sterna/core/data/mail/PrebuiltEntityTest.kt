@@ -57,6 +57,15 @@ class PrebuiltEntityTest {
         )
     }
 
+    @Test fun `an S-MIME encrypted message keeps no plaintext at rest, a signed one keeps its body`() {
+        assertEquals(
+            "an S/MIME encrypted row kept its plaintext body at rest",
+            OutboxPayload(entityFile = entity, redactBody = true),
+            outboxPayload(entity, PgpMode.SMIME_ENCRYPT),
+        )
+        assertEquals(OutboxPayload(entityFile = entity, redactBody = false), outboxPayload(entity, PgpMode.SMIME_SIGN))
+    }
+
     /**
      * Blanking the row still needs both the mode and the entity. A row marked encrypt whose
      */
@@ -75,19 +84,29 @@ class PrebuiltEntityTest {
 
     /** A row with no entity file delivers normally: body, HTML and attachments from the row. */
     @Test fun `a row naming no file has no entity`() {
-        assertNull(prebuiltEntityAt(null) { error("must not read anything") })
+        assertNull(prebuiltEntityAt(null, pgpMode = null) { error("must not read anything") })
+    }
+
+    @Test fun `a signed or encrypted row with no entity is never sent from its body`() {
+        for (mode in listOf("SIGN", "ENCRYPT", "SMIME_SIGN", "SMIME_ENCRYPT")) {
+            val thrown = runCatching { prebuiltEntityAt(null, mode) { error("must not read anything") } }.exceptionOrNull()
+            assertTrue(
+                "$mode: a row the process died under before its entity was written goes out as its plaintext body",
+                thrown is IllegalStateException,
+            )
+        }
     }
 
     /** A row naming a file is delivered from that file, verbatim, whatever the PGP mode says. */
     @Test fun `a row naming a file is delivered from it, byte for byte`() {
-        assertEquals(entity, prebuiltEntityAt("/outbox/7/prebuilt-entity.mime") { entity })
+        assertEquals(entity, prebuiltEntityAt("/outbox/7/prebuilt-entity.mime", "SIGN") { entity })
     }
 
     /**
      * An unreadable file fails the delivery.
      */
     @Test fun `a file that cannot be read fails the delivery instead of sending a shell`() {
-        val thrown = runCatching { prebuiltEntityAt("/outbox/7/gone.mime") { null } }.exceptionOrNull()
+        val thrown = runCatching { prebuiltEntityAt("/outbox/7/gone.mime", null) { null } }.exceptionOrNull()
 
         assertTrue("a missing payload must throw, not return null", thrown is IllegalStateException)
         assertEquals(
@@ -100,7 +119,7 @@ class PrebuiltEntityTest {
     /** Read once, above the protocol fork, so both branches see the same value. */
     @Test fun `the file is read exactly once`() {
         var reads = 0
-        prebuiltEntityAt("/outbox/7/prebuilt-entity.mime") { reads++; entity }
+        prebuiltEntityAt("/outbox/7/prebuilt-entity.mime", null) { reads++; entity }
 
         assertEquals(1, reads)
     }
@@ -134,7 +153,7 @@ class PrebuiltEntityTest {
         )
         assertTrue(
             "the entity must be read once, above the fork, so the two branches agree",
-            "val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath) { path ->" in lines,
+            "val prebuiltEntity = prebuiltEntityAt(item.pgpEntityPath, item.pgpMode) { path ->" in lines,
         )
     }
 

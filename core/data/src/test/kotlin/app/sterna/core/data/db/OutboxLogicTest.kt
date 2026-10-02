@@ -478,6 +478,22 @@ class OutboxLogicTest {
         assertEquals("ENCRYPT", OutboxLogic.outboxPgpModeName(PgpMode.ENCRYPT))
     }
 
+    @Test fun anSmimeRowIsFiledUnderItsModeAndReopensOnlyWhenItDoesNotEncrypt() {
+        assertEquals("SMIME_SIGN", OutboxLogic.outboxPgpModeName(PgpMode.SMIME_SIGN))
+        assertEquals("SMIME_ENCRYPT", OutboxLogic.outboxPgpModeName(PgpMode.SMIME_ENCRYPT))
+        for (mode in listOf(PgpMode.SMIME_SIGN, PgpMode.SMIME_ENCRYPT)) {
+            assertEquals("a reopened row restores its mode by name", mode, PgpMode.valueOf(OutboxLogic.outboxPgpModeName(mode)!!))
+        }
+        assertEquals(true, OutboxLogic.canEdit(OutboxLogic.outboxPgpModeName(PgpMode.SMIME_SIGN), OutboxState.QUEUED, false))
+        assertEquals(
+            "Edit is offered on an S/MIME encrypted row, whose body is not kept",
+            false,
+            OutboxLogic.canEdit(OutboxLogic.outboxPgpModeName(PgpMode.SMIME_ENCRYPT), OutboxState.QUEUED, false),
+        )
+        assertEquals(false, OutboxLogic.canEdit("encrypt", OutboxState.QUEUED, false))
+        assertEquals("a mode this build does not know is not reopened", false, OutboxLogic.canEdit("SOMETHING_ELSE", OutboxState.QUEUED, false))
+    }
+
     @Test fun aWaitingUnencryptedItemCanBeReopened() {
         assertEquals(true, OutboxLogic.canEdit(null, OutboxState.QUEUED, ordinary()))
         assertEquals(true, OutboxLogic.canEdit(null, OutboxState.FAILED, ordinary()))

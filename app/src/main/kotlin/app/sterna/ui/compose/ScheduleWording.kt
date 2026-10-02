@@ -2,6 +2,7 @@ package app.sterna.ui.compose
 
 import app.sterna.R
 import app.sterna.core.data.pgp.PgpMode
+import app.sterna.core.data.pgp.isSmime
 import app.sterna.util.isValidEmail
 
 /** Why a schedule is refused, or null when it may go ahead. Asked by the menu entry and again by
@@ -10,7 +11,7 @@ import app.sterna.util.isValidEmail
  *  are judged like the send button's, every token of the three fields, since a bad one would only
  *  fail at the hour, in the worker, with nobody at the screen. */
 internal fun scheduleRefusal(to: String, cc: String, bcc: String, pgpMode: PgpMode): Int? = when {
-    !scheduleSendAllowed(pgpMode) -> R.string.compose_pgp_no_schedule
+    !scheduleSendAllowed(pgpMode) -> if (pgpMode.isSmime) R.string.compose_smime_no_schedule else R.string.compose_pgp_no_schedule
     recipientTokens(to).isEmpty() -> R.string.compose_schedule_needs_recipient
     !listOf(to, cc, bcc).flatMap { recipientTokens(it) }.all(::isValidEmail) -> R.string.compose_schedule_invalid_address
     else -> null

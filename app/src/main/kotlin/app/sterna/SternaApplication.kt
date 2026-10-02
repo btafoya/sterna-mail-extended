@@ -12,6 +12,9 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.OutboxScheduler
 import app.sterna.core.data.mail.localDraftUploadJobs
 import app.sterna.core.data.mail.scheduledSendJobs
+import app.sterna.core.data.pgp.SmimeCertificates
+import app.sterna.core.data.pgp.SmimeEngine
+import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.SettingsRepository
@@ -65,6 +68,8 @@ class AppContainer(context: Context) {
     /** OpenPGP via the OpenKeychain provider (binds lazily; harmless when not installed). */
     val pgpEngine: OpenKeychainPgpEngine =
         OpenKeychainPgpEngine(context.applicationContext, settingsRepository)
+    val smimeEngine: SmimeEngine = BouncyCastleSmimeEngine(trustAnchors = ::androidTrustedAuthorities)
+    val smimeKeys: SmimeKeySource = KeyChainSmimeKeys(context.applicationContext)
     private val dataLayer =
         DataFactory.create(
             context.applicationContext, jmapClient, accountStore, pgpEngine, settingsRepository,
@@ -72,11 +77,12 @@ class AppContainer(context: Context) {
             // What the IMAP client names itself as to the server (RFC 2971 ID, #173). It can only
             // come from here: core/imap and core/data have no BuildConfig.
             clientVersion = BuildConfig.VERSION_NAME,
-            smimeEngine = BouncyCastleSmimeEngine(trustAnchors = ::androidTrustedAuthorities),
-            smimeKeys = KeyChainSmimeKeys(context.applicationContext),
+            smimeEngine = smimeEngine,
+            smimeKeys = smimeKeys,
         )
     val mailRepository: MailRepository = dataLayer.mailRepository
     val storageRepository: StorageRepository = dataLayer.storageRepository
+    val smimeCertificates: SmimeCertificates = dataLayer.smimeCertificates
     val appLock: AppLock = AppLock(accountStore)
 
     /** UnifiedPush transport state machine (issue #17); inert without a distributor. */

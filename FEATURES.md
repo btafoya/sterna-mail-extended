@@ -185,7 +185,10 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ S/MIME on received messages, on both protocols: signature check against the
   Android certificate store, and decryption (RSA) with a certificate installed in
   Android's settings.
-- 💡 S/MIME: sign and encrypt.
+- ✅ S/MIME on sent messages: sign, or sign and encrypt (RSA, AES-256), with a
+  certificate installed in Android's settings. A recipient's certificate is kept
+  from a signed message of theirs whose signature checks out. Subjects are not
+  encrypted, and encrypting refuses Bcc recipients.
 
 ## UX & accessibility
 

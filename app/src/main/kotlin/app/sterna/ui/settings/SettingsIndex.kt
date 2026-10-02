@@ -272,4 +272,9 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
         R.string.settings_pgp_encrypt_default_subtitle,
         anchor = R.string.settings_pgp_enable_title,
     ),
+    SettingEntry(
+        "smime_certificate", ACCOUNT, R.string.settings_smime_section,
+        R.string.settings_smime_certificate_help,
+        anchorKind = SECTION,
+    ),
 )

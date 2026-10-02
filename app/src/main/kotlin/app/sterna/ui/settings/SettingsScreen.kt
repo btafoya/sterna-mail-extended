@@ -2187,6 +2187,9 @@ private fun AccountDetailScreen(
             SettingsSection(stringResource(R.string.settings_pgp_section)) {
                 PgpAccountSection(accountId = accountId, account = account, viewModel = viewModel)
             }
+            SettingsSection(stringResource(R.string.settings_smime_section)) {
+                SmimeAccountSection(accountId = accountId, account = account, viewModel = viewModel)
+            }
             SettingsSection(stringResource(R.string.settings_storage_section)) {
                 StorageStatRow(stringResource(R.string.settings_cached_messages), "$cacheCount")
                 // Before the button: the attachment cache is one flat directory shared by every

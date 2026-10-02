@@ -587,6 +587,10 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setSmimeCertificate(accountId: String, alias: String) {
+        viewModelScope.launch(Dispatchers.IO) { store.setSmimeCertAlias(accountId, alias) }
+    }
+
     /** Toggle PGP off (keeps the chosen key), or update encrypt-by-default. */
     fun setPgp(accountId: String, enabled: Boolean, encryptByDefault: Boolean) {
         val account = store.account(accountId) ?: return

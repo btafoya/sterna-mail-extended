@@ -1,6 +1,7 @@
 package app.sterna.ui.compose
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -68,9 +69,10 @@ class PgpModeWiringTest {
                 "credentials, recipients + ccList + bccList,",
                 "textBody, htmlBody, attachments, mode,",
                 "protectedSubject(mode, subject), interactionResult,",
+                "sentFromAddress(identity?.email, credentials.username), bccList,",
                 ")",
             ),
-            block(VIEW_MODEL, "buildPgpEntity(", 5),
+            block(VIEW_MODEL, "buildPgpEntity(", 6),
         )
     }
 
@@ -97,12 +99,97 @@ class PgpModeWiringTest {
     }
 
     @Test fun `the short tap is still the three-stop cycle, and cannot walk into the unsigned mode`() {
-        // nextPgpMode is pure and DraftSaveAllowedTest executes it, but nothing executes the line
-        // that calls it.
+        // nextLockMode is pure and SmimeLockTest executes it, but nothing executes the line that
+        // calls it: handed one availability for the other, an account with both would tap into S/MIME.
         assertEquals(
-            "the lock's short tap no longer walks nextPgpMode's cycle verbatim.",
-            listOf("fun cyclePgpMode() = setPgpMode(nextPgpMode(_pgpMode.value))"),
+            "the lock's short tap no longer walks nextLockMode's cycle verbatim.",
+            listOf("fun cyclePgpMode() = setPgpMode(nextLockMode(_pgpMode.value, openPgp = _pgpAvailable.value, smime = _smimeAvailable.value))"),
             block(VIEW_MODEL, "fun cyclePgpMode()", 1),
+        )
+    }
+
+    @Test fun `an S-MIME mode is signed by the function the tests run, for the From the message goes out from`() {
+        assertEquals(
+            "buildPgpEntity no longer hands an S/MIME mode to buildSmimeEntity first: it would reach the " +
+                "OpenPGP branches, which refuse it as unreachable, or worse, sign it with OpenPGP.",
+            listOf(
+                "if (mode.isSmime) return buildSmimeEntity(credentials, allRecipients, bccRecipients, textBody, htmlBody, " +
+                    "attachments, mode, protectedSubject, fromAddress)",
+            ),
+            block(VIEW_MODEL, "if (mode.isSmime) return buildSmimeEntity(", 1),
+        )
+        val builder = block(VIEW_MODEL, "private suspend fun buildPgpEntity(", 16)
+        val routed = builder.indexOfFirst { it.startsWith("if (mode.isSmime) return buildSmimeEntity(") }
+        val demanded = builder.indexOfFirst { it.startsWith("val account = pgpAccount()") }
+        assertTrue(
+            "the S/MIME route is no longer taken before an OpenPGP account is demanded: an account with S/MIME " +
+                "alone can no longer send (route at $routed, demand at $demanded)",
+            routed >= 0 && demanded > routed,
+        )
+        assertEquals(
+            "buildSmimeEntity no longer hands smimeEntity the mode captured, the From sent, the To and Cc apart " +
+                "from the Bcc and the certificates read at the send, or no longer turns its refusal into the " +
+                "composer's error. smimeEntity is what SmimeSigningTest and SmimeEncryptingTest execute; anything " +
+                "else here is untested. Handed the Bcc among the recipients, an encrypted message names them to all.",
+            listOf(
+                "smimeEntity(",
+                "payload, \"----sterna_smime_\$boundarySeed\", mode, alias, fromAddress, smimeKeys, smimeEngine, now,",
+                "recipients = allRecipients - bccRecipients.toSet(), bcc = bccRecipients, kept = kept,",
+                ")",
+                "}",
+                "} catch (refused: SmimeSendRefused) {",
+                "error(getApplication<Application>().getString(smimeRefusalWording(refused.reason)))",
+            ),
+            block(VIEW_MODEL, "smimeEntity(", 7),
+        )
+        assertEquals(
+            "the certificates an S/MIME message is encrypted to are no longer read at the send, for every recipient " +
+                "the send was handed, as valid at the instant the message is signed",
+            listOf(
+                "val now = java.util.Date()",
+                "val kept = if (mode.encrypts) smimeCertificates.certificatesFor(allRecipients, now.time) else emptyMap()",
+            ),
+            block(VIEW_MODEL, "val now = java.util.Date()", 2),
+        )
+        assertEquals(
+            "the alias is read for another account than the one sending",
+            List(2) { "val alias = store.account(credentials.id)?.smimeCertAlias.orEmpty()" },
+            code(VIEW_MODEL).filter { "smimeCertAlias" in it },
+        )
+    }
+
+    @Test fun `the lock offers S-MIME for the From the message would go out from`() {
+        assertEquals(
+            listOf(
+                "val from = sentFromAddress(selectedIdentity()?.email, credentials.username)",
+                "return withContext(Dispatchers.IO) { smimeOffered(alias, from, smimeKeys, java.util.Date()) }",
+            ),
+            block(VIEW_MODEL, "val from = sentFromAddress(", 2),
+        )
+        assertEquals(
+            "the lock's verdict no longer weighs an S/MIME mode by the answer it is handed",
+            "smimeOffered = smimeOffered,",
+            block(VIEW_MODEL, "val outcome = lockRefresh(", 7).last(),
+        )
+        assertEquals(
+            "OpenPGP's lock waits again for the keystore, up to its 20 s deadline, before it is shown; or an " +
+                "S/MIME mode is settled before S/MIME has answered",
+            listOf(
+                "_pgpAvailable.value = available",
+                "keyedRecipients = null",
+                "if (!available) _pgpKeylessRecipients.value = emptyList()",
+                "if (!_pgpMode.value.isSmime) settleLock(account, available, smimeOffered = emptyList())",
+                "val smime = smimeOfferedNow()",
+                "if (refresh != lockRefreshes) return@launch",
+                "_smimeAvailable.value = smime",
+                "if (_pgpMode.value.isSmime) settleLock(account, available, smimeOffered = smime)",
+            ),
+            block(VIEW_MODEL, "_pgpAvailable.value = available", 8),
+        )
+        assertTrue(
+            "the keystore is read before OpenPGP's answer is published",
+            block(VIEW_MODEL, "val available = account != null && pgp.isAvailable()", 3) ==
+                listOf("val available = account != null && pgp.isAvailable()", "if (refresh != lockRefreshes) return@launch", "_pgpAvailable.value = available"),
         )
     }
 
@@ -120,8 +207,10 @@ class PgpModeWiringTest {
                 "PgpMode.SIGN -> Icons.Filled.Draw",
                 "PgpMode.ENCRYPT -> Icons.Filled.Lock",
                 "PgpMode.ENCRYPT_UNSIGNED -> Icons.Filled.VpnKey",
+                "PgpMode.SMIME_SIGN -> Icons.Filled.VerifiedUser",
+                "PgpMode.SMIME_ENCRYPT -> Icons.Filled.Security",
             ),
-            block(TEXT, "internal fun pgpModeIcon(", 5),
+            block(TEXT, "internal fun pgpModeIcon(", 7),
         )
     }
 
@@ -144,10 +233,37 @@ class PgpModeWiringTest {
                 "shows no missing-key warning, the Send button stays enabled, and the send fails " +
                 "at the provider (or encrypts to nobody but the sender).",
             listOf(
-                "val care = _pgpAvailable.value &&",
+                "val care = if (smime) {",
+                "_pgpMode.value.encrypts",
+                "} else {",
+                "_pgpAvailable.value &&",
                 "(account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)",
+                "}",
             ),
-            block(VIEW_MODEL, "val care = _pgpAvailable.value", 2),
+            block(VIEW_MODEL, "val care = ", 6),
+        )
+        assertEquals(
+            "an S/MIME encrypting mode no longer marks the recipients by the certificates kept for them, or an " +
+                "OpenPGP answer for the same recipients is kept when the lock moves to S/MIME",
+            listOf(
+                "if (smime == keyedSmime && !recipientKeysStale(keyedRecipients, addresses)) return",
+                "keyedRecipients = addresses",
+                "keyedSmime = smime",
+            ),
+            block(VIEW_MODEL, "if (smime == keyedSmime", 3),
+        )
+        assertEquals(
+            listOf(
+                "smime -> runCatching {",
+                "val sender = sentFromAddress(selectedIdentity()?.email, credentials()?.username.orEmpty())",
+                "smimeCertificatesHeld(addresses, smimeCertificates.certificatesFor(addresses, System.currentTimeMillis()), sender)",
+            ),
+            block(VIEW_MODEL, "smime -> runCatching {", 3),
+        )
+        assertEquals(
+            "the lock's drop no longer says what lockDropNotice decided, which SmimeLockTest executes",
+            listOf("lockDropNotice(outcome.dropped)?.let { _notices.tryEmit(it) }"),
+            code(VIEW_MODEL).filter { "lockDropNotice(" in it },
         )
     }
 

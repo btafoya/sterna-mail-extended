@@ -226,6 +226,19 @@ outbox-bearing tables migrate additively.
   the cache. Printing, and saving as a PDF, are the other way out: the
   in-memory plaintext body goes to the system print service. See
   [ENCRYPTION.md](ENCRYPTION.md).
+- **S/MIME:** Bouncy Castle (`bcpkix`) in `:app` behind the `SmimeEngine` seam,
+  handed to each builder and never registered as a global provider; the `core`
+  modules carry no crypto. Private keys come from Android's keystore
+  (`SmimeKeySource`) and are only ever handed to the keystore's own provider.
+  Reading checks signatures against Android's trusted authorities and decrypts
+  in memory, as OpenPGP does. A verified signature hands back the sender's
+  certificate to encrypt to, kept per address in Room (`SmimeCertificates`, no
+  account column). Sending signs and encrypts in the composer, as OpenPGP does:
+  `smimeEntity` builds a detached signature, then for an encrypting mode puts
+  that signed entity in an AES-256-CBC envelope, RSA key transport, for each
+  recipient's kept certificate and the sender's own; the outbox only holds the
+  finished entity. `PgpMode.encrypts` is the one question drafts, outbox
+  blanking and encryption ask.
 - **Outbox & scheduled send:** sends are persisted Room rows delivered by
   WorkManager jobs (network constraint, backoff, undo-send hold-back), so a
   send survives process death and offline spells.

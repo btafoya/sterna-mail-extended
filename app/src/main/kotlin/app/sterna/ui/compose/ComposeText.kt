@@ -5,6 +5,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.R
@@ -773,13 +775,14 @@ internal fun scheduleFirstYear(nowMillis: Long, zone: ZoneId): Int =
  * The lock toggle's cycle: off, sign, encrypt, off. Pure, so the hand-set path can be tested
  * against [draftSaveAllowed] (#35). Three stops, and [PgpMode.ENCRYPT_UNSIGNED] is not one, a short
  * tap must not walk anyone into sending unsigned mail; that mode is reached only from the long-press
- * menu, and has a branch here only so a tap can get out of it.
+ * menu, and has a branch here only so a tap can get out of it, as the S/MIME modes do.
  */
 internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
     PgpMode.OFF -> PgpMode.SIGN
     PgpMode.SIGN -> PgpMode.ENCRYPT
     PgpMode.ENCRYPT -> PgpMode.OFF
     PgpMode.ENCRYPT_UNSIGNED -> PgpMode.OFF
+    PgpMode.SMIME_SIGN, PgpMode.SMIME_ENCRYPT -> PgpMode.OFF
 }
 
 /**
@@ -789,13 +792,15 @@ internal fun nextPgpMode(current: PgpMode): PgpMode = when (current) {
  * [PgpMode.ENCRYPT_UNSIGNED] does not wear `Icons.Outlined.Lock`: measured, the outlined padlock
  * differed from `Icons.Filled.LockOpen` by 82 rasterised pixels out of 9216, so it reads as "off".
  * It wears a key instead, the message is just as encrypted, and the missing signature is told by
- * the absence of the padlock's pen. [PgpModeIconFacesTest] keeps the four faces pairwise distinct.
+ * the absence of the padlock's pen. [PgpModeIconFacesTest] keeps every face pairwise distinct.
  */
 internal fun pgpModeIcon(mode: PgpMode): ImageVector = when (mode) {
     PgpMode.OFF -> Icons.Filled.LockOpen
     PgpMode.SIGN -> Icons.Filled.Draw
     PgpMode.ENCRYPT -> Icons.Filled.Lock
     PgpMode.ENCRYPT_UNSIGNED -> Icons.Filled.VpnKey
+    PgpMode.SMIME_SIGN -> Icons.Filled.VerifiedUser
+    PgpMode.SMIME_ENCRYPT -> Icons.Filled.Security
 }
 
 /**
@@ -854,7 +859,16 @@ internal fun protectedSubject(mode: PgpMode, subject: String): String? =
     subject.takeIf { mode.encrypts && it.isNotBlank() }
 
 /** Why a message stopped being signed/encrypted, when the composer had to give the mode up. */
-internal enum class PgpDropReason { NONE, NOT_CONFIGURED, NO_PROVIDER }
+internal enum class PgpDropReason {
+    NONE,
+    NOT_CONFIGURED,
+    NO_PROVIDER,
+    SMIME_UNAVAILABLE,
+    SMIME_ENCRYPT_UNAVAILABLE,
+
+    /** S/MIME encrypting, and only signing is offered now: signed, no longer encrypted. */
+    SMIME_NO_LONGER_ENCRYPTED,
+}
 
 /** The mode the composer settles on after re-checking OpenPGP, and what it owes the user. */
 internal data class PgpRefreshOutcome(val mode: PgpMode, val dropped: PgpDropReason)

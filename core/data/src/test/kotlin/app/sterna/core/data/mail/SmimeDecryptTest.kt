@@ -50,6 +50,9 @@ class SmimeDecryptTest {
             calls += "decrypt"
             return clear()
         }
+
+        override fun sign(signedBytes: ByteArray, key: SmimeKey): ByteArray = error("a read path never signs")
+        override fun encrypt(content: ByteArray, recipients: List<X509Certificate>): ByteArray = error("a read path never encrypts")
     }
 
     private val certificate = CertificateFactory.getInstance("X.509")
