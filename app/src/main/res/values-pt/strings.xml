@@ -391,6 +391,8 @@
     <string name="settings_unread_tint_subtitle">Dar às mensagens não lidas um fundo próprio, além do texto a negrito.</string>
     <string name="settings_list_monogram_title">Mostrar as iniciais do remetente</string>
     <string name="settings_list_monogram_subtitle">O círculo colorido no início de cada linha da lista de mensagens.</string>
+    <string name="settings_bold_unread_folders_title">Pastas com mensagens não lidas a negrito</string>
+    <string name="settings_bold_unread_folders_subtitle">No painel de pastas, o nome de uma pasta fica a negrito enquanto tiver mensagens não lidas.</string>
     <string name="settings_theme_auto">Automático</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Escuro</string>

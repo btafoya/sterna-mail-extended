@@ -541,6 +541,8 @@
     <string name="settings_unread_tint_subtitle">为未读邮件提供专属背景色，叠加在加粗文字之上。</string>
     <string name="settings_list_monogram_title">显示发件人首字母</string>
     <string name="settings_list_monogram_subtitle">邮件列表每行开头的彩色圆圈。</string>
+    <string name="settings_bold_unread_folders_title">加粗显示有未读邮件的文件夹</string>
+    <string name="settings_bold_unread_folders_subtitle">在文件夹抽屉中，文件夹有未读邮件时，其名称加粗显示。</string>
     <string name="settings_theme_auto">自动</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>

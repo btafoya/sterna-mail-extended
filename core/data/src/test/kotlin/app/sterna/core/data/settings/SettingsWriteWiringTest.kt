@@ -238,6 +238,10 @@ class SettingsWriteWiringTest {
                 "dataStore.edit { it[KEY_LIST_MONOGRAM] = enabled }",
             ),
             Write(
+                "suspend fun setBoldUnreadFolders(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_BOLD_UNREAD_FOLDERS] = enabled }",
+            ),
+            Write(
                 "suspend fun setConversationView(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_CONVERSATION_VIEW] = enabled }",
             ),
@@ -388,6 +392,8 @@ class SettingsWriteWiringTest {
                 "PLAIN, the rest of its wiring pinned by PureBlackWiringTest",
             "suspend fun setListMonogram(enabled: Boolean) {" to
                 "PLAIN, the rest of its wiring pinned by ListMonogramWiringTest",
+            "suspend fun setBoldUnreadFolders(enabled: Boolean) {" to
+                "PLAIN, the rest of its wiring pinned by BoldUnreadFoldersWiringTest",
             "suspend fun setSwipeRightAction(action: SwipeAction) {" to "ENUMS",
             "suspend fun setSwipeLeftAction(action: SwipeAction) {" to "ENUMS",
             "suspend fun setSortOrder(order: SortOrder) {" to "ENUMS",

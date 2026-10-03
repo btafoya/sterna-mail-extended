@@ -464,6 +464,7 @@ private fun AppearanceScreen(
     val unreadTint by viewModel.unreadTint.collectAsStateWithLifecycle()
     val pureBlack by viewModel.pureBlack.collectAsStateWithLifecycle()
     val listMonogram by viewModel.listMonogram.collectAsStateWithLifecycle()
+    val boldUnreadFolders by viewModel.boldUnreadFolders.collectAsStateWithLifecycle()
     val openOnView by viewModel.openOnView.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var language by remember { mutableStateOf(currentAppLanguage()) }
@@ -555,6 +556,12 @@ private fun AppearanceScreen(
                     subtitle = stringResource(R.string.settings_list_monogram_subtitle),
                     checked = listMonogram,
                     onCheckedChange = viewModel::setListMonogram,
+                )
+                SettingSwitch(
+                    title = stringResource(R.string.settings_bold_unread_folders_title),
+                    subtitle = stringResource(R.string.settings_bold_unread_folders_subtitle),
+                    checked = boldUnreadFolders,
+                    onCheckedChange = viewModel::setBoldUnreadFolders,
                 )
             }
         }

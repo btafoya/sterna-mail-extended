@@ -549,6 +549,8 @@
     <string name="settings_unread_tint_subtitle">Give unread messages a background of their own, on top of the bold text.</string>
     <string name="settings_list_monogram_title">Show sender initials</string>
     <string name="settings_list_monogram_subtitle">The coloured circle at the start of each row in the message list.</string>
+    <string name="settings_bold_unread_folders_title">Bold folders with unread mail</string>
+    <string name="settings_bold_unread_folders_subtitle">In the folder drawer, a folder\'s name is bold while it holds unread mail.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>

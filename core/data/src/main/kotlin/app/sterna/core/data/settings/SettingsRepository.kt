@@ -128,6 +128,12 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_LIST_MONOGRAM] = enabled }
     }
 
+    val boldUnreadFolders: Flow<Boolean> = dataStore.data.map(::boldUnreadFoldersFrom)
+
+    suspend fun setBoldUnreadFolders(enabled: Boolean) {
+        dataStore.edit { it[KEY_BOLD_UNREAD_FOLDERS] = enabled }
+    }
+
     val swipeRightAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_RIGHT, SwipeAction.TOGGLE_READ)
     val swipeLeftAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_LEFT, SwipeAction.DELETE)
 
@@ -376,6 +382,7 @@ class SettingsRepository(context: Context) {
         unreadTint = unreadTint.first(),
         pureBlack = pureBlack.first(),
         listMonogram = listMonogram.first(),
+        boldUnreadFolders = boldUnreadFolders.first(),
         searchHistory = searchHistory.first(),
         deliveryMode = deliveryMode.first().name,
         notificationContent = notificationContent.first().name,
@@ -414,6 +421,7 @@ class SettingsRepository(context: Context) {
         backup.unreadTint?.let { setUnreadTint(it) }
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
+        backup.boldUnreadFolders?.let { setBoldUnreadFolders(it) }
         backup.searchHistory?.let { setSearchHistory(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
         notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
@@ -602,6 +610,13 @@ const val LIST_MONOGRAM_DEFAULT = true
 /** Whether message-list rows start with the sender's initials, read from the stored preferences. */
 internal fun listMonogramFrom(prefs: Preferences): Boolean =
     prefs[KEY_LIST_MONOGRAM] ?: LIST_MONOGRAM_DEFAULT
+
+internal val KEY_BOLD_UNREAD_FOLDERS = booleanPreferencesKey("bold_unread_folders")
+
+const val BOLD_UNREAD_FOLDERS_DEFAULT = true
+
+internal fun boldUnreadFoldersFrom(prefs: Preferences): Boolean =
+    prefs[KEY_BOLD_UNREAD_FOLDERS] ?: BOLD_UNREAD_FOLDERS_DEFAULT
 
 /** The key the plain-text reading switch is stored under. */
 internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")

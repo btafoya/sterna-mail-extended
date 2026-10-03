@@ -5,6 +5,10 @@ package app.sterna.ui.inbox
 internal inline fun countedLabel(name: String, count: Int, withCount: (String, Int) -> String): String =
     if (count > 0) withCount(name, count) else name
 
+/** Whether a folder row's name is bold: while the row shows [unread], the number its label carries,
+ *  and only if the reader kept the setting ([enabled]). */
+internal fun folderLabelBold(unread: Int, enabled: Boolean): Boolean = enabled && unread > 0
+
 /** The lists the drawer offers under Unread. */
 internal enum class DrawerList { SCHEDULED, SNOOZED, OUTBOX }
 

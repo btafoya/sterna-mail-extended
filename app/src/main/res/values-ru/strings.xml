@@ -393,6 +393,8 @@
     <string name="settings_unread_tint_subtitle">Непрочитанные письма получают собственный фон в дополнение к жирному тексту.</string>
     <string name="settings_list_monogram_title">Показывать инициалы отправителя</string>
     <string name="settings_list_monogram_subtitle">Цветной кружок в начале каждой строки списка писем.</string>
+    <string name="settings_bold_unread_folders_title">Выделять папки с непрочитанными письмами жирным</string>
+    <string name="settings_bold_unread_folders_subtitle">В панели папок название папки выделяется жирным, пока в ней есть непрочитанные письма.</string>
     <string name="settings_theme_auto">Авто</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>

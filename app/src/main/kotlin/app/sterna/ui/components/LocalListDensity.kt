@@ -1,6 +1,7 @@
 package app.sterna.ui.components
 
 import androidx.compose.runtime.compositionLocalOf
+import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.PreviewLines
@@ -23,3 +24,5 @@ val LocalUnreadTint = compositionLocalOf { UNREAD_TINT_DEFAULT }
  * Whether a list row starts with the sender's initials (Settings → Appearance → Message list).
  */
 val LocalListMonogram = compositionLocalOf { LIST_MONOGRAM_DEFAULT }
+
+val LocalBoldUnreadFolders = compositionLocalOf { BOLD_UNREAD_FOLDERS_DEFAULT }

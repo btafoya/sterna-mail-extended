@@ -196,6 +196,7 @@ import app.sterna.ui.components.EmptyState
 import app.sterna.ui.components.FilterChipEntry
 import app.sterna.ui.components.FilterChipRow
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.LocalBoldUnreadFolders
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.components.TernRefreshIndicator
@@ -1638,6 +1639,7 @@ private fun DrawerContent(
     onRenameFolder: (Mailbox) -> Unit,
     onDeleteFolder: (Mailbox) -> Unit,
 ) {
+              val boldUnreadFolders = LocalBoldUnreadFolders.current
               // Scroll the whole drawer so long folder lists (and Settings below them) stay reachable (#7).
               Column(Modifier.verticalScroll(rememberScrollState())) {
                 val currentAccount = accounts.firstOrNull { it.id == currentAccountId }
@@ -1881,7 +1883,7 @@ private fun DrawerContent(
                                 Icon(folderIcon(mailbox.role), contentDescription = null)
                             }
                         },
-                        label = { Text(label) },
+                        label = { Text(label, fontWeight = if (folderLabelBold(unread, boldUnreadFolders)) FontWeight.Bold else null) },
                         // The question its three items answer, asked once: a role list here opens
                         // an empty menu on every role they refuse.
                         badge = if (mailbox.role == null) {

@@ -110,6 +110,10 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     ),
     SettingEntry("unread_tint", APPEARANCE, R.string.settings_unread_tint_title, R.string.settings_unread_tint_subtitle),
     SettingEntry("list_monogram", APPEARANCE, R.string.settings_list_monogram_title, R.string.settings_list_monogram_subtitle),
+    SettingEntry(
+        "bold_unread_folders", APPEARANCE, R.string.settings_bold_unread_folders_title,
+        R.string.settings_bold_unread_folders_subtitle,
+    ),
 
     SettingEntry("conversation", READING, R.string.settings_conversation_title, R.string.settings_conversation_subtitle),
     SettingEntry(

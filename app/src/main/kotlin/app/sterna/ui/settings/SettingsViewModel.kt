@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.account.K9SettingsImporter
+import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.READING_PANE_MODE_DEFAULT
@@ -138,6 +139,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             RecentMailWidgetDraw.forget()
             RecentMailWidgetDraw.refresh(getApplication())
         }
+    }
+
+    val boldUnreadFolders = settings.boldUnreadFolders.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = BOLD_UNREAD_FOLDERS_DEFAULT,
+    )
+
+    fun setBoldUnreadFolders(enabled: Boolean) {
+        viewModelScope.launch { settings.setBoldUnreadFolders(enabled) }
     }
 
     val swipeRight = settings.swipeRightAction.stateIn(

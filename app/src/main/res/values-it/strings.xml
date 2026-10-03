@@ -391,6 +391,8 @@
     <string name="settings_unread_tint_subtitle">Dare ai messaggi non letti uno sfondo distinto, oltre al testo in grassetto.</string>
     <string name="settings_list_monogram_title">Mostrare le iniziali del mittente</string>
     <string name="settings_list_monogram_subtitle">Il cerchio colorato all\'inizio di ogni riga dell\'elenco dei messaggi.</string>
+    <string name="settings_bold_unread_folders_title">Cartelle con messaggi non letti in grassetto</string>
+    <string name="settings_bold_unread_folders_subtitle">Nel pannello delle cartelle, il nome di una cartella è in grassetto finché contiene messaggi non letti.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Chiaro</string>
     <string name="settings_theme_dark">Scuro</string>
