@@ -63,6 +63,8 @@ Prefer a direct download? Grab the **latest APK** yourself:
    installing apps from this source**, accept it for your browser or file manager.
 3. Tap **Install**, then open Sterna and add your account.
 
+To keep Sterna's footprint on Codeberg small, only the ten most recent releases carry an APK. Older ones are available on request: open an issue.
+
 > ℹ️ Sterna's builds are **reproducible**, and F-Droid verifies them: the APK it
 > distributes is byte-for-byte the one released here, signed with Sterna's own
 > key, so the two install sources update cleanly over each other. No Google
