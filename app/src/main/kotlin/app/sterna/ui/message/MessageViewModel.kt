@@ -1557,6 +1557,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                     }
                     ReadMarkCleanup.KEEP_AND_LOG -> write.exceptionOrNull()?.let { failure ->
                         android.util.Log.w("SternaMessage", "mark read failed: ${current.id}", failure)
+                        showUnreadAgain(credentials.id, current.id)
                     }
                     ReadMarkCleanup.KEEP_AND_RETHROW -> write.getOrThrow()
                 }
@@ -1565,6 +1566,15 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    private suspend fun showUnreadAgain(writtenAccount: String, writtenId: String) =
+        withContext(Dispatchers.Main.immediate) {
+            val id = readMarkToUndo(loadedId, credentials()?.id, writtenId, writtenAccount) ?: return@withContext
+            this@MessageViewModel.anchorMarked = false
+            updateMessage(id) { it.copy(header = it.header.withoutReadMark(), body = it.body?.withoutReadMark()) }
+            val shown = (_state.value as? MessageState.Loaded)?.email?.takeIf { it.id == id } ?: return@withContext
+            _state.value = MessageState.Loaded(shown.withoutReadMark())
+        }
 
     /**
      * Put, or take away, the read-receipt question, by running the decision against the state as it stands now.
