@@ -326,7 +326,7 @@ class MailBySenderViewModel(application: Application) : AndroidViewModel(applica
         val offer = _undo.value ?: return
         _undo.value = null
         viewModelScope.launch {
-            val failed = runCatching { repo.restoreAll(offer.credentials, offer.targets) }
+            val failed = runCatching { repo.restoreAll(offer.credentials, offer.targets).unrestored }
                 .getOrElse { offer.targets.mapTo(mutableSetOf()) { t -> t.emailId } }
             if (failed.isNotEmpty()) {
                 _message.value = getApplication<Application>().getString(R.string.status_action_failed)

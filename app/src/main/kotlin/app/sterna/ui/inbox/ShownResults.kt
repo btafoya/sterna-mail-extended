@@ -18,6 +18,9 @@ interface ShownResults {
     fun drop(keys: Set<EmailKey>)
     fun restore(keys: Collection<EmailKey>)
     fun patch(keys: Set<EmailKey>, transform: (Email) -> Email)
+
+    /** Rows whose message answers to another id now: [landed] is the new row, by the key drawn. */
+    fun renumber(landed: Map<EmailKey, Email>)
 }
 
 /**
@@ -44,6 +47,18 @@ internal class RemovedRows {
     }
 
     /**
+     * The stashed rows among [landed] follow their message: same position, under the key and the
+     * row it answers to now. A row set aside before its restore returned is not in the snapshot
+     * for [renumberedRows] to find, and put back as stashed it is drawn under a dead key for good.
+     */
+    fun renumber(landed: Map<EmailKey, Email>) {
+        landed.forEach { (was, row) ->
+            val entry = removed.remove(was) ?: return@forEach
+            removed[row.emailKey()] = IndexedValue(entry.index, row)
+        }
+    }
+
+    /**
      * [rows] with the stashed entries among [keys] put back at (best-effort) their original
      * position; null when there is nothing to put back. The stash is emptied of [keys] even when
      * [rows] is null. A key already drawn is not inserted a second time: a duplicate key in a
@@ -64,6 +79,22 @@ internal class RemovedRows {
 internal fun patchedRows(rows: List<Email>?, keys: Set<EmailKey>, transform: (Email) -> Email): List<Email>? {
     if (rows == null || rows.none { it.emailKey() in keys }) return null
     return rows.map { if (it.emailKey() in keys) transform(it) else it }
+}
+
+/**
+ * [rows] with each row among [landed] replaced, at its place, by the row its message is cached under
+ * now; null when none is drawn. The key of the row changes, which is the point: nothing refreshes a
+ * snapshot, and the key it keeps drawing is the one the next gesture is tapped with. A key already
+ * drawn is not drawn a second time, the stale row leaves instead: a duplicate key in a lazy list
+ * throws (#92).
+ */
+internal fun renumberedRows(rows: List<Email>?, landed: Map<EmailKey, Email>): List<Email>? {
+    if (rows == null || rows.none { it.emailKey() in landed }) return null
+    val drawn = rows.map { it.emailKey() }.filterNotTo(HashSet()) { it in landed }
+    return rows.mapNotNull { row ->
+        val home = landed[row.emailKey()] ?: return@mapNotNull row
+        home.takeIf { drawn.add(it.emailKey()) }
+    }
 }
 
 /** Which list a selection was ticked on: the inbox's own (its search bar included), or the advanced search screen's. */
@@ -164,6 +195,11 @@ internal class SelectionSources(private val list: ShownResults) {
     fun patch(keys: Set<EmailKey>, transform: (Email) -> Email) {
         list.patch(keys, transform)
         criteria?.patch(keys, transform)
+    }
+
+    fun renumber(landed: Map<EmailKey, Email>) {
+        list.renumber(landed)
+        criteria?.renumber(landed)
     }
 }
 

@@ -24,6 +24,7 @@ import app.sterna.push.PushController
 import app.sterna.snooze.Snoozes
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.FolderHiding
+import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.MoveHistory
 import app.sterna.core.data.account.folderHidingOf
 import app.sterna.core.data.account.StoredAccount
@@ -861,6 +862,10 @@ class InboxViewModel(
         override fun patch(keys: Set<EmailKey>, transform: (Email) -> Email) {
             patchedRows(rows, keys, transform)?.let { searchState.value = searchState.value.copy(results = it) }
         }
+        override fun renumber(landed: Map<EmailKey, Email>) {
+            searchRemoved.renumber(landed)
+            renumberedRows(rows, landed)?.let { searchState.value = searchState.value.copy(results = it) }
+        }
     }
 
     /** Above [selectionActive], whose initializer reads it. */
@@ -1051,6 +1056,10 @@ class InboxViewModel(
 
     /** Above [pagedListRows], whose initializer reads it: below, it is null there and construction throws an NPE. */
     private val swipeMask = MutableStateFlow(SwipeMask())
+
+    private val restoresInFlight = RestoresInFlight()
+
+    private val restoredKeys = RestoredKeys()
 
     /**
      * What the LIST screen pages, and nothing else may: [pagedEmails] with the phone's own drafts
@@ -1640,6 +1649,7 @@ class InboxViewModel(
      * coroutine only times the snackbar. Batched per account (#29).
      */
     private suspend fun heldBackDestroy(emails: List<Email>, label: String) {
+        restoresInFlight.settled(emails.map { it.emailKey() })
         val targets = emails.mapNotNull { e -> credentialsFor(e)?.let { Triple(it, e.id, e.mailboxId.orEmpty()) } }
         if (targets.isEmpty()) return
         // Frozen here, with the confirmation, and carried by the work: an IMAP UID means something
@@ -1785,6 +1795,8 @@ class InboxViewModel(
         viewModelScope.launch {
             val key = email.emailKey()
             dropSearchResults(setOf(key))
+            restoresInFlight.settled(listOf(key))
+            if (handedOver(email, flewOff = false) { moveToAccount(it, targetAccountId, targetMailboxId) }) return@launch
             val result = hidingThreadMembers(setOf(key)) {
                 // Nothing frozen, said out loud in the type. This gesture starts on the open
                 // message: no tick, so no earlier numbering to oppose. Not `Frozen(null)`, which
@@ -1870,6 +1882,7 @@ class InboxViewModel(
     fun deleteThread(rep: Email) {
         poseConversation(rep)
         viewModelScope.launch {
+            restoresInFlight.settled(listOf(rep.emailKey()))
             val members = threadMessages(rep)
             // Once per account, not once per member: the bin is a property of the account.
             val trashByAccount = mutableMapOf<String, String?>()
@@ -1951,6 +1964,7 @@ class InboxViewModel(
         val conversation = threadKeyOf(rep)
         poseConversation(rep)
         viewModelScope.launch {
+            restoresInFlight.settled(listOf(rep.emailKey()) + members.orEmpty().map { it.emailKey() })
             val all = members ?: threadMessages(rep)
             val acting = if (filing) all.filter { listScope.value.movesWithConversation(it) } else all
             dropThreadExpansion(conversation)
@@ -2021,6 +2035,8 @@ class InboxViewModel(
         swipeMask.update { it.posed(email.emailKey()) }
         viewModelScope.launch {
             dropSearchResults(setOf(email.emailKey()))
+            restoresInFlight.settled(listOf(email.emailKey()))
+            if (handedOver(email, flewOff = true) { swipeRemove(it, label, pickedInto, op) }) return@launch
             // The UI row may not carry its source folder, and the cache stops answering once evicted.
             val source = email.mailboxId ?: repo.cachedEmail(credentials.id, email.id)?.mailboxId
             // The line goes at the finger, not on the ack, seconds away on a phone. The row travels
@@ -2067,6 +2083,20 @@ class InboxViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun handedOver(row: Email, flewOff: Boolean, again: (Email) -> Unit): Boolean {
+        val now = restoredKeys.rowToWrite(row) { repo.cachedEmailsByIds(it) }
+        if (now == RowToWrite.AsHanded) return false
+        swipeMask.update { it.lifted(listOf(row.emailKey())) }
+        if (now is RowToWrite.Landed) {
+            again(now.row)
+            return true
+        }
+        restoreSearchResults(listOf(row.emailKey()))
+        if (flewOff) _swipeRewind.value = _swipeRewind.value + row.emailKey()
+        _message.value = getApplication<Application>().getString(R.string.status_action_failed)
+        return true
     }
 
     private suspend fun rememberPickedMove(into: PickedMove, landed: List<Email>): RememberedMove? {
@@ -2125,7 +2155,7 @@ class InboxViewModel(
                         entries.map { MailRepository.RestoreTarget(it.emailId, it.mailboxId, it.destMailboxId) },
                     )
                 }
-                    .onSuccess { unrestored += it.size }
+                    .onSuccess { unrestored += it.unrestored.size }
                     .onFailure {
                         unrestored += entries.size
                         val app = getApplication<Application>()
@@ -2134,14 +2164,27 @@ class InboxViewModel(
                         android.util.Log.w("SternaInbox", "undo restore failed", it)
                         status.value = Status(refreshing = false, error = app.getString(actionFailureMessage(it, online = hasUsableNetwork(app))))
                     }
+                    .getOrElse { MailRepository.Restored(entries.mapTo(mutableSetOf()) { entry -> entry.emailId }) }
+                    .let { renumberRestored(accountId, it, imap = credentials.protocol == MailProtocol.IMAP) }
             }
             if (unrestored > 0) {
                 _message.value = getApplication<Application>().getString(R.string.status_restore_failed)
             }
             // restoreAll re-cached only the restored rows, complete their conversations (no refresh).
             completeThreadsAfterAction(repo.cachedEmailsByIds(action.entries.mapTo(mutableSetOf()) { EmailKey(it.accountId, it.emailId) }))
-        }
+        }.also { restore -> restoresInFlight.hold(action.entries.map { EmailKey(it.accountId, it.emailId) }, restore) }
     }
+
+    private suspend fun renumberRestored(accountId: String?, restored: MailRepository.Restored, imap: Boolean) {
+        val cached = repo.cachedEmailsByIds(restored.renumbered.values.map { EmailKey(accountId, it) })
+        val landing = restoredLanding(accountId, restored, cached, imap)
+        restoredKeys.record(landing)
+        sources.renumber(landing.rows)
+        writeTicks(currentTicks().renumbered(landing.renumbered))
+    }
+
+    private suspend fun restoredRows(keys: Set<EmailKey>): RestoredRows =
+        restoredKeys.rowsFor(keys) { repo.cachedEmailsByIds(it) }
 
     fun clearUndo() {
         _undo.value = null
@@ -2464,10 +2507,12 @@ class InboxViewModel(
         val keys = _selectedKeys.value
         if (clearAfter) clearSelection()
         viewModelScope.launch {
+            restoresInFlight.settled(keys)
             val resolved = resolveSelectionTargets(
                 keys = keys,
                 cached = repo.cachedEmailsByIds(keys),
                 displayed = sources.displayed(),
+                restored = restoredRows(keys),
             )
             // A message with no local row cannot be snoozed: SnoozeWorker looks it up in that table
             // at the due date. Refused rather than half-written, see [planSelectionSnooze].
@@ -2549,10 +2594,12 @@ class InboxViewModel(
         val targetKeys = keys ?: _selectedKeys.value
         if (clearAfter) clearSelection()
         viewModelScope.launch {
+            restoresInFlight.settled(targetKeys)
             val resolved = resolveSelectionTargets(
                 keys = targetKeys,
                 cached = repo.cachedEmailsByIds(targetKeys),
                 displayed = sources.displayed(),
+                restored = restoredRows(targetKeys),
             )
             val (targets, spared) = fileSelection(resolved.targets, moves, carried) { it.email }
             val leaving = targetKeys - spared.mapTo(mutableSetOf()) { it.email.emailKey() }
@@ -2671,10 +2718,12 @@ class InboxViewModel(
                 // Frozen at the gesture and carried into the batch: an IMAP UID means something only
                 // inside one numbering, and a bulk delete is a MOVE that runs after resolution (#99).
                 val numbering = selectionNumbering(keys)
+                restoresInFlight.settled(keys)
                 val resolved = resolveSelectionTargets(
                     keys = keys,
                     cached = repo.cachedEmailsByIds(keys),
                     displayed = sources.displayed(),
+                    restored = restoredRows(keys),
                 )
                 val plan = planSelectionDelete(
                     targets = resolved.targets,
@@ -2843,6 +2892,7 @@ class InboxViewModel(
             return
         }
         clearSelection()
+        restoresInFlight.settled(keys)
         val emails = repo.cachedEmailsByIds(movable).associateBy { it.emailKey() }
         val spared = fileSelection(emails.values.toList(), moves, carried) { it }.spared.mapTo(mutableSetOf()) { it.emailKey() }
         val leaving = movable - spared
@@ -3214,6 +3264,7 @@ class InboxViewModel(
     private fun openSearch(active: Boolean, scope: SearchScope) {
         barSearch.cancel()
         searchRemoved.clear()
+        restoredKeys.forget()
         searchState.value = if (active) SearchUi(active = true, scope = scope) else SearchUi()
         if (!active) {
             // Deliberately don'T cancel the crawl: on a large mailbox it needs to run to completion,

@@ -338,12 +338,13 @@ class ConversationScopeWiringTest {
     @Test fun `every writeTicks is handed the pure decision itself, in file order`() {
         assertEquals(
             "each way into the selection must hand writeTicks the executed decision directly, in " +
-                "file order: a row by hand, a tap by hand, a folded row's representative then its " +
-                "members carried, a folded row toggled whole, select all by hand, the clear, and " +
+                "file order: the keys an Undo renumbered, a row by hand, a tap by hand, a folded " +
+                "row's representative then its members carried, a folded row toggled whole, select all by hand, the clear, and " +
                 "the two give-backs with the origin captured at their tap. A `writeTicks(next…)` " +
                 "or a `.copy(carried = …)` rewrites the origin behind the decision: emptied, a " +
                 "folded row's archive empties Sent; set to the keys, the reply ticked alone stays.",
             listOf(
+                "writeTicks(currentTicks().renumbered(landing.renumbered))",
                 "writeTicks(SelectionTicks(setOf(email.emailKey())))",
                 "writeTicks(currentTicks().toggledByHand(email.emailKey()))",
                 "writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))",

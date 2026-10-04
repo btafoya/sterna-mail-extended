@@ -14,13 +14,14 @@ class BulkSelectionWiringTest {
     // -- A. every path resolves the selection, not the cache's answer ---------------------------
 
     /**
-     * The three arguments each path must hand the shared resolution. `displayed` is what makes a
-     * search hit with no local row reachable at all; drop it and the report is back.
+     * The four arguments each path must hand the shared resolution. Without `displayed` a search
+     * hit with no local row is unreachable; without `restored`, so is a row an Undo renumbered.
      */
     private fun expectedArguments(keys: String) = listOf(
         "keys = $keys",
         "cached = repo.cachedEmailsByIds($keys)",
         "displayed = sources.displayed()",
+        "restored = restoredRows($keys)",
     )
 
     @Test fun `the snooze path resolves every selected key`() {

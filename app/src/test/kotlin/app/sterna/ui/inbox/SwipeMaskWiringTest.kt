@@ -43,6 +43,7 @@ class SwipeMaskWiringTest {
                 "swipeMask.update { it.posed(email.emailKey()) }",
                 "swipeMask.update { it.removalBegun(email.emailKey(), evicted = flight != null) }",
                 "if (outcome?.putsRowBack ?: true) swipeMask.update { it.lifted(listOf(email.emailKey())) }",
+                "swipeMask.update { it.lifted(listOf(row.emailKey())) }",
                 "swipeMask.update { mask -> mask.lifted(action.entries.map { EmailKey(it.accountId, it.emailId) }) }",
                 "swipeMask.update { it.lifted(targetKeys - flying.mapTo(mutableSetOf()) { row -> row.email.emailKey() }) }",
                 "pose = { posed -> swipeMask.update { it.posed(posed) } },",

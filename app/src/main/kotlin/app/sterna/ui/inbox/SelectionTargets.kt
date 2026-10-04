@@ -23,16 +23,18 @@ internal fun resolveSelectionTargets(
     keys: Set<EmailKey>,
     cached: List<Email>,
     displayed: List<Email>?,
+    restored: RestoredRows = RestoredRows.NONE,
 ): SelectionTargets {
     val cachedByKey = cached.associateBy { it.emailKey() }
     val displayedByKey = displayed.orEmpty().associateBy { it.emailKey() }
     val targets = mutableListOf<SelectionTarget>()
     val unresolved = LinkedHashSet<EmailKey>()
     for (key in keys) {
-        val fresh = cachedByKey[key]
+        val fresh = cachedByKey[key] ?: restored.rows[key]
         val drawn = displayedByKey[key]
         when {
             fresh != null -> targets += SelectionTarget(fresh, folderTrusted = true)
+            key in restored.unplaced -> unresolved += key
             drawn != null -> targets += SelectionTarget(drawn, folderTrusted = false)
             else -> unresolved += key
         }

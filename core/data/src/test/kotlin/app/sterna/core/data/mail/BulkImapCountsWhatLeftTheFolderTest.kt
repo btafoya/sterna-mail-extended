@@ -373,7 +373,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             val (unread, _) = deleteOneUnreadAndOneRead(server)
 
             val failed = runBlocking {
-                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH))).unrestored
             }
 
             assertEquals(emptySet<String>(), failed)
@@ -393,7 +393,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             val (_, read) = deleteOneUnreadAndOneRead(server)
 
             val failed = runBlocking {
-                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(read, INBOX, TRASH)))
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(read, INBOX, TRASH))).unrestored
             }
 
             assertEquals(emptySet<String>(), failed)
@@ -408,12 +408,84 @@ class BulkImapCountsWhatLeftTheFolderTest {
             val (unread, _) = deleteOneUnreadAndOneRead(server)
 
             val failed = runBlocking {
-                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH))).unrestored
             }
 
             assertEquals("the move back is confirmed, only its re-fetch said nothing", emptySet<String>(), failed)
             assertFolderRows(Triple(TRASH, -1, 0), Triple(INBOX, 1, 0))
         }
+    }
+
+    // ---- the undo says which id each message came home under --------------------------------
+
+    @Test(timeout = 30_000)
+    fun `the undo names the id the message came home under, the one its row is cached under`() {
+        ScriptedImapServer(scriptedWithUndo()).use { server ->
+            val (unread, _) = deleteOneUnreadAndOneRead(server)
+            val home = ImapMailService.emailId(ACCOUNT, INBOX, 200L)
+
+            val back = runBlocking {
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+            }
+
+            assertEquals(emptySet<String>(), back.unrestored)
+            assertEquals(
+                "uid 7 went to the Trash as 100 and came back as 200: the id the list still draws " +
+                    "names a uid the inbox no longer carries, and the next UID MOVE on it moves " +
+                    "nothing. Only the restore knows the pair, so it has to hand it over",
+                mapOf(unread to home),
+                back.renumbered,
+            )
+            assertEquals(emptySet<String>(), back.unplaced)
+            assertEquals(
+                "and that id is the one the row was re-cached under, not one built beside it",
+                INBOX,
+                cached["$ACCOUNT/$home"]?.mailboxId,
+            )
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `a message that came home with no row re-read is reported as unplaced, under no id`() {
+        ScriptedImapServer(scriptedWithUndo(refetchAnswers = false)).use { server ->
+            val (unread, _) = deleteOneUnreadAndOneRead(server)
+
+            val back = runBlocking {
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+            }
+
+            assertEquals("the move back is confirmed", emptySet<String>(), back.unrestored)
+            assertEquals(
+                "the re-fetch said nothing, so the cache holds no row to act on: no id is offered",
+                emptyMap<String, String>(),
+                back.renumbered,
+            )
+            assertEquals(
+                "and the caller is told so, or it takes the message for one whose id never " +
+                    "changed and writes the next gesture on the uid it has just left",
+                setOf(unread),
+                back.unplaced,
+            )
+        }
+    }
+
+    @Test fun `each restored id is paired through the uid the move back answered, never by position`() {
+        val first = ImapMailService.emailId(ACCOUNT, INBOX, 7L)
+        val second = ImapMailService.emailId(ACCOUNT, INBOX, 8L)
+        val secondHome = ImapMailService.emailId(ACCOUNT, INBOX, 201L)
+
+        val ids = idsOfRestoredImapRows(
+            messages = listOf(100L to first, 101L to second),
+            moved = app.sterna.core.imap.ImapMoved(mapOf(100L to 200L, 101L to 201L), NUMBERING, emptySet()),
+            // Only the second came back from the re-fetch, and it is the first row of the answer.
+            fetched = listOf(row(secondHome, INBOX)),
+        )
+
+        assertEquals(
+            "the one row re-read belongs to the second message; the first has no row and gets no id",
+            mapOf(second to secondHome),
+            ids,
+        )
     }
 
     // ---- a \Seen store moves the folder row, on a real transition only ----------------------

@@ -277,6 +277,18 @@ internal fun seenOfRestoredImapRows(
     return messages.mapNotNull { (uid, id) -> moved.uids[uid]?.let { seenByNewUid[it] }?.let { id to it } }.toMap()
 }
 
+/** The id each message an IMAP undo brought home carries now, keyed by the id its target carries,
+ *  paired as [seenOfRestoredImapRows] pairs them. A message the re-fetch did not return is absent:
+ *  the cache holds no row for it, and an id is never built from a uid nothing re-read. */
+internal fun idsOfRestoredImapRows(
+    messages: List<Pair<Long, String>>,
+    moved: app.sterna.core.imap.ImapMoved,
+    fetched: List<EmailEntity>,
+): Map<String, String> {
+    val idByNewUid = fetched.mapNotNull { row -> ImapMailService.uidOf(row.id)?.let { it to row.id } }.toMap()
+    return messages.mapNotNull { (uid, id) -> moved.uids[uid]?.let { idByNewUid[it] }?.let { id to it } }.toMap()
+}
+
 /** Whether a search answer may be presented as a total rather than as a floor. [scopeCoversAccount]
  *  is a fact about the account's folder LIST, never a list derived from it. */
 internal fun searchAnswerIsTotal(
@@ -3680,11 +3692,21 @@ class MailRepository(
      *  [destMailboxId] (null when it was a destroy), which lets the undo reverse the count nudge. */
     data class RestoreTarget(val emailId: String, val sourceMailboxId: String, val destMailboxId: String?)
 
+    /** What an Undo brought back, by the id each [RestoreTarget] carried. [unrestored] did not come
+     *  home. An IMAP message that did answers to another id, the move back gave it a new uid:
+     *  [renumbered] names that id for the rows re-cached under it, and [unplaced] came home with no
+     *  row re-cached, so nothing can say which id they answer to. JMAP ids are stable: both empty. */
+    data class Restored(
+        val unrestored: Set<String>,
+        val renumbered: Map<String, String> = emptyMap(),
+        val unplaced: Set<String> = emptySet(),
+    )
+
     /** Undo a batched move/delete for one account, grouped so each (current → source) route is one
      *  command (#29). An optimistic restore that sticks: restored ids are marked recently-mutated and
      *  the count nudge is reversed here, so the caller must not fire a reconciling refresh. */
-    suspend fun restoreAll(credentials: AccountCredentials, targets: List<RestoreTarget>): Set<String> {
-        if (targets.isEmpty()) return emptySet()
+    suspend fun restoreAll(credentials: AccountCredentials, targets: List<RestoreTarget>): Restored {
+        if (targets.isEmpty()) return Restored(emptySet())
         // Undoing a delete pulls the message out of the Trash: it must leave the destroy list too (#99).
         unlistFromTrashPurge(credentials.id, targets.map { it.emailId })
         // Protect the restored ids from the next reconcile before any server call.
@@ -3692,6 +3714,7 @@ class MailRepository(
         val restored = mutableSetOf<String>()
         if (credentials.protocol == MailProtocol.IMAP) {
             val seenAfterRestore = mutableMapOf<String, Boolean>()
+            val renumbered = mutableMapOf<String, String>()
             // Group by (current folder, source folder, numbering that current folder stated on landing).
             val routes = UidValidity.imapUndoRoutes(targets.map { it.emailId to it.sourceMailboxId }) { lastImapMove[it] }
             routes.forEach { route ->
@@ -3712,13 +3735,18 @@ class MailRepository(
                         ?.let { fetched ->
                             emailDao.upsertAll(fetched)
                             seenAfterRestore += seenOfRestoredImapRows(route.messages, moved, fetched)
+                            renumbered += idsOfRestoredImapRows(route.messages, moved, fetched)
                             fetched.forEach { markRecentlyMutated(credentials.id, it.id); recentLocalMoves.mark(credentials.id, it.id) }
                         }
                 }
             }
             restored.forEach { lastImapMove.remove(it) }
             restoreCounts(credentials.id, targets.filter { it.emailId in restored }, seenAfterRestore)
-            return targets.map { it.emailId }.toSet() - restored
+            return Restored(
+                unrestored = targets.map { it.emailId }.toSet() - restored,
+                renumbered = renumbered,
+                unplaced = restored - renumbered.keys,
+            )
         }
         // JMAP: ids are stable across moves, so one Email/set per source folder, then a re-fetch.
         val ctx = jmapSession(credentials)
@@ -3738,7 +3766,7 @@ class MailRepository(
             }
         }
         restoreCounts(credentials.id, targets.filter { it.emailId in restored })
-        return targets.map { it.emailId }.toSet() - restored
+        return Restored(targets.map { it.emailId }.toSet() - restored)
     }
 
     /** Reverse the forward removal's count nudge; a row with no re-cached seen state counts as read.

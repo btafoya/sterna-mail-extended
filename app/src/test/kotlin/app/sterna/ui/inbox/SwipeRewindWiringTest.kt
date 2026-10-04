@@ -51,8 +51,9 @@ class SwipeRewindWiringTest {
     @Test fun `nothing else in the view model writes the set`() {
         val writes = codeLines(INBOX_VIEW_MODEL).map { it.trim() }.filter { "_swipeRewind.value =" in it }
         assertEquals(
-            "exactly three writers, pinned whole and in file order: swipeRewound (forget), the " +
-                "folded-thread flight's put-back, and the single swipe's. A fourth is another " +
+            "exactly four writers, pinned whole and in file order: swipeRewound (forget), the " +
+                "folded-thread flight's put-back, the single swipe's, and the swipe refused " +
+                "because an Undo left its row under an id nothing can name. A fifth is another " +
                 "path quietly rewinding rows. The thread's is the representative's key and no " +
                 "other: that is the row the finger flew off, the children were never on screen, " +
                 "and a member's key here rewinds whatever row happens to be drawn under it. Its " +
@@ -64,6 +65,7 @@ class SwipeRewindWiringTest {
                 "_swipeRewind.value = _swipeRewind.value - key",
                 "if (rep.emailKey() !in landed) _swipeRewind.value = _swipeRewind.value + rep.emailKey()",
                 "_swipeRewind.value = _swipeRewind.value + email.emailKey()",
+                "if (flewOff) _swipeRewind.value = _swipeRewind.value + row.emailKey()",
             ),
             writes,
         )

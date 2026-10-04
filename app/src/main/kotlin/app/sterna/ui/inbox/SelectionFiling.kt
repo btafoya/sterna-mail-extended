@@ -33,6 +33,15 @@ internal fun <T> fileSelection(
  *  message; every other key of [keys] was ticked by hand. Invariant: [carried] is within [keys]. */
 internal data class SelectionTicks(val keys: Set<EmailKey>, val carried: Set<EmailKey> = emptySet())
 
+/** The ticks once an Undo brought messages home under other ids: each key of [landed] becomes the
+ *  one its message answers to now, by hand or carried as it was. Left under the old key, the tick
+ *  is on a row no list draws any more and travels with the next gesture. */
+internal fun SelectionTicks.renumbered(landed: Map<EmailKey, EmailKey>): SelectionTicks =
+    SelectionTicks(
+        keys = keys.mapTo(LinkedHashSet()) { landed[it] ?: it },
+        carried = carried.mapTo(LinkedHashSet()) { landed[it] ?: it },
+    )
+
 /** A tap on one row: a key already ticked leaves both halves, whatever brought it in; a new one is the hand's. */
 internal fun SelectionTicks.toggledByHand(key: EmailKey): SelectionTicks =
     if (key in keys) SelectionTicks(keys - key, carried - key) else SelectionTicks(keys + key, carried)
