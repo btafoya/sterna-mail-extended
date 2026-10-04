@@ -202,8 +202,8 @@ private const val UNDO_BANNER_DISMISS_MS = 6_000L
 /**
  * How many recent messages the "unread" view's pull-to-refresh looks at per folder
  * ([InboxViewModel.refreshUnreadScope]). Not the account's sync window, and the difference is the
- * heap: that refresh syncs N folders in one pass and its IMAP branch holds every folder's envelopes
- * until the loop ends. The cost: in a folder never opened, only the 50 newest are looked at.
+ * heap: the IMAP pass holds every folder's envelopes until its loop ends. The cost, IMAP only: in a
+ * folder never opened, only its 50 newest are looked at. JMAP: `backfillUnread`, a capped walk.
  */
 internal const val UNREAD_SCOPE_FOLDER_LIMIT = 50
 
@@ -1408,8 +1408,8 @@ class InboxViewModel(
 
     /**
      * Pull-to-refresh in the "unread" view: the account's inbox and every other folder the view
-     * pages, in one pass, `refreshAccountFolders`, which covers both protocols. The `limit` is
-     * [UNREAD_SCOPE_FOLDER_LIMIT], not the account's sync window (reason on the constant). It
+     * pages, by `refreshAccountFolders`, which covers both protocols, then `backfillUnread`. The
+     * `limit` is [UNREAD_SCOPE_FOLDER_LIMIT], not the sync window (reason on the constant). It
      * writes neither [selection] nor [meta], that is why it is not [refreshFolder], whose last line
      * would drop the reader into the Inbox. `onMissing` stays a no-op: watched is a user intent.
      */
@@ -1430,9 +1430,11 @@ class InboxViewModel(
         if (refreshedInbox != null) {
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, refreshedInbox) }
         }
+        // The #50 hook above must see new mail only. Uncaught: a failed backfill fails the refresh.
+        repo.backfillUnread(credentials, unreadScopes.value.filter { it.first == credentials.id })
     }
 
-    /** [refreshUnreadScope]'s pass and #50 hook, one account at a time, so the memory ceiling holds. */
+    /** [refreshUnreadScope]'s steps, one account at a time, so the memory ceiling holds. */
     private suspend fun refreshEveryUnreadScope() {
         val scopes = everyAccountUnreadScopes.value
         val pass = refreshEachAccount(store.allCredentials()) { credentials ->
@@ -1447,6 +1449,7 @@ class InboxViewModel(
             if (refreshedInbox != null) {
                 runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, refreshedInbox) }
             }
+            repo.backfillUnread(credentials, scopes.filter { it.first == credentials.id })
         }
         everyAccountRefreshFailure(pass)?.let { throw it }
     }

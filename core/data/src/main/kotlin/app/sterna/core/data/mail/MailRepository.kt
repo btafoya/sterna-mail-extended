@@ -554,7 +554,7 @@ private const val PURGE_SNAPSHOT_INSERT_BATCH = 500
 /** Page size when resolving unread ids server-side (RFC 8620 maxObjectsInGet floor). */
 private const val UNREAD_RESOLVE_PAGE = 500
 
-/** Upper bound on server-resolved unread ids for one "Mark all read" (20 pages of 500). */
+/** Upper bound on the unread ids one server walk resolves (20 pages of 500). */
 private const val UNREAD_RESOLVE_MAX = 10_000
 
 /** Build the dynamic order by / where for the paged list. Mailbox ids are bound as parameters; the
@@ -1150,6 +1150,10 @@ class MailRepository(
     private val recentlyMutated = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private fun mutationKey(accountId: String, emailId: String) = "$accountId:$emailId"
 
+    // Rows [backfillUnread] re-filed, or added undated or older than [NOTIFY_HORIZON_MS], keyed by
+    // [mutationKey]. Memory only, so a process killed before the folder's next pass forgets them.
+    private val backfilledUnread = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     /** Ids the app itself just moved between folders, for the notifier's diff filter (#50). For IMAP
      *  the marked id is the message's id at its destination, since an IMAP move changes the id. */
     val recentLocalMoves = RecentLocalMoves()
@@ -1673,10 +1677,13 @@ class MailRepository(
      */
     suspend fun notifyRead(accountId: String, mailboxId: String): NotifyRead {
         val since = notifyCandidateFloor(System.currentTimeMillis())
-        return NotifyRead(
+        val read = NotifyRead(
             emails = emailDao.receivedSince(accountId, mailboxId, since, NOTIFY_CANDIDATE_MAX).map { it.toEmail() },
             baselineIds = emailDao.idsReceivedSince(accountId, mailboxId, since),
         )
+        // Out of the candidates and still in the baseline, so the pass remembers such a row without
+        // announcing it or re-filing its thread, whatever floor the folder has.
+        return read.copy(emails = read.emails.filterNot { mutationKey(accountId, it.id) in backfilledUnread })
     }
 
     /** Cached emails for account-qualified keys (drives bulk actions on a selection). Each id is
@@ -1731,6 +1738,59 @@ class MailRepository(
             }
             ids
         }.getOrElse { cached() }
+    }
+
+    /** Caches the unread mail of a JMAP account that no folder sync brought in, and files back the rows
+     *  a folder sync left outside [scopes] ([unreadBackfillPlan]), each under a folder of [scopes].
+     *  A server failure reaches the caller, and what was written before it stays. */
+    suspend fun backfillUnread(credentials: AccountCredentials, scopes: List<Pair<String, String>>) {
+        if (credentials.protocol == MailProtocol.IMAP) return
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
+        // Folder ids are numbered per account: only this account's half of the scopes names its folders.
+        val inScope = scopes.filter { it.first == credentials.id }.mapTo(HashSet()) { it.second }
+        if (inScope.isEmpty()) return
+        val outOfScope = mailboxDao.idsForAccount(credentials.id).filterNot { it in inScope }
+        val ctx = jmapSession(credentials)
+        var walked = 0
+        while (walked < UNREAD_RESOLVE_MAX) {
+            val page = client.queryUnreadEmailIds(
+                ctx.session, ctx.accountId, outOfScope, UNREAD_RESOLVE_PAGE, ctx.auth,
+                position = walked, calculateTotal = true,
+            )
+            if (page.ids.isEmpty()) break
+            walked += page.ids.size
+            val cachedFolders = byIdsChunked(page.ids) { chunk -> emailDao.cachedFoldersOf(credentials.id, chunk) }
+                .associate { it.id to it.mailboxId }
+            val plan = unreadBackfillPlan(page.ids, cachedFolders, inScope) { id ->
+                isRecentlyMutated(credentials.id, id) || inFlightRemovals.containsKey(flightKey(credentials.id, id))
+            }
+            val wanted = plan.absent + plan.misfiled.keys
+            if (wanted.isNotEmpty()) {
+                val filed = client.getEmailsWithMailboxIds(ctx.session, ctx.accountId, wanted, ctx.auth).mapNotNull { email ->
+                    val filedInScope = email.mailboxIds.filterValues { it }.keys.intersect(inScope)
+                    rankedMailboxPick(credentials.id, filedInScope)?.let { email.toEntity(credentials.id, it) }
+                }
+                val (misfiled, rows) = filed.partition { it.id in plan.misfiled }
+                val fresh = sparingInFlight(rows)
+                val refiled = sparingInFlight(misfiled)
+                checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
+                val staleBefore = System.currentTimeMillis() - NOTIFY_HORIZON_MS
+                val tooOldToBeNew = fresh.filter { it.sortKey == 0L || it.sortKey < staleBefore }
+                // A re-filed row was cached already, so the notifier has seen it or it sat outside the
+                // inbox. Whatever its age, coming back under the inbox must not pass for new mail: that
+                // is a second banner, and an unarchive-on-reply written to the server.
+                (tooOldToBeNew + refiled).forEach { backfilledUnread += mutationKey(credentials.id, it.id) }
+                // Insert-only, never an upsert: ignoring the conflict settles the race with a folder
+                // sync writing the same id since the read above, and a row cached under a folder of
+                // the scope never moves, it is listed where it is.
+                emailDao.insertAllIgnoring(fresh)
+                // Only a row cached outside the scope is re-filed, the folder alone and from the folder
+                // the plan read. It leaves that folder's cached list until that folder's next sync.
+                refiled.forEach { emailDao.refile(credentials.id, it.id, plan.misfiled.getValue(it.id), it.mailboxId) }
+            }
+            val total = page.total
+            if (total != null && walked >= total) break
+        }
     }
 
     /**

@@ -402,6 +402,50 @@ class JmapClient internal constructor(
         }
     }
 
+        /** Ids-only page of an account's unread messages outside [excludeMailboxIds]. Never scoped
+         *  by `inMailbox`: a message also filed outside the excluded folders must still be listed. */
+    suspend fun queryUnreadEmailIds(
+        session: JmapSession,
+        accountId: String,
+        excludeMailboxIds: List<String>,
+        limit: Int,
+        auth: JmapAuth,
+        position: Int = 0,
+        calculateTotal: Boolean = false,
+    ): EmailIdPage = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            putJsonArray("using") {
+                add(Jmap.CORE_CAPABILITY)
+                add(Jmap.MAIL_CAPABILITY)
+            }
+            putJsonArray("methodCalls") {
+                addJsonArray {
+                    add("Email/query")
+                    addJsonObject {
+                        put("accountId", accountId)
+                        put("filter", searchFilter(SearchQuery(unread = true), excludeMailboxIds))
+                        putJsonArray("sort") {
+                            addJsonObject {
+                                put("property", "receivedAt")
+                                put("isAscending", false)
+                            }
+                        }
+                        put("collapseThreads", false)
+                        put("position", position)
+                        put("limit", limit)
+                        if (calculateTotal) put("calculateTotal", true)
+                    }
+                    add("q0")
+                }
+            }
+        }
+        val args = methodResponseArgs(postJmap(session, auth, payload), "Email/query")
+        EmailIdPage(
+            ids = (args["ids"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: emptyList(),
+            total = args["total"]?.jsonPrimitive?.intOrNull,
+        )
+    }
+
     suspend fun queryEmails(
         session: JmapSession,
         accountId: String,
@@ -503,6 +547,21 @@ class JmapClient internal constructor(
         accountId: String,
         ids: List<String>,
         auth: JmapAuth,
+    ): List<Email> = getEmailRows(session, accountId, ids, auth, EMAIL_LIST_PROPERTIES)
+
+    suspend fun getEmailsWithMailboxIds(
+        session: JmapSession,
+        accountId: String,
+        ids: List<String>,
+        auth: JmapAuth,
+    ): List<Email> = getEmailRows(session, accountId, ids, auth, EMAIL_LIST_PROPERTIES + "mailboxIds")
+
+    private suspend fun getEmailRows(
+        session: JmapSession,
+        accountId: String,
+        ids: List<String>,
+        auth: JmapAuth,
+        properties: List<String>,
     ): List<Email> = withContext(Dispatchers.IO) {
         getInBatches(session, ids) { batch ->
             val payload = buildJsonObject {
@@ -516,16 +575,7 @@ class JmapClient internal constructor(
                         addJsonObject {
                             put("accountId", accountId)
                             putJsonArray("ids") { batch.forEach { add(it) } }
-                            putJsonArray("properties") {
-                                // `replyTo`, `cc`, `bcc`: the delta sync writes these rows straight
-                                // into the cache, and the `@Upsert` replaces the row whole, see
-                                // [EMAIL_BODY_PROPERTIES].
-                                listOf(
-                                    "id", "threadId", "subject", "preview",
-                                    "receivedAt", "from", "replyTo", "to", "cc", "bcc",
-                                    "hasAttachment", "keywords",
-                                ).forEach { add(it) }
-                            }
+                            putJsonArray("properties") { properties.forEach { add(it) } }
                         }
                         add("g0")
                     }
@@ -2676,6 +2726,13 @@ class JmapClient internal constructor(
     companion object {
         /** How often the server should ping the EventSource connection, in seconds. */
         private const val PING_SECONDS = 90L
+
+            /** A list row, no body. Cached rows are upserted whole: see [EMAIL_BODY_PROPERTIES]. */
+        internal val EMAIL_LIST_PROPERTIES = listOf(
+            "id", "threadId", "subject", "preview",
+            "receivedAt", "from", "replyTo", "to", "cc", "bcc",
+            "hasAttachment", "keywords",
+        )
 
                 /**
                  * Shared by [getEmail] and [getEmailsWithBody], so a body served from the cache can never

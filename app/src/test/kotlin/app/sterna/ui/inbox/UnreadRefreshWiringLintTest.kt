@@ -4,9 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
-/**
- * Source lint, not a behaviour test, and a last resort, read [UnreadRefreshTargetsTest] first.
- */
+/** Source lint, a last resort: read [UnreadRefreshTargetsTest] first. Holes 1 to 3 apply. Unseen:
+ *  a call made conditional without braces, an early return above it, a helper that swallows. */
 class UnreadRefreshWiringLintTest {
 
     @Test
@@ -158,6 +157,51 @@ class UnreadRefreshWiringLintTest {
         )
     }
 
+    @Test
+    fun `each unread refresh ends on its account's backfill, and lets its failure out`() {
+        val wanted = mapOf(
+            HEADER to (
+                "unreadScopes.value.filter { it.first == credentials.id }" to listOf("refreshUnreadScope")
+                ),
+            EVERY_ACCOUNT_HEADER to (
+                "scopes.filter { it.first == credentials.id }" to listOf("refreshEveryUnreadScope", "refreshEachAccount")
+                ),
+        )
+        for ((header, expected) in wanted) {
+            val body = bodyOf(header)
+            val (scope, blocks) = expected
+            assertEquals(
+                "$header must call MailRepository.backfillUnread exactly once, with the credentials " +
+                    "of the account it refreshes and that account's half of the scope: folder ids are " +
+                    "numbered per account, so a sibling's pair names another folder on this server " +
+                    "(#121/#31). Without the call a JMAP unread message the cache never received " +
+                    "stays out of the view. Calls found were:" +
+                    "\n${callsTo("repo.backfillUnread", body).joinToString("\n")}",
+                listOf(listOf("credentials", scope)),
+                callsTo("repo.backfillUnread", body),
+            )
+            assertEquals(
+                "The backfill comes after the folder pass and after the #50 hook: the hook reads " +
+                    "the mail this refresh brought as new, and rows the backfill adds are old mail " +
+                    "it would re-file. Order of first mention only, never of execution. Body was:\n$body",
+                listOf("repo.refreshAccountFolders", "FetchAndNotify.onInboxRefreshed", "repo.backfillUnread"),
+                listOf("repo.backfillUnread", "FetchAndNotify.onInboxRefreshed", "repo.refreshAccountFolders")
+                    .sortedBy { body.indexOf("$it(") },
+            )
+            assertEquals(
+                "A failed backfill is a failed refresh. Proven here: no braced block holds the call " +
+                    "but the function itself and, for every account, the lambda refreshEachAccount " +
+                    "counts failures from. Swallowed, the view says \"no unread mail\" on a server " +
+                    "that never answered. Not seen: a call made conditional without braces, an early " +
+                    "return above it, a helper that catches under another name. Blocks around the " +
+                    "call were: " +
+                    "${enclosingBlocks("repo.backfillUnread", body)}",
+                blocks,
+                enclosingBlocks("repo.backfillUnread", body),
+            )
+        }
+    }
+
     // -- reading the source ----------------------------------------------------------------------
 
     /**
@@ -182,6 +226,37 @@ class UnreadRefreshWiringLintTest {
             if (depth == 0) break
         }
         return text.substring(start, i).trim()
+    }
+
+    private fun enclosingBlocks(callee: String, body: String): List<String> {
+        val call = Regex("""\b${Regex.escape(callee)}\s*\(""").find(body) ?: return emptyList()
+        val open = ArrayDeque<String>()
+        for (i in 0 until call.range.first) {
+            when (body[i]) {
+                '{' -> open.addLast(blockOwner(body, i))
+                '}' -> open.removeLastOrNull()
+            }
+        }
+        return open.toList()
+    }
+
+    private fun blockOwner(text: String, brace: Int): String {
+        var end = brace
+        while (end > 0 && text[end - 1] == ' ') end--
+        if (end > 0 && text[end - 1] == ')') {
+            var depth = 0
+            do {
+                end--
+                when (text[end]) {
+                    ')' -> depth++
+                    '(' -> depth--
+                }
+            } while (end > 0 && depth > 0)
+            while (end > 0 && text[end - 1] == ' ') end--
+        }
+        var start = end
+        while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '_')) start--
+        return text.substring(start, end)
     }
 
     /** The arguments of every `[callee](` in [body], one list per call, in source order. */

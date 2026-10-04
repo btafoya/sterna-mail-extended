@@ -2,6 +2,8 @@ package app.sterna.core.data.db
 
 import androidx.paging.PagingSource
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
@@ -158,6 +160,22 @@ interface EmailDao {
 
     @Upsert
     suspend fun upsertAll(emails: List<EmailEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAllIgnoring(emails: List<EmailEntity>)
+
+    @Query("SELECT id, mailboxId FROM emails WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun cachedFoldersOf(accountId: String, ids: List<String>): List<CachedFolder>
+
+    /**
+     * Files one cached row under [toMailboxId] and writes no other column. Changes nothing when the
+     * row has left [fromMailboxId] since the caller read it. Returns the rows changed.
+     */
+    @Query(
+        "UPDATE emails SET mailboxId = :toMailboxId " +
+            "WHERE accountId = :accountId AND id = :id AND mailboxId = :fromMailboxId",
+    )
+    suspend fun refile(accountId: String, id: String, fromMailboxId: String, toMailboxId: String): Int
 
     /**
      * Prune a mailbox's cached page down to [keepIds], window eviction, not removal: the messages
@@ -410,6 +428,12 @@ data class RowNumbering(
 data class CachedPreview(
     val id: String,
     val preview: String,
+)
+
+/** Projection for [EmailDao.cachedFoldersOf]: the one folder a cached row is filed under. */
+data class CachedFolder(
+    val id: String,
+    val mailboxId: String,
 )
 
 data class ReadAndStar(

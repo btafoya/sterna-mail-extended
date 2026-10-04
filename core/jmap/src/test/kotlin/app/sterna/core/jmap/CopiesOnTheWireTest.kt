@@ -77,6 +77,12 @@ class CopiesOnTheWireTest {
             enqueue = { it.enqueue(emailGetResponse()) },
             call = { client, session -> client.getEmailsWithBody(session, "acc1", listOf("m1"), auth) },
         ),
+        CachingPath(
+            name = "getEmailsWithMailboxIds — the unread messages no folder sync brought in",
+            cachedAt = "MailRepository.backfillUnread, through emailDao.insertAllIgnoring",
+            enqueue = { it.enqueue(emailGetResponse()) },
+            call = { client, session -> client.getEmailsWithMailboxIds(session, "acc1", listOf("m1"), auth) },
+        ),
     )
 
     /** The `properties` array of the first `Email/get` this server was actually sent. */
@@ -131,6 +137,8 @@ class CopiesOnTheWireTest {
     @Test fun `expanding a thread asks for cc and bcc`() = assertAsksForCopies(cachingPaths()[2])
 
     @Test fun `the body fetch asks for cc and bcc`() = assertAsksForCopies(cachingPaths()[3])
+
+    @Test fun `the unread backfill asks for cc and bcc`() = assertAsksForCopies(cachingPaths()[4])
 
     /** The guard as one statement, so a review reads the whole set of cached paths at once. */
     @Test fun `every fetch that fills the cache asks the server for cc and bcc`() {
