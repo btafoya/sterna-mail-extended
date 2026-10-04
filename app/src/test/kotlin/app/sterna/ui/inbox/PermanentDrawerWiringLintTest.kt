@@ -154,8 +154,8 @@ class PermanentDrawerWiringLintTest {
             "the two DrawerContent calls no longer hand the sheet the same state. Both envelopes " +
                 "(permanent from 1 200 dp, modal below) must pass these nineteen arguments, whole " +
                 "and in this order. A single one rewritten in a single branch compiles and is " +
-                "invisible to every other rule here: `folderRowsBadgeUnread = true` puts #185's " +
-                "fold-by-default back on an IMAP account, where a folder folds itself and the mail " +
+                "invisible to every other rule here: `folderRowsBadgeUnread = true` folds by " +
+                "default with no current account, where a folder folds itself and the mail " +
                 "under it is badged nowhere. Nothing in this " +
                 "module can compose the drawer, so this list is all there is. A folder screen " +
                 "opened for the wrong account (onManageFolders) lists another account's folders and " +

@@ -30,7 +30,7 @@ internal fun collapsedFolderIds(
 
 /** The number the drawer badges one folder row with: its own unread when open, plus every
  * descendant's when folded, what is hidden, not the whole subtree. [mailboxes] must be the list
- * the drawer draws. Over-counts in conversation view; on IMAP `unreadForList` is a hard 0. */
+ * the drawer draws. Over-counts in conversation view; on IMAP `unreadForList` is the stored server count, in messages. */
 internal fun drawerUnreadCount(mailbox: Mailbox, mailboxes: List<Mailbox>, collapsed: Set<String>): Int {
     if (mailbox.id !in collapsed) return mailbox.unreadForList
     val byId = mailboxes.associateBy { it.id }

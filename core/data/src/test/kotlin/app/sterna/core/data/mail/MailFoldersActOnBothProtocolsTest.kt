@@ -195,7 +195,7 @@ class MailFoldersActOnBothProtocolsTest {
     ): MailboxDao =
         Proxy.newProxyInstance(MailboxDao::class.java.classLoader, arrayOf(MailboxDao::class.java)) { _, method, args ->
             when (method.name) {
-                "replaceAll" -> {
+                "replaceAll", "replaceAllKeepingUnread" -> {
                     @Suppress("UNCHECKED_CAST")
                     replaced += (args[0] as String) to (args[1] as List<MailboxEntity>)
                     Unit
@@ -225,7 +225,7 @@ class MailFoldersActOnBothProtocolsTest {
                 if (at >= 0) state[at] = MailboxIdRole(id, role)
             }
             when (method.name) {
-                "replaceAll" -> {
+                "replaceAll", "replaceAllKeepingUnread" -> {
                     @Suppress("UNCHECKED_CAST")
                     replaced += (args[0] as String) to (args[1] as List<MailboxEntity>)
                     Unit

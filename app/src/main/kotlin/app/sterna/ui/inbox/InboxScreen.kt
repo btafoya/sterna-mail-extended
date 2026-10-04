@@ -291,8 +291,8 @@ fun InboxScreen(
     // The current account's explicit fold/unfold choice per folder, persisted. A folder with no
     // key in here is one nobody decided anything about.
     val collapsedFolders by viewModel.collapsedFolders.collectAsStateWithLifecycle()
-    // Can a folder row of THIS account badge unread at all? False on IMAP, whose rows carry a hard
-    // 0, and the default fold rests on that badge, so where there is none nothing folds itself.
+    // Can a folder row of THIS account badge unread at all? The default fold rests on that badge,
+    // so where there is none nothing folds itself.
     val folderRowsBadgeUnread by viewModel.folderRowsBadgeUnread.collectAsStateWithLifecycle()
     val pendingPurge by viewModel.pendingPurge.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()

@@ -213,8 +213,7 @@ class DefaultCollapsedFoldersTest {
             "on an account whose folder rows carry no unread count, NOTHING may start folded. " +
                 "Folding INBOX/Travail and Perso here hides whatever arrives under them behind a " +
                 "chevron nobody touched, and no row anywhere says so — the badge that makes the " +
-                "default honest does not exist on this account (measured on the bench, IMAP, " +
-                "2026-09-01).",
+                "default honest does not exist here.",
             emptySet<String>(),
             defaultCollapsedFolderIds(folders, rowsBadgeUnread = false),
         )

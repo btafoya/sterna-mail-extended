@@ -145,6 +145,8 @@ class SubscriptionToggleAsksTheServerTest {
                     "CAPABILITY",
                     """LIST "" "*"""",
                     """LSUB "" "*"""",
+                    """STATUS "Corbeille" (UNSEEN)""",
+                    """STATUS "Archives" (UNSEEN)""",
                     """SELECT "INBOX"""",
                     "SEARCH UNSEEN UNDELETED",
                     "FETCH 12:12 (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])",

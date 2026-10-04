@@ -57,6 +57,7 @@ data class ImapFolderLoad(
     val unread: Int,
     val accountName: String,
     val walk: ImapFolderWalk,
+    val unreadStated: Set<String> = emptySet(),
 )
 
 /**
@@ -452,18 +453,17 @@ open class ImapMailService(
         cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
     ): ImapFolderLoad {
         return withSession(credentials) { session ->
-            val folders = session.listFolders(onlySubscribed)
+            val listing = session.listFoldersWithUnseen(onlySubscribed) { listed -> folderToOpen(listed, requestedMailboxId).path }
+            val folders = listing.folders
             val chosen = honouredSpecialFolders(credentials.specialFolders, folders.map { it.roleCandidate() })
-            val mailboxes = folders.mapIndexed { index, folder ->
-                imapMailboxEntity(credentials.id, folder, index, chosen)
-            }
-            val target = folders.firstOrNull { it.path == requestedMailboxId }
-                ?: folders.firstOrNull { it.role == "inbox" }
-                ?: folders.firstOrNull { it.path.equals("INBOX", ignoreCase = true) }
-                ?: folders.first()
+            val target = folderToOpen(folders, requestedMailboxId)
 
             val status = session.select(target.path)
             val unread = session.unseenCount()
+            val unseen = listing.unseen + (target.path to unread)
+            val mailboxes = folders.mapIndexed { index, folder ->
+                imapMailboxEntity(credentials.id, folder, index, chosen, unseen[folder.path])
+            }
             val walk = withNumberingSettled(
                 settle = { reconcileNumbering(credentials.id, target.path, status.uidValidity) },
                 walk = {
@@ -486,6 +486,7 @@ open class ImapMailService(
                 unread = unread,
                 accountName = credentials.username,
                 walk = walk,
+                unreadStated = unseen.keys,
             )
         }
     }
@@ -885,6 +886,7 @@ internal fun imapMailboxEntity(
     folder: ImapFolder,
     index: Int,
     chosenFolders: Map<String, String> = emptyMap(),
+    unread: Int? = null,
 ): MailboxEntity {
     val role = specialRole(folder.roleCandidate(), chosenFolders)
     return MailboxEntity(
@@ -895,11 +897,17 @@ internal fun imapMailboxEntity(
         // A marked role falls in the `else`, where a role-less folder already fell.
         sortOrder = rolePriority(role) * 1000 + index,
         totalEmails = 0,
-        unreadEmails = 0,
+        unreadEmails = unread ?: 0,
         // Copied as the listing gave it (#174); `ImapFolder` defaults it to `true`.
         isSubscribed = folder.isSubscribed,
     )
 }
+
+private fun folderToOpen(folders: List<ImapFolder>, requestedMailboxId: String?): ImapFolder =
+    folders.firstOrNull { it.path == requestedMailboxId }
+        ?: folders.firstOrNull { it.role == "inbox" }
+        ?: folders.firstOrNull { it.path.equals("INBOX", ignoreCase = true) }
+        ?: folders.first()
 
 private fun rolePriority(role: String?): Int = when (role) {
     "inbox" -> 0

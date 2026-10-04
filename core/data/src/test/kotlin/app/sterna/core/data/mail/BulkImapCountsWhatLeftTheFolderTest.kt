@@ -40,21 +40,21 @@ import org.junit.Test
  * the Archive it is already in, deleted from the Trash, moved into its own folder) has to be given
  * back what the tap took, because no nudge credits a folder a message never left.
  *
- * IMAP folder rows carry no server unread count, so `mailboxDao.adjustCounts` is not called at all
- * here (`isImapAccount`): the account store's inbox-meta unread is the only counter that moves, and
- * it is where all of this is observed.
+ * Two counters move together and both are read here: the account store's inbox-meta unread, and
+ * the drawer's folder row (`mailboxDao.adjustCounts`), which holds the server's count from one
+ * refresh to the next and is owed the same delta, once.
  */
 class BulkImapCountsWhatLeftTheFolderTest {
 
     /** The cached rows, keyed by account and id (#31). */
     private val cached = linkedMapOf<String, EmailEntity>()
 
-    /** Every per-folder delta handed to the drawer's folder rows. Must stay empty on IMAP. */
+    /** Every delta handed to the drawer's folder rows, as (mailboxId, total, unread), in order. */
     private val folderCounts = mutableListOf<Triple<String, Int, Int>>()
 
     private val store = object : RecordingAccountStorage() {
-        // What `isImapAccount` reads: an account store answering null would count an IMAP folder
-        // row's unread, which the drawer never shows, and hide where the real badge moves.
+        // What `isImapAccount` reads: answering null, the account passes for a JMAP one and a
+        // folder row cut off for IMAP alone would still be counted here.
         override fun account(id: String): StoredAccount? =
             StoredAccount(id = id, server = "scripted", username = "tester", protocol = MailProtocol.IMAP)
     }
@@ -105,7 +105,11 @@ class BulkImapCountsWhatLeftTheFolderTest {
             // so `seenOf` answers null and the folder's unread is left alone by that write.
             "seenOf" -> cached["${args[0] as String}/${args[1] as String}"]?.seen
             "mailboxOf" -> cached["${args[0] as String}/${args[1] as String}"]?.mailboxId
-            "setSeen" -> Unit
+            "setSeen" -> {
+                val key = "${args[0] as String}/${args[1] as String}"
+                cached[key]?.let { cached[key] = it.copy(seen = args[2] as Boolean) }
+                Unit
+            }
             else -> error("EmailDao.${method.name} was called by a path that must not touch it.")
         }
     } as EmailDao
@@ -172,10 +176,10 @@ class BulkImapCountsWhatLeftTheFolderTest {
         folderCounts.clear()
     }
 
-    private fun assertNoFolderRowWasCounted() = assertEquals(
-        "an IMAP folder row carries a hard 0 for unread, so nudging a delta onto it manufactures " +
-            "a badge out of nothing: `isImapAccount` is what keeps these paths off it",
-        emptyList<Triple<String, Int, Int>>(),
+    private fun assertFolderRows(vararg expected: Triple<String, Int, Int>) = assertEquals(
+        "an IMAP folder row holds the server's count until the next refresh, so it is owed what " +
+            "left or joined the folder, once, like the inbox meta beside it",
+        expected.toList(),
         folderCounts,
     )
 
@@ -198,7 +202,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             )
             assertEquals(listOf("UID EXPUNGE 7:8"), server.issued("UID EXPUNGE"))
             assertEquals(listOf(TRASH to -2), unreadDeltas())
-            assertNoFolderRowWasCounted()
+            assertFolderRows(Triple(TRASH, -2, -2))
         }
     }
 
@@ -208,6 +212,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             val repository = repository()
             val ticket = runBlocking { repository.beginRemovalAll(ACCOUNT, ids) }!!
             assertEquals("the tap took the two unread off the folder", listOf(TRASH to -2), unreadDeltas())
+            assertFolderRows(Triple(TRASH, -2, -2))
             forget()
 
             val result = runBlocking { repository.destroyAll(credentials(server), ticket.emailIds, null, NUMBERING) }
@@ -224,7 +229,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 emptyList<Pair<String, Int>>(),
                 unreadDeltas(),
             )
-            assertNoFolderRowWasCounted()
+            assertFolderRows()
         }
     }
 
@@ -234,6 +239,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             val repository = repository()
             val ticket = runBlocking { repository.beginRemovalAll(ACCOUNT, ids) }!!
             assertEquals(listOf(INBOX to -2), unreadDeltas())
+            assertFolderRows(Triple(INBOX, -2, -2))
             forget()
 
             val result = runBlocking {
@@ -248,7 +254,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 listOf(ARCHIVE to 2),
                 unreadDeltas(),
             )
-            assertNoFolderRowWasCounted()
+            assertFolderRows(Triple(ARCHIVE, 2, 2))
         }
     }
 
@@ -272,7 +278,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 listOf(ARCHIVE to 2),
                 unreadDeltas(),
             )
-            assertNoFolderRowWasCounted()
+            assertFolderRows(Triple(ARCHIVE, 2, 2))
         }
     }
 
@@ -288,7 +294,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
             assertEquals(ids.toSet(), result.succeeded)
             assertEquals(emptyList<String>(), server.issued("UID MOVE"))
             assertEquals(listOf(ARCHIVE to 2), unreadDeltas())
-            assertNoFolderRowWasCounted()
+            assertFolderRows(Triple(ARCHIVE, 2, 2))
         }
     }
 
@@ -308,7 +314,7 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 listOf(TRASH to 2),
                 unreadDeltas(),
             )
-            assertNoFolderRowWasCounted()
+            assertFolderRows(Triple(TRASH, 2, 2))
         }
     }
 
@@ -328,6 +334,125 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 emptyList<Pair<String, Int>>(),
                 unreadDeltas(),
             )
+        }
+    }
+
+    @Test fun `a move with no ticket out decounts the source row and credits the destination row`() {
+        ScriptedImapServer(scripted()).use { server ->
+            val ids = cache(INBOX)
+
+            val result = runBlocking {
+                repository().moveAllToMailbox(credentials(server), ids, ARCHIVE, mapOf(INBOX to NUMBERING))
+            }
+
+            assertEquals(ids.toSet(), result.succeeded)
+            assertEquals(listOf("UID MOVE 7:8 \"Archive\""), server.issued("UID MOVE"))
+            assertEquals(listOf(INBOX to -2, ARCHIVE to 2), unreadDeltas())
+            assertFolderRows(Triple(INBOX, -2, -2), Triple(ARCHIVE, 2, 2))
+        }
+    }
+
+    @Test fun `a selection put back credits the folder row the tap decounted`() {
+        val ids = cache(INBOX)
+        val repository = repository()
+        val ticket = runBlocking { repository.beginRemovalAll(ACCOUNT, ids) }!!
+        assertFolderRows(Triple(INBOX, -2, -2))
+        forget()
+
+        runBlocking { repository.endRemovalAll(ticket, restore = ticket.emailIds) }
+
+        assertEquals(listOf(INBOX to 2), unreadDeltas())
+        assertFolderRows(Triple(INBOX, 2, 2))
+    }
+
+    // ---- the undo of a delete gives the unread back with the message ------------------------
+
+    @Test(timeout = 30_000)
+    fun `an unread message the undo brings home takes its unread off the Trash row and back to its folder`() {
+        ScriptedImapServer(scriptedWithUndo()).use { server ->
+            val (unread, _) = deleteOneUnreadAndOneRead(server)
+
+            val failed = runBlocking {
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+            }
+
+            assertEquals(emptySet<String>(), failed)
+            assertEquals(
+                "the move back really went out, on the uid the Trash gave the message",
+                "UID MOVE 100 \"$INBOX\"",
+                server.issued("UID MOVE").last(),
+            )
+            assertFolderRows(Triple(TRASH, -1, -1), Triple(INBOX, 1, 1))
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `a read message the undo brings home moves no unread on either row`() {
+        // The inverse witness: "every restored message is unread" satisfies the test above.
+        ScriptedImapServer(scriptedWithUndo()).use { server ->
+            val (_, read) = deleteOneUnreadAndOneRead(server)
+
+            val failed = runBlocking {
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(read, INBOX, TRASH)))
+            }
+
+            assertEquals(emptySet<String>(), failed)
+            assertEquals("UID MOVE 101 \"$INBOX\"", server.issued("UID MOVE").last())
+            assertFolderRows(Triple(TRASH, -1, 0), Triple(INBOX, 1, 0))
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an unread message whose re-fetch came back empty is put back as read`() {
+        ScriptedImapServer(scriptedWithUndo(refetchAnswers = false)).use { server ->
+            val (unread, _) = deleteOneUnreadAndOneRead(server)
+
+            val failed = runBlocking {
+                undoing.restoreAll(credentials(server), listOf(MailRepository.RestoreTarget(unread, INBOX, TRASH)))
+            }
+
+            assertEquals("the move back is confirmed, only its re-fetch said nothing", emptySet<String>(), failed)
+            assertFolderRows(Triple(TRASH, -1, 0), Triple(INBOX, 1, 0))
+        }
+    }
+
+    // ---- a \Seen store moves the folder row, on a real transition only ----------------------
+
+    @Test fun `reading a message takes it off its folder row, and marking it unread puts it back`() {
+        ScriptedImapServer(scripted()).use { server ->
+            val id = cache(INBOX).first()
+            val repository = repository()
+
+            runBlocking { repository.setRead(credentials(server), id, seen = true) }
+
+            assertEquals(listOf("UID STORE 7 +FLAGS (\\Seen)"), server.issued("UID STORE"))
+            assertEquals(listOf(INBOX to -1), unreadDeltas())
+            assertFolderRows(Triple(INBOX, 0, -1))
+            forget()
+
+            runBlocking { repository.setRead(credentials(server), id, seen = true) }
+
+            assertFolderRows()
+
+            runBlocking { repository.setRead(credentials(server), id, seen = false) }
+
+            assertEquals(listOf(INBOX to 1), unreadDeltas())
+            assertFolderRows(Triple(INBOX, 0, 1))
+        }
+    }
+
+    @Test fun `marking a whole selection read takes each message off its folder row`() {
+        ScriptedImapServer(scripted()).use { server ->
+            val ids = cache(INBOX)
+
+            runBlocking { repository().setReadAll(credentials(server), ids, seen = true) }
+
+            assertEquals(
+                listOf("UID STORE 7 +FLAGS (\\Seen)", "UID STORE 8 +FLAGS (\\Seen)"),
+                server.issued("UID STORE"),
+            )
+            assertEquals(listOf(INBOX to -1, INBOX to -1), unreadDeltas())
+            assertFolderRows(Triple(INBOX, 0, -1), Triple(INBOX, 0, -1))
         }
     }
 
@@ -406,6 +531,53 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 else -> "$tag OK done\r\n"
             }
         }
+    }
+
+    /** [scripted], plus what an undo needs: a move back into the inbox answered with a COPYUID
+     *  giving each uid a new one (+100), and a re-fetch whose rows say uid 201 alone is `\Seen`.
+     *  The row the undo re-caches is therefore under an id no target ever carried. */
+    private fun scriptedWithUndo(refetchAnswers: Boolean = true): (String, String) -> String {
+        val forward = scripted()
+        return { tag, line ->
+            when {
+                line.startsWith("UID MOVE") && line.endsWith("\"$INBOX\"") -> {
+                    val set = line.split(' ')[2]
+                    val landed = Regex("\\d+").replace(set) { (it.value.toLong() + 100).toString() }
+                    "$tag OK [COPYUID $NUMBERING $set $landed] done\r\n"
+                }
+                line.startsWith("UID FETCH") -> {
+                    val rows = if (!refetchAnswers) "" else
+                        line.split(' ')[2].split(',').joinToString("") { envelope(it.toLong(), seen = it == "201") }
+                    "$rows$tag OK fetch completed\r\n"
+                }
+                else -> forward(tag, line)
+            }
+        }
+    }
+
+    private fun envelope(uid: Long, seen: Boolean) =
+        "* 1 FETCH (UID $uid FLAGS (${if (seen) "\\Seen" else ""}) INTERNALDATE \"01-Jun-2026 10:00:00 +0000\" " +
+            "ENVELOPE (\"Mon, 1 Jun 2026 10:00:00 +0000\" \"Quarterly figures\" " +
+            "((\"Dana\" NIL \"dana\" \"example.org\")) NIL NIL " +
+            "((\"Alex\" NIL \"alex\" \"example.org\")) NIL NIL NIL \"<q3@example.org>\") " +
+            "BODYSTRUCTURE (\"text\" \"plain\" (\"charset\" \"utf-8\") NIL NIL \"7bit\" 12 1))\r\n"
+
+    /** A repository shared by the delete and its undo: where the forward move landed each message
+     *  is held in memory by the instance that made it. */
+    private val undoing by lazy { repository() }
+
+    /** Uid 7 unread and uid 8 read, both deleted from the inbox for real, counters then forgotten.
+     *  Returns the two ids as the list held them, which are the ids an Undo is handed. */
+    private fun deleteOneUnreadAndOneRead(server: ScriptedImapServer): Pair<String, String> {
+        val (unread, read) = cache(INBOX)
+        cached["$ACCOUNT/$read"] = row(read, INBOX, seen = true)
+        val deleted = runBlocking {
+            undoing.deleteAll(credentials(server), listOf(unread, read), mapOf(INBOX to NUMBERING))
+        }
+        assertEquals(setOf(unread, read), deleted.succeeded)
+        assertFolderRows(Triple(INBOX, -2, -1), Triple(TRASH, 2, 1))
+        forget()
+        return unread to read
     }
 
     /**

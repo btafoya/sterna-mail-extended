@@ -60,11 +60,12 @@ class SubscribedFoldersWiringTest {
                 "withSession(credentials) { it.listFolders() }", // listImapFolders, a delimiter, no more
                 "withSession(credentials) { it.listFolders() }", // testConnection
                 "val folders = session.listFolders()", // listMailboxes, rows discarded
-                "val folders = session.listFolders(onlySubscribed)", // loadFolder, the cached rows
+                // loadFolder, the cached rows, and the only listing that asks for unread counts
+                "val listing = session.listFoldersWithUnseen(onlySubscribed) { listed -> folderToOpen(listed, requestedMailboxId).path }",
                 "val folders = session.listFolders()", // the push-wake refresh: no LSUB on every wake-up
             ),
             codeLines("core/data/src/main/kotlin/app/sterna/core/data/mail/ImapMailService.kt")
-                .filter { it.contains("listFolders(") },
+                .filter { it.contains("listFolders") },
         )
     }
 
@@ -130,16 +131,16 @@ class SubscribedFoldersWiringTest {
                 "dropping any of them at this layer deletes cached folders the drawer merely had " +
                 "to stop drawing. Lines found:",
             listOf(
-                "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
+                "mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)",
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))",
                 "mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))",
-                "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
+                "mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)",
                 "mailboxDao.replaceAll(credentials.id, resolved.mailboxes.toEntities(credentials))",
                 // `MailFolders`: the two the switch drives, one per protocol.
-                "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
+                "mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)",
                 "mailboxDao.replaceAll(credentials.id, client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).toEntities(credentials))",
             ),
-            repositoryThenFolders().filter { it.contains("mailboxDao.replaceAll(") },
+            repositoryThenFolders().filter { it.contains("mailboxDao.replaceAll") },
         )
     }
 

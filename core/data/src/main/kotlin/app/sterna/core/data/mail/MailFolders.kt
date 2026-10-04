@@ -205,7 +205,7 @@ class MailFolders(
         if (credentials.protocol == MailProtocol.IMAP) {
             // Empty `onPage` and null `cachedPreviewsFor`: this caller caches no message. Still SELECTs the inbox.
             val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)
-            mailboxDao.replaceAll(credentials.id, load.mailboxes)
+            mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
             return
         }
         val ctx = host.jmapSession(credentials)

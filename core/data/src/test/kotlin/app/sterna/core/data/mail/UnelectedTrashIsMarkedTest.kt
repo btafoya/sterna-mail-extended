@@ -55,6 +55,13 @@ class UnelectedTrashIsMarkedTest {
         assertEquals(0, row.unreadEmails)
     }
 
+    @Test fun aCountTheServerStatedIsStoredAndAFolderWithNoneCarriesZero() {
+        val trash = folder("Trash", role = "trash")
+        assertEquals(4, imapMailboxEntity("acc-1", trash, index = 3, unread = 4).unreadEmails)
+        assertEquals(0, imapMailboxEntity("acc-1", trash, index = 3, unread = null).unreadEmails)
+        assertEquals(0, imapMailboxEntity("acc-1", trash, index = 3, unread = 4).totalEmails)
+    }
+
     /** And the winner still ranks as the trash, so the marking did not cost the drawer its order. */
     @Test fun theElectedTrashKeepsItsRank() {
         assertEquals(5003, imapMailboxEntity("acc-1", folder("Trash", role = "trash"), index = 3).sortOrder)
@@ -89,8 +96,17 @@ class UnelectedTrashIsMarkedTest {
             "listMailboxes and loadFolder must both hand the account id, the listed folder, its " +
                 "position AND the account's honoured choice of special folders to " +
                 "imapMailboxEntity — the parameter defaults to no choice at all, so a site that " +
-                "omits it compiles, stays green, and leaves the setting inert on that listing",
-            2, Regex("""imapMailboxEntity\(credentials\.id, folder, index, chosen\)""").findAll(source).count(),
+                "omits it compiles, stays green, and leaves the setting inert on that listing. " +
+                "Only loadFolder hands a count: listMailboxes asks the server for none (#174). " +
+                "Lines found:",
+            listOf(
+                "imapMailboxEntity(credentials.id, folder, index, chosen)",
+                "imapMailboxEntity(credentials.id, folder, index, chosen, unseen[folder.path])",
+            ),
+            source.lines().map { it.trim() }.filter {
+                "imapMailboxEntity(" in it && !it.startsWith("internal fun ") &&
+                    !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*")
+            },
         )
         assertEquals(
             "and both must honour the choice against THEIR OWN listing first: a choice naming a " +

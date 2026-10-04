@@ -96,17 +96,16 @@ class CollapsedFoldersStoreWiringTest {
     }
 
     /**
-     * V5's one line of repository, and the only thing that can read it: nothing in this module
+     * The drawer's one line of repository. Nothing in this module builds a `MailRepository`.
      */
-    @Test fun `the drawer's badge-availability flag delegates to the one IMAP test, negated`() {
+    @Test fun `the drawer's badge-availability flag answers true for every account`() {
         assertEquals(
-            "MailRepository.folderRowsBadgeUnread is gone or changed shape. It must be the " +
-                "NEGATION of isImapAccount for the id it was handed: IMAP folder rows carry a " +
-                "hard 0 (ImapMailService writes `unreadEmails = 0` with no condition and " +
-                "observeMailboxes only swaps in the live count for JMAP), so they cannot badge " +
-                "what a folded row hides. Lose the `!` and the drawer folds by default on exactly " +
-                "the accounts that cannot show the badge.",
-            listOf("fun folderRowsBadgeUnread(accountId: String): Boolean = !isImapAccount(accountId)"),
+            "MailRepository.folderRowsBadgeUnread is gone or changed shape. It must answer true " +
+                "whatever the account: an IMAP folder row holds the server's unread count like " +
+                "any other, so it badges what a folded row hides. `!isImapAccount(accountId)` " +
+                "here sets IMAP apart again: nothing folds by default on those accounts, with " +
+                "every behavioural test still green.",
+            listOf("fun folderRowsBadgeUnread(accountId: String): Boolean = true"),
             block("fun folderRowsBadgeUnread(", 1, path = MAIL_REPOSITORY),
         )
         assertEquals(
@@ -115,8 +114,8 @@ class CollapsedFoldersStoreWiringTest {
                 "such lookup and it carries the written decision about the folder counters; a " +
                 "copy of it elsewhere is a second answer nobody will keep in step. ⛔ The WHOLE " +
                 "line is pinned, never a startsWith over a count: a count of prefixes is blind to " +
-                "every mutation that LENGTHENS the line (`… && false` right here would restore " +
-                "the IMAP default and stay green), and this repo has been bitten by that three " +
+                "every mutation that LENGTHENS the line (`… && false` right here would hand " +
+                "an IMAP folder its windowed cache's count and stay green), and this repo has been bitten by that three " +
                 "times. The credentials.protocol tests elsewhere are a different question and are " +
                 "deliberately not matched: they read no store.",
             listOf("accountStore.account(accountId)?.protocol == MailProtocol.IMAP"),

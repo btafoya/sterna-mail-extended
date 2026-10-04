@@ -548,6 +548,47 @@ class ImapSession(private var socket: Socket) : Closeable {
         return withSubscriptions(folders, subscribed)
     }
 
+    fun listFoldersWithUnseen(
+        onlySubscribed: Boolean = false,
+        selectedNext: (List<ImapFolder>) -> String? = { null },
+    ): ImapFolderListing {
+        if (!hasCapability(CAP_LIST_STATUS)) {
+            val folders = listFolders(onlySubscribed)
+            val skipped = selectedNext(folders)
+            return ImapFolderListing(folders, statusUnseen(folders.map { it.path }.filter { it != skipped }))
+        }
+        val returned = if (hasCapability("SPECIAL-USE")) "SPECIAL-USE STATUS (UNSEEN)" else "STATUS (UNSEEN)"
+        val answered = try {
+            command("LIST \"\" \"*\" RETURN ($returned)").untagged
+        } catch (e: ImapException) {
+            if (e.taggedStatus == null) throw e
+            return ImapFolderListing(listFolders(onlySubscribed), emptyMap())
+        }
+        val listed = parseListFolders(answered)
+        val folders = if (onlySubscribed) {
+            withSubscriptions(listed, runCatching { parseLsubPaths(command("LSUB \"\" \"*\"").untagged) }.getOrNull())
+        } else {
+            listed
+        }
+        val skipped = selectedNext(folders)
+        return ImapFolderListing(folders, parseStatusUnseen(answered).filterKeys { it != skipped })
+    }
+
+    private fun statusUnseen(paths: List<String>): Map<String, Int> {
+        val unseen = mutableMapOf<String, Int>()
+        for (path in paths) {
+            val answered = try {
+                command("STATUS ${mailboxArg(path)} (UNSEEN)").untagged
+            } catch (e: ImapException) {
+                if (e.taggedStatus != null) continue else break
+            } catch (_: java.io.IOException) {
+                break
+            }
+            parseStatusUnseen(answered)[path]?.let { unseen[path] = it }
+        }
+        return unseen
+    }
+
         /**
          * [expectedUidValidity] is the UIDVALIDITY this caller's UIDs were read under; a different one
          * means every UID was reassigned (RFC 3501 §2.3.1.1), so the call is refused with

@@ -161,9 +161,8 @@ class CollapsedFoldersSurfaceWiringTest {
                 "branch closes. An empty body passes every other assertion in this file and kills " +
                 "the feature outright: the chevron stops moving. BOTH statements are the rule: the " +
                 "second re-reads whether the ARRIVING account's rows can badge unread at all, and " +
-                "without it a JMAP account opened after an IMAP one keeps folding nothing, or an " +
-                "IMAP account opened after a JMAP one folds by default with no badge anywhere to " +
-                "say what went. Nothing executes this method — no test in this module can build an " +
+                "without it the first account opened after a start with none keeps folding " +
+                "nothing. Nothing executes this method — no test in this module can build an " +
                 "InboxViewModel — so these lines are the only thing standing over it.",
             listOf(
                 "private fun refreshCollapsedFolders() {",
@@ -197,8 +196,8 @@ class CollapsedFoldersSurfaceWiringTest {
         assertEquals(
             "InboxViewModel's badge-availability flag must be seeded INLINE from the current " +
                 "account, by asking the repository — not from init (which NPEs), and not from a " +
-                "constant (which pins every account to the same answer and puts the IMAP default " +
-                "back). It is the account's property, so it is read per account id.",
+                "constant (which pins every account, and the absence of one, to the same " +
+                "answer). It is the account's property, so it is read per account id.",
             listOf(
                 "private val _folderRowsBadgeUnread =",
                 "MutableStateFlow(store.currentId()?.let { repo.folderRowsBadgeUnread(it) } ?: false)",
@@ -229,8 +228,8 @@ class CollapsedFoldersSurfaceWiringTest {
         )
         assertEquals(
             "the badge-availability flag no longer reaches the screen as itself. Exposed as a " +
-                "constant true it never answers false, so the default folds on an IMAP account " +
-                "with no badge anywhere to say what went — V5 undone by one line, and nothing " +
+                "constant true it never answers false, so the default folds with no current " +
+                "account and no badge anywhere to say what went — V5 undone by one line, and nothing " +
                 "else in this module can see it.",
             listOf("val folderRowsBadgeUnread: StateFlow<Boolean> = _folderRowsBadgeUnread"),
             block(INBOX_VIEW_MODEL, "val folderRowsBadgeUnread: StateFlow", 1),

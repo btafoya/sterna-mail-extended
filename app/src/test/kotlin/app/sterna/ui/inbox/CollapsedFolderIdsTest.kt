@@ -93,7 +93,7 @@ class CollapsedFolderIdsTest {
         )
     }
 
-    // ── V5: an account whose rows carry no unread count (IMAP) ──────────────────────────────────
+    // ── V5: rows that carry no unread count (no current account) ──────────────────────────────────
 
     /**
      * The heart of V5, and the thing it must not break. Suspending the default on an account
@@ -102,7 +102,7 @@ class CollapsedFolderIdsTest {
         assertEquals(
             "the user's own fold was dropped because the account cannot badge unread. V5 suspends " +
                 "the DEFAULT, never the registry: a chevron the user closed by hand must still be " +
-                "closed at the next cold start, on IMAP as on JMAP. Perso is a leaf the default " +
+                "closed at the next cold start. Perso is a leaf the default " +
                 "never folds and Travail is one it would have — both were folded by hand, both " +
                 "must come back.",
             setOf("Perso", "Travail"),
@@ -135,8 +135,7 @@ class CollapsedFolderIdsTest {
         assertEquals(
             "an untouched folder folded itself on an account where no row can show what it hides. " +
                 "That is mail disappearing from the drawer with nothing on screen saying so, which " +
-                "is precisely what the folded row's badge exists to prevent — and on this account " +
-                "the badge is a hard 0 by a decision written in MailRepository.",
+                "is precisely what the folded row's badge exists to prevent.",
             emptySet<String>(),
             collapsedFolderIds(nested, emptyMap(), rowsBadgeUnread = false),
         )

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import app.sterna.core.data.mail.keepingUnstatedUnread
 import app.sterna.core.data.mail.mailboxEvictions
 import kotlinx.coroutines.flow.Flow
 
@@ -85,6 +86,9 @@ interface MailboxDao {
     @Query("SELECT id FROM mailboxes WHERE accountId = :accountId")
     suspend fun idsForAccount(accountId: String): List<String>
 
+    @Query("SELECT id, unreadEmails FROM mailboxes WHERE accountId = :accountId")
+    suspend fun unreadForAccount(accountId: String): List<MailboxIdUnread>
+
     /** Drop folders from the cache (drawer), e.g. while a folder delete awaits its undo window. */
     @Query("DELETE FROM mailboxes WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun deleteByIds(accountId: String, ids: List<String>)
@@ -99,7 +103,18 @@ interface MailboxDao {
             deleteByIds(accountId, batch)
         }
     }
+
+    @Transaction
+    suspend fun replaceAllKeepingUnread(accountId: String, mailboxes: List<MailboxEntity>, unreadStated: Set<String>) {
+        val cached = unreadForAccount(accountId).associate { it.id to it.unreadEmails }
+        replaceAll(accountId, keepingUnstatedUnread(mailboxes, unreadStated, cached))
+    }
 }
+
+data class MailboxIdUnread(
+    val id: String,
+    val unreadEmails: Int,
+)
 
 data class AccountMailboxId(
     val accountId: String,

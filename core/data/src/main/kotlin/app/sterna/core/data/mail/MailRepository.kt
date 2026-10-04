@@ -43,6 +43,7 @@ import app.sterna.core.data.db.RecentContactDao
 import app.sterna.core.data.db.ServerContactDao
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
+import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
 import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
@@ -263,6 +264,18 @@ internal data class ImapMoveOutcome(
 internal fun imapMoveOutcome(uidToId: Map<Long, String>, confirmedGone: Set<Long>): ImapMoveOutcome {
     val (proved, rest) = uidToId.entries.partition { it.key in confirmedGone }
     return ImapMoveOutcome(gone = proved.map { it.value }, unproven = rest.map { it.value })
+}
+
+/** The seen state of each message an IMAP undo brought home, keyed by the id its target carries:
+ *  the move back renumbered it, so [fetched] holds ids no target knows. [messages] is (uid in the
+ *  folder it left, id). A message the re-fetch did not return is absent, never guessed. */
+internal fun seenOfRestoredImapRows(
+    messages: List<Pair<Long, String>>,
+    moved: app.sterna.core.imap.ImapMoved,
+    fetched: List<EmailEntity>,
+): Map<String, Boolean> {
+    val seenByNewUid = fetched.mapNotNull { row -> ImapMailService.uidOf(row.id)?.let { it to row.seen } }.toMap()
+    return messages.mapNotNull { (uid, id) -> moved.uids[uid]?.let { seenByNewUid[it] }?.let { id to it } }.toMap()
 }
 
 /** Whether a search answer may be presented as a total rather than as a floor. [scopeCoversAccount]
@@ -692,6 +705,22 @@ internal fun unreadByAccountFrom(
         accountId to (live.firstOrNull { it.accountId == accountId && it.mailboxId == inboxId }?.count ?: 0)
     } + imapScopes.associate { (accountId, _) -> accountId to storedUnread(accountId) }
 }
+
+/** The mailbox list the screens see. With [storedCounts] (IMAP) each folder keeps the unread count
+ *  its cache row holds, the server's, in messages: the message cache is a window and counting its
+ *  rows would under-count. Otherwise [live] replaces it, and is only asked for then. */
+internal fun mailboxesFrom(
+    storedCounts: Boolean,
+    stored: Flow<List<MailboxEntity>>,
+    live: () -> Flow<Map<String, Int>>,
+): Flow<List<Mailbox>> =
+    if (storedCounts) {
+        stored.map { rows -> rows.map { it.toMailbox() } }
+    } else {
+        combine(stored, live()) { rows, unread ->
+            rows.map { it.toMailbox().copy(unreadForList = unread[it.id] ?: 0) }
+        }
+    }
 
 /** Build the conversation-collapsed paged query: one row per thread, its count covering the view's
  *  members plus the Sent-role replies in [sentMailboxes] so the chip always equals the expansion.
@@ -1494,13 +1523,7 @@ class MailRepository(
      * Cached mailboxes of [accountId], updated reactively. JMAP folders carry a live local
      */
     fun observeMailboxes(accountId: String): Flow<List<Mailbox>> =
-        if (isImapAccount(accountId)) {
-            mailboxDao.observeAll(accountId).map { rows -> rows.map { it.toMailbox() } }
-        } else {
-            combine(mailboxDao.observeAll(accountId), observeUnreadByMailbox(accountId)) { rows, unread ->
-                rows.map { it.toMailbox().copy(unreadForList = unread[it.id] ?: 0) }
-            }
-        }
+        mailboxesFrom(isImapAccount(accountId), mailboxDao.observeAll(accountId)) { observeUnreadByMailbox(accountId) }
 
     /**
      * Paged list of cached emails for [scopes], the unified inbox's (account id, inbox id) pairs. Pairs, not
@@ -1829,7 +1852,7 @@ class MailRepository(
                     // Same write-through as the single-account refresh, and sized on the account's
                     // window, not the 50 passed here.
                     val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)
-                    mailboxDao.replaceAll(credentials.id, load.mailboxes)
+                    mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
                     results += AccountInboxMeta(
                         credentials.id, load.accountName, load.targetMailboxId, load.targetName, load.unread,
                     )
@@ -2007,7 +2030,7 @@ class MailRepository(
         pruneBeforeMillis: Long?,
     ): MailboxMeta {
         val load = imapWriteThrough(credentials, mailboxId, limit)
-        mailboxDao.replaceAll(credentials.id, load.mailboxes)
+        mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
         // Spares the window just fetched, every page of it: IMAP re-queries the folder on every
         // refresh (#110). The same decision the reconcile took, called again rather than restated.
         if (pruneBeforeMillis != null) {
@@ -2675,17 +2698,17 @@ class MailRepository(
         if (mailboxId == null || wasSeen == null || wasSeen == seen) return
         val delta = if (seen) -1 else 1
         accountStore.adjustInboxUnread(accountId, mailboxId, delta)
-        if (!isImapAccount(accountId)) mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = 0, unreadDelta = delta)
+        mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = 0, unreadDelta = delta)
     }
 
-    /** IMAP folder rows carry no server unread counts (a hard 0), so nudging deltas onto that baseline
-     *  would manufacture bogus badges. The stored inbox meta is not gated: its baseline is real. */
+    /** Read off the stored account, for a caller that holds an id and no credentials. */
     private fun isImapAccount(accountId: String): Boolean =
         accountStore.account(accountId)?.protocol == MailProtocol.IMAP
 
-    /** Can a drawer folder row of [accountId] carry an unread count at all? Named after the property,
-     *  not the protocol: the drawer folds a folder on the strength of the badge it would show (#185). */
-    fun folderRowsBadgeUnread(accountId: String): Boolean = !isImapAccount(accountId)
+    /** Can a drawer folder row of [accountId] carry an unread count at all? Both protocols
+     *  can, IMAP included. Kept as the one place to say a protocol has no per-row count: the
+     *  drawer folds a folder on the strength of the badge it would show (#185). */
+    fun folderRowsBadgeUnread(accountId: String): Boolean = true
 
     suspend fun setFlagged(credentials: AccountCredentials, emailId: String, flagged: Boolean) {
         markRecentlyMutated(credentials.id, emailId)
@@ -2784,9 +2807,7 @@ class MailRepository(
             val (accountId, mailboxId) = where
             val unread = group.count { !it.seen }
             accountStore.adjustInboxUnread(accountId, mailboxId, unread)
-            if (!isImapAccount(accountId)) {
-                mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = group.size, unreadDelta = unread)
-            }
+            mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = group.size, unreadDelta = unread)
         }
     }
 
@@ -3127,13 +3148,12 @@ class MailRepository(
         destMailboxId: String?,
         sourceAlreadyLeft: Boolean = false,
     ) {
-        val imap = isImapAccount(accountId)
         if (!sourceAlreadyLeft) {
             sources.groupBy { it.first }.forEach { (src, group) ->
                 if (src == destMailboxId) return@forEach
                 val unread = group.count { !it.second }
                 accountStore.adjustInboxUnread(accountId, src, -unread)
-                if (!imap) mailboxDao.adjustCounts(accountId, src, totalDelta = -group.size, unreadDelta = -unread)
+                mailboxDao.adjustCounts(accountId, src, totalDelta = -group.size, unreadDelta = -unread)
             }
         }
         if (destMailboxId != null) {
@@ -3141,7 +3161,7 @@ class MailRepository(
             if (incoming.isNotEmpty()) {
                 val unread = incoming.count { !it.second }
                 accountStore.adjustInboxUnread(accountId, destMailboxId, unread)
-                if (!imap) mailboxDao.adjustCounts(accountId, destMailboxId, totalDelta = incoming.size, unreadDelta = unread)
+                mailboxDao.adjustCounts(accountId, destMailboxId, totalDelta = incoming.size, unreadDelta = unread)
             }
         }
     }
@@ -3646,6 +3666,7 @@ class MailRepository(
         targets.forEach { markRecentlyMutated(credentials.id, it.emailId) }
         val restored = mutableSetOf<String>()
         if (credentials.protocol == MailProtocol.IMAP) {
+            val seenAfterRestore = mutableMapOf<String, Boolean>()
             // Group by (current folder, source folder, numbering that current folder stated on landing).
             val routes = UidValidity.imapUndoRoutes(targets.map { it.emailId to it.sourceMailboxId }) { lastImapMove[it] }
             routes.forEach { route ->
@@ -3665,12 +3686,13 @@ class MailRepository(
                         .takeIf { it.isNotEmpty() }
                         ?.let { fetched ->
                             emailDao.upsertAll(fetched)
+                            seenAfterRestore += seenOfRestoredImapRows(route.messages, moved, fetched)
                             fetched.forEach { markRecentlyMutated(credentials.id, it.id); recentLocalMoves.mark(credentials.id, it.id) }
                         }
                 }
             }
             restored.forEach { lastImapMove.remove(it) }
-            restoreCounts(credentials.id, targets.filter { it.emailId in restored })
+            restoreCounts(credentials.id, targets.filter { it.emailId in restored }, seenAfterRestore)
             return targets.map { it.emailId }.toSet() - restored
         }
         // JMAP: ids are stable across moves, so one Email/set per source folder, then a re-fetch.
@@ -3694,10 +3716,17 @@ class MailRepository(
         return targets.map { it.emailId }.toSet() - restored
     }
 
-    /** Reverse the forward removal's count nudge; a row with no re-cached seen state counts as read. */
-    private suspend fun restoreCounts(accountId: String, targets: List<RestoreTarget>) {
-        val seenById = byIdsChunked(targets.map { it.emailId }) { chunk -> emailDao.emailsByIds(accountId, chunk) }
-            .associate { it.id to it.seen }
+    /** Reverse the forward removal's count nudge; a row with no re-cached seen state counts as read.
+     *  [refetchedSeen] is what an IMAP undo read back, keyed by target id: the cache holds no row
+     *  under an id the move back replaced, so reading it there counts every message as read. */
+    private suspend fun restoreCounts(
+        accountId: String,
+        targets: List<RestoreTarget>,
+        refetchedSeen: Map<String, Boolean>? = null,
+    ) {
+        val seenById = refetchedSeen
+            ?: byIdsChunked(targets.map { it.emailId }) { chunk -> emailDao.emailsByIds(accountId, chunk) }
+                .associate { it.id to it.seen }
         val moves = targets.mapNotNull { t ->
             val dest = t.destMailboxId ?: return@mapNotNull null // a destroy can't be undone
             (dest to (seenById[t.emailId] ?: true))

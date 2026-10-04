@@ -3086,7 +3086,7 @@ class InboxViewModel(
 
     /**
      * Whether the current account's drawer folder rows can carry an unread count at all
-     * ([MailRepository.folderRowsBadgeUnread]), false on IMAP, whose rows hold a hard 0.
+     * ([MailRepository.folderRowsBadgeUnread]), false with no current account.
      *
      * The default fold rests on that badge: a folder folded on the first run is honest only while
      * the folded row says how much mail it is hiding. Per account, re-read on every switch (#185).

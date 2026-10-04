@@ -77,13 +77,13 @@ class LostRoleClaimBordersTest {
      */
     @Test fun `the cache row reaches the crossing with its role untouched`() {
         assertEquals(
-            "MailRepository.observeMailboxes changed shape. It is the ONE producer of the mailbox " +
-                "list the screens see, and nothing executes it: a row whose role is unmarked " +
+            "MailRepository's mailboxesFrom changed shape. It is the ONE producer of the mailbox " +
+                "list the screens see, and nothing executes it on a lost claim: a row whose role is unmarked " +
                 "BEFORE toMailbox() carries no lost claim, and a folder that lost its election " +
                 "leaves the drawer, both move pickers and the unread view while it is already out " +
                 "of search — reachable from nowhere, its mail still on the server.",
             listOf(
-                "mailboxDao.observeAll(accountId).map { rows -> rows.map { it.toMailbox() } }",
+                "stored.map { rows -> rows.map { it.toMailbox() } }",
                 "rows.map { it.toMailbox().copy(unreadForList = unread[it.id] ?: 0) }",
             ),
             codeLines(MAIL_REPOSITORY).filter { "it.toMailbox()" in it },

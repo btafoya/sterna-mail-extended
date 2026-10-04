@@ -90,7 +90,7 @@ class PrefetchStaysInTheInboxWiringTest {
             listOf(
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)",
-                "mailboxDao.replaceAll(credentials.id, load.mailboxes)",
+                "mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)",
                 "results += AccountInboxMeta(",
                 "credentials.id, load.accountName, load.targetMailboxId, load.targetName, load.unread,",
                 ")",

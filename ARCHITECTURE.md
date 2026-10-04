@@ -97,8 +97,9 @@ Drawer badges are WYSIWYG: for JMAP folders the badge is a live Room aggregate,
 unread *threads* in conversation view, unread *messages* in flat view, so it
 always equals the bold rows in the list and moves instantly on read/move/
 delete/snooze. IMAP folders keep the stored server counter instead (their
-windowed cache would under-count), so there the badge counts messages where the
-list shows threads; and the "All inboxes" header sums the same
+windowed cache would under-count), read from the server at each refresh and
+moved by the actions taken in the app, so there the badge counts messages where
+the list shows threads; and the "All inboxes" header sums the same
 per-account sources.
 
 ## Actions & safety
