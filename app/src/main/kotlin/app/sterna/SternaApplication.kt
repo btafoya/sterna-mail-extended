@@ -221,7 +221,7 @@ class AppContainer(context: Context) {
         // one by one is a list that goes out of date the first time a gesture is added.
         //
         // Gated on a widget being placed: collecting the unified total for the life of every
-        // process subscribes two global Room aggregates on behalf of the majority who never place
+        // process subscribes a global Room query on behalf of the majority who never place
         //
         appScope.launch {
             UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {

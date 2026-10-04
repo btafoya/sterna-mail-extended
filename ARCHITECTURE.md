@@ -93,14 +93,13 @@ every write pass from the list FETCH, which carries
 `BODY.PEEK[HEADER.FIELDS (REFERENCES)]` for that purpose. A message with none
 of the three keeps its own row.
 
-Drawer badges are WYSIWYG: for JMAP folders the badge is a live Room aggregate,
-unread *threads* in conversation view, unread *messages* in flat view, so it
-always equals the bold rows in the list and moves instantly on read/move/
-delete/snooze. IMAP folders keep the stored server counter instead (their
-windowed cache would under-count), read from the server at each refresh and
-moved by the actions taken in the app, so there the badge counts messages where
-the list shows threads; and the "All inboxes" header sums the same
-per-account sources.
+Drawer counts are the server's, on both protocols: a folder shows the unread
+count the server gave at the last refresh (opening the app, pull to refresh, a
+push, the background sync), kept on the folder's cache row and moved by the
+actions taken in the app (read, move, delete). It counts *messages*: in
+conversation view a thread with two unread messages counts for two where the
+list shows one row, and a snoozed message stays counted. The "All inboxes"
+header and the unread widget add up the inbox count of each account.
 
 ## Actions & safety
 

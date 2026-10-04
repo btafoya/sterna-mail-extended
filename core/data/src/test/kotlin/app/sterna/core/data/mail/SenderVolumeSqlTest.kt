@@ -233,7 +233,7 @@ class SenderVolumeSqlTest {
     // -- what the owner already put aside ---------------------------------------------------------
 
     @Test fun `a message snoozed into the future is neither counted nor deleted`() {
-        // She put it aside on purpose: it is in no list and in no unread badge. Counting it here
+        // She put it aside on purpose: it is in no list. Counting it here
         // would be the single place it comes back, and since the clause is shared, the delete
         // would carry off mail she cannot see anywhere.
         insert("here", from = "a@example.com", seen = 0)

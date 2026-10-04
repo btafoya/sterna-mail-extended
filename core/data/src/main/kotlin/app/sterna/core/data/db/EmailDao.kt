@@ -319,33 +319,6 @@ interface EmailDao {
     )
     fun cachedThreadEmails(accountId: String, mailboxIds: List<String>, threadKey: String): Flow<List<EmailEntity>>
 
-    /**
-     * Per-folder count of unread threads (the conversation-mode drawer badge).
-     */
-    @Query(
-        "SELECT accountId, mailboxId, COUNT(*) AS count FROM (" +
-            "SELECT accountId, mailboxId, COALESCE(threadId, id) AS tk FROM emails " +
-            "WHERE NOT EXISTS (SELECT 1 FROM snoozed WHERE snoozed.emailId = emails.id " +
-            "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
-            "(CAST(strftime('%s','now') AS INTEGER) * 1000)) " +
-            "GROUP BY accountId, mailboxId, tk HAVING MIN(seen) = 0" +
-            ") GROUP BY accountId, mailboxId",
-    )
-    fun observeThreadUnreadCounts(): Flow<List<MailboxUnread>>
-
-    /**
-     * Per-folder count of unread messages (the flat-mode drawer badge), with the flat list's
-     * not-snoozed filter. Reactive, as [observeThreadUnreadCounts].
-     */
-    @Query(
-        "SELECT accountId, mailboxId, COUNT(*) AS count FROM emails " +
-            "WHERE seen = 0 AND NOT EXISTS (SELECT 1 FROM snoozed WHERE snoozed.emailId = emails.id " +
-            "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
-            "(CAST(strftime('%s','now') AS INTEGER) * 1000)) " +
-            "GROUP BY accountId, mailboxId",
-    )
-    fun observeMessageUnreadCounts(): Flow<List<MailboxUnread>>
-
     /** Cached-message count per account, for the storage usage breakdown. */
     @Query("SELECT accountId, COUNT(*) AS messageCount FROM emails GROUP BY accountId")
     suspend fun countsByAccount(): List<AccountMessageCount>
@@ -465,11 +438,4 @@ data class SenderVolumeRow(
 data class AccountMessageCount(
     val accountId: String,
     val messageCount: Int,
-)
-
-/** Per-(account, folder) unread aggregate for the drawer badge (see [EmailDao.observeThreadUnreadCounts]). */
-data class MailboxUnread(
-    val accountId: String,
-    val mailboxId: String,
-    val count: Int,
 )

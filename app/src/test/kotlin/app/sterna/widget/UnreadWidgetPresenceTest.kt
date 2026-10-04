@@ -13,7 +13,7 @@ class UnreadWidgetPresenceTest {
     @Test fun `no cell placed means no widget`() {
         assertEquals(
             "an empty id array is the widget manager saying nobody placed this widget. Answering " +
-                "true here subscribes two global Room aggregates for the life of every process on " +
+                "true here subscribes a global Room query for the life of every process on " +
                 "earth, which is exactly what the gate refuses.",
             false,
             anyWidgetPlaced(intArrayOf()),

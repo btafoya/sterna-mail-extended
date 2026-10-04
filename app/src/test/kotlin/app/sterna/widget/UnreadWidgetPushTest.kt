@@ -74,7 +74,7 @@ class UnreadWidgetPushTest {
 
         assertEquals(
             "with no widget placed the count factory must not be called: collecting " +
-                "observeUnifiedInboxUnread() subscribes two global Room aggregates for the whole " +
+                "observeUnifiedInboxUnread() subscribes a global Room query for the whole " +
                 "life of the process, and the majority of installs will never place this widget.",
             emptyList<String>(),
             counter.asked,
@@ -325,7 +325,7 @@ class UnreadWidgetPushTest {
         )
         assertEquals(
             "and above all the count is not asked again: the breakdown is keyed on countedInboxes, " +
-                "and rebuilding two global Room aggregates on every saveAccounts is the expense " +
+                "and rebuilding a global Room query on every saveAccounts is the expense " +
                 "this arm was designed around.",
             listOf("ask#0"),
             counter.asked,

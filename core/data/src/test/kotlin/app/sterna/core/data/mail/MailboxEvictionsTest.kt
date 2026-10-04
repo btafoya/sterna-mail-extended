@@ -2,6 +2,7 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.db.AccountMailboxId
 import app.sterna.core.data.db.AccountMailboxRole
+import app.sterna.core.data.db.AccountMailboxUnread
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
@@ -193,6 +194,7 @@ class MailboxEvictionsTest {
         }
 
         override fun observeAll(accountId: String): Flow<List<MailboxEntity>> = error("unused")
+        override fun observeUnread(): Flow<List<AccountMailboxUnread>> = error("unused")
         override suspend fun unreadForAccount(accountId: String): List<MailboxIdUnread> = error("unused")
         override suspend fun deleteAll(): Unit = error("unused")
         override suspend fun deleteForAccount(accountId: String): Unit = error("unused")

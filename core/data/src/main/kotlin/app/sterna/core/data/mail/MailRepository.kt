@@ -21,6 +21,7 @@ import app.sterna.core.data.filter.ScriptSnapshot
 import app.sterna.core.data.filter.SieveParse
 import app.sterna.core.data.filter.SieveScript
 import app.sterna.core.data.db.AccountMailboxRole
+import app.sterna.core.data.db.AccountMailboxUnread
 import app.sterna.core.data.db.CachedPreview
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -45,7 +46,6 @@ import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
-import app.sterna.core.data.db.MailboxUnread
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeCertificates
@@ -106,7 +106,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -691,36 +690,21 @@ internal inline fun recentUnifiedInboxFrom(
     if (scopes.isEmpty()) RecentInbox(configured = false, rows = emptyList())
     else RecentInbox(configured = true, rows = read(scopes))
 
-/** The unified unread total broken down per account. A JMAP inbox is looked up by both halves of
- *  its scope (#121); an IMAP inbox contributes [storedUnread], not the live aggregate. Built from
- *  [scopes], so an account whose inbox is unknown is absent, not present at 0. */
+/** The unified unread total broken down per account. A JMAP inbox contributes the unread count of
+ *  its row in [rows], found by both halves of its scope (#121), and 0 while it has no row; never
+ *  [storedUnread], written in the foreground only. An IMAP inbox contributes [storedUnread]. Built
+ *  from [scopes], so an account whose inbox is unknown is absent, not present at 0. */
 internal fun unreadByAccountFrom(
     scopes: List<Pair<String, String>>,
-    live: List<MailboxUnread>,
+    rows: List<AccountMailboxUnread>,
     isImap: (String) -> Boolean,
     storedUnread: (String) -> Int,
 ): Map<String, Int> {
     val (imapScopes, jmapScopes) = scopes.partition { (accountId, _) -> isImap(accountId) }
     return jmapScopes.associate { (accountId, inboxId) ->
-        accountId to (live.firstOrNull { it.accountId == accountId && it.mailboxId == inboxId }?.count ?: 0)
+        accountId to (rows.firstOrNull { it.accountId == accountId && it.id == inboxId }?.unreadEmails ?: 0)
     } + imapScopes.associate { (accountId, _) -> accountId to storedUnread(accountId) }
 }
-
-/** The mailbox list the screens see. With [storedCounts] (IMAP) each folder keeps the unread count
- *  its cache row holds, the server's, in messages: the message cache is a window and counting its
- *  rows would under-count. Otherwise [live] replaces it, and is only asked for then. */
-internal fun mailboxesFrom(
-    storedCounts: Boolean,
-    stored: Flow<List<MailboxEntity>>,
-    live: () -> Flow<Map<String, Int>>,
-): Flow<List<Mailbox>> =
-    if (storedCounts) {
-        stored.map { rows -> rows.map { it.toMailbox() } }
-    } else {
-        combine(stored, live()) { rows, unread ->
-            rows.map { it.toMailbox().copy(unreadForList = unread[it.id] ?: 0) }
-        }
-    }
 
 /** Build the conversation-collapsed paged query: one row per thread, its count covering the view's
  *  members plus the Sent-role replies in [sentMailboxes] so the chip always equals the expansion.
@@ -1461,19 +1445,6 @@ class MailRepository(
         }
     }
 
-    private fun observeUnreadByMailbox(accountId: String): Flow<Map<String, Int>> {
-        val conversationView = settings?.conversationView ?: flowOf(true)
-        return combine(
-            emailDao.observeThreadUnreadCounts(),
-            emailDao.observeMessageUnreadCounts(),
-            conversationView,
-        ) { threads, messages, conversation ->
-            (if (conversation) threads else messages)
-                .filter { it.accountId == accountId }
-                .associate { it.mailboxId to it.count }
-        }
-    }
-
     /** The overload below, over the stored accounts. An account whose inbox is unknown is absent
      *  from the map, never 0. */
     fun observeUnifiedInboxUnreadByAccount(): Flow<Map<String, Int>> = UnifiedInbox.unreadByAccount(
@@ -1500,30 +1471,24 @@ class MailRepository(
         accountStore.accountsFlow,
     ) { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit)) }
 
-    /**
-     * Live unread across every account's inbox, one entry per account. JMAP inboxes contribute the same
-     */
-    fun observeUnifiedInboxUnreadByAccount(scopes: List<Pair<String, String>>): Flow<Map<String, Int>> {
-        val conversationView = settings?.conversationView ?: flowOf(true)
-        return combine(
-            emailDao.observeThreadUnreadCounts(),
-            emailDao.observeMessageUnreadCounts(),
-            conversationView,
-        ) { threads, messages, conversation ->
+    /** Unread across the inboxes of [scopes], one entry per account, re-emitted when a folder row
+     *  changes. The decision is [unreadByAccountFrom]. */
+    fun observeUnifiedInboxUnreadByAccount(scopes: List<Pair<String, String>>): Flow<Map<String, Int>> =
+        mailboxDao.observeUnread().map { rows ->
             unreadByAccountFrom(
                 scopes = scopes,
-                live = if (conversation) threads else messages,
+                rows = rows,
                 isImap = ::isImapAccount,
                 storedUnread = { accountId -> accountStore.account(accountId)?.unread ?: 0 },
             )
         }
-    }
 
     /**
-     * Cached mailboxes of [accountId], updated reactively. JMAP folders carry a live local
+     * Cached mailboxes of [accountId], updated reactively. Each folder carries the unread count its
+     * cache row holds, on both protocols: a count of its cached messages is zero until it is opened.
      */
     fun observeMailboxes(accountId: String): Flow<List<Mailbox>> =
-        mailboxesFrom(isImapAccount(accountId), mailboxDao.observeAll(accountId)) { observeUnreadByMailbox(accountId) }
+        mailboxDao.observeAll(accountId).map { rows -> rows.map { it.toMailbox() } }
 
     /**
      * Paged list of cached emails for [scopes], the unified inbox's (account id, inbox id) pairs. Pairs, not

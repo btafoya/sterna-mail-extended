@@ -177,7 +177,7 @@ class UnifiedInboxUnreadTest {
         assertEquals(
             "renaming an account, or recolouring it, republishes the whole account list; the " +
                 "count must be asked for ONCE all the same. Asking again cancels and rebuilds the " +
-                "Room aggregates on the collector's context for a number that cannot have moved.",
+                "Room query on the collector's context for a number that cannot have moved.",
             listOf(listOf("a" to "ia")),
             counter.calls,
         )
@@ -289,7 +289,7 @@ class UnifiedInboxUnreadTest {
         assertEquals(
             "MailRepository.observeUnifiedInboxUnread() must be the breakdown, totalled — one " +
                 "DERIVATION for the drawer and the widget alike. ⛔ Not one subscription: nothing " +
-                "shares this flow, so each caller still builds its own combine. What is held here " +
+                "shares this flow, so each caller still collects its own query. What is held here " +
                 "is that there is only one rule, so the two numbers cannot disagree.",
             listOf(
                 "fun observeUnifiedInboxUnread(): Flow<Int> =",

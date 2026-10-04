@@ -12,10 +12,9 @@ data class Mailbox(
     val sortOrder: Int = 0,
     val totalEmails: Int = 0,
     val unreadEmails: Int = 0,
-        /** Unread count shown as the drawer badge. For JMAP accounts a live local aggregate over the
-         *  cached `emails` table, mode-appropriate and folder-scoped exactly like the collapsed list,
-         *  so the badge equals the visible bold rows; IMAP accounts (partial cache) fall back to the
-         *  stored server counter. Not a server field. Distinct from [unreadEmails]. */
+        /** The unread count the drawer shows for this folder, in messages: the one the server gave
+         *  at the last refresh, adjusted by the gestures made since. Not a server field: filled
+         *  from the cache row, and 0 on a [Mailbox] decoded from the wire. */
     val unreadForList: Int = 0,
         /**
          * Whether the server reports this mailbox as subscribed (RFC 8621 §2, Codeberg #174).

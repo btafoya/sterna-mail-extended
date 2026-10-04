@@ -6,25 +6,27 @@ import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.db.AccountMailboxId
 import app.sterna.core.data.db.AccountMailboxRole
+import app.sterna.core.data.db.AccountMailboxUnread
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
 import app.sterna.core.data.db.MailboxIdUnread
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
+import app.sterna.core.jmap.model.Mailbox
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The unread count of each IMAP folder row, from the server's answer to the screens. Four levels:
+ * The unread count of each folder row, from an IMAP server's answer to the screens. Four levels:
  * `loadFolder` run against a scripted server, `MailboxDao.replaceAllKeepingUnread` run on a table
  * held in memory, the call of that write in `refreshImap`, pinned by its whole line, and
- * `mailboxesFrom` run on a cache row, its call pinned the same way. Neither
+ * `toMailbox` run on a cache row, its call in `observeMailboxes` pinned the same way. The last
+ * level holds for a JMAP account too; the lint that forbids a second writer of `unreadForList`
+ * reads `MailRepository` alone, not the screens. Neither
  * refresh is executed here: `MailRepository` needs its message cache to walk a folder. The write of
  * `refreshAllInboxes` is pinned by [PrefetchStaysInTheInboxWiringTest], every folder-cache write by
  * [SubscribedFoldersWiringTest].
@@ -152,38 +154,59 @@ class FolderUnreadCountsTest {
 
     // -- what the screens read -------------------------------------------------------------
 
-    @Test fun `an IMAP folder row shows the count its cache row holds, and the local aggregate is not asked`() {
-        val shown = runBlocking {
-            mailboxesFrom(storedCounts = true, stored = flowOf(listOf(row("Projets", unread = 12)))) {
-                error("the cache of an IMAP folder is a window: its aggregate must not be collected")
-            }.first()
-        }
+    @Test fun `a folder row shows the count its cache row holds, whatever messages are cached`() {
+        val shown = listOf(row("Projets", unread = 12), row("Archives", unread = 0)).map { it.toMailbox() }
 
-        assertEquals(mapOf("Projets" to 12), shown.associate { it.id to it.unreadForList })
-    }
-
-    @Test fun `a folder row counted locally shows the aggregate, zero where it names no row`() {
-        val shown = runBlocking {
-            mailboxesFrom(
-                storedCounts = false,
-                stored = flowOf(listOf(row("Projets", unread = 12), row("Archives", unread = 7))),
-            ) { flowOf(mapOf("Projets" to 2)) }.first()
-        }
-
-        assertEquals(mapOf("Projets" to 2, "Archives" to 0), shown.associate { it.id to it.unreadForList })
-    }
-
-    @Test fun `the mailbox list keeps the stored counts for an IMAP account, by id`() {
         assertEquals(
-            "observeMailboxes must hand mailboxesFrom the protocol of the account it was asked " +
-                "for. A constant false gives every IMAP folder the count of its windowed cache. " +
-                "Lines found:",
-            listOf("mailboxesFrom(isImapAccount(accountId), mailboxDao.observeAll(accountId)) { observeUnreadByMailbox(accountId) }"),
-            DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }.filter { it.startsWith("mailboxesFrom(") },
+            "a folder none of whose messages is cached has its count in its cache row and nowhere else",
+            mapOf("Projets" to 12, "Archives" to 0),
+            shown.associate { it.id to it.unreadForList },
+        )
+    }
+
+    @Test fun `a folder from the wire keeps its unread count apart from its total, down to its row`() {
+        val stored = Mailbox(id = "inbox-1", name = "Inbox", totalEmails = 40, unreadEmails = 3).toEntity(ACCOUNT)
+
+        assertEquals(
+            "toEntity must carry each of the two server counts to its own column",
+            40 to 3,
+            stored.totalEmails to stored.unreadEmails,
+        )
+        assertEquals(
+            "the drawer must show the three unread messages, not the forty the folder holds",
+            3,
+            stored.toMailbox().unreadForList,
+        )
+    }
+
+    @Test fun `the mailbox list is the cache rows of the account, whatever its protocol`() {
+        val code = codeLines("MailRepository")
+        assertEquals(
+            "observeMailboxes must hand the screens the cache rows crossed by toMailbox(), for a " +
+                "JMAP account as for an IMAP one. Lines found:",
+            listOf(
+                "fun observeMailboxes(accountId: String): Flow<List<Mailbox>> =",
+                "mailboxDao.observeAll(accountId).map { rows -> rows.map { it.toMailbox() } }",
+            ),
+            code.drop(code.indexOfFirst { it.startsWith("fun observeMailboxes(") }).take(2),
+        )
+    }
+
+    @Test fun `nothing in the repository writes over the count a folder row crosses with`() {
+        assertEquals(
+            "MailRepository must not name unreadForList: the field is filled once, by toMailbox(), " +
+                "from the cache row. A count of the cached messages put in its place is zero for " +
+                "every folder that was never opened. Lines found:",
+            emptyList<String>(),
+            codeLines("MailRepository").filter { "unreadForList" in it },
         )
     }
 
     // -- the harness -----------------------------------------------------------------------
+
+    private fun codeLines(fileName: String): List<String> = DaoQuerySource.mailSource(fileName).lines()
+        .map { it.trim() }
+        .filterNot { it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
 
     private fun load(server: ScriptedImapServer, requested: String?): ImapFolderLoad = runBlocking {
         ImapMailService(ImapClient(), SmtpClient(), unusedTokenRefresher()).loadFolder(
@@ -242,6 +265,7 @@ class FolderUnreadCountsTest {
         }
 
         override fun observeAll(accountId: String): Flow<List<MailboxEntity>> = error("unused")
+        override fun observeUnread(): Flow<List<AccountMailboxUnread>> = error("unused")
         override suspend fun deleteAll(): Unit = error("unused")
         override suspend fun deleteForAccount(accountId: String): Unit = error("unused")
         override suspend fun accountIds(): List<String> = error("unused")

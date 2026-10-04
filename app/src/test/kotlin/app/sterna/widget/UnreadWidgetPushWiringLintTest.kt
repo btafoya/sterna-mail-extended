@@ -84,7 +84,7 @@ class UnreadWidgetPushWiringLintTest {
         )
         assertEquals(
             "UnreadWidgetProvider.onDisabled must CLOSE it, with false. Dropped — or handed true — " +
-                "the app keeps two global Room aggregates subscribed for a widget the user removed, " +
+                "the app keeps a global Room query subscribed for a widget the user removed, " +
                 "for as long as the process lives, and nothing on screen ever says so.",
             listOf(
                 "override fun onDisabled(context: Context) {",

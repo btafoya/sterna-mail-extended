@@ -86,6 +86,9 @@ interface MailboxDao {
     @Query("SELECT id FROM mailboxes WHERE accountId = :accountId")
     suspend fun idsForAccount(accountId: String): List<String>
 
+    @Query("SELECT accountId, id, unreadEmails FROM mailboxes")
+    fun observeUnread(): Flow<List<AccountMailboxUnread>>
+
     @Query("SELECT id, unreadEmails FROM mailboxes WHERE accountId = :accountId")
     suspend fun unreadForAccount(accountId: String): List<MailboxIdUnread>
 
@@ -112,6 +115,12 @@ interface MailboxDao {
 }
 
 data class MailboxIdUnread(
+    val id: String,
+    val unreadEmails: Int,
+)
+
+data class AccountMailboxUnread(
+    val accountId: String,
     val id: String,
     val unreadEmails: Int,
 )

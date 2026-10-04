@@ -115,8 +115,8 @@ data class MailUi(
     /** True when showing unread mail across folders ([Sel.Unread]), no single folder selected
      *  either, so nothing else on screen can tell that view from the unified one. */
     val unreadView: Boolean = false,
-    /** For the drawer entry that leads to the view above: the same aggregate the folder rows are
-     *  badged with, summed over the folders that view pages ([unreadEntryCount]). Zero: no number. */
+    /** For the drawer entry that leads to the view above: the count the folder rows are badged
+     *  with, summed over the folders that view pages ([unreadEntryCount]). Zero: no number. */
     val unreadViewCount: Int = 0,
     /** [unreadView] of every account: its rows name their account, its header "All inboxes". */
     val unreadAllAccounts: Boolean = false,
@@ -1088,8 +1088,8 @@ class InboxViewModel(
      */
     private val listScope = MutableStateFlow(ListScope())
 
-    // "All inboxes (N)" sums the same live per-inbox aggregates the folder badges read, so the two
-    // drawer numbers agree for JMAP; IMAP inboxes keep contributing their stored server counter.
+    // "All inboxes (N)" adds, for a JMAP account, the stored unread count of its inbox folder; an
+    // IMAP inbox contributes the account's stored server counter.
     private val unifiedUnread = repo.observeUnifiedInboxUnread()
 
     /** #65: the offline empty state promises a resync, so watch the network, the transports *and*

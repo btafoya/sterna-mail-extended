@@ -36,7 +36,6 @@ internal fun MailboxEntity.toMailbox(): Mailbox = Mailbox(
     sortOrder = sortOrder,
     totalEmails = totalEmails,
     unreadEmails = unreadEmails,
-    // The stored server counter (the IMAP path); the repository overrides it for JMAP accounts.
     unreadForList = unreadEmails,
     isSubscribed = isSubscribed,
     // Read by `visibleFolders` alone, to keep a folder that lost its claim listed under #174.

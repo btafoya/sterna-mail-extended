@@ -150,16 +150,6 @@ class ConversationInvariantsSqlTest {
         }
     }
 
-    /** A drawer badge aggregate, straight from the DAO source: (account, folder) → count. */
-    private fun badge(functionName: String): Map<Pair<String, String>, Int> =
-        db.prepareStatement(DaoQuerySource.emailDaoQuery(functionName)).use { ps ->
-            ps.executeQuery().use { rs ->
-                buildMap {
-                    while (rs.next()) put(rs.getString("accountId") to rs.getString("mailboxId"), rs.getInt("count"))
-                }
-            }
-        }
-
     // -- C1 -------------------------------------------------------------------------------
     //
     // The one fact that reframes everything else here.
@@ -279,7 +269,7 @@ class ConversationInvariantsSqlTest {
 
     // -- C5 -------------------------------------------------------------------------------
 
-    @Test fun theDrawerBadgeCountsExactlyTheBoldRowsOfTheModeItIsShowing() {
+    @Test fun theUnreadOnlyFilterListsExactlyTheBoldRowsOfTheConversationView() {
         // A thread of three with two unread members, plus one unread loose message. In
         // conversation view the folder shows two bold rows; in flat view, three bold messages.
         insert("t1", threadId = "T1", sortKey = 100, seen = 0)
@@ -287,26 +277,18 @@ class ConversationInvariantsSqlTest {
         insert("t3", threadId = "T1", sortKey = 300, seen = 1)
         insert("s1", threadId = null, sortKey = 400, seen = 0)
 
-        val conversationBadge = badge("observeThreadUnreadCounts")[("acc" to "inbox")]
-        val messageBadge = badge("observeMessageUnreadCounts")[("acc" to "inbox")]
-
         val boldRows = conversation("inbox", accountId = "acc").count { it.threadUnread == 0 }
         val boldMessages = flat("inbox", accountId = "acc", unreadOnly = true).size
 
-        assertEquals(boldRows, conversationBadge)
-        assertEquals(boldMessages, messageBadge)
         assertEquals(2, boldRows)
         assertEquals(3, boldMessages)
-        // The unread-only filter agrees with the badge too, the third query describing the same
-        // set. A badge that matched the list but not the filter would still strand the reader on
-        // an empty "unread" screen with a lit badge.
-        assertEquals(conversationBadge, conversation("inbox", accountId = "acc", unreadOnly = true).size)
+        // A filter that disagreed with the rows would strand the reader on an "unread" screen
+        // missing a conversation the unfiltered list shows in bold.
+        assertEquals(boldRows, conversation("inbox", accountId = "acc", unreadOnly = true).size)
 
-        // The witness: the two modes genuinely disagree here (2 vs 3), so "badge equals rows" is
-        // not being satisfied by both numbers happening to be the same. And picking the wrong
-        // aggregate for the mode is visibly wrong, which is what the drawer chooses between.
-        assertNotEquals(conversationBadge, messageBadge)
-        assertNotEquals(messageBadge, boldRows)
+        // The witness: the two modes genuinely disagree here (2 vs 3), so the equality above is
+        // not being satisfied by both numbers happening to be the same.
+        assertNotEquals(boldMessages, boldRows)
     }
 
     // -- C6 -------------------------------------------------------------------------------
