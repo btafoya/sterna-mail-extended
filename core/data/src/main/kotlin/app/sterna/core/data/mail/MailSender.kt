@@ -468,15 +468,18 @@ class MailSender(
                 ),
             )
             // The Sent copy is a second write, and some servers file it themselves;
-            // sentMailboxToUpload decides which folder (if any) reaches the APPEND.
-            imap.send(
-                credentials,
-                message,
-                sentMailboxToUpload(
-                    accountStore.uploadSentCopy(credentials.id),
-                    mailboxDao.idForRole(credentials.id, "sent"),
-                ),
+            // sentMailboxToUpload decides which folder (if any) reaches the APPEND. It lists,
+            // creates and may refuse, all of it above the submission: a failure once the SMTP
+            // server has accepted the message is replayed by the outbox, and the recipient
+            // receives it again.
+            val sentMailbox = sentMailboxToUpload(
+                uploadSentCopy = accountStore.uploadSentCopy(credentials.id),
+                cached = mailboxDao.idForRole(credentials.id, "sent"),
+                chosen = credentials.specialFolders,
+                listed = { imap.listMailboxes(credentials) },
+                create = { imap.createFolder(credentials, it) },
             )
+            imap.send(credentials, message, sentMailbox)
             return
         }
         // A part's shape (local file or server blob) was fixed for the sender's protocol at attach

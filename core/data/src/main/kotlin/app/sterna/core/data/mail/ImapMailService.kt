@@ -430,9 +430,9 @@ open class ImapMailService(
 
     /**
      * A specific account's folders, no messages, the global cache holds only the last-synced one.
-     * A bare `listFolders()`, no LSUB, and it must stay so (#174): its caller writes none of them.
+     * A bare `listFolders()`, no LSUB, and it must stay so (#174): no caller writes any of them. `open` as [send] is, a JVM test of the send stands in for this listing.
      */
-    suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> =
+    open suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> =
         withSession(credentials) { session ->
             val folders = session.listFolders()
             val chosen = honouredSpecialFolders(credentials.specialFolders, folders.map { it.roleCandidate() })

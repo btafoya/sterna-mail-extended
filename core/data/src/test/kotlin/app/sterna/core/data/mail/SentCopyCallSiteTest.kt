@@ -14,31 +14,48 @@ class SentCopyCallSiteTest {
         .lines().map { it.trim() }.filter { it.isNotEmpty() }
 
     @Test
-    fun `the IMAP delivery routes its Sent folder through the setting`() {
-        val at = body.indexOfFirst { it.startsWith("imap.send(") }
+    fun `the IMAP delivery resolves its Sent folder through the setting, before it submits`() {
+        val at = body.indexOfFirst { it.startsWith("val sentMailbox = ") }
         assertTrue(
-            "MailSender.performDelivery no longer calls imap.send( — if the delivery moved, " +
-                "this lint moves with it rather than staying green over a path nobody runs:\n" +
+            "MailSender.performDelivery no longer resolves a `sentMailbox` — if the delivery " +
+                "moved, this lint moves with it rather than staying green over a path nobody runs:\n" +
                 body.joinToString("\n"),
             at >= 0,
         )
         assertEquals(
-            "the IMAP send call site changed. The Sent-folder argument is the whole of the " +
-                "'Upload sent messages' setting: passing mailboxDao.idForRole(...) to imap.send( " +
-                "directly short-circuits the decision, and the account that asked for one copy " +
-                "gets two again — silently, with every other test still green:\n" +
-                body.drop(at).take(8).joinToString("\n"),
+            "the IMAP send call site changed. Whole lines, in this order:\n" +
+                " · the Sent-folder argument is the whole of the 'Upload sent messages' setting: " +
+                "passing mailboxDao.idForRole(...) to imap.send( directly short-circuits the " +
+                "decision, and the account that asked for one copy gets two again — or, with no " +
+                "folder cached under the role, gets none and is told nothing.\n" +
+                " · the resolution ends on the line above imap.send(. It lists, creates and may " +
+                "refuse; any of that after the SMTP submission fails a delivery that has already " +
+                "gone out, the outbox replays it, and the recipient receives the message twice.\n" +
+                " · the listing and the creation are this account's (`credentials`), never a " +
+                "cache shared between accounts.\n" +
+                "Found:\n" + body.drop(at).take(8).joinToString("\n"),
             listOf(
-                "imap.send(",
-                "credentials,",
-                "message,",
-                "sentMailboxToUpload(",
-                "accountStore.uploadSentCopy(credentials.id),",
-                "mailboxDao.idForRole(credentials.id, \"sent\"),",
-                "),",
+                "val sentMailbox = sentMailboxToUpload(",
+                "uploadSentCopy = accountStore.uploadSentCopy(credentials.id),",
+                "cached = mailboxDao.idForRole(credentials.id, \"sent\"),",
+                "chosen = credentials.specialFolders,",
+                "listed = { imap.listMailboxes(credentials) },",
+                "create = { imap.createFolder(credentials, it) },",
                 ")",
+                "imap.send(credentials, message, sentMailbox)",
             ),
             body.drop(at).take(8),
+        )
+        assertEquals(
+            "the delivery submits over IMAP/SMTP at one place only, the one read above",
+            listOf("imap.send(credentials, message, sentMailbox)"),
+            body.filter { it.contains("imap.send(") && !it.startsWith("//") },
+        )
+        assertEquals(
+            "`sentMailbox` is decided once: a second assignment between the resolution and the " +
+                "send would be a way around the setting",
+            listOf("val sentMailbox = sentMailboxToUpload("),
+            body.filter { it.contains("sentMailbox =") && !it.startsWith("//") },
         )
     }
 

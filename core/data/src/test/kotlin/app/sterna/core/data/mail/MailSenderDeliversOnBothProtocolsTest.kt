@@ -6,6 +6,7 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.MailboxDao
+import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.OutboxAttachment
 import app.sterna.core.data.db.OutboxAttachments
 import app.sterna.core.data.db.OutboxDao
@@ -102,12 +103,25 @@ class MailSenderDeliversOnBothProtocolsTest {
     /** What `imap.send` was handed, the third argument above all: which folder (if any) is appended. */
     private data class Append(val message: OutgoingMessage, val sentMailbox: String?)
 
-    private class RecordingImap(store: RecordingAccountStorage) : ImapMailService(
+    private class RecordingImap(
+        store: RecordingAccountStorage,
+        /** What the server lists for the account, roles as the listing settled them. */
+        private val onServer: List<MailboxEntity> = emptyList(),
+    ) : ImapMailService(
         ImapClient(),
         SmtpClient(),
         OAuthTokenRefresher(OAuthClient(), store),
     ) {
         val sends = mutableListOf<Append>()
+
+        /** The account id of each listing asked of the server. */
+        val listings = mutableListOf<String>()
+
+        /** Each folder created, under the account id it was created for. */
+        val created = mutableListOf<Pair<String, String>>()
+
+        /** Every call in the order it arrived: what a submission must come after is read off this. */
+        val calls = mutableListOf<String>()
 
         override suspend fun send(
             credentials: AccountCredentials,
@@ -115,8 +129,25 @@ class MailSenderDeliversOnBothProtocolsTest {
             sentMailbox: String?,
         ) {
             sends += Append(message, sentMailbox)
+            calls += "send into $sentMailbox"
+        }
+
+        override suspend fun listMailboxes(credentials: AccountCredentials): List<MailboxEntity> {
+            listings += credentials.id
+            calls += "list"
+            return onServer
+        }
+
+        override suspend fun createFolder(credentials: AccountCredentials, path: String) {
+            created += credentials.id to path
+            calls += "create $path"
         }
     }
+
+    private fun folder(id: String, role: String?) = MailboxEntity(
+        accountId = "account-1", id = id, name = id, role = role,
+        sortOrder = 0, totalEmails = 0, unreadEmails = 0,
+    )
 
     /** The five edges `MailSender` reaches the repository through, none of them taken by accident. */
     private class RecordingHost(
@@ -257,6 +288,8 @@ class MailSenderDeliversOnBothProtocolsTest {
         assertEquals(1, imap.sends.size)
         assertEquals("Sent Items", imap.sends.single().sentMailbox)
         assertEquals(listOf("account-1" to "sent"), asked)
+        // The cache answered: a LIST on every send would be a round trip paid for nothing.
+        assertEquals(listOf("send into Sent Items"), imap.calls)
         val message = imap.sends.single().message
         assertEquals(listOf("bob@example.test"), message.to)
         assertEquals("Lunch", message.subject)
@@ -307,6 +340,132 @@ class MailSenderDeliversOnBothProtocolsTest {
 
         assertEquals(1, imap.sends.size)
         assertNull(imap.sends.single().sentMailbox)
+    }
+
+    /**
+     * The same refusal with nothing cached under the role: the setting off owes the server neither
+     * a listing nor a folder, and a designation that would refuse the copy refuses nothing here.
+     */
+    @Test fun `an account that does not upload its sent copy asks the server for nothing`() {
+        val storage = StorageRefusingTheSentCopy()
+        val imap = RecordingImap(storage, onServer = listOf(folder("Sent Messages", "sent")))
+        val sender = sender(
+            accountStore = storage,
+            imap = imap,
+            mailboxDao = mailboxDaoAnswering("sent", null, mutableListOf()),
+        )
+
+        runBlocking {
+            sender.performSend(
+                credentials(MailProtocol.IMAP).copy(specialFolders = mapOf("junk" to "Sent")),
+                item(),
+            )
+        }
+
+        assertEquals(listOf("send into null"), imap.calls)
+    }
+
+    /**
+     * Nothing cached under the role (a fresh account, not synced yet), and the server has a Sent
+     * folder: the copy goes there, and nothing is created beside it.
+     */
+    @Test fun `with no sent folder cached the copy goes into the one the server lists`() {
+        val imap = RecordingImap(
+            store,
+            onServer = listOf(folder("INBOX", "inbox"), folder("Sent", null), folder("Sent Messages", "sent")),
+        )
+        val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", null, mutableListOf()))
+
+        runBlocking { sender.performSend(credentials(MailProtocol.IMAP), item()) }
+
+        assertEquals(listOf("list", "send into Sent Messages"), imap.calls)
+        assertEquals(listOf("account-1"), imap.listings)
+    }
+
+    /**
+     * The Sent folder designated as the archive: no folder is left carrying the `sent` role, on the
+     * cache or on the server. The copy is owed all the same, so a `Sent` is created and takes it,
+     * before the submission.
+     */
+    @Test fun `with no sent folder anywhere a Sent folder is created, then appended into`() {
+        val imap = RecordingImap(
+            store,
+            onServer = listOf(folder("INBOX", "inbox"), folder("Sent Items", "archive")),
+        )
+        val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", null, mutableListOf()))
+
+        runBlocking {
+            sender.performSend(
+                credentials(MailProtocol.IMAP).copy(specialFolders = mapOf("archive" to "Sent Items")),
+                item(),
+            )
+        }
+
+        assertEquals(listOf("list", "create Sent", "send into Sent"), imap.calls)
+        assertEquals(listOf("account-1" to "Sent"), imap.created)
+    }
+
+    /**
+     * The same account with `Sent` itself designated as the spam folder, in either case: there is
+     * no folder left to file the copy into. The send refuses before anything is submitted; refused
+     * after, the outbox would replay a message its recipient already has.
+     */
+    @Test fun `with the name Sent designated for another role nothing is submitted`() {
+        listOf("Sent", "sent").forEach { pinned ->
+            val imap = RecordingImap(
+                store,
+                onServer = listOf(folder("INBOX", "inbox"), folder("Sent Items", "archive"), folder(pinned, "junk")),
+            )
+            val host = RecordingHost()
+            val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", null, mutableListOf()), host = host)
+
+            val thrown = runCatching {
+                runBlocking {
+                    sender.performSend(
+                        credentials(MailProtocol.IMAP)
+                            .copy(specialFolders = mapOf("archive" to "Sent Items", "junk" to pinned)),
+                        item(draftEmailId = "draft-9", draftUidValidity = 41L),
+                    )
+                }
+            }.exceptionOrNull()
+
+            assertEquals(
+                "junk pinned on '$pinned'",
+                "No Sent folder, and the name Sent is designated for another role",
+                thrown?.message,
+            )
+            assertEquals("junk pinned on '$pinned'", listOf("list"), imap.calls)
+            assertEquals(emptyList<Triple<String, String, Long?>>(), host.destroyed)
+        }
+    }
+
+    /**
+     * The server's own `Sent` designated as the archive, nothing else pinned: the folder exists, and
+     * it is the archive now. The copy is not filed into it, nothing is created over it, and nothing
+     * is submitted.
+     */
+    @Test fun `with the server's Sent folder designated as the archive nothing is submitted`() {
+        val imap = RecordingImap(
+            store,
+            onServer = listOf(folder("INBOX", "inbox"), folder("Sent", "archive")),
+        )
+        val host = RecordingHost()
+        val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", null, mutableListOf()), host = host)
+
+        val thrown = runCatching {
+            runBlocking {
+                sender.performSend(
+                    credentials(MailProtocol.IMAP).copy(specialFolders = mapOf("archive" to "Sent")),
+                    item(draftEmailId = "draft-9", draftUidValidity = 41L),
+                )
+            }
+        }.exceptionOrNull()
+
+        assertEquals("No Sent folder, and the name Sent is designated for another role", thrown?.message)
+        assertEquals(emptyList<Append>(), imap.sends)
+        assertEquals(emptyList<Pair<String, String>>(), imap.created)
+        assertEquals(listOf("list"), imap.calls)
+        assertEquals(emptyList<Triple<String, String, Long?>>(), host.destroyed)
     }
 
     /**
