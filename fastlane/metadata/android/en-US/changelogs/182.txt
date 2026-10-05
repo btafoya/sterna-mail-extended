@@ -1,0 +1,9 @@
+S/MIME: encrypted messages are decrypted with a certificate from Android's keystore, and outgoing mail can be signed and encrypted.
+
+IMAP folders now show their unread count in the drawer, and a folder with unread mail shows its name in bold.
+
+On JMAP, the Unread view also lists older unread messages.
+
+A notification can name the address a message came in on.
+
+A Bulwark rule that carries a label opens in the rule form.

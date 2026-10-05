@@ -1,0 +1,9 @@
+S/MIME : les messages chiffrés se déchiffrent avec un certificat du trousseau Android, et un envoi peut être signé et chiffré.
+
+Les dossiers IMAP affichent leur nombre de non-lus dans le menu, et un dossier qui en contient a son nom en gras.
+
+En JMAP, la vue Non lus montre aussi les anciens messages non lus.
+
+Une notification peut nommer l'adresse sur laquelle un message est arrivé.
+
+Une règle Bulwark portant une étiquette s'ouvre dans le formulaire.

@@ -102,8 +102,9 @@ every write pass from the list FETCH, which carries
 of the three keeps its own row.
 
 Drawer counts are the server's, on both protocols: a folder shows the unread
-count the server gave at the last refresh (opening the app, pull to refresh, a
-push, the background sync), kept on the folder's cache row and moved by the
+count the server gave at the last refresh (opening the app, pull to refresh;
+on JMAP also a push and the background sync, which write no folder count on
+IMAP), kept on the folder's cache row and moved by the
 actions taken in the app (read, move, delete). It counts *messages*: in
 conversation view a thread with two unread messages counts for two where the
 list shows one row, and a snoozed message stays counted. The "All inboxes"
