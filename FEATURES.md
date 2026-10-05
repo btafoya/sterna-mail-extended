@@ -81,6 +81,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ An Unread entry in the folder drawer: the account's unread mail from every folder
   it shows, except Trash, Junk, Sent and Drafts. Opened from All inboxes, it covers
   every account, each row naming its account.
+- ✅ On an account with several addresses, the chip of a list row names the address
+  a message arrived on, when its To or Cc says which. Where rows name their
+  account, the address takes the place of the account's name.
 - ✅ Mail by sender: gather one address's mail, see how much there is, delete it in
   one go, and optionally add a server-side rule for the future.
 - ✅ Move a message to another account's folder. This is a copy confirmed on the

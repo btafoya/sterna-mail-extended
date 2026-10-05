@@ -127,9 +127,9 @@ internal fun rowPreviewText(preview: String?, excerpt: String?): String? =
 /**
  * One row in a message list: monogram, sender, subject, preview, time + state.
  *
- * [originLabel] is the one chip that says where this row comes from: the owning account in the
- * unified inbox and in search, the row's own folder in the unread view. One slot, and the two
- * never coexist. Null draws no chip at all.
+ * [originLabel] is the one chip that says where this row comes from: the owning account, the row's
+ * own folder in the unread view, or the address the message arrived on, in the account's place or
+ * after the folder. One slot, whose text the caller composes. Null draws no chip at all.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

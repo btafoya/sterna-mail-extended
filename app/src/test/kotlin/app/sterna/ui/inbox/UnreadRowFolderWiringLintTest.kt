@@ -15,13 +15,52 @@ class UnreadRowFolderWiringLintTest {
             .filter { Regex("""\boriginLabel\b""").containsMatchIn(it) }
         assertEquals(
             "Every line carrying the row's origin chip must stay exactly as it is. Two of them are " +
-                "the whole of #169 on screen — the list row and the children of an unfolded " +
-                "conversation, which is a row too — and both put the ACCOUNT first: in the unified " +
-                "inbox the account is the question, the folder is not, and there is only one chip. " +
-                "Whole lines, because 'ownerAccount?.label()' is contained in every mutation of it. " +
+                "the whole of #169 and #243 on screen — the list row and the children of an unfolded " +
+                "conversation, which is a row too — and both hand originChipLabel the ACCOUNT first, " +
+                "the folder second, and the address rowArrival finds for that row with that row's " +
+                "own showRecipients: there is only one chip. Whole lines, because " +
+                "'ownerAccount?.label()' is contained in every mutation of it. " +
                 "Lines found were:\n${lines.joinToString("\n")}",
             EXPECTED_ORIGIN_LABEL_LINES,
             lines.sorted(),
+        )
+    }
+
+    @Test
+    fun `the arrival address is found by the shared rule, on the row's own account`() {
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\b(rowArrival|rowArrivalAddress)\b""").containsMatchIn(it) }
+        assertEquals(
+            "(#243; the rule is rowArrivalAddress, run by RowArrivalAddressTest, and rowArrival is run " +
+                "by OriginChipLabelTest.) The screen reaches the shared rule through rowArrival alone, " +
+                "with the identities of the row's account and that account's login. Whole lines, " +
+                "sorted. Lines found were:\n${lines.joinToString("\n")}",
+            EXPECTED_ARRIVAL_LINES.sorted(),
+            lines.sorted(),
+        )
+    }
+
+    @Test
+    fun `the decision the row is drawn with is the one its arrival address is refused on`() {
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\bshowRecipients\b""").containsMatchIn(it) }
+        assertEquals(
+            "The list row decides showRecipients once and hands the same value to the row and to " +
+                "chipOwnMessage: 'showRecipients = false' on the row compiles, and so does a constant " +
+                "handed to chipOwnMessage, which names an arrival on every row of Sent. Whole lines, " +
+                "sorted. Lines found were:\n${lines.joinToString("\n")}",
+            EXPECTED_SHOW_RECIPIENTS_LINES.sorted(),
+            lines.sorted(),
+        )
+        val own = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\bownMessage\b""").containsMatchIn(it) }
+        assertEquals(
+            "(the rule is chipOwnMessage, run by OriginChipLabelTest.) In search the row's " +
+                "showRecipients is forced off, so the chip is handed the row's authorship beside it, " +
+                "and rowArrival reads the row's account alone, never its login's identities. Whole " +
+                "lines, sorted. Lines found were:\n${own.joinToString("\n")}",
+            listOf(CHIP_OWN_MESSAGE, ROW_ARRIVAL_ROW_SITE).sorted(),
+            own.sorted(),
         )
     }
 
@@ -169,12 +208,44 @@ class UnreadRowFolderWiringLintTest {
     }
 
     companion object {
-        /** The single chip slot, at each of the places it is filled, account first, always. */
+        /** The single chip slot, at each place it is filled: account, folder, the row's own arrival (#243). */
         private val EXPECTED_ORIGIN_LABEL_LINES = listOf(
+            "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
+                "rowArrival(child, accounts, showRecipientsFor(child))),",
+            ROW_ARRIVAL_ROW_SITE,
             "originLabel = originLabel,",
-            "originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },",
-            "originLabel = ownerAccount?.label() ?: rowFolder?.let { mailboxDisplayName(it.role, it.name) },",
             "originLabel: String?,",
+        )
+
+        private const val ROW_ARRIVAL_ROW_SITE =
+            "originLabel = originChipLabel(ownerAccount?.label(), rowFolder?.let { mailboxDisplayName(it.role, it.name) }, " +
+                "rowArrival(email, accounts, ownMessage)),"
+        private const val ROW_ARRIVAL_DECLARATION =
+            "internal fun rowArrival(email: Email, accounts: List<StoredAccount>, showRecipients: Boolean): String? {"
+        private const val ROW_ARRIVAL_BODY =
+            "return rowArrivalAddress(email, own.resolvedIdentities(), own.username, showRecipients)"
+        private const val CHIP_OWN_MESSAGE =
+            "val ownMessage = chipOwnMessage(fromSearch, isSelfAuthored(email.from, sendAsIdentities(email, accounts)), " +
+                "showRecipients)"
+
+        private val EXPECTED_ARRIVAL_LINES = listOf(
+            "import app.sterna.push.rowArrivalAddress",
+            ROW_ARRIVAL_DECLARATION,
+            ROW_ARRIVAL_BODY,
+            "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
+                "rowArrival(child, accounts, showRecipientsFor(child))),",
+            ROW_ARRIVAL_ROW_SITE,
+        )
+
+        private val EXPECTED_SHOW_RECIPIENTS_LINES = listOf(
+            "val showRecipients = !fromSearch && showsRecipients(",
+            CHIP_OWN_MESSAGE,
+            "showRecipients = showRecipients,",
+            "showRecipients = showRecipients,",
+            "showRecipients = showRecipientsFor(child),",
+            "showRecipients: Boolean,",
+            ROW_ARRIVAL_DECLARATION,
+            ROW_ARRIVAL_BODY,
         )
 
         /** The declaration and its two call sites, each with the trust it is entitled to. */
@@ -188,7 +259,8 @@ class UnreadRowFolderWiringLintTest {
         private val EXPECTED_FOLDER_FOR_LINES = listOf(
             "folderFor = { child -> unreadRowFolder(child, ui, folderTrusted = true, inViewCount = 1) },",
             "folderFor: (Email) -> Mailbox?,",
-            "originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },",
+            "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
+                "rowArrival(child, accounts, showRecipientsFor(child))),",
         )
 
         /** The one fold into [MailUi], carrying the badge and the account that qualifies a folder. */

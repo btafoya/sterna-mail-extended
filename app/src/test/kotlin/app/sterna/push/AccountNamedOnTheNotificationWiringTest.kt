@@ -67,16 +67,23 @@ class AccountNamedOnTheNotificationWiringTest {
             codeLinesNaming(body, "store"),
         )
         assertEquals(
-            "the shared rule is the reader's guard applied to the reader's search and the reader's " +
-                "own-message rule, identities alone counted by the guard: the login handed to " +
-                "deliveredToInHeader is the defect of #180",
+            "the notification decides its own-message rule as the reader does, and hands it to the " +
+                "rule the list row shares",
             listOf(
-                "val received = receivingAddress(email, accountAddresses(identities, login))",
                 "val role = if (folderName == null) \"inbox\" else null",
                 "val ownMessage = showsRecipients(role, unified = false, selfAuthored = isSelfAuthored(email.from, identities))",
-                "return deliveredToInHeader(received, identities.map { it.email }, ownMessage)",
+                "return rowArrivalAddress(email, identities, login, showRecipients = ownMessage)",
             ),
             codeLinesOf(bodyOf(ARRIVAL, "arrivalAddress")).filterNot { it == "{" || it == "}" },
+        )
+        assertEquals(
+            "the shared rule is the reader's guard applied to the reader's search, identities alone " +
+                "counted by the guard: the login handed to deliveredToInHeader is the defect of #180",
+            listOf(
+                "val received = receivingAddress(email, accountAddresses(identities, login))",
+                "return deliveredToInHeader(received, identities.map { it.email }, showRecipients)",
+            ),
+            codeLinesOf(bodyOf(ARRIVAL, "rowArrivalAddress")).filterNot { it == "{" || it == "}" },
         )
     }
 

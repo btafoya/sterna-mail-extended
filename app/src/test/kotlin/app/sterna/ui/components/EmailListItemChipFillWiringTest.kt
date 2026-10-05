@@ -20,9 +20,9 @@ class EmailListItemChipFillWiringTest {
         ")",
     )
 
-    /** Site 1 of 3: the origin chip, the account in the unified inbox, the folder in the unread
-     *  view (#169), whose accent branch must stay untouched. The accent only ever comes from an
-     *  account; a folder has none and takes the fallback fill this rule guards. */
+    /** Site 1 of 3: the origin chip, the account or its arrival address (#243), the folder in the
+     *  unread view (#169), whose accent branch must stay untouched. The accent only ever comes
+     *  from an account; a folder has none and takes the fallback fill this rule guards. */
     private val expectedAccountChip = listOf(
         ".background(",
         "if (originColor != null) originColor.copy(alpha = 0.16f)",

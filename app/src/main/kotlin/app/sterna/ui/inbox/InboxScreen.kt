@@ -189,6 +189,7 @@ import app.sterna.core.jmap.model.Mailbox
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.account.StoredIdentity
 import app.sterna.R
+import app.sterna.push.rowArrivalAddress
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.EmailListItem
 import app.sterna.ui.components.EmptyArt
@@ -1025,22 +1026,24 @@ fun InboxScreen(
                 // tells apart the rows the unread view shows once per folder. `row.threadCount`,
                 // not 1: a conversation row can stand for messages in several folders.
                 val rowFolder = unreadRowFolder(email, ui, folderTrusted = !fromSearch, inViewCount = row.threadCount)
+                // Search results keep the sender line whatever folder they came from. Otherwise
+                // the shared decision: Sent/Drafts by folder (#59), a self-authored mail in the
+                // Trash by authorship (#69), but not one you sent yourself in the Inbox (#115).
+                val showRecipients = !fromSearch && showsRecipients(
+                    role = visibleFolderRole(ui),
+                    unified = ui.unified,
+                    selfAuthored = isSelfAuthored(email.from, sendAsIdentities(email, accounts)),
+                )
+                val ownMessage = chipOwnMessage(fromSearch, isSelfAuthored(email.from, sendAsIdentities(email, accounts)), showRecipients)
                 SwipeableEmailRow(
                     email = email,
-                    originLabel = ownerAccount?.label() ?: rowFolder?.let { mailboxDisplayName(it.role, it.name) },
+                    originLabel = originChipLabel(ownerAccount?.label(), rowFolder?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(email, accounts, ownMessage)),
                     originColor = accountColorOf(ownerAccount?.color),
                     rightAction = swipe.right,
                     leftAction = swipe.left,
                     unarchiveContext = isUnarchiveContext(rowRole),
                     trashContext = isTrashContext(rowRole),
-                    // Search results keep the sender line whatever folder they came from. Otherwise
-                    // the shared decision: Sent/Drafts by folder (#59), a self-authored mail in the
-                    // Trash by authorship (#69), but not one you sent yourself in the Inbox (#115).
-                    showRecipients = !fromSearch && showsRecipients(
-                        role = visibleFolderRole(ui),
-                        unified = ui.unified,
-                        selfAuthored = isSelfAuthored(email.from, sendAsIdentities(email, accounts)),
-                    ),
+                    showRecipients = showRecipients,
                     // "(Draft)" by the keyword or by the row's own folder: the keyword is memoised,
                     // not stored, so it left Drafts unmarked after a kill and forever on IMAP. The
                     // search branch keeps the keyword alone, `false` there would remove a chip. The
@@ -2036,9 +2039,9 @@ private fun AccountChip(label: String, color: Color?, modifier: Modifier = Modif
 @Composable
 private fun SwipeableEmailRow(
     email: Email,
-    /** Where this row comes from, for [EmailListItem]'s single chip: the owning account in the
-     *  unified inbox, the row's own folder in the unread view ([unreadRowFolder]). The two never
-     *  coexist, one slot, one question. Null draws no chip. */
+    /** Where this row comes from, for [EmailListItem]'s single chip, composed by [originChipLabel]:
+     *  the owning account, the row's own folder in the unread view ([unreadRowFolder]), the address
+     *  it arrived on when [rowArrival] knows it. One slot, one text. Null draws no chip. */
     originLabel: String?,
     originColor: Color?,
     rightAction: SwipeAction,
@@ -2524,6 +2527,13 @@ private fun sendAsIdentities(email: Email, accounts: List<StoredAccount>): List<
     }
 }
 
+// Not `sendAsIdentities`: its fallback to the login's identities would put a personal address of
+// the login account on the rows of a shared mailbox, in place of the name that tells them apart.
+internal fun rowArrival(email: Email, accounts: List<StoredAccount>, showRecipients: Boolean): String? {
+    val own = accounts.firstOrNull { it.id == email.accountId } ?: return null
+    return rowArrivalAddress(email, own.resolvedIdentities(), own.username, showRecipients)
+}
+
 /** True when [role] is Drafts, where tapping a row edits it in compose (#63). */
 private fun isDraftsContext(role: String?): Boolean = role == "drafts"
 
@@ -2644,7 +2654,7 @@ private fun ThreadChildren(
      *  screen, an unfolded conversation spans the viewed folder(s) plus Sent. */
     showDraftBadgeFor: (Email) -> Boolean,
     /** Same shape again, for the origin chip: an unfolded child IS a row, and in the unread view it
-     *  is filed in a folder of its own. Null (the common case) draws no chip ([unreadRowFolder]). */
+     *  is filed in a folder of its own. Null (the common case) names no folder ([unreadRowFolder]). */
     folderFor: (Email) -> Mailbox?,
     highlightId: String?,
     /** The reading pane's anchor: the child it names is painted current (#103). */
@@ -2683,7 +2693,7 @@ private fun ThreadChildren(
                         Spacer(Modifier.width(16.dp))
                         SwipeableEmailRow(
                             email = child,
-                            originLabel = ownerAccount?.label() ?: folderFor(child)?.let { mailboxDisplayName(it.role, it.name) },
+                            originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(child, accounts, showRecipientsFor(child))),
                             originColor = accountColorOf(ownerAccount?.color),
                             rightAction = rightAction,
                             leftAction = leftAction,
