@@ -27,7 +27,7 @@ class BoundedFolderReadsSqlTest {
                     id TEXT, accountId TEXT, mailboxId TEXT, threadId TEXT,
                     subject TEXT, preview TEXT, receivedAt TEXT, fromName TEXT, fromEmail TEXT,
                     seen INTEGER, flagged INTEGER, hasAttachment INTEGER, sortKey INTEGER,
-                    recipientsJson TEXT,
+                    recipientsJson TEXT, catchUp INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(accountId, id)
                 )
                 """.trimIndent(),
@@ -46,7 +46,7 @@ class BoundedFolderReadsSqlTest {
         receivedAt: String = "",
     ) {
         db.prepareStatement(
-            "INSERT INTO emails VALUES(?, ?, ?, NULL, 'subj', 'prev', ?, 'N', 'n@e', ?, 0, 0, ?, '[]')",
+            "INSERT INTO emails VALUES(?, ?, ?, NULL, 'subj', 'prev', ?, 'N', 'n@e', ?, 0, 0, ?, '[]', 0)",
         ).use { ps ->
             ps.setString(1, id); ps.setString(2, accountId); ps.setString(3, mailbox)
             ps.setString(4, receivedAt); ps.setInt(5, seen); ps.setLong(6, sortKey)

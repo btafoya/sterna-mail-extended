@@ -393,8 +393,8 @@ class ScheduledSendFailuresMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema is at v33 (`smime_certificates`), past this branch's v28",
-            33,
+            "the schema is at v34 (`emails.catchUp`), past this branch's v28",
+            34,
             SCHEMA_VERSION,
         )
     }

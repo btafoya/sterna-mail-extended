@@ -57,9 +57,10 @@ class SignedOutAccountWiringTest {
                 "writePage = { fresh ->",
                 "$guard(localAccountId, accountStore.accounts().map { it.id })",
                 "emailDao.upsertAll(sparingInFlight(fresh.map { it.toEntity(localAccountId, mailboxId) }))",
+                "markWalked(localAccountId, mailboxId, fresh)",
                 "},",
             ),
-            block("syncMailbox", "writePage = { fresh ->", 4),
+            block("syncMailbox", "writePage = { fresh ->", 5),
         )
     }
 

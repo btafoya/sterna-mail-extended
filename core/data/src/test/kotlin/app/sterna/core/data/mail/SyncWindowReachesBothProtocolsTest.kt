@@ -61,7 +61,7 @@ class SyncWindowReachesBothProtocolsTest {
         assertLine(
             "refresh",
             "pruneRetention(credentials.id, target.id, pruneBeforeMillis, " +
-                "sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor)",
+                "sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor, spareUnread = true)",
         )
         assertEquals(
             "refresh() now mentions sizing.pageSize outside the walk it belongs to",
@@ -88,8 +88,29 @@ class SyncWindowReachesBothProtocolsTest {
         assertTrue("refreshImap no longer prunes at all:\n" + body.joinToString("\n"), call >= 0)
         assertEquals(
             "refreshImap passes something other than the account's window as the retention floor",
-            listOf("credentials.id,", "load.targetMailboxId,", "pruneBeforeMillis,", "reconcilableIds(load, credentials.id),", "limit,", ")"),
-            body.subList(call + 1, call + 7),
+            listOf(
+                "credentials.id,", "load.targetMailboxId,", "pruneBeforeMillis,", "reconcilableIds(load, credentials.id),", "limit,",
+                "spareUnread = false,", ")",
+            ),
+            body.subList(call + 1, call + 8),
+        )
+    }
+
+    @Test fun `the prune hands the caller's choice on unread rows to the decision, and reads them off the cache`() {
+        assertLine("pruneRetention", "val cached = emailDao.retentionRows(accountId, mailboxId)")
+        assertLine("pruneRetention", "val gone = retentionEvictions(cached, cutoffMillis, freshIds, spareIds, keepNewest, spareUnread)")
+        assertEquals(
+            "SELECT id, sortKey, seen FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId",
+            DaoQuerySource.emailDaoQuery("retentionRows"),
+        )
+    }
+
+    @Test fun `the prune marks off the walk what the decision hands it, with a statement that writes that bit alone`() {
+        assertLine("pruneRetention", "val offWalk = unreadSparedOffWalk(cached, cutoffMillis, freshIds, spareIds, keepNewest, spareUnread)")
+        assertLine("pruneRetention", "offWalk.chunked(MAX_CHANGES).forEach { emailDao.markOffWalk(accountId, it) }")
+        assertEquals(
+            "UPDATE emails SET catchUp = catchUp | 1 WHERE accountId = :accountId AND id IN (:ids)",
+            DaoQuerySource.emailDaoQuery("markOffWalk"),
         )
     }
 }

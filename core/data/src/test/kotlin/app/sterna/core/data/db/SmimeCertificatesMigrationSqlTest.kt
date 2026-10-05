@@ -125,7 +125,7 @@ class SmimeCertificatesMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumns() {
-        assertEquals(33, SCHEMA_VERSION)
+        assertEquals(34, SCHEMA_VERSION)
         assertEquals(
             SCHEMA_VERSION,
             SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion },

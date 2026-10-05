@@ -23,6 +23,10 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
+/** [CATCH_UP_OFF_WALK] clear, on the row of the query or subquery it is written in. For the JMAP
+ *  older page alone, which a caught-up row neither anchors nor counts: the list still shows it. */
+const val WALKED_SQL: String = "(catchUp & 1) = 0"
+
 /**
  * Which cached rows the per-sender screen speaks for, the one clause behind both
  */
@@ -119,10 +123,12 @@ interface EmailDao {
 
     /**
      * A folder's rows received at or after [since], newest first, at most [limit], the candidates
+     * of a pass, less the rows marked [CATCH_UP_SILENT], which [idsReceivedSince] still counts.
      */
     @Query(
         "SELECT * FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
-            "AND (sortKey >= :since OR sortKey = 0) ORDER BY sortKey DESC, id DESC LIMIT :limit",
+            "AND (sortKey >= :since OR sortKey = 0) AND (catchUp & 2) = 0 " +
+            "ORDER BY sortKey DESC, id DESC LIMIT :limit",
     )
     suspend fun receivedSince(accountId: String, mailboxId: String, since: Long, limit: Int): List<EmailEntity>
 
@@ -159,7 +165,23 @@ interface EmailDao {
     suspend fun readAndStarOf(accountId: String, id: String): ReadAndStar?
 
     @Upsert
-    suspend fun upsertAll(emails: List<EmailEntity>)
+    suspend fun upsertRows(emails: List<EmailEntity>)
+
+    @Transaction
+    suspend fun upsertAll(emails: List<EmailEntity>) =
+        upsertKeepingCatchUp(emails, { accountId, ids -> catchUpOf(accountId, ids) }, { upsertRows(it) })
+
+    @Query("SELECT id, catchUp FROM emails WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun catchUpOf(accountId: String, ids: List<String>): List<CatchUpMark>
+
+    @Query(
+        "UPDATE emails SET catchUp = catchUp & ~1 " +
+            "WHERE accountId = :accountId AND mailboxId = :mailboxId AND id IN (:ids) AND (catchUp & 1) != 0",
+    )
+    suspend fun markWalked(accountId: String, mailboxId: String, ids: List<String>): Int
+
+    @Query("UPDATE emails SET catchUp = catchUp | 1 WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun markOffWalk(accountId: String, ids: List<String>)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAllIgnoring(emails: List<EmailEntity>)
@@ -168,11 +190,11 @@ interface EmailDao {
     suspend fun cachedFoldersOf(accountId: String, ids: List<String>): List<CachedFolder>
 
     /**
-     * Files one cached row under [toMailboxId] and writes no other column. Changes nothing when the
-     * row has left [fromMailboxId] since the caller read it. Returns the rows changed.
+     * Files one cached row under [toMailboxId], both bits of its `catchUp` set, and writes nothing else.
+     * Changes nothing when the row has left [fromMailboxId] since the caller read it. Returns the rows changed.
      */
     @Query(
-        "UPDATE emails SET mailboxId = :toMailboxId " +
+        "UPDATE emails SET mailboxId = :toMailboxId, catchUp = catchUp | 3 " +
             "WHERE accountId = :accountId AND id = :id AND mailboxId = :fromMailboxId",
     )
     suspend fun refile(accountId: String, id: String, fromMailboxId: String, toMailboxId: String): Int
@@ -272,26 +294,29 @@ interface EmailDao {
     @Query("DELETE FROM email_fts WHERE accountId = :accountId AND emailId IN (:ids)")
     suspend fun unindexByIds(accountId: String, ids: List<String>)
 
-    /** Cached message count for one account's mailbox (end-of-pagination check). */
+    /** Cached message count for one account's mailbox (the IMAP older page's offset and end check). */
     @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun countForMailbox(accountId: String, mailboxId: String): Int
 
+    @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId AND " + WALKED_SQL)
+    suspend fun walkedCountForMailbox(accountId: String, mailboxId: String): Int
+
     /**
-     * Oldest cached row that is its thread's newest within the mailbox (anchor for the next older
+     * Oldest walked row that is its thread's newest walked row in the mailbox, see [WALKED_SQL].
      */
     @Query(
-        "SELECT id FROM emails e WHERE accountId = :accountId AND mailboxId = :mailboxId " +
-            "AND sortKey = (SELECT MAX(sortKey) FROM emails WHERE accountId = :accountId " +
-            "AND mailboxId = :mailboxId AND COALESCE(threadId, id) = COALESCE(e.threadId, e.id)) " +
+        "SELECT id FROM emails e WHERE accountId = :accountId AND mailboxId = :mailboxId AND " + WALKED_SQL +
+            " AND sortKey = (SELECT MAX(sortKey) FROM emails WHERE accountId = :accountId AND " + WALKED_SQL +
+            " AND mailboxId = :mailboxId AND COALESCE(threadId, id) = COALESCE(e.threadId, e.id)) " +
             "ORDER BY sortKey ASC LIMIT 1",
     )
     suspend fun oldestRepresentativeEmailId(accountId: String, mailboxId: String): String?
 
-    /** Cached thread-representative row count for the mailbox (the collapsed list's length). */
+    /** How many walked rows are their thread's newest walked row in the mailbox, see [WALKED_SQL]. */
     @Query(
-        "SELECT COUNT(*) FROM emails e WHERE accountId = :accountId AND mailboxId = :mailboxId " +
-            "AND sortKey = (SELECT MAX(sortKey) FROM emails WHERE accountId = :accountId " +
-            "AND mailboxId = :mailboxId AND COALESCE(threadId, id) = COALESCE(e.threadId, e.id))",
+        "SELECT COUNT(*) FROM emails e WHERE accountId = :accountId AND mailboxId = :mailboxId AND " + WALKED_SQL +
+            " AND sortKey = (SELECT MAX(sortKey) FROM emails WHERE accountId = :accountId AND " + WALKED_SQL +
+            " AND mailboxId = :mailboxId AND COALESCE(threadId, id) = COALESCE(e.threadId, e.id))",
     )
     suspend fun representativeCountForMailbox(accountId: String, mailboxId: String): Int
 
@@ -351,9 +376,9 @@ interface EmailDao {
     suspend fun deleteForAccount(accountId: String)
 
     /**
-     * Age (and id) of every cached row in one account's mailbox, the input the retention prune
+     * Age, id and read state of every cached row in one account's mailbox, what the retention prune judges.
      */
-    @Query("SELECT id, sortKey FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
+    @Query("SELECT id, sortKey, seen FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun retentionRows(accountId: String, mailboxId: String): List<EmailRetentionRow>
 
     /**
@@ -410,6 +435,7 @@ interface EmailDao {
 data class EmailRetentionRow(
     val id: String,
     val sortKey: Long,
+    val seen: Boolean,
 )
 
 /**

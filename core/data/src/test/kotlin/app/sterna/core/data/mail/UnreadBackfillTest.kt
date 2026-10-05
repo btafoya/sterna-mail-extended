@@ -5,6 +5,8 @@ import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.core.data.db.CATCH_UP_OFF_WALK
+import app.sterna.core.data.db.CATCH_UP_SILENT
 import app.sterna.core.data.db.CachedFolder
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
@@ -18,6 +20,7 @@ import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RecentContactDao
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.db.caughtUp
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.JmapClient
@@ -55,8 +58,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  *
  * The cache is a map standing in for the `emails` table. It gives `insertAllIgnoring` the meaning
  * of an insert that skips an existing key and `refile` that of a folder change conditioned on the
- * folder it leaves, and refuses every call this path has no business making, `upsertAll` and every
- * delete among them. The statement of `refile` itself is run over SQLite in its own test.
+ * folder it leaves, which sets both bits of the mark, and refuses every call this path has no
+ * business making, `upsertAll` and every delete among them. The statement of `refile` itself is run
+ * over SQLite in its own test. The two reads of a notification pass are the shipped statements of
+ * `receivedSince` and `idsReceivedSince`, run over SQLite on the keys, date and mark of the map.
  *
  * What this does not cover:
  * - That Room turns the annotation of `insertAllIgnoring` into `INSERT OR IGNORE`. The annotation is
@@ -66,8 +71,6 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   id is run with a stand-in for the repository's marks.
  * - What a re-filed row does to the folder it leaves: the list of that folder loses the line until
  *   its next sync writes it back.
- * - A marker that outlives the process: the ids kept out of the notification candidates are held in
- *   memory.
  */
 class UnreadBackfillTest {
 
@@ -107,6 +110,7 @@ class UnreadBackfillTest {
         const val ACCOUNT = "account-1"
         const val OTHER_ACCOUNT = "account-2"
         const val HOUR_MS = 60L * 60 * 1000
+        const val BOTH = CATCH_UP_OFF_WALK or CATCH_UP_SILENT
     }
 
     @Before fun start() {
@@ -198,7 +202,11 @@ class UnreadBackfillTest {
                     refileCalls += call
                     var changed = 0
                     cache.computeIfPresent(call.accountId to call.id) { _, row ->
-                        if (row.mailboxId != call.from) row else row.copy(mailboxId = call.to).also { changed = 1 }
+                        if (row.mailboxId != call.from) {
+                            row
+                        } else {
+                            row.copy(mailboxId = call.to, catchUp = row.catchUp or BOTH).also { changed = 1 }
+                        }
                     }
                     changed
                 }
@@ -207,20 +215,44 @@ class UnreadBackfillTest {
                     insertCalls += written.map { it.id }
                     written.forEach { cache.putIfAbsent(it.accountId to it.id, it) }
                 }
-                "receivedSince" -> receivedSince(passed[0] as String, passed[1] as String, passed[2] as Long)
-                    .take(passed[3] as Int)
-                "idsReceivedSince" -> receivedSince(passed[0] as String, passed[1] as String, passed[2] as Long)
-                    .map { it.id }
+                "receivedSince" -> shippedRead(
+                    "receivedSince",
+                    mapOf("accountId" to passed[0], "mailboxId" to passed[1], "since" to passed[2], "limit" to passed[3]),
+                ).map { cache.getValue(passed[0] as String to it) }
+                "idsReceivedSince" -> shippedRead(
+                    "idsReceivedSince",
+                    mapOf("accountId" to passed[0], "mailboxId" to passed[1], "since" to passed[2]),
+                )
                 "mailboxOf" -> cache[passed[0] as String to passed[1] as String]?.mailboxId
                 "toString" -> "the cache of UnreadBackfillTest"
                 else -> error("EmailDao.${method.name} was called by a path that only reads folders, inserts and re-files.")
             }
         } as EmailDao
 
-    private fun receivedSince(accountId: String, mailboxId: String, since: Long): List<EmailEntity> =
-        cache.values
-            .filter { it.accountId == accountId && it.mailboxId == mailboxId && (it.sortKey >= since || it.sortKey == 0L) }
-            .sortedWith(compareByDescending<EmailEntity> { it.sortKey }.thenByDescending { it.id })
+    /** The ids the shipped statement of `EmailDao.[function]` selects from the map, in its order. */
+    private fun shippedRead(function: String, bound: Map<String, Any?>): List<String> {
+        Class.forName("org.sqlite.JDBC")
+        return DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
+            db.createStatement().use {
+                it.executeUpdate(
+                    "CREATE TABLE emails (accountId TEXT NOT NULL, id TEXT NOT NULL, mailboxId TEXT NOT NULL, " +
+                        "sortKey INTEGER NOT NULL, catchUp INTEGER NOT NULL, PRIMARY KEY(accountId, id))",
+                )
+            }
+            db.prepareStatement("INSERT INTO emails VALUES (?, ?, ?, ?, ?)").use { st ->
+                cache.values.forEach {
+                    st.setString(1, it.accountId); st.setString(2, it.id); st.setString(3, it.mailboxId)
+                    st.setLong(4, it.sortKey); st.setInt(5, it.catchUp)
+                    st.executeUpdate()
+                }
+            }
+            val (sql, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery(function))
+            db.prepareStatement(sql).use { st ->
+                order.forEachIndexed { i, name -> st.setObject(i + 1, bound.getValue(name)) }
+                st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString("id")) } }
+            }
+        }
+    }
 
     private fun mailboxDao(): MailboxDao =
         Proxy.newProxyInstance(MailboxDao::class.java.classLoader, arrayOf(MailboxDao::class.java)) { _, method, args ->
@@ -254,7 +286,10 @@ class UnreadBackfillTest {
         override fun keys(): Set<String> = emptySet()
     }
 
-    private val repository: MailRepository by lazy {
+    private val repository: MailRepository by lazy { newRepository() }
+
+    /** A repository over the same cache holding nothing in memory, as a process just started does. */
+    private fun newRepository(): MailRepository =
         MailRepository(
             client = JmapClient(),
             emailDao = emailDao(),
@@ -275,7 +310,6 @@ class UnreadBackfillTest {
             localDraftFilesDir = File("drafts-never-read"),
             syncStateStore = cursors,
         )
-    }
 
     private fun credentials(protocol: MailProtocol = MailProtocol.JMAP): AccountCredentials = AccountCredentials(
         server = server.url("/").toString().removeSuffix("/"),
@@ -349,7 +383,11 @@ class UnreadBackfillTest {
 
         backfill()
 
-        assertEquals("only the folder changes", before.copy(mailboxId = "work"), cache[ACCOUNT to "m-twice"])
+        assertEquals(
+            "only the folder and the mark change",
+            before.copy(mailboxId = "work", catchUp = BOTH),
+            cache[ACCOUNT to "m-twice"],
+        )
         assertEquals(listOf(Refiled(ACCOUNT, "m-twice", from = "trash", to = "work")), refileCalls.toList())
         assertEquals(listOf(listOf("m-twice")), idsAskedFor())
         assertEquals("a cached row is never handed to the insert", emptyList<String>(), insertCalls.flatten())
@@ -662,6 +700,91 @@ class UnreadBackfillTest {
         assertEquals(listOf("c-recent", "c-old"), notificationRead().emails.map { it.id })
     }
 
+    @Test fun `a process started after the catch-up is offered the recent inserted row, and neither the old one nor the one filed back`() {
+        cache[ACCOUNT to "r-recent"] = Email(id = "r-recent", receivedAt = receivedAgo(2 * HOUR_MS)).toEntity(ACCOUNT, "trash")
+        serve(
+            message("m-recent", mapOf("inbox" to true), receivedAt = receivedAgo(23 * HOUR_MS)),
+            message("m-old", mapOf("inbox" to true), receivedAt = receivedAgo(25 * HOUR_MS)),
+            message("r-recent", mapOf("inbox" to true, "trash" to true), receivedAt = receivedAgo(2 * HOUR_MS)),
+        )
+
+        backfill()
+        val read = runBlocking { newRepository().notifyRead(ACCOUNT, "inbox") }
+
+        assertEquals(listOf("inbox", "inbox", "inbox"), listOf("m-recent", "m-old", "r-recent").map { folderOf(it) })
+        assertEquals(listOf("m-recent"), read.emails.map { it.id })
+        assertEquals(setOf("m-recent", "m-old", "r-recent"), read.baselineIds.toSet())
+    }
+
+    /** Text: a set the repository holds is one a process restart empties, whatever it is fed. */
+    @Test fun `the notification read is the two statements alone, and the repository holds no set of caught-up ids`() {
+        assertTrue(
+            "MailRepository names `backfilledUnread` again: ids kept in memory are lost with the process",
+            "backfilledUnread" !in DaoQuerySource.mailSource("MailRepository"),
+        )
+        assertEquals(
+            listOf(
+                "val since = notifyCandidateFloor(System.currentTimeMillis())",
+                "return NotifyRead(",
+                "emails = emailDao.receivedSince(accountId, mailboxId, since, NOTIFY_CANDIDATE_MAX).map { it.toEmail() },",
+                "baselineIds = emailDao.idsReceivedSince(accountId, mailboxId, since),",
+                ")",
+            ),
+            DaoQuerySource.mailFunctionBody("MailRepository", "notifyRead").lines()
+                .map { it.trim() }.filter { it.isNotEmpty() && it != "{" && it != "}" },
+        )
+    }
+
+    private fun markOf(id: String): Int? = cache[ACCOUNT to id]?.catchUp
+
+    @Test fun `a caught-up row is marked off the walk whatever its age, and silent only when too old to be new`() {
+        serve(
+            message("m-recent", mapOf("inbox" to true), receivedAt = receivedAgo(23 * HOUR_MS)),
+            message("m-old", mapOf("inbox" to true), receivedAt = receivedAgo(25 * HOUR_MS)),
+            message("m-undated", mapOf("work" to true), receivedAt = null),
+        )
+
+        backfill()
+
+        assertEquals(
+            mapOf("m-recent" to CATCH_UP_OFF_WALK, "m-old" to BOTH, "m-undated" to BOTH),
+            listOf("m-recent", "m-old", "m-undated").associateWith { markOf(it) },
+        )
+    }
+
+    @Test fun `a row filed back is marked off the walk and silent whatever its age, and a row left alone is not marked`() {
+        cache[ACCOUNT to "r-recent"] = Email(id = "r-recent", receivedAt = receivedAgo(2 * HOUR_MS)).toEntity(ACCOUNT, "trash")
+        cache[ACCOUNT to "c-kept"] = Email(id = "c-kept", receivedAt = receivedAgo(72 * HOUR_MS)).toEntity(ACCOUNT, "inbox")
+        serve(
+            message("r-recent", mapOf("inbox" to true, "trash" to true), receivedAt = receivedAgo(2 * HOUR_MS)),
+            message("c-kept", mapOf("inbox" to true), receivedAt = receivedAgo(72 * HOUR_MS)),
+        )
+
+        backfill()
+
+        assertEquals("inbox", folderOf("r-recent"))
+        assertEquals(mapOf("r-recent" to BOTH, "c-kept" to 0), listOf("r-recent", "c-kept").associateWith { markOf(it) })
+    }
+
+    @Test fun `the mark of an inserted row turns silent one millisecond before the horizon, and on no date`() {
+        val staleBefore = 1_000_000L
+        fun row(id: String, sortKey: Long) = Email(id = id).toEntity(ACCOUNT, "inbox").copy(sortKey = sortKey)
+        val marked = caughtUp(
+            listOf(row("at", staleBefore), row("before", staleBefore - 1), row("undated", 0L), row("after", staleBefore + 1)),
+            staleBefore,
+        )
+
+        assertEquals(
+            mapOf("at" to CATCH_UP_OFF_WALK, "before" to BOTH, "undated" to BOTH, "after" to CATCH_UP_OFF_WALK),
+            marked.associate { it.id to it.catchUp },
+        )
+        assertEquals(
+            "the mark is the only field the insert changes",
+            listOf(row("at", staleBefore), row("before", staleBefore - 1), row("undated", 0L), row("after", staleBefore + 1)),
+            marked.map { it.copy(catchUp = 0) },
+        )
+    }
+
     @Test fun `an account already signed out asks the server nothing`() {
         serve(message("m-old", mapOf("work" to true)))
         configured.clear()
@@ -689,8 +812,10 @@ class UnreadBackfillTest {
 
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "backfillUnread").lines().map { it.trim() }
         val spared = body.indexOf("val fresh = sparingInFlight(rows)")
-        val written = body.indexOf("emailDao.insertAllIgnoring(fresh)")
-        assertTrue("the rows are no longer spared in flight before they are written:\n$body", spared in 0 until written)
+        val marked = body.indexOf("val caught = caughtUp(fresh, staleBefore = System.currentTimeMillis() - NOTIFY_HORIZON_MS)")
+        val written = body.indexOf("emailDao.insertAllIgnoring(caught)")
+        assertTrue("the rows are no longer spared in flight before they are marked:\n$body", spared in 0 until marked)
+        assertTrue("the rows are no longer marked before they are written:\n$body", marked in 0 until written)
         val refiledSpared = body.indexOf("val refiled = sparingInFlight(misfiled)")
         val refiled = body.indexOf(
             "refiled.forEach { emailDao.refile(credentials.id, it.id, plan.misfiled.getValue(it.id), it.mailboxId) }",
@@ -704,17 +829,19 @@ class UnreadBackfillTest {
     }
 
     /** `EmailDao.refile` as the shipped DAO states it, over the columns it names and two it must not write. */
-    @Test fun `the folder change writes one column of one account's row, and only from the folder it was read under`() {
+    @Test fun `the folder change writes the folder and the mark of one account's row, and only from the folder it was read under`() {
         Class.forName("org.sqlite.JDBC")
         DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
             db.createStatement().use {
                 it.executeUpdate(
                     "CREATE TABLE `emails` (`accountId` TEXT NOT NULL, `id` TEXT NOT NULL, `mailboxId` TEXT NOT NULL, " +
-                        "`subject` TEXT, `seen` INTEGER NOT NULL, PRIMARY KEY(`accountId`, `id`))",
+                        "`subject` TEXT, `seen` INTEGER NOT NULL, `catchUp` INTEGER NOT NULL DEFAULT 0, " +
+                        "PRIMARY KEY(`accountId`, `id`))",
                 )
                 it.executeUpdate(
-                    "INSERT INTO emails VALUES ('A', 'm', 'trash', 'kept', 0), ('B', 'm', 'trash', 'sibling', 0), " +
-                        "('A', 'n', 'inbox', 'elsewhere', 1)",
+                    "INSERT INTO emails VALUES ('A', 'm', 'trash', 'kept', 0, 0), ('B', 'm', 'trash', 'sibling', 0, 0), " +
+                        "('A', 'n', 'inbox', 'elsewhere', 1, 0), ('A', 'o', 'trash', 'walked since', 0, $CATCH_UP_SILENT), " +
+                        "('A', 'p', 'trash', 'beyond the two bits', 0, 4)",
                 )
             }
             val (sql, order) = DaoQuerySource.bindOrder(DaoQuerySource.emailDaoQuery("refile"))
@@ -727,15 +854,26 @@ class UnreadBackfillTest {
             }
             fun table(): List<String> = db.createStatement().use { st ->
                 st.executeQuery("SELECT * FROM emails ORDER BY accountId, id").use { rs ->
-                    buildList { while (rs.next()) add((1..5).joinToString("|") { rs.getString(it) }) }
+                    buildList { while (rs.next()) add((1..6).joinToString("|") { rs.getString(it) }) }
                 }
             }
 
             assertEquals(1, refile("A", "m", from = "trash", to = "work"))
             assertEquals(0, refile("A", "n", from = "trash", to = "work"))
             assertEquals(0, refile("A", "absent", from = "trash", to = "work"))
+            assertEquals(1, refile("A", "o", from = "trash", to = "work"))
+            assertEquals(1, refile("A", "p", from = "trash", to = "work"))
 
-            assertEquals(listOf("A|m|work|kept|0", "A|n|inbox|elsewhere|1", "B|m|trash|sibling|0"), table())
+            assertEquals(
+                listOf(
+                    "A|m|work|kept|0|$BOTH",
+                    "A|n|inbox|elsewhere|1|0",
+                    "A|o|work|walked since|0|$BOTH",
+                    "A|p|work|beyond the two bits|0|${4 or BOTH}",
+                    "B|m|trash|sibling|0|0",
+                ),
+                table(),
+            )
         }
     }
 

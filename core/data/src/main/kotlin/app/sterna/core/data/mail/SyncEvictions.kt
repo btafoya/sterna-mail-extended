@@ -75,16 +75,17 @@ internal fun deltaFetches(
     updated: List<String>,
 ): List<String> = ((added - cachedIds) + updated.filter { it in cachedIds }).distinct()
 
-/** Which cached ids the retention window evicts after a refresh, none of them authoritative: the
- *  server still has every one. A row goes only when dated (`sortKey > 0`), older than [cutoffMillis],
- *  and outside [freshIds] (what the sync just fetched, #110), [spareIds] and the [keepNewest] newest
- *  rows; a null [freshIds] prunes nothing. */
+/** Which cached ids the retention window evicts after a refresh; the server still has every one. A
+ *  row goes only when dated (`sortKey > 0`), older than [cutoffMillis], outside [freshIds] (what the
+ *  sync just fetched, #110; null prunes nothing), [spareIds] and the [keepNewest] newest. JMAP's
+ *  [spareUnread] keeps the unread rows the drawer still counts; [unreadSparedOffWalk] names them. */
 internal fun retentionEvictions(
     cached: List<EmailRetentionRow>,
     cutoffMillis: Long,
     freshIds: Set<String>?,
     spareIds: Set<String>,
     keepNewest: Int,
+    spareUnread: Boolean = false,
 ): List<String> {
     if (freshIds == null) return emptyList()
     if (cached.size <= keepNewest) return emptyList()
@@ -96,9 +97,25 @@ internal fun retentionEvictions(
     return cached
         .filter {
             it.sortKey > 0 && it.sortKey < cutoffMillis &&
-                it.id !in freshIds && it.id !in spareIds && it.id !in floor
+                it.id !in freshIds && it.id !in spareIds && it.id !in floor &&
+                !(spareUnread && !it.seen)
         }
         .map { it.id }
+}
+
+internal fun unreadSparedOffWalk(
+    cached: List<EmailRetentionRow>,
+    cutoffMillis: Long,
+    freshIds: Set<String>?,
+    spareIds: Set<String>,
+    keepNewest: Int,
+    spareUnread: Boolean,
+): List<String> {
+    if (!spareUnread) return emptyList()
+    val unread = cached.filterNot { it.seen }.mapTo(HashSet()) { it.id }
+    if (unread.isEmpty()) return emptyList()
+    return retentionEvictions(cached, cutoffMillis, freshIds, spareIds, keepNewest, spareUnread = false)
+        .filter { it in unread }
 }
 
 /** Which cached ids a full-query reconcile drops, in batches no statement can choke on. Computed as

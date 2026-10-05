@@ -130,7 +130,7 @@ class LocalDraftsSurviveTheCachePrunesSqlTest {
         return db.prepareStatement(statement).use { ps ->
             order.forEachIndexed { i, name -> ps.setString(i + 1, if (name == "accountId") ACCOUNT else DRAFTS) }
             ps.executeQuery().use { rs ->
-                buildList { while (rs.next()) add(EmailRetentionRow(rs.getString(1), rs.getLong(2))) }
+                buildList { while (rs.next()) add(EmailRetentionRow(rs.getString(1), rs.getLong(2), rs.getBoolean(3))) }
             }
         }
     }

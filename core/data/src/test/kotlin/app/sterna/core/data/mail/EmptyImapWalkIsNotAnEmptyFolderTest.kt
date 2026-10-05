@@ -115,7 +115,7 @@ class EmptyImapWalkIsNotAnEmptyFolderTest {
     @Test fun `the prune inherits the same refusal, and deletes nothing either`() {
         // `refreshImap` calls this decision a second time as the prune's `freshIds` (#110). A prune
         // that took an empty set here would delete, in the same pass, the rows the reconcile spared.
-        val cached = listOf(9L, 8L).map { app.sterna.core.data.db.EmailRetentionRow(id = id(it), sortKey = 1_000L) }
+        val cached = listOf(9L, 8L).map { app.sterna.core.data.db.EmailRetentionRow(id = id(it), sortKey = 1_000L, seen = true) }
 
         val pruned = retentionEvictions(
             cached = cached,

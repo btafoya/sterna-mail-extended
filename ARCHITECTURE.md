@@ -52,8 +52,9 @@ the response's new state so push echoes of the app's own action are not re-appli
 **The cache is the UI's source.** Screens read Room via Paging 3; the network
 only ever writes into Room. A single folder view is backed by a `RemoteMediator`
 that extends the cache on scroll: it anchors the next `Email/query` page on the
-oldest cached thread-*representative* (stable when new mail arrives on top,
-unlike an absolute offset), falls back once to a positional query on
+oldest thread-*representative* a page of that list brought in (stable when new
+mail arrives on top, unlike an absolute offset; a row the Unread view cached
+on its own is not that edge), falls back once to a positional query on
 `anchorNotFound`, and in conversation view keeps fetching (bounded) until the
 page has produced enough *new thread rows*, one giant thread must not count as
 a full page of progress.
@@ -73,6 +74,13 @@ bounds what is kept *in addition to* the folder's current page, the page a
 refresh just fetched is never pruned by it, whatever its age. An age window
 also keeps the folder's newest N messages regardless of age (N being that window's page size),
 so a quiet folder is never emptied down to whatever happens to be recent.
+On JMAP the window's prune after a refresh also leaves every unread message in
+place, since the drawer shows the server's unread count and the Unread view
+lists the cache; such a message leaves the cache at the next refresh of its
+folder once it has been read, or when a full re-query of its folder no longer
+returns it. Kept alone past the read mail the prune removed, it is not where
+loading older pages starts from. On IMAP an unread message is pruned like any
+other.
 
 ## Conversations
 
@@ -194,7 +202,7 @@ design.
 
 | Data | Location | Bound |
 |---|---|---|
-| Message list rows | Room `emails` | Pruned to the sync window (spare set excepted). |
+| Message list rows | Room `emails` | Pruned to the sync window (spare set excepted, and on JMAP unread messages). |
 | Message bodies | Room `email_bodies` | Opened/prefetched messages; LRU cap per account. |
 | Search index | Room `email_fts` (FTS4) | Headers of every folder except Trash and Spam; outlives the display window. |
 | Outbox / scheduled / snoozed | Room | User data, additive migrations, never dropped. |

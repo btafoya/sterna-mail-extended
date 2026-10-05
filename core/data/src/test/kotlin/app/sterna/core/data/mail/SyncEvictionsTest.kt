@@ -164,8 +164,8 @@ class SyncEvictionsTest {
     private val floor200 = 200
 
     /** A cached row [daysAgo] days old (0 days = now); [daysAgo] < 0 means "no parsable date". */
-    private fun row(id: String, daysAgo: Long) =
-        EmailRetentionRow(id, if (daysAgo < 0) 0L else now - daysAgo * day)
+    private fun row(id: String, daysAgo: Long, seen: Boolean = true) =
+        EmailRetentionRow(id, if (daysAgo < 0) 0L else now - daysAgo * day, seen)
 
     @Test fun theFreshPageIsNeverPrunedByTheAgeWindow() {
         // Codeberg #110 in the reporter's own numbers: a ten-message folder, eight of them from
@@ -338,6 +338,103 @@ class SyncEvictionsTest {
             listOf("a", "b"),
             retentionEvictions(cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 2)
                 .sorted(),
+        )
+    }
+
+    @Test fun anOldUnreadRowOutsideTheFloorOutlivesTheAgeWindowOnJmap() {
+        val cached = listOf(row("oldUnread", 400, seen = false), row("oldRead", 400), row("recent", 1))
+        assertEquals(
+            listOf("oldRead"),
+            retentionEvictions(
+                cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true,
+            ),
+        )
+    }
+
+    @Test fun theSameRowIsPrunedOnJmapOnceItHasBeenRead() {
+        val cached = listOf(row("oldNowRead", 400, seen = true), row("recent", 1))
+        assertEquals(
+            listOf("oldNowRead"),
+            retentionEvictions(
+                cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true,
+            ),
+        )
+    }
+
+    @Test fun anOldUnreadRowIsStillPrunedOnImap() {
+        val cached = listOf(row("oldUnread", 400, seen = false), row("recent", 1))
+        assertEquals(
+            listOf("oldUnread"),
+            retentionEvictions(
+                cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = false,
+            ),
+        )
+    }
+
+    @Test fun sparingTheUnreadDoesNotLiftTheNullFreshIdsLock() {
+        val cached = listOf(row("oldUnread", 400, seen = false), row("oldRead", 400), row("recent", 1))
+        assertEquals(
+            emptyList<String>(),
+            retentionEvictions(
+                cached, cutoff90, freshIds = null, spareIds = emptySet(), keepNewest = 0, spareUnread = true,
+            ),
+        )
+    }
+
+    @Test fun onJmapTheOldUnreadRowKeptAmongEvictedReadMailIsTheOneToMarkOffWalk() {
+        val cached = listOf(
+            row("oldUnread", 400, seen = false), row("oldRead1", 300), row("oldRead2", 500),
+            row("recent", 1), row("recentUnread", 2, seen = false),
+        )
+        assertEquals(
+            listOf("oldUnread"),
+            unreadSparedOffWalk(cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true),
+        )
+        assertEquals(
+            listOf("oldRead1", "oldRead2"),
+            retentionEvictions(
+                cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true,
+            ),
+        )
+    }
+
+    @Test fun anUnreadRowTheWindowKeepsForAnotherReasonIsNotMarkedOffWalk() {
+        val cached = listOf(
+            row("floorUnread", 100, seen = false), row("freshUnread", 400, seen = false),
+            row("gestureUnread", 400, seen = false), row("undatedUnread", -1, seen = false), row("oldRead", 500),
+        )
+        assertEquals(
+            emptyList<String>(),
+            unreadSparedOffWalk(
+                cached, cutoff90, freshIds = setOf("freshUnread"), spareIds = setOf("gestureUnread"), keepNewest = 1,
+                spareUnread = true,
+            ),
+        )
+        assertEquals(
+            emptyList<String>(),
+            unreadSparedOffWalk(cached, cutoff90, freshIds = null, spareIds = emptySet(), keepNewest = 0, spareUnread = true),
+        )
+    }
+
+    @Test fun nothingIsMarkedOffWalkOnImap() {
+        val cached = listOf(row("oldUnread", 400, seen = false), row("oldRead", 300), row("recent", 1))
+        assertEquals(
+            emptyList<String>(),
+            unreadSparedOffWalk(cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = false),
+        )
+    }
+
+    @Test fun anUnreadRowStillCountsInTheFloorOnJmap() {
+        val cached = listOf(row("unread100", 100, seen = false), row("read200", 200), row("read300", 300))
+        assertEquals(
+            listOf("read200", "read300"),
+            retentionEvictions(
+                cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true,
+            ),
+        )
+        assertEquals(
+            emptyList<String>(),
+            unreadSparedOffWalk(cached, cutoff90, freshIds = emptySet(), spareIds = emptySet(), keepNewest = 1, spareUnread = true),
         )
     }
 

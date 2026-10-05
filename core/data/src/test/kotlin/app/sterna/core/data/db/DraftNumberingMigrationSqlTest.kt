@@ -456,7 +456,7 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v33 (`smime_certificates`)", 33, SCHEMA_VERSION)
+        assertEquals("the schema now declares v34 (`emails.catchUp`)", 34, SCHEMA_VERSION)
     }
 
     // --- v24 → v25: the numbering each cached row was read under ---------------------------------

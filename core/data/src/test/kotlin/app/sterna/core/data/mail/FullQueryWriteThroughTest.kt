@@ -281,7 +281,7 @@ class FullQueryWriteThroughTest {
         // comparison together and the assertion below would hold whatever came back.
         assertEquals("the fixture did not write what it says it wrote", allThree.toSet(), folder.cache)
         val pruned = retentionEvictions(
-            cached = allThree.map { EmailRetentionRow(id = it, sortKey = 1_000L) },
+            cached = allThree.map { EmailRetentionRow(id = it, sortKey = 1_000L, seen = true) },
             cutoffMillis = 9_000_000L,
             freshIds = walked.ids.toSet(),
             spareIds = emptySet(),

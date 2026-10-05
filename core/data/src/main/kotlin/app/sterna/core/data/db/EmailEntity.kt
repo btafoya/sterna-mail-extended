@@ -39,4 +39,5 @@ data class EmailEntity(
     /** IMAP UIDVALIDITY [id]'s UID was read under (v25, #99); decoupled from
      *  `mailbox_uidvalidity` so a renumbered folder can't make a purge hit different, live mail. */
     val uidValidity: Long? = null,
+    val catchUp: Int = 0,
 )

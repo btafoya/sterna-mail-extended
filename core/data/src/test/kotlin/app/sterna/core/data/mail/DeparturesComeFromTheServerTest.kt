@@ -250,7 +250,7 @@ class DeparturesComeFromTheServerTest {
         // change what the prune is told, or a message fetched this cycle is deleted in it.
         assertEquals(
             listOf(
-                "pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor)",
+                "pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor, spareUnread = true)",
             ),
             codeLinesNaming(DaoQuerySource.mailFunctionBody("MailRepository", "refresh"), "pruneRetention("),
         )

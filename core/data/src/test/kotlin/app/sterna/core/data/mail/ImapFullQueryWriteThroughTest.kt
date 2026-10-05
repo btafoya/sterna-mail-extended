@@ -306,7 +306,7 @@ class ImapFullQueryWriteThroughTest {
         // confident about it than the reconcile was. `retentionEvictions` prunes nothing for a
         // caller that answers null, and that null is `reconcilableIds` refusing.
         val load = ImapFolderLoad(emptyList(), inbox, "Inbox", 0, "tester", ImapFolderWalk(listOf(9L, 8L), moved = true))
-        val cached = listOf(9L, 8L, 999L).map { EmailRetentionRow(id = id(it), sortKey = 1_000L) }
+        val cached = listOf(9L, 8L, 999L).map { EmailRetentionRow(id = id(it), sortKey = 1_000L, seen = true) }
 
         val pruned = retentionEvictions(
             cached = cached,
@@ -321,7 +321,7 @@ class ImapFullQueryWriteThroughTest {
 
     @Test fun `a folder that held still prunes what the walk did not bring back — the witness`() {
         val load = ImapFolderLoad(emptyList(), inbox, "Inbox", 0, "tester", ImapFolderWalk(listOf(9L, 8L), moved = false))
-        val cached = listOf(9L, 8L, 999L).map { EmailRetentionRow(id = id(it), sortKey = 1_000L) }
+        val cached = listOf(9L, 8L, 999L).map { EmailRetentionRow(id = id(it), sortKey = 1_000L, seen = true) }
 
         val pruned = retentionEvictions(
             cached = cached,

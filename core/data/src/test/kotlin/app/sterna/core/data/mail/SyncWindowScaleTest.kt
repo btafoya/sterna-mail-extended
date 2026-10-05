@@ -278,7 +278,7 @@ class SyncWindowScaleTest {
     /** [count] cached rows, all dated well before [CUTOFF], nothing but the floor can save them.
      *  `m1` is the oldest, `m$count` the newest. */
     private fun agedRows(count: Int): List<EmailRetentionRow> =
-        (1..count).map { EmailRetentionRow(id = "m$it", sortKey = it.toLong()) }
+        (1..count).map { EmailRetentionRow(id = "m$it", sortKey = it.toLong(), seen = true) }
 
     private companion object {
         /** Newer than every row [agedRows] makes, so the age clause is true for all of them. */

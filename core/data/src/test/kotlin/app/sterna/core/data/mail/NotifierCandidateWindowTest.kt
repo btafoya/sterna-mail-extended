@@ -1,6 +1,9 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.CATCH_UP_OFF_WALK
+import app.sterna.core.data.db.CATCH_UP_SILENT
 import app.sterna.core.data.db.EmailEntity
+import app.sterna.core.data.db.caughtUp
 import app.sterna.core.jmap.model.Email
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -38,7 +41,7 @@ class NotifierCandidateWindowTest {
                     id TEXT, accountId TEXT, mailboxId TEXT, threadId TEXT,
                     subject TEXT, preview TEXT, receivedAt TEXT, fromName TEXT, fromEmail TEXT,
                     seen INTEGER, flagged INTEGER, hasAttachment INTEGER, sortKey INTEGER,
-                    recipientsJson TEXT,
+                    recipientsJson TEXT, catchUp INTEGER NOT NULL DEFAULT 0,
                     PRIMARY KEY(accountId, id)
                 )
                 """.trimIndent(),
@@ -58,10 +61,10 @@ class NotifierCandidateWindowTest {
 
     private fun insert(e: EmailEntity) {
         db.prepareStatement(
-            "INSERT INTO emails VALUES(?, ?, ?, NULL, 'subj', 'prev', ?, 'N', 'n@e', 0, 0, 0, ?, '[]')",
+            "INSERT INTO emails VALUES(?, ?, ?, NULL, 'subj', 'prev', ?, 'N', 'n@e', 0, 0, 0, ?, '[]', ?)",
         ).use { ps ->
             ps.setString(1, e.id); ps.setString(2, e.accountId); ps.setString(3, e.mailboxId)
-            ps.setString(4, e.receivedAt); ps.setLong(5, e.sortKey)
+            ps.setString(4, e.receivedAt); ps.setLong(5, e.sortKey); ps.setInt(6, e.catchUp)
             ps.executeUpdate()
         }
     }
@@ -223,5 +226,33 @@ class NotifierCandidateWindowTest {
         assertEquals(NOW - NOTIFY_HORIZON_MS, notifyFloor(NOW))
         assertTrue(announceableAt(Instant.ofEpochMilli(NOW - NOTIFY_HORIZON_MS).toString(), notifyFloor(NOW)))
         assertFalse(announceableAt(Instant.ofEpochMilli(NOW - NOTIFY_HORIZON_MS - 1).toString(), notifyFloor(NOW)))
+    }
+
+    @Test fun `a row marked silent is never a candidate, and the baseline still counts it`() {
+        insert(row("m-new", MINUTE))
+        insert(row("m-silent", HOUR).copy(catchUp = CATCH_UP_SILENT))
+        insert(row("m-refiled", 2 * HOUR).copy(catchUp = CATCH_UP_OFF_WALK or CATCH_UP_SILENT))
+        insert(undatedRow("m-undated").copy(catchUp = CATCH_UP_OFF_WALK or CATCH_UP_SILENT))
+
+        assertEquals(listOf("m-new"), candidates())
+        assertEquals(setOf("m-new", "m-silent", "m-refiled", "m-undated"), baseline().toSet())
+    }
+
+    @Test fun `a row marked off the walk alone, or beyond the two bits, stays a candidate`() {
+        insert(row("m-caught-up", HOUR).copy(catchUp = CATCH_UP_OFF_WALK))
+        insert(row("m-other-bit", 2 * HOUR).copy(catchUp = 4))
+
+        assertEquals(listOf("m-caught-up", "m-other-bit"), candidates())
+    }
+
+    @Test fun `of the rows the catch-up inserts, the pass is offered the dated one received within the horizon`() {
+        val inserted = caughtUp(
+            listOf(row("m-23h", 23 * HOUR), row("m-25h", 25 * HOUR), undatedRow("m-undated")),
+            staleBefore = NOW - NOTIFY_HORIZON_MS,
+        )
+        inserted.forEach(::insert)
+
+        assertEquals(listOf("m-23h"), candidates())
+        assertEquals(setOf("m-23h", "m-25h", "m-undated"), baseline().toSet())
     }
 }

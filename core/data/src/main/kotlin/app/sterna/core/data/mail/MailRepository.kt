@@ -46,6 +46,7 @@ import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxEntity
 import app.sterna.core.data.db.MailboxIdRole
+import app.sterna.core.data.db.caughtUp
 import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.pgp.PgpEngine
 import app.sterna.core.data.pgp.SmimeCertificates
@@ -1162,10 +1163,6 @@ class MailRepository(
     private val recentlyMutated = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private fun mutationKey(accountId: String, emailId: String) = "$accountId:$emailId"
 
-    // Rows [backfillUnread] re-filed, or added undated or older than [NOTIFY_HORIZON_MS], keyed by
-    // [mutationKey]. Memory only, so a process killed before the folder's next pass forgets them.
-    private val backfilledUnread = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
     /** Ids the app itself just moved between folders, for the notifier's diff filter (#50). For IMAP
      *  the marked id is the message's id at its destination, since an IMAP move changes the id. */
     val recentLocalMoves = RecentLocalMoves()
@@ -1307,6 +1304,7 @@ class MailRepository(
             writePage = { fresh ->
                 checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
                 emailDao.upsertAll(sparingInFlight(fresh.map { it.toEntity(localAccountId, mailboxId) }))
+                markWalked(localAccountId, mailboxId, fresh)
             },
             keepIds = { reconcilableWindowIds(it) },
             spareIds = { recentlyMutatedIds(localAccountId) },
@@ -1347,22 +1345,21 @@ class MailRepository(
         cutoffMillis: Long,
         freshIds: Set<String>?,
         keepNewest: Int,
+        spareUnread: Boolean,
     ) {
-        val gone = retentionEvictions(
-            cached = emailDao.retentionRows(accountId, mailboxId),
-            cutoffMillis = cutoffMillis,
-            freshIds = freshIds,
-            spareIds = recentlyMutatedIds(accountId).toSet(),
-            keepNewest = keepNewest,
-        )
-        if (gone.isEmpty()) return
+        val cached = emailDao.retentionRows(accountId, mailboxId)
+        val spareIds = recentlyMutatedIds(accountId).toSet()
+        val gone = retentionEvictions(cached, cutoffMillis, freshIds, spareIds, keepNewest, spareUnread)
+        val offWalk = unreadSparedOffWalk(cached, cutoffMillis, freshIds, spareIds, keepNewest, spareUnread)
+        offWalk.chunked(MAX_CHANGES).forEach { emailDao.markOffWalk(accountId, it) }
+        if (gone.isEmpty() && offWalk.isEmpty()) return
         // The index survives this, hence `evictFromCacheKeepingIndex`: every id here belongs to a
         // message the server still has. Chunked because the ids go into an `in (...)`.
         gone.chunked(MAX_CHANGES).forEach { emailDao.evictFromCacheKeepingIndex(accountId, it) }
         logInfo(
             "MailSync",
             "retention $accountId/$mailboxId: pruned ${gone.size}, " +
-                "spared ${freshIds?.size ?: -1} fetched + floor $keepNewest",
+                "spared ${freshIds?.size ?: -1} fetched + floor $keepNewest + ${offWalk.size} unread",
             null,
         )
     }
@@ -1580,18 +1577,19 @@ class MailRepository(
                     return MediatorResult.Success(endOfPaginationReached = loadType == LoadType.PREPEND)
                 }
                 return try {
-                    val (added, total) = if (credentials.protocol == MailProtocol.IMAP) {
+                    val (added, total, cached) = if (credentials.protocol == MailProtocol.IMAP) {
                         val offset = emailDao.countForMailbox(credentials.id, mailboxId)
                         val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))
                         if (entities.isNotEmpty()) emailDao.upsertAll(sparingInFlight(entities))
-                        entities.size to exists
+                        Triple(entities.size, exists, emailDao.countForMailbox(credentials.id, mailboxId))
                     } else {
                         val ctx = jmapSession(credentials)
-                        // Anchor on the oldest cached representative rather than an absolute offset:
+                        // Anchor on the oldest walked representative rather than an absolute offset:
                         // the anchor doesn't shift when new mail arrives, so no page is skipped or
                         // duplicated. It overlaps at worst, which upsert-only insertion makes harmless.
+                        // Every cache read of this branch leaves out the rows `WALKED_SQL` leaves out.
                         val anchorId = emailDao.oldestRepresentativeEmailId(credentials.id, mailboxId)
-                        val before = emailDao.countForMailbox(credentials.id, mailboxId)
+                        val before = emailDao.walkedCountForMailbox(credentials.id, mailboxId)
                         val repsBefore = if (conversationView) {
                             emailDao.representativeCountForMailbox(credentials.id, mailboxId)
                         } else {
@@ -1606,7 +1604,7 @@ class MailRepository(
                             )
                         } catch (e: JmapException) {
                             // The anchor can have dropped out of the folder; fall back once to an
-                            // absolute position at the cached row count.
+                            // absolute position at the walked row count.
                             if (e.errorType != "anchorNotFound") throw e
                             client.queryEmailsPage(
                                 ctx.session, ctx.accountId, mailboxId, PAGE_SIZE, ctx.auth,
@@ -1615,6 +1613,7 @@ class MailRepository(
                         }
                         if (page.emails.isNotEmpty()) {
                             emailDao.upsertAll(sparingInFlight(page.emails.map { it.toEntity(credentials.id, mailboxId) }))
+                            markWalked(credentials.id, mailboxId, page.emails)
                         }
                         // The collapsed list's rows are threads: keep fetching at the window edge
                         // until enough new rows land, bounded.
@@ -1622,7 +1621,7 @@ class MailRepository(
                         val fillTarget = if (conversationView) APPEND_THREAD_TARGET else 1
                         var fetches = 1
                         while (page.emails.isNotEmpty() && fetches < maxFetches) {
-                            val cachedNow = emailDao.countForMailbox(credentials.id, mailboxId)
+                            val cachedNow = emailDao.walkedCountForMailbox(credentials.id, mailboxId)
                             val gained = if (conversationView) {
                                 emailDao.representativeCountForMailbox(credentials.id, mailboxId) - repsBefore
                             } else {
@@ -1641,12 +1640,12 @@ class MailRepository(
                             )
                             if (page.emails.isNotEmpty()) {
                                 emailDao.upsertAll(sparingInFlight(page.emails.map { it.toEntity(credentials.id, mailboxId) }))
+                                markWalked(credentials.id, mailboxId, page.emails)
                             }
                             fetches++
                         }
-                        page.emails.size to page.total
+                        Triple(page.emails.size, page.total, emailDao.walkedCountForMailbox(credentials.id, mailboxId))
                     }
-                    val cached = emailDao.countForMailbox(credentials.id, mailboxId)
                     val reachedEnd = added == 0 || (total != null && cached >= total)
                     MediatorResult.Success(endOfPaginationReached = reachedEnd)
                 } catch (t: Throwable) {
@@ -1689,13 +1688,10 @@ class MailRepository(
      */
     suspend fun notifyRead(accountId: String, mailboxId: String): NotifyRead {
         val since = notifyCandidateFloor(System.currentTimeMillis())
-        val read = NotifyRead(
+        return NotifyRead(
             emails = emailDao.receivedSince(accountId, mailboxId, since, NOTIFY_CANDIDATE_MAX).map { it.toEmail() },
             baselineIds = emailDao.idsReceivedSince(accountId, mailboxId, since),
         )
-        // Out of the candidates and still in the baseline, so the pass remembers such a row without
-        // announcing it or re-filing its thread, whatever floor the folder has.
-        return read.copy(emails = read.emails.filterNot { mutationKey(accountId, it.id) in backfilledUnread })
     }
 
     /** Cached emails for account-qualified keys (drives bulk actions on a selection). Each id is
@@ -1786,18 +1782,15 @@ class MailRepository(
                 val fresh = sparingInFlight(rows)
                 val refiled = sparingInFlight(misfiled)
                 checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-                val staleBefore = System.currentTimeMillis() - NOTIFY_HORIZON_MS
-                val tooOldToBeNew = fresh.filter { it.sortKey == 0L || it.sortKey < staleBefore }
-                // A re-filed row was cached already, so the notifier has seen it or it sat outside the
-                // inbox. Whatever its age, coming back under the inbox must not pass for new mail: that
-                // is a second banner, and an unarchive-on-reply written to the server.
-                (tooOldToBeNew + refiled).forEach { backfilledUnread += mutationKey(credentials.id, it.id) }
+                val caught = caughtUp(fresh, staleBefore = System.currentTimeMillis() - NOTIFY_HORIZON_MS)
                 // Insert-only, never an upsert: ignoring the conflict settles the race with a folder
                 // sync writing the same id since the read above, and a row cached under a folder of
                 // the scope never moves, it is listed where it is.
-                emailDao.insertAllIgnoring(fresh)
-                // Only a row cached outside the scope is re-filed, the folder alone and from the folder
-                // the plan read. It leaves that folder's cached list until that folder's next sync.
+                emailDao.insertAllIgnoring(caught)
+                // Only a row cached outside the scope is re-filed, the folder and the mark alone and from
+                // the folder the plan read. It leaves that folder's cached list until that folder's next sync.
+                // Silent whatever its age: it was cached already, and filed under the inbox it would pass
+                // for new mail, a second banner and an unarchive-on-reply written to the server.
                 refiled.forEach { emailDao.refile(credentials.id, it.id, plan.misfiled.getValue(it.id), it.mailboxId) }
             }
             val total = page.total
@@ -2001,7 +1994,7 @@ class MailRepository(
         if (syncError == null && pruneBeforeMillis != null) {
             // `sizing.retentionFloor`, never `sizing.pageSize`: the floor is the user's window, and
             // the server's per-request limit has no business shortening it.
-            pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor)
+            pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor, spareUnread = true)
         }
         // Folder counters land after the email rows, so a concurrent optimistic nudge survives.
         mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))
@@ -2077,6 +2070,7 @@ class MailRepository(
                 pruneBeforeMillis,
                 reconcilableIds(load, credentials.id),
                 limit,
+                spareUnread = false,
             )
         }
         return MailboxMeta(load.accountName, load.targetMailboxId, load.targetName, load.unread)
@@ -2990,6 +2984,9 @@ class MailRepository(
     private fun flightMarkedSeen(accountId: String, emailId: String) {
         inFlightRemovals.computeIfPresent(flightKey(accountId, emailId)) { _, row -> row.copy(seen = true) }
     }
+
+    private suspend fun markWalked(accountId: String, mailboxId: String, page: List<Email>) =
+        page.map { it.id }.chunked(MAX_CHANGES).forEach { emailDao.markWalked(accountId, mailboxId, it) }
 
     /** No page read from the server may write back a row a swipe is holding: the server still
      *  holds the message until the move lands, so the page names it, and writing it would put the

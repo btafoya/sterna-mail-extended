@@ -303,6 +303,7 @@ class SwipeSurvivesProcessDeathTest {
                 rows.forEach { cached["${it.accountId}/${it.id}"] = it }
                 Unit
             }
+            "markWalked" -> 0
             "reconcileMailbox" -> {
                 val accountId = args[0] as String
                 val mailboxId = args[1] as String
