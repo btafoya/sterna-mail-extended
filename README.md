@@ -196,12 +196,13 @@ Architecture and build instructions live in [ARCHITECTURE.md](ARCHITECTURE.md)
 and [CONTRIBUTING.md](CONTRIBUTING.md). The planned and shipped feature set is
 tracked in [FEATURES.md](FEATURES.md). Bug reports and ideas are very welcome. 🙌
 
-Sterna Mail is written and maintained by one developer, and pull requests are
-welcome. Every change is tested on my own devices before it ships, but
-regressions still happen: please report them in the issue tracker if you hit
-one. Release builds are reproducible and checked by F-Droid against the
-published source. AI coding assistants are part of the toolchain. They do not
-decide what Sterna does: I pick what gets built, and I cut every release
+Sterna Mail is written and maintained by one developer. Bug fix pull requests
+are welcome. For a new feature, open an issue first, so I can say yes or no
+before you write code. Every change is tested on my own devices before it
+ships, but regressions still happen: please report them in the issue tracker
+if you hit one. Release builds are reproducible and checked by F-Droid against
+the published source. AI coding assistants are part of the toolchain. They do
+not decide what Sterna does: I pick what gets built, and I cut every release
 myself.
 
 ## ☕ Support
