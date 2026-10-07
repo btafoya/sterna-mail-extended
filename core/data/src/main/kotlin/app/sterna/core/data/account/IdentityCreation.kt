@@ -29,7 +29,7 @@ fun mayCreateIdentities(before: StoredAccount, edited: List<StoredIdentity>): Bo
     identitiesToCreate(before, edited, serverIdentities = emptyList()).isNotEmpty()
 
 /** `something@something`, with no whitespace and exactly one `@`, see [identitiesToCreate]. */
-private fun plausibleIdentityAddress(email: String): Boolean {
+internal fun plausibleIdentityAddress(email: String): Boolean {
     val trimmed = email.trim()
     if (trimmed.isEmpty()) return false
     val parts = trimmed.split("@")

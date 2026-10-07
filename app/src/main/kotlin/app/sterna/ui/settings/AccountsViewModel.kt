@@ -16,6 +16,7 @@ import app.sterna.core.data.account.StoredIdentity
 import app.sterna.core.data.account.SyncWindow
 import app.sterna.core.data.account.identitiesToCreate
 import app.sterna.core.data.account.mayCreateIdentities
+import app.sterna.core.data.account.pgpOwnAddress
 import app.sterna.core.data.account.pgpPublicKeyCacheValue
 import app.sterna.core.data.account.subscriptionSyncOnToggle
 import app.sterna.core.data.account.syncWindowChanged
@@ -559,7 +560,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     fun choosePgpKey(accountId: String, interactionResult: Intent? = null) {
         val account = store.account(accountId) ?: return
         viewModelScope.launch {
-            when (val result = pgp.getSignKeyId(account.username, interactionResult)) {
+            when (val result = pgp.getSignKeyId(pgpOwnAddress(account), interactionResult)) {
                 is PgpResult.Success -> {
                     // The public half, cached alongside the id (StoredAccount.pgpPublicKey).
                     // Best effort: the key id is persisted and the gesture succeeds either way, and

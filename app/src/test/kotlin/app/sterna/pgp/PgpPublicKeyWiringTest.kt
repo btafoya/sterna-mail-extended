@@ -105,21 +105,54 @@ class PgpPublicKeyWiringTest {
         )
     }
 
+    @Test fun `the key chooser is hinted by the account's address, the cached key minimized to its login`() {
+        val calls = { path: String, call: String -> codeLines(path).filter { call in it } }
+        val accounts = "app/src/main/kotlin/app/sterna/ui/settings/AccountsViewModel.kt"
+        val composer = "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"
+        assertEquals(
+            "AccountsViewModel no longer asks the provider with pgpOwnAddress(account). A login " +
+                "that is not an address (`john.doe`) matches no user id, and 'Choose key' then " +
+                "offers no key at all (#246).",
+            listOf("when (val result = pgp.getSignKeyId(pgpOwnAddress(account), interactionResult)) {"),
+            calls(accounts, "pgp.getSignKeyId("),
+        )
+        val minimizedToTheLogin =
+            "The cached public key is no longer minimized to account.username. That cache only " +
+                "feeds the Autocrypt header, and autocryptHeaderValue announces it for the login " +
+                "address alone: minimized to pgpOwnAddress instead, the key stops carrying the " +
+                "announced address as soon as the default identity is not the login (an alias " +
+                "chosen as default, a delegated account)."
+        assertEquals(
+            minimizedToTheLogin,
+            listOf("val publicKey = when (val key = pgp.getPublicKey(result.value, account.username)) {"),
+            calls(accounts, "pgp.getPublicKey("),
+        )
+        assertEquals(
+            minimizedToTheLogin,
+            listOf("val read = pgp.getPublicKey(keyId, account.username)"),
+            calls(composer, "pgp.getPublicKey("),
+        )
+    }
+
     /** Same helper as the account-store wiring tests: whole trimmed code lines, comments and blank
      *  lines dropped, anchored on the one line starting with [prefix], a prefix matching anything
      *  other than exactly one line returns a message rather than nothing, so the assertion says
      *  what happened instead of silently comparing an empty list. */
     private fun block(path: String, prefix: String, count: Int, startingLinesEarlier: Int = 0): List<String> {
-        val root = generateSequence(File("").absoluteFile) { it.parentFile }
-            .firstOrNull { File(it, path).isFile }
-            ?: error("cannot locate the repo root from ${File("").absolutePath}")
-        val code = File(root, path).readLines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }
+        val code = codeLines(path)
         val starts = code.indices.filter { code[it].startsWith(prefix) }
         val anchor = starts.singleOrNull()
             ?: return listOf("«${starts.size} code lines start with `$prefix`»")
         val start = maxOf(anchor - startingLinesEarlier, 0)
         return code.subList(start, minOf(start + count, code.size))
+    }
+
+    private fun codeLines(path: String): List<String> {
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }
+            .firstOrNull { File(it, path).isFile }
+            ?: error("cannot locate the repo root from ${File("").absolutePath}")
+        return File(root, path).readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }
     }
 }
