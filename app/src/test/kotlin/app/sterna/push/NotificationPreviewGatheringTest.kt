@@ -39,6 +39,49 @@ class NotificationPreviewGatheringTest {
         )
     }
 
+    @Test fun `an opening comes back without its entities and its invisible preheader`() = runBlocking {
+        val server = FakeServer(previews = { "Hello&#847;&zwnj; &#847;&zwnj; AT&amp;T\u034F\u200C\u200D\uFEFF" })
+        assertEquals(
+            mapOf("m1" to "Hello AT&T"),
+            server.gather(NotificationContent.BODY_PREVIEW, ids(1)),
+        )
+    }
+
+    @Test fun `an opening is decoded once`() = runBlocking {
+        val server = FakeServer(previews = { "&amp;amp; &amp;lt;b&amp;gt;" })
+        assertEquals(
+            mapOf("m1" to "&amp; &lt;b&gt;"),
+            server.gather(NotificationContent.BODY_PREVIEW, ids(1)),
+        )
+    }
+
+    @Test fun `an opening made of invisibles alone is not gathered, and still counts as a read`() = runBlocking {
+        val server = FakeServer(
+            previews = { if (it.uid == 1L) "&#847;&zwnj; &#847;&zwnj; \u034F\u200C" else "opening of ${it.uid}" },
+        )
+        assertEquals(
+            mapOf("m2" to "opening of 2"),
+            server.gather(NotificationContent.BODY_PREVIEW, ids(2)),
+        )
+        assertEquals(listOf(1L, 2L), server.fetched)
+    }
+
+    @Test fun `a notification built on a gathered opening shows it clean`() = runBlocking {
+        val server = FakeServer(previews = { "Hello&#847;&zwnj; &#847;&zwnj; &#847;&zwnj;" })
+        val shown = mutableListOf<String?>()
+        NotificationPreviews.postGatheredFirst(
+            ids(1),
+            keyOf = { it },
+            gather = { server.gather(NotificationContent.BODY_PREVIEW, ids(1)) },
+            post = { _, preview ->
+                shown += MailNotificationText
+                    .resolve(NotificationContent.BODY_PREVIEW, "Alex", "Six o'clock", "New message", preview)
+                    .bigText
+            },
+        )
+        assertEquals(listOf<String?>("Six o'clock\nHello"), shown)
+    }
+
     /**
      * Six messages per pass, and no more. Past the sixth the reader is looking at the group
      */

@@ -112,6 +112,13 @@ class HtmlTextTest {
         assertEquals("a b", unescapeEntities("a&nbsp;b"))
     }
 
+    @Test fun decodesTheInvisibleJoinersAndMarks() {
+        assertEquals("a\u200Cb", unescapeEntities("a&zwnj;b"))
+        assertEquals("a\u200Db", unescapeEntities("a&zwj;b"))
+        assertEquals("a\u200Eb", unescapeEntities("a&lrm;b"))
+        assertEquals("a\u200Fb", unescapeEntities("a&rlm;b"))
+    }
+
     @Test fun doubleEscapedEntityIsDecodedOnce() {
         // One pass only: "&amp;lt;" is the literal text "&lt;", not "<".
         assertEquals("&lt;", unescapeEntities("&amp;lt;"))

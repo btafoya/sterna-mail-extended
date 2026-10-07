@@ -85,6 +85,7 @@ private val NAMED_ENTITIES: Map<String, Int> = mapOf(
     "brvbar" to 0xA6, "uml" to 0xA8, "macr" to 0xAF, "acute" to 0xB4, "cedil" to 0xB8, "not" to 0xAC,
     "shy" to 0xAD, "ensp" to 0x20, "emsp" to 0x20, "thinsp" to 0x20,
     "larr" to 0x2190, "uarr" to 0x2191, "rarr" to 0x2192, "darr" to 0x2193, "harr" to 0x2194,
+    "zwnj" to 0x200C, "zwj" to 0x200D, "lrm" to 0x200E, "rlm" to 0x200F,
     // Accented letters (Latin-1 + the common ligatures)
     "Agrave" to 0xC0, "agrave" to 0xE0, "Aacute" to 0xC1, "aacute" to 0xE1,
     "Acirc" to 0xC2, "acirc" to 0xE2, "Atilde" to 0xC3, "atilde" to 0xE3,

@@ -2,6 +2,7 @@ package app.sterna.push
 
 import app.sterna.core.data.mail.PreviewSource
 import app.sterna.core.data.settings.NotificationContent
+import app.sterna.core.data.text.previewForDisplay
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -56,7 +57,7 @@ object NotificationPreviews {
         for ((id, source) in targets) {
             // What the account's pass has left, so a second watched folder cannot start afresh.
             val budgetMs = budget.claim() ?: break
-            rescued { fetch(source, budgetMs) }?.let { gathered[id] = it }
+            rescued { fetch(source, budgetMs) }?.let(::previewForDisplay)?.let { gathered[id] = it }
             if (rescued { numbering() } != numberedAtStart) break
         }
         return gathered

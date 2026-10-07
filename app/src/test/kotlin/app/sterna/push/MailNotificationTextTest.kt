@@ -85,6 +85,10 @@ class MailNotificationTextTest {
         assertEquals("$SUBJECT\n$PREVIEW", resolve(NotificationContent.BODY_PREVIEW, "\n  $PREVIEW  \n").bigText)
     }
 
+    @Test fun `the preview is shown as handed over, its entities not decoded a second time`() {
+        assertEquals("$SUBJECT\n&amp; &lt;b&gt;", resolve(NotificationContent.BODY_PREVIEW, "&amp; &lt;b&gt;").bigText)
+    }
+
     // -- the shape of what a producer is allowed to hand over ------------------------------------
 
     /**

@@ -3,7 +3,9 @@ package app.sterna.core.data.mail
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.FtsHit
+import app.sterna.core.jmap.model.Email
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -55,10 +57,65 @@ class CachedDisplayTextTest {
         assertEquals("from[0].name", "Support moc.knab@troppus", entity().toEmail().from.single().name)
     }
 
-    @Test fun `an emails row keeps its sender address and preview as stored`() {
-        val email = entity().toEmail()
-        assertEquals("from[0].email", "support\u202E@evil.example", email.from.single().email)
-        assertEquals("preview", "preview \u202Etext", email.preview)
+    @Test fun `an emails row keeps its sender address as stored`() {
+        assertEquals("from[0].email", "support\u202E@evil.example", entity().toEmail().from.single().email)
+    }
+
+    @Test fun `an emails row shows its preview filtered`() {
+        assertEquals("preview", "preview text", entity().toEmail().preview)
+    }
+
+    @Test fun `an emails row shows its preview without the sender's preheader`() {
+        val row = entity().copy(preview = "Your order has shipped&#847;&zwnj; &#847;&zwnj; AT&amp;T\u034F\u200C")
+        assertEquals("preview", "Your order has shipped AT&T", row.toEmail().preview)
+    }
+
+    private val paddedMessage = "Hello" + "&#847;&zwnj; ".repeat(40) + "Your PayID is now registered."
+
+    @Test fun `an emails row shows one space where the preheader left a run of blanks`() {
+        assertEquals(
+            "preview",
+            "Hello Your PayID is now registered.",
+            entity().copy(preview = paddedMessage).toEmail().preview,
+        )
+    }
+
+    @Test fun `a search hit shows one space where the preheader left a run of blanks`() {
+        assertEquals(
+            "preview",
+            "Hello Your PayID is now registered.",
+            hit().copy(preview = paddedMessage).toEmail().preview,
+        )
+    }
+
+    @Test fun `an emails row holding only a preheader reads as having no preview`() {
+        val row = entity().copy(preview = "&#847;&zwnj; &#847;&zwnj; \u034F\u200C &#847;&zwnj;")
+        assertNull("preview", row.toEmail().preview)
+    }
+
+    /** Once per read: a second pass would show `&` where the sender wrote `&amp;`. */
+    @Test fun `an emails row decodes its preview once`() {
+        assertEquals("preview", "&amp;", entity().copy(preview = "&amp;amp;").toEmail().preview)
+    }
+
+    @Test fun `a search hit shows its preview without the sender's preheader`() {
+        val found = hit().copy(preview = "Your order has shipped&#847;&zwnj; &#847;&zwnj; AT&amp;T\u034F\u200C\u202E")
+        assertEquals("preview", "Your order has shipped AT&T", found.toEmail().preview)
+    }
+
+    @Test fun `a search hit holding only a preheader reads as having no preview`() {
+        assertNull("preview", hit().copy(preview = "&#847;&zwnj; &#847;&zwnj;").toEmail().preview)
+    }
+
+    @Test fun `a search hit decodes its preview once`() {
+        assertEquals("preview", "&amp;", hit().copy(preview = "&amp;amp;").toEmail().preview)
+    }
+
+    /** The filter is a reading: the row written back from the wire keeps the server's bytes. */
+    @Test fun `a preview is written to the row as the server sent it`() {
+        val raw = "Hello&#847;&zwnj; \u034F\u200C"
+        val written = Email(id = "m1", preview = raw).toEntity("acc1", "inbox")
+        assertEquals("preview", raw, written.preview)
     }
 
     @Test fun `a search hit shows its subject filtered`() {
