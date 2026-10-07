@@ -1,6 +1,6 @@
 # Contributing to Sterna
 
-Sterna is written and maintained by one developer and still changes often, so expect the code around your patch to move.
+Sterna is written and maintained by one developer and still changes often, so expect the code around your patch to move. Bug fix pull requests are welcome. For a new feature, open an issue first, so I can say yes or no before you write code.
 
 ## Build
 
