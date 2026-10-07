@@ -1018,6 +1018,13 @@
     <string name="connect_imap_smtp">IMAP / SMTP</string>
     <string name="connect_jmap_server">JMAP 服务器</string>
     <string name="connect_jmap_server_placeholder">mail.example.com</string>
+    <string name="connect_oidc_issuer">OpenID Connect 颁发者</string>
+    <string name="connect_oidc_issuer_placeholder">https://idm.example.org/…</string>
+    <string name="connect_oidc_client_id">客户端 ID</string>
+    <string name="connect_oidc_hint">适用于账户由 OpenID Connect 身份提供方管理的服务器：填写这两项，然后使用 OAuth 登录。否则请留空。</string>
+    <string name="connect_oidc_no_configuration">在此颁发者处未找到可用的 OpenID Connect 配置。请检查其地址后重试。</string>
+    <string name="connect_oidc_no_server">登录成功，但未找到此地址对应的 JMAP 服务器。请在高级设置中输入 JMAP 服务器后重试。</string>
+    <string name="connect_oidc_token_refused">登录成功，但邮件服务器拒绝了此令牌。</string>
     <string name="connect_jmap_autodiscover_hint">只需输入您的邮箱和密码——Sterna Mail 会自动找到您的服务器。</string>
     <string name="connect_auth_method">使用以下方式登录</string>
     <string name="connect_auth_api_token">API 令牌</string>

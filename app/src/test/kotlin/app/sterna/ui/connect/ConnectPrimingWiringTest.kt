@@ -35,10 +35,11 @@ class ConnectPrimingWiringTest {
     private val discoveryPaths = listOf("connectAuto", "connectToken")
 
     /**
-     * Every route the "Connect" button can take, all six of them. Offline, airplane mode, Wi-Fi
+     * Every route the "Connect" button can take. Offline, airplane mode, Wi-Fi
      */
     private val offlineGuarded = listOf(
-        "connect", "connectAuto", "connectToken", "connectOAuth", "connectOutlookOAuth", "connectImap",
+        "connect", "connectAuto", "connectToken", "connectOAuth", "connectOidc", "connectOutlookOAuth",
+        "connectImap",
     )
 
     /**

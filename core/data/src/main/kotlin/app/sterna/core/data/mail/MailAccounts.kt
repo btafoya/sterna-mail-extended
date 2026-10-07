@@ -183,6 +183,9 @@ class MailAccounts(
     suspend fun discoverOAuth(host: String, addressDomain: String): OAuthMetadata? =
         oauthClient.discoverMetadata(host, addressDomain)
 
+    /** The OpenID configuration of an issuer the user typed, or null when no sign-in can be driven from it. */
+    suspend fun discoverAtIssuer(issuer: String): OAuthMetadata? = oauthClient.discoverAtIssuer(issuer)
+
     /** Begin the device flow against [metadata] using Sterna's client id + scopes. */
     suspend fun startDeviceAuthorization(metadata: OAuthMetadata): DeviceAuthorization =
         oauthClient.startDeviceAuthorization(metadata, Jmap.OAUTH_CLIENT_ID, Jmap.OAUTH_SCOPE)
@@ -192,39 +195,47 @@ class MailAccounts(
         oauthClient.pollDeviceToken(metadata, deviceCode, Jmap.OAUTH_CLIENT_ID)
 
     /**
-     * The URL the browser is sent to for the authorization-code grant, with Sterna's client id and scopes.
+     * The URL the browser is sent to for the authorization-code grant. Sterna's client id and scopes
+     * unless the sign-in is at an issuer the user typed, which knows her client id and no other.
      */
     fun authorizationUrl(
         metadata: OAuthMetadata,
         redirectUri: String,
         state: String,
         codeChallenge: String,
+        clientId: String = Jmap.OAUTH_CLIENT_ID,
+        scope: String = Jmap.OAUTH_SCOPE,
     ): String = buildAuthorizationUrl(
         authorizationEndpoint = metadata.authorizationEndpoint
             ?: throw JmapException("Server has no authorization endpoint"),
-        clientId = Jmap.OAUTH_CLIENT_ID,
+        clientId = clientId,
         redirectUri = redirectUri,
-        scope = Jmap.OAUTH_SCOPE,
+        scope = scope,
         state = state,
         codeChallenge = codeChallenge,
     )
 
-    /** Redeem an authorization code, proving PKCE possession with [codeVerifier] (RFC 7636). */
+    /** Redeem an authorization code, proving PKCE possession with [codeVerifier] (RFC 7636).
+     *  [clientId] is the one the authorization URL carried: the server ties the code to it. */
     suspend fun exchangeCode(
         metadata: OAuthMetadata,
         code: String,
         redirectUri: String,
         codeVerifier: String,
-    ): OAuthTokens = oauthClient.exchangeCode(metadata, code, redirectUri, Jmap.OAUTH_CLIENT_ID, codeVerifier)
+        clientId: String = Jmap.OAUTH_CLIENT_ID,
+    ): OAuthTokens = oauthClient.exchangeCode(metadata, code, redirectUri, clientId, codeVerifier)
 
     /** Throws, persisting nothing, if [tokens] don't authenticate against [host]. Returns true when
-     *  THIS add created the account, a re-add must land on the existing one and succeed. */
+     *  THIS add created the account, a re-add must land on the existing one and succeed.
+     *  [clientId] is the one [tokens] were issued to. It is stored with the account because the
+     *  refresh posts it back, and a refresh token is refused to any other client. */
     suspend fun addOAuthAccount(
         host: String,
         email: String,
         metadata: OAuthMetadata,
         tokens: OAuthTokens,
         accountName: String,
+        clientId: String = Jmap.OAUTH_CLIENT_ID,
     ): Boolean {
         val expiresAt = System.currentTimeMillis() + tokens.expiresIn * 1000
         client.fetchSession(Jmap.sessionUrlFor(host), BearerAuth(tokens.accessToken)).mailAccountId()
@@ -263,7 +274,7 @@ class MailAccounts(
             refreshToken = tokens.refreshToken.orEmpty(),
             accessExpiresAtMillis = expiresAt,
             tokenEndpoint = metadata.tokenEndpoint,
-            clientId = Jmap.OAUTH_CLIENT_ID,
+            clientId = clientId,
             documentHost = host,
         )
         val credentials = accountStore.credentials(id) ?: error("Account could not be loaded after creation.")

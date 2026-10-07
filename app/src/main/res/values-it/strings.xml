@@ -823,6 +823,13 @@
     <string name="connect_imap_smtp">IMAP / SMTP</string>
     <string name="connect_jmap_server">Server JMAP</string>
     <string name="connect_jmap_server_placeholder">mail.example.com</string>
+    <string name="connect_oidc_issuer">Emittente OpenID Connect</string>
+    <string name="connect_oidc_issuer_placeholder">https://idm.example.org/…</string>
+    <string name="connect_oidc_client_id">ID client</string>
+    <string name="connect_oidc_hint">Per un server i cui account sono gestiti da un provider di identità OpenID Connect: compila entrambi i campi, poi accedi con OAuth. Altrimenti lasciali vuoti.</string>
+    <string name="connect_oidc_no_configuration">Nessuna configurazione OpenID Connect utilizzabile trovata presso questo emittente. Controlla il suo indirizzo e riprova.</string>
+    <string name="connect_oidc_no_server">Accesso riuscito, ma non è stato trovato alcun server JMAP per questo indirizzo. Inserisci il server JMAP nelle impostazioni avanzate e riprova.</string>
+    <string name="connect_oidc_token_refused">Accesso riuscito, ma il server di posta ha rifiutato questo token.</string>
     <string name="connect_jmap_autodiscover_hint">Inserisci semplicemente la tua email e la password: Sterna Mail troverà automaticamente il tuo server.</string>
     <string name="connect_auth_method">Accedi con</string>
     <string name="connect_auth_api_token">Token API</string>

@@ -186,7 +186,7 @@ class OAuthAddIdentityWiringTest {
                 "manufacturing the duplicate of #55.",
             listOf(
                 "tokenEndpoint = metadata.tokenEndpoint,",
-                "clientId = Jmap.OAUTH_CLIENT_ID,",
+                "clientId = clientId,",
                 "documentHost = host,",
                 ")",
             ),

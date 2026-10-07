@@ -27,6 +27,7 @@ class OAuthRedirectTest {
             metadata = metadata,
             email = "user@example.com",
             accountName = "Work",
+            clientId = "sterna",
         )
 
     // ---- The redirect URI follows the applicationId, it is not a literal ----
@@ -133,6 +134,7 @@ class OAuthRedirectTest {
                 code = "CODE-42",
                 redirectUri = "app.sterna://oauth",
                 codeVerifier = "VERIFIER-1",
+                clientId = "sterna",
             ),
             tokenExchangeFor(verdict as RedirectVerdict.Exchange, "app.sterna://oauth"),
         )

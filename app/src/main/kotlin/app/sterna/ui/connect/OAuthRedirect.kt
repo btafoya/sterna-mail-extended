@@ -33,6 +33,7 @@ data class PendingAuthorization(
     val metadata: OAuthMetadata,
     val email: String,
     val accountName: String,
+    val clientId: String,
 ) {
     init {
         // No exchange without PKCE, ever. There is no fallback to a bare authorization code, so
@@ -78,12 +79,13 @@ fun redirectVerdict(
     return RedirectVerdict.Exchange(code, pending)
 }
 
-/** The four values the token endpoint is called with (RFC 6749 §4.1.3), as one comparable value. */
+/** The five values the token endpoint is called with (RFC 6749 §4.1.3), as one comparable value. */
 data class TokenExchange(
     val metadata: OAuthMetadata,
     val code: String,
     val redirectUri: String,
     val codeVerifier: String,
+    val clientId: String,
 )
 
 /** What to POST for a redirect that earned an exchange. The verifier is the one this request
@@ -95,6 +97,7 @@ fun tokenExchangeFor(verdict: RedirectVerdict.Exchange, redirectUri: String): To
         code = verdict.code,
         redirectUri = redirectUri,
         codeVerifier = verdict.request.codeVerifier,
+        clientId = verdict.request.clientId,
     )
 
 /** The one in-flight request, redeemed once: the browser can deliver the same redirect twice, so

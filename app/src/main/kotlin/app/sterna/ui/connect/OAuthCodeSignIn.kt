@@ -7,6 +7,7 @@ import androidx.annotation.StringRes
 import app.sterna.BuildConfig
 import app.sterna.R
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.OAuthMetadata
 import app.sterna.core.jmap.Pkce
@@ -65,7 +66,14 @@ class OAuthCodeSignIn(
 
     /** Draw a verifier and a state, remember them, and expose the URL the screen sends the browser
      *  to. Nothing is sent from here: the user's tap is what leaves the app. */
-    fun start(host: String, metadata: OAuthMetadata, email: String, accountName: String) {
+    fun start(
+        host: String,
+        metadata: OAuthMetadata,
+        email: String,
+        accountName: String,
+        clientId: String = Jmap.OAUTH_CLIENT_ID,
+        scope: String = Jmap.OAUTH_SCOPE,
+    ) {
         if (job?.isActive == true) return
         // An explicit start replaces whatever was in flight, even if the URL below cannot be built:
         // a request abandoned by the Back key never completes and nothing expires it. Not the
@@ -74,7 +82,10 @@ class OAuthCodeSignIn(
         val verifier = Pkce.newCodeVerifier()
         val state = newOAuthState()
         val url = try {
-            repo.accounts.authorizationUrl(metadata, redirectUri, state, Pkce.codeChallengeOf(verifier))
+            repo.accounts.authorizationUrl(
+                metadata, redirectUri, state, Pkce.codeChallengeOf(verifier),
+                clientId = clientId, scope = scope,
+            )
         } catch (t: Throwable) {
             // A non-https or unusable authorization endpoint (#2), the URL is never half-built.
             fail(failureMessage(t, R.string.connect_oauth_failed))
@@ -88,6 +99,7 @@ class OAuthCodeSignIn(
                 metadata = metadata,
                 email = email.trim(),
                 accountName = accountName,
+                clientId = clientId,
             ),
         )
         _progress.value = OAuthCodeProgress.AwaitingBrowser(url)
@@ -135,10 +147,24 @@ class OAuthCodeSignIn(
                     code = exchange.code,
                     redirectUri = exchange.redirectUri,
                     codeVerifier = exchange.codeVerifier,
+                    clientId = exchange.clientId,
                 )
+                val choice = jmapHostAfterSignIn(request.host) {
+                    repo.accounts.discoverJmapServer(request.email, password = "", token = tokens.accessToken)
+                }
+                val host = when (choice) {
+                    is JmapHostChoice.Found -> choice.host
+                    is JmapHostChoice.Missing -> {
+                        val message = string(noJmapHostSentence(choice))
+                        _progress.value = OAuthCodeProgress.Idle
+                        toast(message)
+                        _outcomes.emit(OAuthCodeOutcome.Error(message))
+                        return@launch
+                    }
+                }
                 // The account is persisted by the path the device flow already uses: it stores the
                 // token endpoint and client id per account, so the refresher is grant-agnostic.
-                val created = repo.accounts.addOAuthAccount(request.host, request.email, request.metadata, tokens, request.accountName)
+                val created = repo.accounts.addOAuthAccount(host, request.email, request.metadata, tokens, request.accountName, clientId = request.clientId)
                 // The add may resolve onto an account already stored and refresh it; which sentence
                 // that gets is accountAddedToast's.
                 accountAddedToast(created, R.string.connect_account_added)?.let { toast(string(it)) }

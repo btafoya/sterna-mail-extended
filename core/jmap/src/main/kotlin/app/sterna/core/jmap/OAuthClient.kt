@@ -290,6 +290,23 @@ class OAuthClient internal constructor(
         )
     }
 
+    suspend fun discoverAtIssuer(issuer: String): OAuthMetadata? = withContext(Dispatchers.IO) {
+        val typedIssuer = OpenIdDiscovery.issuerOf(issuer) ?: return@withContext null
+        val configurationUrl = OpenIdDiscovery.configurationUrlFor(issuer) ?: return@withContext null
+        val request = Request.Builder()
+            .url(configurationUrl)
+            .header("Accept", "application/json")
+            .get()
+            .build()
+        val found = runCatching {
+            discoveryHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                json.decodeFromString<OAuthMetadata>(response.body?.string().orEmpty())
+            }
+        }.getOrNull() ?: return@withContext null
+        guardedOpenIdConfiguration(found, typedIssuer)
+    }
+
     /** Begin the device flow: ask the server for a user code + verification URL. */
     suspend fun startDeviceAuthorization(
         metadata: OAuthMetadata,

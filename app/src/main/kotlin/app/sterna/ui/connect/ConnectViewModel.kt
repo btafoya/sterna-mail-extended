@@ -27,6 +27,7 @@ import app.sterna.core.jmap.DeviceAuthorization
 import app.sterna.core.jmap.Jmap
 import app.sterna.core.jmap.JmapException
 import app.sterna.core.jmap.OAuthMetadata
+import app.sterna.core.jmap.OpenIdDiscovery
 import app.sterna.net.hasUsableNetwork
 import app.sterna.push.NewMailNotifier
 import kotlinx.coroutines.CancellationException
@@ -439,6 +440,32 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 device.userCode, device.verificationUri, device.verificationUriComplete, emailTrim,
             )
             pollForToken(host, found, device, emailTrim, accountName)
+        }
+    }
+
+    fun connectOidc(email: String, server: String, issuer: String, clientId: String, accountName: String) {
+        if (busy()) return
+        if (!hasUsableNetwork(app)) {
+            _state.value = ConnectState.Error(string(R.string.connect_offline))
+            return
+        }
+        val emailTrim = email.trim()
+        _state.value = ConnectState.Discovering
+        oauthJob = viewModelScope.launch {
+            val signIn = issuerSignInFor(issuer, clientId) { container.mailRepository.accounts.discoverAtIssuer(it) }
+            when (signIn) {
+                IssuerSignIn.NoClientId -> _state.value = ConnectState.Idle
+                IssuerSignIn.NoConfiguration ->
+                    _state.value = ConnectState.Error(string(R.string.connect_oidc_no_configuration))
+                is IssuerSignIn.Ready -> container.oauthCodeSignIn.start(
+                    host = server.trim(),
+                    metadata = signIn.metadata,
+                    email = emailTrim,
+                    accountName = accountName,
+                    clientId = signIn.clientId,
+                    scope = OpenIdDiscovery.SCOPE,
+                )
+            }
         }
     }
 

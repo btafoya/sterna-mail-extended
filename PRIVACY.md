@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-10-02.
+Last updated: 2026-10-07.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -32,7 +32,7 @@ Sterna connects only to:
 2. **Your address's domain, while you add an account**, to find your server for you:
    - *Without credentials:* the domain's autoconfig file (HTTPS, redirects only within the domain), TLS handshakes with `imap.`, `mail.` and `smtp.` names, and the OAuth discovery document on `mail.`, `jmap.` and `api.`.
    - *With your credentials,* once you type a password: JMAP autodiscovery sends your address and password over HTTPS to `/.well-known/jmap` on the domain and on its `mail.`, `jmap.` and `api.` subdomains, and to wherever they redirect, until one of them returns your account.
-3. **Your provider's sign-in service**, for OAuth accounts: to approve the sign-in, then in the background to refresh the token. It must be on HTTPS, on your domain or on the host that was asked. The Microsoft option always uses `login.microsoftonline.com`.
+3. **Your provider's sign-in service**, for OAuth accounts: to approve the sign-in, then in the background to refresh the token. It must be on HTTPS, on your domain, on the host that was asked, or the OpenID Connect issuer you typed yourself in the advanced fields. The Microsoft option always uses `login.microsoftonline.com`.
 4. **A newsletter's unsubscribe address**, only when you tap Unsubscribe. One-click unsubscribe (RFC 8058) sends one fixed request carrying nothing about you; otherwise the page opens in your browser, after a warning.
 5. **Remote images**, only for a message or sender you allowed.
 

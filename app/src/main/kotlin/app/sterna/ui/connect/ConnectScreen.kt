@@ -126,6 +126,8 @@ fun ConnectScreen(
     // JMAP only: authenticate with a server-generated API token (Bearer) instead of a password.
     var useApiToken by rememberSaveable { mutableStateOf(false) }
     var server by rememberSaveable { mutableStateOf("") }
+    var issuer by rememberSaveable { mutableStateOf("") }
+    var clientId by rememberSaveable { mutableStateOf("") }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var accountName by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
@@ -710,6 +712,30 @@ fun ConnectScreen(
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
+                            if (!useApiToken) {
+                                OutlinedTextField(
+                                    value = issuer,
+                                    onValueChange = { issuer = it },
+                                    label = { Text(stringResource(R.string.connect_oidc_issuer)) },
+                                    placeholder = { Text(stringResource(R.string.connect_oidc_issuer_placeholder)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                OutlinedTextField(
+                                    value = clientId,
+                                    onValueChange = { clientId = it },
+                                    label = { Text(stringResource(R.string.connect_oidc_client_id)) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Text(
+                                    stringResource(R.string.connect_oidc_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     } else {
                         Text(stringResource(R.string.connect_provider_preset), style = MaterialTheme.typography.labelLarge)
@@ -856,9 +882,16 @@ fun ConnectScreen(
                         }
 
                         if (protocol == MailProtocol.JMAP && !useApiToken) {
+                            val oauthButton = oauthButtonFor(issuer, clientId)
                             TextButton(
-                                onClick = { viewModel.connectOAuth(username, server, accountName) },
-                                enabled = !busy && username.isNotBlank(),
+                                onClick = {
+                                    when (oauthButton) {
+                                        OAuthButton.ServerOAuth -> viewModel.connectOAuth(username, server, accountName)
+                                        is OAuthButton.TypedIssuer -> viewModel.connectOidc(username, server, oauthButton.issuer, oauthButton.clientId, accountName)
+                                        OAuthButton.NeedsClientId -> Unit
+                                    }
+                                },
+                                enabled = oauthButtonEnabled(oauthButton, busy, username),
                                 modifier = Modifier.fillMaxWidth(),
                             ) { Text(stringResource(R.string.connect_oauth_button)) }
                         }
