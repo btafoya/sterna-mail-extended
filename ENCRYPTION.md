@@ -171,13 +171,15 @@ Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
 Several mail clients attach the sender's public key to every message they send,
 the same way Sterna does. That key is handed to your OpenPGP app, and you can
 encrypt back to that person without asking them for anything. When it reaches
-you depends on the account. On a **JMAP** account the keys of the newest Inbox
-messages arrive on their own, as Sterna fetches those messages ahead of you;
-opening a message brings its key too, unless it is signed or encrypted, and then
-only the first way works. On an **IMAP** account a key comes from any message
-whose full text Sterna had to fetch: one you open, reply to, forward or decrypt,
-and never from one it has not touched. Nothing arrives on its own from Spam,
-Trash or Archive.
+you depends on the account. On a **JMAP** account the keys of the newest
+messages of the folder Sterna treats as your Inbox arrive on their own, as it
+fetches those messages ahead of you; opening a message brings its key too,
+unless it is signed or encrypted, and then only the first way works. On an
+**IMAP** account a key comes from a message whose full text Sterna fetched on
+your request: one you open, reply to, forward or decrypt. The messages on either
+side of the one you read are loaded ahead of a swipe, but their keys are not
+taken until you settle on them. Nothing arrives on its own from any folder
+other than that Inbox.
 
 A key that is announced is not always taken: Sterna ignores it, and says
 nothing, when the date the server put on the message cannot be read, and when
