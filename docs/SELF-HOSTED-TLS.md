@@ -114,5 +114,14 @@ an authority belongs to the system, where you can review and remove it, rather t
 button inside a mail app. The reasoning behind that choice, and what it costs, is spelled
 out in [SECURITY.md](../SECURITY.md#transport-jmap--imap--smtp).
 
+## A `.onion` address
+
+A server reached through its `.onion` v3 address is a different case: the Tor circuit
+itself encrypts and authenticates the connection, end to end, so such setups commonly
+listen on the plain ports with no certificate at all. Sterna cannot see that a name is
+being routed through Tor, so its "No encryption" warning still shows when you pick that
+security setting: it describes what the app alone guarantees, not what the circuit adds.
+The warning is accurate for any other host; keep that setting for `.onion` names only.
+
 Thanks to [KaKeBr](https://codeberg.org/KaKeBr) for the diagnosis and the recipes
 (Codeberg issue #71).
