@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -52,6 +54,7 @@ fun LockScreen(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     val activity = remember(context) { context.findFragmentActivity() }
     var prompting by remember { mutableStateOf(false) }
+    val lockTitle = stringResource(R.string.lock_title)
 
     fun authenticate() {
         val act = activity ?: return
@@ -68,14 +71,15 @@ fun LockScreen(onUnlocked: () -> Unit) {
 
     LaunchedEffect(Unit) { authenticate() }
 
-    // While locked, back leaves the app (like Home) rather than navigating the
-    // hidden UI underneath.
+    // While locked, back leaves the app (like Home) rather than navigating the hidden UI below.
     BackHandler(enabled = true) { activity?.moveTaskToBack(true) }
 
     Surface(
         // Consume every pointer event so taps can't fall through to the UI behind the overlay.
         modifier = Modifier
             .fillMaxSize()
+            // Important to accessibility and full-screen, so it covers the mail composed before it.
+            .semantics { paneTitle = lockTitle }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -92,7 +96,7 @@ fun LockScreen(onUnlocked: () -> Unit) {
         ) {
             Text("🔒", style = MaterialTheme.typography.displayMedium)
             Spacer(Modifier.height(16.dp))
-            Text(stringResource(R.string.lock_title), style = MaterialTheme.typography.headlineSmall)
+            Text(lockTitle, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(R.string.lock_subtitle),
