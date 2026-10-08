@@ -47,6 +47,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Sort by date, subject, sender, unread-first or starred-first; mark all read.
 - ✅ Pull to refresh.
 - ✅ Folder drawer, to open any mailbox of the account.
+- ✅ With two accounts or more, tapping the list's title opens a menu to switch to
+  another one.
 - ✅ In the drawer, a folder's name is bold while its row shows an unread count; a
   setting in Appearance turns the bold off.
 - ✅ Optional "mark as read when deleting", so deleted mail does not sit unread in
