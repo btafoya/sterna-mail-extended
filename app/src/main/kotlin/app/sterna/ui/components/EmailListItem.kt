@@ -2,7 +2,10 @@ package app.sterna.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -397,6 +400,13 @@ fun EmailListItem(
     }
 }
 
+private val PillPaddingX = 8.dp
+private val PillPaddingY = 4.dp
+private val PillGap = 2.dp
+private val PillChevron = 16.dp
+private val PillTouchOverflowX = touchOverflow(drawn = PillPaddingX * 2 + PillGap + PillChevron)
+private val PillTouchOverflowY = touchOverflow(drawn = PillPaddingY * 2 + PillChevron)
+
 /**
  * The conversation pill on a collapsed thread row: a message [count] and a chevron that unfolds the
  * thread inline. Tappable when [onToggleExpand] is given, a plain count badge otherwise; screen
@@ -423,18 +433,23 @@ private fun ThreadPill(
     val stateLabel = stringResource(
         if (expanded) R.string.a11y_conversation_expanded else R.string.a11y_conversation_collapsed,
     )
+    val interaction = remember { MutableInteractionSource() }
     val base = Modifier
         .clip(MaterialTheme.shapes.small)
         .background(fill)
     val pillModifier = if (onToggleExpand != null) {
-        base
-            .clickable(onClick = onToggleExpand)
+        Modifier
+            .touchTargetOverflow(horizontal = PillTouchOverflowX, vertical = PillTouchOverflowY)
+            .clickable(interactionSource = interaction, indication = null, onClick = onToggleExpand)
             .semantics {
                 contentDescription = pillLabel
                 stateDescription = stateLabel
                 role = Role.Button
             }
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = PillTouchOverflowX, vertical = PillTouchOverflowY)
+            .then(base)
+            .indication(interaction, LocalIndication.current)
+            .padding(horizontal = PillPaddingX, vertical = PillPaddingY)
     } else {
         base.padding(horizontal = 6.dp, vertical = 1.dp)
     }
@@ -446,12 +461,12 @@ private fun ThreadPill(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (onToggleExpand != null) {
-            Spacer(Modifier.width(2.dp))
+            Spacer(Modifier.width(PillGap))
             Icon(
                 Icons.Filled.ExpandMore,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp).rotate(rotation),
+                modifier = Modifier.size(PillChevron).rotate(rotation),
             )
         }
     }

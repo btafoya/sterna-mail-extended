@@ -189,6 +189,9 @@ import app.sterna.ui.components.Monogram
 import app.sterna.ui.compose.SnoozePreset
 import app.sterna.ui.compose.snoozePresetsAt
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.MinTouchTarget
+import app.sterna.ui.components.touchOverflow
+import app.sterna.ui.components.touchTargetOverflow
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.inbox.MoveFolderSheet
@@ -221,6 +224,8 @@ private const val FORCE_SOFTWARE_LAYER = false
  * [WebViewLayerGuard.markProven] is deferred until no fade runs.
  */
 val LocalNavTransitionActive = compositionLocalOf { false }
+
+private val SealSize = 36.dp
 
 private val LocalSignatureSheet = staticCompositionLocalOf<SignatureSheetOpen> {
     error("SignatureSheetOpen is provided by MessageScreen")
@@ -2086,10 +2091,12 @@ private fun MessageHeader(
                 }
                 val seal = decrypted?.signature?.let(::signatureLook)
                 if (decrypted != null && seal != null) {
-                    // 36 dp, under the 40 dp row: a taller seal landing late would change the header height.
+                    // Reported at 36 dp, under the 40 dp row: a taller seal landing late would change
+                    // the header height. The 48 dp target overflows into the row's own padding instead.
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .touchTargetOverflow(touchOverflow(SealSize))
+                            .size(MinTouchTarget)
                             .clickable(role = Role.Button) { signatureSheet.open(msg.id, msg.header.accountId) },
                         contentAlignment = Alignment.Center,
                     ) {

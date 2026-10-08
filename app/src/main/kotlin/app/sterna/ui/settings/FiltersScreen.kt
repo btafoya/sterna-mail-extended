@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -78,6 +79,7 @@ import app.sterna.core.data.filter.ScriptRule
 import app.sterna.core.data.filter.foreignScriptNotice
 import app.sterna.core.data.filter.showsNoRulesNote
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.ReorderableColumn
 import app.sterna.util.isValidEmail
 import kotlinx.coroutines.launch
@@ -549,7 +551,9 @@ private fun ScriptSelector(opened: String, scripts: List<ListedScript>, enabled:
     val activeLabel = stringResource(R.string.settings_filters_script_active)
     Box(Modifier.padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.clickable(enabled = enabled, onClickLabel = choose) { expanded = true },
+            modifier = Modifier
+                .clickable(enabled = enabled, onClickLabel = choose) { expanded = true }
+                .sizeIn(minWidth = MinTouchTarget, minHeight = MinTouchTarget),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

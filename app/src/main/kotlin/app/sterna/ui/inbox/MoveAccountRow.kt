@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.DropdownMenu
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
+import app.sterna.ui.components.MinTouchTarget
 
 /** The account row at the head of the move-to-folder picker (#189), drawn only when there is a
  *  choice to make. [owner] is the account of what is being moved, [chosen] the id recorded by the
@@ -50,6 +52,7 @@ internal fun MoveAccountRow(
                 .fillMaxWidth()
                 .clickable { open = true }
                 .semantics(mergeDescendants = true) { role = Role.Button }
+                .heightIn(min = MinTouchTarget)
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             Text(

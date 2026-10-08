@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.size
@@ -91,6 +92,7 @@ import app.sterna.core.data.autoconfig.MailAutoconfigResult
 import app.sterna.core.jmap.withLoginHint
 import app.sterna.ui.components.AppPasswordHelpLink
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.ui.components.autofill
 import app.sterna.ui.rememberLeaveOnce
@@ -1149,7 +1151,8 @@ private fun DeviceApprovalContent(
             .clickable {
                 clipboard.setText(AnnotatedString(userCode))
                 Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
-            },
+            }
+            .heightIn(min = MinTouchTarget),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

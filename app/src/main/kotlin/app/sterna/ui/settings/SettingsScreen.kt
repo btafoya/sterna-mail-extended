@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -156,6 +157,7 @@ import app.sterna.R
 import app.sterna.ui.connect.ConnectScreen
 import app.sterna.ui.components.AppPasswordHelpLink
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.mail.OAuthProvider
@@ -2474,7 +2476,8 @@ private fun InlineDeviceApproval(
             .clickable {
                 clipboard.setText(AnnotatedString(userCode))
                 Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
-            },
+            }
+            .heightIn(min = MinTouchTarget),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -3003,6 +3006,7 @@ private fun IdentityRowHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
+            .heightIn(min = MinTouchTarget)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -3093,8 +3097,9 @@ private fun DefaultIdentityRadioRow(selected: Boolean, onSelect: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect),
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .heightIn(min = MinTouchTarget)
+            .padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)

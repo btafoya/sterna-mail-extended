@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.width
@@ -197,6 +198,9 @@ import app.sterna.ui.components.EmptyState
 import app.sterna.ui.components.FilterChipEntry
 import app.sterna.ui.components.FilterChipRow
 import app.sterna.ui.components.LoadingRing
+import app.sterna.ui.components.MinTouchTarget
+import app.sterna.ui.components.touchOverflow
+import app.sterna.ui.components.touchTargetOverflow
 import app.sterna.ui.components.LocalBoldUnreadFolders
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
@@ -1876,9 +1880,15 @@ private fun DrawerContent(
                                         contentDescription = stringResource(
                                             if (collapsed) R.string.inbox_folder_expand else R.string.inbox_folder_collapse,
                                         ),
-                                        modifier = Modifier.clickable {
-                                            viewModel.setFolderCollapsed(mailbox.id, !collapsed)
-                                        },
+                                        // The item's shape clips hit testing too: the overflow reaches
+                                        // only as far as the item's 56 dp height and start inset go.
+                                        modifier = Modifier
+                                            .touchTargetOverflow(touchOverflow(FolderChevronSize))
+                                            .clickable {
+                                                viewModel.setFolderCollapsed(mailbox.id, !collapsed)
+                                            }
+                                            .padding(touchOverflow(FolderChevronSize))
+                                            .size(FolderChevronSize),
                                     )
                                 } else {
                                     Spacer(Modifier.width(24.dp))
@@ -2867,13 +2877,15 @@ private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, o
     )
 }
 
+private val FolderChevronSize = 24.dp
+
 /** A discreet, tappable banner shown above the list when a send has permanently failed. */
 @Composable
 private fun OutboxFailureBanner(onClick: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = MinTouchTarget),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
