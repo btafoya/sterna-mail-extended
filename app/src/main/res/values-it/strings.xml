@@ -619,6 +619,7 @@
     <string name="settings_display_name_label">Nome visualizzato</string>
     <string name="settings_account_colour_section">Colore</string>
     <string name="settings_account_colour_auto">Auto</string>
+    <string name="settings_account_colour_n">Colore %1$d di %2$d</string>
     <string name="settings_server_settings_section">Impostazioni server</string>
     <string name="settings_imap_server_label">Server IMAP</string>
     <string name="settings_imap_port_label">Porta IMAP</string>
@@ -814,6 +815,7 @@
     <string name="compose_smime_encrypt_to_sign">Il certificato S/MIME di questo indirizzo non può cifrare: il messaggio ora è solo firmato, non è più cifrato.</string>
     <string name="settings_saved">Salvato</string>
     <string name="settings_save">Salva</string>
+    <string name="settings_saving">Salvataggio…</string>
     <string name="settings_save_scope">Il pulsante «Salva» scrive il nome dell’account, le impostazioni del server, le credenziali e le identità. Le altre impostazioni di questa schermata vengono salvate non appena le modifichi.</string>
     <string name="settings_sign_out">Esci</string>
     <string name="settings_security_tls">SSL/TLS</string>

@@ -35,6 +35,8 @@ object AccountPalette {
         Color(0xFF5E35B1), // deep purple
         Color(0xFFD81B60), // pink
     )
+
+    fun rankOf(color: Color): Int? = colors.indexOf(color).takeIf { it >= 0 }?.plus(1)
 }
 
 /** An account's stored accent colour (ARGB) as a Compose [Color], or null for auto. */

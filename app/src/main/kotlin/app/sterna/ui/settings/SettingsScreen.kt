@@ -2890,8 +2890,9 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel, o
                 .padding(horizontal = 16.dp, vertical = 16.dp),
         ) {
             if (state.saving) {
+                val savingLabel = stringResource(R.string.settings_saving)
                 CircularProgressIndicator(
-                    modifier = Modifier.width(20.dp),
+                    modifier = Modifier.width(20.dp).semantics { contentDescription = savingLabel },
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )

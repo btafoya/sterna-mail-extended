@@ -619,6 +619,7 @@
     <string name="settings_display_name_label">Nom affiché</string>
     <string name="settings_account_colour_section">Couleur</string>
     <string name="settings_account_colour_auto">Auto</string>
+    <string name="settings_account_colour_n">Couleur %1$d sur %2$d</string>
     <string name="settings_server_settings_section">Réglages du serveur</string>
     <string name="settings_imap_server_label">Serveur IMAP</string>
     <string name="settings_imap_port_label">Port IMAP</string>
@@ -814,6 +815,7 @@
     <string name="compose_smime_encrypt_to_sign">Le certificat S/MIME de cette adresse ne peut pas chiffrer : le message est désormais seulement signé, il n\'est plus chiffré.</string>
     <string name="settings_saved">Enregistré</string>
     <string name="settings_save">Enregistrer</string>
+    <string name="settings_saving">Enregistrement…</string>
     <string name="settings_save_scope">Le bouton « Enregistrer » écrit le nom du compte, les réglages du serveur, les identifiants et les identités. Les autres réglages de cet écran sont enregistrés dès que vous les changez.</string>
     <string name="settings_sign_out">Se déconnecter</string>
     <string name="settings_security_tls">SSL/TLS</string>

@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.sterna.R
+import app.sterna.ui.components.AccountPalette
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.onAccentColor
 
@@ -511,10 +513,13 @@ fun SaveChangesDialog(
     )
 }
 
-/** A circular colour choice for the per-account accent picker; "Auto" when [color] is null. The only
- *  rendering of [app.sterna.ui.components.AccountPalette]. */
+/** A circular colour choice for the per-account accent picker; "Auto" when [color] is null, named by
+ *  its own text where the others are named by their rank. The only rendering of [AccountPalette]. */
 @Composable
 internal fun ColourSwatch(color: Color?, selected: Boolean, onClick: () -> Unit) {
+    val rankLabel = color?.let(AccountPalette::rankOf)?.let { rank ->
+        stringResource(R.string.settings_account_colour_n, rank, AccountPalette.colors.size)
+    }
     Box(
         modifier = Modifier
             .minimumInteractiveComponentSize()
@@ -527,7 +532,11 @@ internal fun ColourSwatch(color: Color?, selected: Boolean, onClick: () -> Unit)
                 shape = CircleShape,
             )
             .clickable(onClick = onClick)
-            .semantics { role = Role.Button; this.selected = selected },
+            .semantics {
+                role = Role.Button
+                this.selected = selected
+                if (rankLabel != null) contentDescription = rankLabel
+            },
         contentAlignment = Alignment.Center,
     ) {
         when {

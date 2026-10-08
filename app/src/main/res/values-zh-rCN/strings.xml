@@ -789,6 +789,7 @@
     <string name="settings_account_notifications_title">同步新邮件</string>
     <string name="settings_account_notifications_subtitle">在后台获取此账户的新邮件并通知您。关闭后，只有在打开应用或下拉刷新时才会收到新邮件。</string>
     <string name="settings_account_colour_auto">自动</string>
+    <string name="settings_account_colour_n">第 %1$d 种颜色，共 %2$d 种</string>
     <string name="settings_server_settings_section">服务器设置</string>
     <string name="settings_imap_server_label">IMAP 服务器</string>
     <string name="settings_imap_port_label">IMAP 端口</string>
@@ -984,6 +985,7 @@
     <string name="compose_smime_encrypt_to_sign">此地址的 S/MIME 证书无法加密：邮件现在仅签名，不再加密。</string>
     <string name="settings_saved">已保存</string>
     <string name="settings_save">保存</string>
+    <string name="settings_saving">正在保存…</string>
     <string name="settings_save_scope">“保存”按钮会写入账户名称、服务器设置、凭据和发件身份。此屏幕上的其他设置在您更改后立即保存。</string>
     <string name="settings_test_connection">测试连接</string>
     <string name="settings_test_connecting">正在测试…</string>

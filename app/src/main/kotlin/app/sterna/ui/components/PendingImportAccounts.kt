@@ -39,6 +39,9 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.sterna.R
@@ -69,8 +72,8 @@ fun PendingImportAccountsSection(
         )
         for (account in accounts) {
             key(account.id) {
-                SwipeToDismissRow(onDismiss = { onDismiss(account) }) {
-                    PendingAccountRow(account = account, onClick = { onSignIn(account) })
+                SwipeToDismissRow(onDismiss = { onDismiss(account) }) { dismiss ->
+                    PendingAccountRow(account = account, onClick = { onSignIn(account) }, onDismiss = dismiss)
                 }
             }
         }
@@ -89,7 +92,7 @@ private const val SWIPE_COMMIT_FRACTION = 0.4f
 @Composable
 private fun SwipeToDismissRow(
     onDismiss: () -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable (dismiss: () -> Unit) -> Unit,
 ) {
     val offsetX = remember { Animatable(0f) }
     var rowWidth by remember { mutableIntStateOf(0) }
@@ -189,17 +192,21 @@ private fun SwipeToDismissRow(
                 .graphicsLayer { translationX = offsetX.value }
                 .background(MaterialTheme.colorScheme.surface),
         ) {
-            content()
+            content(currentOnDismiss)
         }
     }
 }
 
 @Composable
-private fun PendingAccountRow(account: StoredAccount, onClick: () -> Unit) {
+private fun PendingAccountRow(account: StoredAccount, onClick: () -> Unit, onDismiss: () -> Unit) {
+    val dismissLabel = stringResource(R.string.import_pending_dismiss)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            .semantics {
+                customActions = listOf(CustomAccessibilityAction(dismissLabel) { onDismiss(); true })
+            }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),

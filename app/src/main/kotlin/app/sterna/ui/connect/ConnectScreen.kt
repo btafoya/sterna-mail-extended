@@ -73,6 +73,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.ImeAction
@@ -1241,7 +1243,8 @@ private fun ImportOAuthPanel(target: ConnectViewModel.SignInTarget, viewModel: C
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (target.verifying) {
-                CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp))
+                val connecting = stringResource(R.string.connect_connecting)
+                CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp).semantics { contentDescription = connecting })
             } else {
                 Text(stringResource(R.string.connect_import_signin_microsoft))
             }
@@ -1364,7 +1367,8 @@ private fun ImportSignInPanel(target: ConnectViewModel.SignInTarget, viewModel: 
         modifier = Modifier.fillMaxWidth(),
     ) {
         if (target.verifying) {
-            CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp))
+            val connecting = stringResource(R.string.connect_connecting)
+            CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp).semantics { contentDescription = connecting })
         } else {
             Text(stringResource(R.string.connect_import_signin_button))
         }

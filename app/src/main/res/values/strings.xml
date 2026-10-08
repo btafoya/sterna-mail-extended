@@ -798,6 +798,7 @@
     <string name="settings_account_notifications_title">Sync new mail</string>
     <string name="settings_account_notifications_subtitle">Fetches this account\'s new mail in the background and notifies you. When off, its mail arrives only when you open the app or pull to refresh.</string>
     <string name="settings_account_colour_auto">Auto</string>
+    <string name="settings_account_colour_n">Colour %1$d of %2$d</string>
     <string name="settings_server_settings_section">Server settings</string>
     <string name="settings_imap_server_label">IMAP server</string>
     <string name="settings_imap_port_label">IMAP port</string>
@@ -993,6 +994,7 @@
     <string name="compose_smime_encrypt_to_sign">The S/MIME certificate for this address can\'t encrypt: the message is now signed only, no longer encrypted.</string>
     <string name="settings_saved">Saved</string>
     <string name="settings_save">Save</string>
+    <string name="settings_saving">Saving…</string>
     <string name="settings_save_scope">The “Save” button writes the account name, server settings, credentials and identities. The other settings on this screen are saved as soon as you change them.</string>
     <string name="settings_test_connection">Test connection</string>
     <string name="settings_test_connecting">Testing…</string>

@@ -617,6 +617,7 @@
     <string name="settings_display_name_label">Weergavenaam</string>
     <string name="settings_account_colour_section">Kleur</string>
     <string name="settings_account_colour_auto">Auto</string>
+    <string name="settings_account_colour_n">Kleur %1$d van %2$d</string>
     <string name="settings_server_settings_section">Serverinstellingen</string>
     <string name="settings_imap_server_label">IMAP-server</string>
     <string name="settings_imap_port_label">IMAP-poort</string>
@@ -812,6 +813,7 @@
     <string name="compose_smime_encrypt_to_sign">Het S/MIME-certificaat voor dit adres kan niet versleutelen: het bericht is nu alleen ondertekend, niet meer versleuteld.</string>
     <string name="settings_saved">Opgeslagen</string>
     <string name="settings_save">Opslaan</string>
+    <string name="settings_saving">Opslaan…</string>
     <string name="settings_save_scope">De knop ‘Opslaan’ slaat de accountnaam, de serverinstellingen, de inloggegevens en de identiteiten op. De overige instellingen op dit scherm worden opgeslagen zodra je ze wijzigt.</string>
     <string name="settings_sign_out">Afmelden</string>
     <string name="settings_security_tls">SSL/TLS</string>

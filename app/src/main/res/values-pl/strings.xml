@@ -623,6 +623,7 @@
     <string name="settings_display_name_label">Wyświetlana nazwa</string>
     <string name="settings_account_colour_section">Kolor</string>
     <string name="settings_account_colour_auto">Auto</string>
+    <string name="settings_account_colour_n">Kolor %1$d z %2$d</string>
     <string name="settings_server_settings_section">Ustawienia serwera</string>
     <string name="settings_imap_server_label">Serwer IMAP</string>
     <string name="settings_imap_port_label">Port IMAP</string>
@@ -818,6 +819,7 @@
     <string name="compose_smime_encrypt_to_sign">Certyfikat S/MIME dla tego adresu nie może szyfrować: wiadomość jest teraz tylko podpisana, nie jest już zaszyfrowana.</string>
     <string name="settings_saved">Zapisano</string>
     <string name="settings_save">Zapisz</string>
+    <string name="settings_saving">Zapisywanie…</string>
     <string name="settings_save_scope">Przycisk „Zapisz” zapisuje nazwę konta, ustawienia serwera, dane logowania i tożsamości. Pozostałe ustawienia na tym ekranie są zapisywane w chwili ich zmiany.</string>
     <string name="settings_sign_out">Wyloguj się</string>
     <string name="settings_security_tls">SSL/TLS</string>

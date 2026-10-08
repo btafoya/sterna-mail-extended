@@ -225,6 +225,7 @@ fun EmailListItem(
             enter()
         }
     }
+    val selectLabel = if (enterSelection != null) stringResource(R.string.a11y_select) else null
     val chipBackground = chipFill(
         scheme = MaterialTheme.colorScheme,
         selected = selected,
@@ -243,7 +244,7 @@ fun EmailListItem(
         modifier = modifier
             .fillMaxWidth()
             .background(rowColor)
-            .combinedClickable(onClick = onClick, onLongClick = enterSelection)
+            .combinedClickable(onClick = onClick, onLongClick = enterSelection, onLongClickLabel = selectLabel)
             .padding(start = 16.dp, end = 4.dp, top = rowPadding, bottom = rowPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

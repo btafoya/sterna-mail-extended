@@ -59,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -383,7 +385,11 @@ private fun FiltersNoticeLine(state: FiltersUiState) {
 @Composable
 private fun SaveAction(enabled: Boolean, saving: Boolean, onClick: () -> Unit) {
     if (saving) {
-        CircularProgressIndicator(modifier = Modifier.padding(horizontal = 12.dp).size(20.dp), strokeWidth = 2.dp)
+        val savingLabel = stringResource(R.string.settings_saving)
+        CircularProgressIndicator(
+            modifier = Modifier.padding(horizontal = 12.dp).size(20.dp).semantics { contentDescription = savingLabel },
+            strokeWidth = 2.dp,
+        )
     } else {
         IconButton(onClick = onClick, enabled = enabled) {
             Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.settings_save))
@@ -640,15 +646,13 @@ private fun RuleReorderRow(
 @Composable
 private fun RuleRow(rule: FilterRule, trashFolder: String?, switchEnabled: Boolean, onToggle: (Boolean) -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
+    val name = rule.name.ifBlank { stringResource(R.string.settings_filters_untitled) }
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(
-                rule.name.ifBlank { stringResource(R.string.settings_filters_untitled) },
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            Text(name, style = MaterialTheme.typography.bodyLarge)
             Text(
                 ruleSummary(context, rule, trashFolder),
                 style = MaterialTheme.typography.bodySmall,
@@ -658,7 +662,12 @@ private fun RuleRow(rule: FilterRule, trashFolder: String?, switchEnabled: Boole
             )
         }
         Spacer(Modifier.width(16.dp))
-        Switch(checked = rule.enabled, onCheckedChange = onToggle, enabled = switchEnabled)
+        Switch(
+            checked = rule.enabled,
+            onCheckedChange = onToggle,
+            modifier = Modifier.semantics { contentDescription = name },
+            enabled = switchEnabled,
+        )
     }
 }
 
