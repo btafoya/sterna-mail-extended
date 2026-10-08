@@ -577,6 +577,8 @@
     <string name="settings_signature_below_quote_subtitle">在回复中，将签名放在引用邮件下方而不是上方</string>
     <string name="settings_reply_bar_title">回复栏</string>
     <string name="settings_reply_bar_subtitle">在邮件底部显示“回复”和“转发”。回复仍保留在顶部工具栏中，转发则在菜单中。</string>
+    <string name="settings_volume_text_size_title">音量键调整正文字号</string>
+    <string name="settings_volume_text_size_subtitle">在打开的邮件中，音量加键和音量减键会在各档正文字号之间切换。在其他界面，音量键保持原有功能。</string>
     <string name="settings_plain_text_title">纯文本</string>
     <string name="settings_plain_text_subtitle">以纯文本而不是 HTML 打开邮件。已打开邮件中的菜单可以在两者之间切换。</string>
     <string name="settings_signature_delimiter_title">签名上方的分隔线</string>

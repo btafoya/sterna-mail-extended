@@ -272,6 +272,11 @@ fun MessageScreen(
      *  the only moment the pane's anchor follows the pager. Null on the full-screen route. */
     onPageSettled: ((emailId: String, accountId: String?, page: Int) -> Unit)? = null,
 ) {
+    val volumeTextSizeRelay = LocalVolumeTextSizeRelay.current
+    DisposableEffect(volumeTextSizeRelay) {
+        volumeTextSizeRelay?.enter()
+        onDispose { volumeTextSizeRelay?.leave() }
+    }
     CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {
         when {
             listSource != null -> {

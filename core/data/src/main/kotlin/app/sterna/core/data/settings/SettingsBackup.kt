@@ -58,6 +58,7 @@ data class SettingsBackup(
     val listMonogram: Boolean? = null,
     val boldUnreadFolders: Boolean? = null,
     val searchHistory: Boolean? = null,
+    val volumeTextSize: Boolean? = null,
     /** [DeliveryMode] name (Instant / Battery saver). */
     val deliveryMode: String? = null,
     val notificationContent: String? = null,

@@ -18,6 +18,7 @@ import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
+import app.sterna.core.data.settings.VOLUME_TEXT_SIZE_DEFAULT
 import app.sterna.core.data.settings.SEARCH_HISTORY_DEFAULT
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
@@ -559,5 +560,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setMessageTextSize(size: MessageTextSize) {
         viewModelScope.launch { settings.setMessageTextSize(size) }
+    }
+
+    val volumeTextSize = settings.volumeTextSize.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = VOLUME_TEXT_SIZE_DEFAULT,
+    )
+
+    fun setVolumeTextSize(enabled: Boolean) {
+        viewModelScope.launch { settings.setVolumeTextSize(enabled) }
     }
 }

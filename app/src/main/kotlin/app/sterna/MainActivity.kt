@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.MailTo
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
@@ -18,15 +20,20 @@ import app.sterna.core.data.settings.PreviewLines
 import app.sterna.core.data.settings.PURE_BLACK_DEFAULT
 import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
+import app.sterna.core.data.settings.VOLUME_TEXT_SIZE_DEFAULT
 import app.sterna.ui.SternaApp
 import app.sterna.ui.compose.ComposerResumeSlot
+import app.sterna.ui.message.LocalVolumeTextSizeRelay
 import app.sterna.ui.message.NavFadeGuard
+import app.sterna.ui.message.VolumeTextSizeRelay
+import app.sterna.ui.message.volumeKeyDecision
 import app.sterna.ui.components.LocalBoldUnreadFolders
 import app.sterna.ui.components.LocalListDensity
 import app.sterna.ui.components.LocalListMonogram
 import app.sterna.ui.components.LocalPreviewLines
 import app.sterna.ui.components.LocalUnreadTint
 import app.sterna.ui.theme.SternaTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     /** A mailto: link waiting to open the compose screen (#15). Set from the launch intent or
@@ -40,6 +47,10 @@ class MainActivity : AppCompatActivity() {
     /** A home-screen widget tap waiting to put the list on the unified inbox (#112). Same one-shot
      *  discipline as the two above: an order carried out once, not a state the activity is in. */
     private val pendingUnifiedOpen = androidx.compose.runtime.mutableStateOf(false)
+
+    private val volumeTextSizeRelay = VolumeTextSizeRelay()
+
+    private var volumeTextSize = VOLUME_TEXT_SIZE_DEFAULT
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +68,7 @@ class MainActivity : AppCompatActivity() {
             ComposerResumeSlot.sweep(filesDir)
         }
         val settings = application.container.settingsRepository
+        lifecycleScope.launch { settings.volumeTextSize.collect { volumeTextSize = it } }
         setContent {
             val themeMode by settings.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val dynamicColor by settings.dynamicColor.collectAsState(initial = false)
@@ -78,6 +90,7 @@ class MainActivity : AppCompatActivity() {
                     LocalUnreadTint provides unreadTint,
                     LocalListMonogram provides listMonogram,
                     LocalBoldUnreadFolders provides boldUnreadFolders,
+                    LocalVolumeTextSizeRelay provides volumeTextSizeRelay,
                 ) {
                     SternaApp(
                         pendingMailto = pendingMailto.value,
@@ -99,6 +112,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode != KeyEvent.KEYCODE_VOLUME_UP && event.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) {
+            return super.dispatchKeyEvent(event)
+        }
+        val messageShown = volumeTextSizeRelay.messageShown && !application.container.appLock.locked.value
+        val decision = volumeKeyDecision(event.action, event.keyCode, event.repeatCount, volumeTextSize, messageShown)
+        if (!decision.consumed) return super.dispatchKeyEvent(event)
+        if (decision.step != 0) {
+            lifecycleScope.launch { application.container.settingsRepository.stepMessageTextSize(decision.step) }
+        }
+        return true
     }
 
     override fun onNewIntent(intent: Intent) {

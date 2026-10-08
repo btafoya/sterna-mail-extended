@@ -416,6 +416,8 @@
     <string name="settings_signature_below_quote_subtitle">En una respuesta, colocarla bajo el mensaje citado en vez de encima</string>
     <string name="settings_reply_bar_title">Barra de respuesta</string>
     <string name="settings_reply_bar_subtitle">Mostrar Responder y Reenviar en la parte inferior del mensaje. Responder sigue en la barra superior, Reenviar en su menú.</string>
+    <string name="settings_volume_text_size_title">Las teclas de volumen cambian el tamaño del texto</string>
+    <string name="settings_volume_text_size_subtitle">En un mensaje abierto, subir y bajar el volumen pasa de un tamaño del texto al siguiente. En el resto de la aplicación, las teclas conservan su función habitual.</string>
     <string name="settings_plain_text_title">Texto sin formato</string>
     <string name="settings_plain_text_subtitle">Abrir los mensajes como texto en lugar de su HTML. El menú del lector sigue cambiando un mensaje concreto en cualquier sentido.</string>
     <string name="settings_signature_delimiter_title">Línea separadora antes de la firma</string>

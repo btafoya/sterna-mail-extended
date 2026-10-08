@@ -585,6 +585,8 @@
     <string name="settings_signature_below_quote_subtitle">In a reply, put it under the quoted message instead of above it</string>
     <string name="settings_reply_bar_title">Reply bar</string>
     <string name="settings_reply_bar_subtitle">Show Reply and Forward at the bottom of a message. Reply stays in the toolbar at the top, Forward in its menu.</string>
+    <string name="settings_volume_text_size_title">Volume keys change text size</string>
+    <string name="settings_volume_text_size_subtitle">In an open message, volume up and volume down move from one text size to the next. Everywhere else, the keys keep their usual role.</string>
     <string name="settings_plain_text_title">Plain text</string>
     <string name="settings_plain_text_subtitle">Open messages as text instead of their HTML. The menu in an open message switches it either way.</string>
     <string name="settings_signature_delimiter_title">Separator line above the signature</string>

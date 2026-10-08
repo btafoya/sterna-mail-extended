@@ -619,6 +619,7 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
     val swipeLeft by viewModel.swipeLeft.collectAsStateWithLifecycle()
     val conversationView by viewModel.conversationView.collectAsStateWithLifecycle()
     val messageTextSize by viewModel.messageTextSize.collectAsStateWithLifecycle()
+    val volumeTextSize by viewModel.volumeTextSize.collectAsStateWithLifecycle()
     val markReadOnDelete by viewModel.markReadOnDelete.collectAsStateWithLifecycle()
     val markReadOnArchive by viewModel.markReadOnArchive.collectAsStateWithLifecycle()
     val markReadOnMove by viewModel.markReadOnMove.collectAsStateWithLifecycle()
@@ -663,6 +664,12 @@ private fun ReadingScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                     selected = messageTextSize,
                     optionLabel = { textSizeLabel(context, it) },
                     onSelect = viewModel::setMessageTextSize,
+                )
+                SettingSwitch(
+                    title = stringResource(R.string.settings_volume_text_size_title),
+                    subtitle = stringResource(R.string.settings_volume_text_size_subtitle),
+                    checked = volumeTextSize,
+                    onCheckedChange = viewModel::setVolumeTextSize,
                 )
                 // What a message opens as (#149). The subtitle must not promise anything about
                 // remote images, which are only cut while the text mode is actually on.

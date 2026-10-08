@@ -120,6 +120,22 @@ class SettingsWriteWiringTest {
         )
     }
 
+    @Test fun `stepMessageTextSize reads the size it steps from inside the edit`() {
+        assertEquals(
+            "`stepMessageTextSize` is pinned whole: the size it steps from is the one stored in " +
+                "the transaction, `it[KEY_MESSAGE_TEXT_SIZE]`. A body that reads `messageTextSize` " +
+                "first and writes afterwards takes two quick presses from the same size, and the " +
+                "second one is lost. `messageTextSizeOf` and `stepped` are run by " +
+                "`MessageTextSizeStepTest`; this only says they are the ones called, on that value.",
+            listOf(
+                "suspend fun stepMessageTextSize(direction: Int) {",
+                "dataStore.edit { it[KEY_MESSAGE_TEXT_SIZE] = messageTextSizeOf(it[KEY_MESSAGE_TEXT_SIZE]).stepped(direction).name }",
+                "}",
+            ),
+            block("suspend fun stepMessageTextSize(", 3),
+        )
+    }
+
     /**
      * The guard. Every function of the repository that writes into the DataStore is listed below
      * with its fate, so a new one makes this list diverge and the author has to say, here, which of
@@ -313,6 +329,10 @@ class SettingsWriteWiringTest {
                 "suspend fun setSearchHistory(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_SEARCH_HISTORY_ENABLED] = enabled }",
             ),
+            Write(
+                "suspend fun setVolumeTextSize(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_VOLUME_TEXT_SIZE] = enabled }",
+            ),
         )
 
         /**
@@ -411,6 +431,10 @@ class SettingsWriteWiringTest {
                 "PLAIN, the rest of its wiring pinned by PlainTextReadingWiringTest",
             "suspend fun setQuotedDatesUtc(enabled: Boolean) {" to "PLAIN",
             "suspend fun setMessageTextSize(size: MessageTextSize) {" to "ENUMS",
+            "suspend fun stepMessageTextSize(direction: Int) {" to
+                "pinned whole in this file, off the table: it reads the stored size inside the edit",
+            "suspend fun setVolumeTextSize(enabled: Boolean) {" to
+                "PLAIN, the rest of its wiring pinned by VolumeTextSizeWiringTest",
             "suspend fun setContactSuggestions(enabled: Boolean) {" to "PLAIN",
             "suspend fun setHasSeenWelcome(seen: Boolean) {" to
                 "out of scope: first-launch state, no switch and no saved line",

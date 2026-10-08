@@ -418,6 +418,8 @@
     <string name="settings_signature_below_quote_subtitle">В ответе размещать её под цитатой, а не над ней</string>
     <string name="settings_reply_bar_title">Панель ответа</string>
     <string name="settings_reply_bar_subtitle">Показывать «Ответить» и «Переслать» внизу сообщения. «Ответить» остаётся на верхней панели, «Переслать» — в её меню.</string>
+    <string name="settings_volume_text_size_title">Кнопки громкости меняют размер текста</string>
+    <string name="settings_volume_text_size_subtitle">В открытом письме кнопки увеличения и уменьшения громкости переключают размер текста на соседний. В остальных местах кнопки сохраняют обычное назначение.</string>
     <string name="settings_plain_text_title">Обычный текст</string>
     <string name="settings_plain_text_subtitle">Открывать письма как текст вместо HTML. Меню при чтении письма по-прежнему переключает отдельное письмо в обе стороны.</string>
     <string name="settings_signature_delimiter_title">Строка-разделитель перед подписью</string>

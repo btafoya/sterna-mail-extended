@@ -416,6 +416,8 @@
     <string name="settings_signature_below_quote_subtitle">Numa resposta, colocá-la sob a mensagem citada em vez de acima</string>
     <string name="settings_reply_bar_title">Barra de resposta</string>
     <string name="settings_reply_bar_subtitle">Mostrar Responder e Encaminhar na parte inferior da mensagem. Responder continua na barra superior, Encaminhar no menu dela.</string>
+    <string name="settings_volume_text_size_title">As teclas de volume alteram o tamanho do texto</string>
+    <string name="settings_volume_text_size_subtitle">Numa mensagem aberta, aumentar e diminuir o volume passa de um tamanho do texto para o seguinte. No resto da aplicação, as teclas mantêm a função habitual.</string>
     <string name="settings_plain_text_title">Texto simples</string>
     <string name="settings_plain_text_subtitle">Abrir as mensagens como texto em vez do seu HTML. O menu do leitor continua a alternar uma mensagem específica nos dois sentidos.</string>
     <string name="settings_signature_delimiter_title">Linha separadora antes da assinatura</string>

@@ -416,6 +416,8 @@
     <string name="settings_signature_below_quote_subtitle">Dans une réponse, la placer sous le message cité plutôt qu\'au-dessus</string>
     <string name="settings_reply_bar_title">Barre de réponse</string>
     <string name="settings_reply_bar_subtitle">Afficher Répondre et Transférer en bas d\'un message. Répondre reste dans la barre du haut, Transférer dans son menu.</string>
+    <string name="settings_volume_text_size_title">Les touches de volume changent la taille du texte</string>
+    <string name="settings_volume_text_size_subtitle">Dans un message ouvert, volume haut et volume bas passent d\'une taille du texte à l\'autre. Ailleurs, les touches gardent leur rôle habituel.</string>
     <string name="settings_plain_text_title">Texte brut</string>
     <string name="settings_plain_text_subtitle">Ouvrir les messages en texte plutôt qu\'en HTML. Le menu du lecteur bascule toujours un message précis dans un sens ou dans l\'autre.</string>
     <string name="settings_signature_delimiter_title">Ligne de séparation avant la signature</string>

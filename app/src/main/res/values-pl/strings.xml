@@ -418,6 +418,8 @@
     <string name="settings_signature_below_quote_subtitle">W odpowiedzi umieszczaj go pod cytowaną wiadomością zamiast nad nią</string>
     <string name="settings_reply_bar_title">Pasek odpowiedzi</string>
     <string name="settings_reply_bar_subtitle">Pokazuj Odpowiedz i Przekaż na dole wiadomości. Odpowiedz pozostaje na górnym pasku, Przekaż w jego menu.</string>
+    <string name="settings_volume_text_size_title">Przyciski głośności zmieniają rozmiar tekstu</string>
+    <string name="settings_volume_text_size_subtitle">W otwartej wiadomości przyciski zwiększania i zmniejszania głośności przechodzą od jednego rozmiaru tekstu do następnego. W pozostałych miejscach przyciski zachowują swoją zwykłą funkcję.</string>
     <string name="settings_plain_text_title">Zwykły tekst</string>
     <string name="settings_plain_text_subtitle">Otwieraj wiadomości jako tekst zamiast HTML. Menu w czytniku nadal przełącza pojedynczą wiadomość w obie strony.</string>
     <string name="settings_signature_delimiter_title">Wiersz oddzielający przed podpisem</string>

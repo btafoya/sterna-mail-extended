@@ -414,6 +414,8 @@
     <string name="settings_signature_below_quote_subtitle">In einer Antwort unter die zitierte Nachricht setzen statt darüber</string>
     <string name="settings_reply_bar_title">Antwortleiste</string>
     <string name="settings_reply_bar_subtitle">Antworten und Weiterleiten am unteren Rand einer Nachricht anzeigen. Antworten bleibt in der Leiste oben, Weiterleiten in deren Menü.</string>
+    <string name="settings_volume_text_size_title">Lautstärketasten ändern die Textgröße</string>
+    <string name="settings_volume_text_size_subtitle">In einer geöffneten Nachricht wechseln die Tasten „Lauter“ und „Leiser“ von einer Textgröße zur nächsten. Überall sonst behalten die Tasten ihre übliche Funktion.</string>
     <string name="settings_plain_text_title">Klartext</string>
     <string name="settings_plain_text_subtitle">Nachrichten als Text statt als HTML öffnen. Das Menü im Lesebereich schaltet eine einzelne Nachricht weiterhin in beide Richtungen um.</string>
     <string name="settings_signature_delimiter_title">Trennzeile vor der Signatur</string>

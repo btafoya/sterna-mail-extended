@@ -129,6 +129,10 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
             R.string.settings_text_size_huge,
         ),
     ),
+    SettingEntry(
+        "volume_text_size", READING, R.string.settings_volume_text_size_title,
+        R.string.settings_volume_text_size_subtitle,
+    ),
     SettingEntry("plain_text", READING, R.string.settings_plain_text_title, R.string.settings_plain_text_subtitle),
     SettingEntry(
         "mark_read", READING, R.string.settings_mark_read_title,

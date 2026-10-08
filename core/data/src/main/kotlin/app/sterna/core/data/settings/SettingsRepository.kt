@@ -258,13 +258,20 @@ class SettingsRepository(context: Context) {
     }
 
     /** Reading text size for the message body. */
-    val messageTextSize: Flow<MessageTextSize> = dataStore.data.map { prefs ->
-        prefs[KEY_MESSAGE_TEXT_SIZE]?.let { runCatching { MessageTextSize.valueOf(it) }.getOrNull() }
-            ?: MessageTextSize.NORMAL
-    }
+    val messageTextSize: Flow<MessageTextSize> = dataStore.data.map { messageTextSizeOf(it[KEY_MESSAGE_TEXT_SIZE]) }
 
     suspend fun setMessageTextSize(size: MessageTextSize) {
         dataStore.edit { it[KEY_MESSAGE_TEXT_SIZE] = size.name }
+    }
+
+    suspend fun stepMessageTextSize(direction: Int) {
+        dataStore.edit { it[KEY_MESSAGE_TEXT_SIZE] = messageTextSizeOf(it[KEY_MESSAGE_TEXT_SIZE]).stepped(direction).name }
+    }
+
+    val volumeTextSize: Flow<Boolean> = dataStore.data.map(::volumeTextSizeFrom)
+
+    suspend fun setVolumeTextSize(enabled: Boolean) {
+        dataStore.edit { it[KEY_VOLUME_TEXT_SIZE] = enabled }
     }
 
     /** Whether recipient autocomplete may read the device's contacts (off by default). */
@@ -384,6 +391,7 @@ class SettingsRepository(context: Context) {
         listMonogram = listMonogram.first(),
         boldUnreadFolders = boldUnreadFolders.first(),
         searchHistory = searchHistory.first(),
+        volumeTextSize = volumeTextSize.first(),
         deliveryMode = deliveryMode.first().name,
         notificationContent = notificationContent.first().name,
     )
@@ -423,6 +431,7 @@ class SettingsRepository(context: Context) {
         backup.listMonogram?.let { setListMonogram(it) }
         backup.boldUnreadFolders?.let { setBoldUnreadFolders(it) }
         backup.searchHistory?.let { setSearchHistory(it) }
+        backup.volumeTextSize?.let { setVolumeTextSize(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
         notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
     }

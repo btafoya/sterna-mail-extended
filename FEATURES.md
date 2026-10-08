@@ -205,6 +205,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   the list always, only on a window wider than tall, or never.
 - ✅ Theme toggle, list density, message beside the list, preview length and
   message text size.
+- ✅ An opt-in setting lets the volume keys step the text size of an open message.
+  Everywhere else they keep changing the volume.
 - ✅ Contact avatars and sender monograms.
 - ✅ Home-screen widgets for the unread count and for recent mail, both respecting
   the app lock.
