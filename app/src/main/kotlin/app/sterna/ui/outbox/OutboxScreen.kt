@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -115,9 +117,10 @@ fun OutboxScreen(
         }
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
             items(items, key = { it.id }) { item ->
+                val subject = item.subject.ifBlank { stringResource(R.string.message_no_subject) }
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                     Text(
-                        item.subject.ifBlank { stringResource(R.string.message_no_subject) },
+                        subject,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -170,8 +173,9 @@ fun OutboxScreen(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                        val retryName = stringResource(R.string.outbox_retry_for, subject)
                         if (OutboxLogic.canRetry(item.state)) {
-                            TextButton(onClick = { viewModel.retry(item.id) }) {
+                            TextButton(onClick = { viewModel.retry(item.id) }, modifier = Modifier.semantics { contentDescription = retryName }) {
                                 Text(stringResource(R.string.outbox_retry))
                             }
                         }
@@ -180,11 +184,13 @@ fun OutboxScreen(
                         val unreplayable =
                             OutboxLogic.isUnreplayablePrebuiltEntity(item.pgpMode, item.pgpEntityPath)
                         if (OutboxLogic.canEdit(item.pgpMode, item.state, unreplayable)) {
-                            TextButton(onClick = { viewModel.edit(item.id) }) {
+                            val editName = stringResource(R.string.outbox_edit_for, subject)
+                            TextButton(onClick = { viewModel.edit(item.id) }, modifier = Modifier.semantics { contentDescription = editName }) {
                                 Text(stringResource(R.string.outbox_edit))
                             }
                         }
-                        TextButton(onClick = { pendingDelete = item.id }) {
+                        val deleteName = stringResource(R.string.outbox_delete_for, subject)
+                        TextButton(onClick = { pendingDelete = item.id }, modifier = Modifier.semantics { contentDescription = deleteName }) {
                             Text(
                                 stringResource(R.string.outbox_delete),
                                 color = MaterialTheme.colorScheme.error,

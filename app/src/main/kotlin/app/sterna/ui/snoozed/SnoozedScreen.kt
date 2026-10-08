@@ -86,6 +86,7 @@ fun SnoozedScreen(
                     item.until,
                     DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
                 )
+                val subject = item.subject.orEmpty().ifBlank { stringResource(R.string.message_no_subject) }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -94,7 +95,7 @@ fun SnoozedScreen(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            item.subject.orEmpty().ifBlank { stringResource(R.string.message_no_subject) },
+                            subject,
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -119,7 +120,7 @@ fun SnoozedScreen(
                     var presetsOpen by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { presetsOpen = true }) {
-                            Icon(Icons.Filled.Schedule, contentDescription = stringResource(R.string.snoozed_reschedule))
+                            Icon(Icons.Filled.Schedule, contentDescription = stringResource(R.string.snoozed_reschedule_for, subject))
                         }
                         DropdownMenu(
                             expanded = presetsOpen,
@@ -143,7 +144,7 @@ fun SnoozedScreen(
                         }
                     }
                     IconButton(onClick = { viewModel.cancel(item.accountId, item.emailId) }) {
-                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.snoozed_cancel))
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.snoozed_cancel_for, subject))
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

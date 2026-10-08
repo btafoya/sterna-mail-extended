@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Cc/Bcc ausblenden</string>
     <string name="compose_remove">Entfernen</string>
     <string name="compose_remove_recipient">%1$s entfernen</string>
+    <string name="a11y_remove_named">%1$s entfernen</string>
     <string name="compose_attachment_fallback">Anhang</string>
     <string name="compose_attachments_total">Anhänge gesamt: %1$s</string>
     <string name="compose_attachments_total_of">Anhänge gesamt: %1$s von %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Ungelesen</string>
     <string name="inbox_unread_view_unread">Ungelesen  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Ordneroptionen</string>
+    <string name="inbox_folder_options_for">Optionen für Ordner %1$s</string>
     <string name="inbox_folder_watch">Bei neuen E-Mails benachrichtigen</string>
     <string name="settings_delivery_section">Zustellung neuer E-Mails</string>
     <string name="settings_delivery_instant">Sofort</string>
@@ -289,11 +290,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Empfangen an</string>
     <string name="participants_original_sender">Ursprünglicher Absender (ungeprüft)</string>
-    <string name="participant_add_to_contacts">Zu Kontakten hinzufügen</string>
+    <string name="a11y_add_to_contacts_named">%1$s zu Kontakten hinzufügen</string>
     <string name="participant_compose">Diesem Kontakt schreiben</string>
     <string name="participant_copy_address">Adresse kopieren</string>
     <string name="participant_copy_name_address">Name und Adresse kopieren</string>
-    <string name="a11y_participant_more">Weitere Aktionen</string>
+    <string name="a11y_more_actions_for">Weitere Aktionen für %1$s</string>
     <string name="status_address_copied">Adresse kopiert</string>
     <string name="status_link_copied">Link kopiert</string>
     <string name="participant_no_contacts_app">Keine App zum Hinzufügen von Kontakten.</string>
@@ -463,6 +464,8 @@
     <string name="settings_vacation_to_label">Bis</string>
     <string name="settings_vacation_date_unset">Nicht festgelegt</string>
     <string name="settings_vacation_clear_date">Datum löschen</string>
+    <string name="settings_vacation_clear_start">Startdatum löschen</string>
+    <string name="settings_vacation_clear_end">Enddatum löschen</string>
     <string name="settings_vacation_save">Speichern</string>
     <string name="settings_vacation_saved">Automatische Antwort gespeichert</string>
     <string name="settings_vacation_unsupported">Ihr Mailserver unterstützt keine automatischen Antworten.</string>
@@ -1020,8 +1023,8 @@
     <string name="inbox_snoozed">Zurückgestellt</string>
     <string name="snoozed_title">Zurückgestellt</string>
     <string name="snoozed_empty">Keine zurückgestellten Nachrichten.</string>
-    <string name="snoozed_cancel">Zurückstellen aufheben</string>
-    <string name="snoozed_reschedule">Zeitpunkt ändern</string>
+    <string name="snoozed_cancel_for">Zurückstellen von %1$s aufheben</string>
+    <string name="snoozed_reschedule_for">Zeitpunkt für %1$s ändern</string>
     <string name="snoozed_returns">Kommt %1$s zurück</string>
     <string name="snooze_current">Zurückgestellt bis %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1041,6 +1044,9 @@
     <string name="outbox_retry">Wiederholen</string>
     <string name="outbox_edit">Bearbeiten</string>
     <string name="outbox_delete">Löschen</string>
+    <string name="outbox_retry_for">Senden von %1$s wiederholen</string>
+    <string name="outbox_edit_for">%1$s bearbeiten</string>
+    <string name="outbox_delete_for">%1$s löschen</string>
     <string name="outbox_delete_title">Diese Nachricht löschen?</string>
     <string name="outbox_delete_body">Sie wurde nicht gesendet und ist nirgendwo sonst gespeichert. Die Nachricht und ihre Anhänge gehen verloren.</string>
     <string name="outbox_delete_body_interrupted">Sie wurde möglicherweise bereits gesendet und ist nirgendwo sonst gespeichert. Die Nachricht und ihre Anhänge gehen verloren.</string>

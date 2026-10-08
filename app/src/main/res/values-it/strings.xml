@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Nascondi Cc/Ccn</string>
     <string name="compose_remove">Rimuovi</string>
     <string name="compose_remove_recipient">Rimuovi %1$s</string>
+    <string name="a11y_remove_named">Rimuovi %1$s</string>
     <string name="compose_attachment_fallback">allegato</string>
     <string name="compose_attachments_total">Totale allegati: %1$s</string>
     <string name="compose_attachments_total_of">Totale allegati: %1$s su %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Non letti</string>
     <string name="inbox_unread_view_unread">Non letti  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Opzioni cartella</string>
+    <string name="inbox_folder_options_for">Opzioni della cartella %1$s</string>
     <string name="inbox_folder_watch">Notifica le nuove email</string>
     <string name="settings_delivery_section">Consegna delle nuove email</string>
     <string name="settings_delivery_instant">Istantanea</string>
@@ -291,11 +292,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Ricevuto su</string>
     <string name="participants_original_sender">Mittente originale (non verificato)</string>
-    <string name="participant_add_to_contacts">Aggiungi ai contatti</string>
+    <string name="a11y_add_to_contacts_named">Aggiungi %1$s ai contatti</string>
     <string name="participant_compose">Scrivi a questo contatto</string>
     <string name="participant_copy_address">Copia indirizzo</string>
     <string name="participant_copy_name_address">Copia nome e indirizzo</string>
-    <string name="a11y_participant_more">Altre azioni</string>
+    <string name="a11y_more_actions_for">Altre azioni per %1$s</string>
     <string name="status_address_copied">Indirizzo copiato</string>
     <string name="status_link_copied">Collegamento copiato</string>
     <string name="participant_no_contacts_app">Nessuna app per aggiungere contatti.</string>
@@ -465,6 +466,8 @@
     <string name="settings_vacation_to_label">Fino al</string>
     <string name="settings_vacation_date_unset">Non impostata</string>
     <string name="settings_vacation_clear_date">Cancella data</string>
+    <string name="settings_vacation_clear_start">Cancella data di inizio</string>
+    <string name="settings_vacation_clear_end">Cancella data di fine</string>
     <string name="settings_vacation_save">Salva</string>
     <string name="settings_vacation_saved">Risposta automatica salvata</string>
     <string name="settings_vacation_unsupported">Il tuo server di posta non supporta le risposte automatiche.</string>
@@ -1025,8 +1028,8 @@
     <string name="inbox_snoozed">Posticipati</string>
     <string name="snoozed_title">Posticipati</string>
     <string name="snoozed_empty">Nessun messaggio posticipato.</string>
-    <string name="snoozed_cancel">Annulla il rinvio</string>
-    <string name="snoozed_reschedule">Cambia orario</string>
+    <string name="snoozed_cancel_for">Annulla il rinvio di %1$s</string>
+    <string name="snoozed_reschedule_for">Cambia orario di %1$s</string>
     <string name="snoozed_returns">Torna %1$s</string>
     <string name="snooze_current">Posticipato a %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1046,6 +1049,9 @@
     <string name="outbox_retry">Riprova</string>
     <string name="outbox_edit">Modifica</string>
     <string name="outbox_delete">Elimina</string>
+    <string name="outbox_retry_for">Riprova %1$s</string>
+    <string name="outbox_edit_for">Modifica %1$s</string>
+    <string name="outbox_delete_for">Elimina %1$s</string>
     <string name="outbox_delete_title">Eliminare questo messaggio?</string>
     <string name="outbox_delete_body">Non è stato inviato e non è salvato da nessun\'altra parte. Il messaggio e i suoi allegati andranno persi.</string>
     <string name="outbox_delete_body_interrupted">Potrebbe essere già stato inviato e non è salvato da nessun\'altra parte. Il messaggio e i suoi allegati andranno persi.</string>

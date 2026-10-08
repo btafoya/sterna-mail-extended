@@ -300,6 +300,7 @@ private fun SenderRow(
     onBlock: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val senderName = row.name?.takeIf { it.isNotBlank() } ?: row.email
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -307,7 +308,7 @@ private fun SenderRow(
         ContactAvatar(email = row.email, name = row.name, photoUri = null)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(
-                row.name?.takeIf { it.isNotBlank() } ?: row.email,
+                senderName,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -332,7 +333,7 @@ private fun SenderRow(
         }
         Box {
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.a11y_more_actions_for, senderName))
             }
             DropdownMenu(
                 expanded = menuOpen,

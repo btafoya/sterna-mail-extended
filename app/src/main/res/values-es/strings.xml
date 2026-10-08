@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Ocultar Cc/Cco</string>
     <string name="compose_remove">Quitar</string>
     <string name="compose_remove_recipient">Quitar %1$s</string>
+    <string name="a11y_remove_named">Quitar %1$s</string>
     <string name="compose_attachment_fallback">adjunto</string>
     <string name="compose_attachments_total">Total de adjuntos: %1$s</string>
     <string name="compose_attachments_total_of">Total de adjuntos: %1$s de %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Sin leer</string>
     <string name="inbox_unread_view_unread">Sin leer  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Opciones de la carpeta</string>
+    <string name="inbox_folder_options_for">Opciones de la carpeta %1$s</string>
     <string name="inbox_folder_watch">Notificar los correos nuevos</string>
     <string name="settings_delivery_section">Entrega del correo nuevo</string>
     <string name="settings_delivery_instant">Instantánea</string>
@@ -291,11 +292,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Recibido en</string>
     <string name="participants_original_sender">Remitente original (sin verificar)</string>
-    <string name="participant_add_to_contacts">Añadir a contactos</string>
+    <string name="a11y_add_to_contacts_named">Añadir %1$s a contactos</string>
     <string name="participant_compose">Escribir a este contacto</string>
     <string name="participant_copy_address">Copiar dirección</string>
     <string name="participant_copy_name_address">Copiar nombre y dirección</string>
-    <string name="a11y_participant_more">Más acciones</string>
+    <string name="a11y_more_actions_for">Más acciones para %1$s</string>
     <string name="status_address_copied">Dirección copiada</string>
     <string name="status_link_copied">Enlace copiado</string>
     <string name="participant_no_contacts_app">No hay ninguna app para añadir contactos.</string>
@@ -465,6 +466,8 @@
     <string name="settings_vacation_to_label">Hasta</string>
     <string name="settings_vacation_date_unset">Sin definir</string>
     <string name="settings_vacation_clear_date">Borrar fecha</string>
+    <string name="settings_vacation_clear_start">Borrar fecha de inicio</string>
+    <string name="settings_vacation_clear_end">Borrar fecha de fin</string>
     <string name="settings_vacation_save">Guardar</string>
     <string name="settings_vacation_saved">Respuesta automática guardada</string>
     <string name="settings_vacation_unsupported">Tu servidor de correo no admite respuestas automáticas.</string>
@@ -1025,8 +1028,8 @@
     <string name="inbox_snoozed">Pospuestos</string>
     <string name="snoozed_title">Pospuestos</string>
     <string name="snoozed_empty">No hay mensajes pospuestos.</string>
-    <string name="snoozed_cancel">Cancelar el aplazamiento</string>
-    <string name="snoozed_reschedule">Cambiar la hora</string>
+    <string name="snoozed_cancel_for">Cancelar el aplazamiento de %1$s</string>
+    <string name="snoozed_reschedule_for">Cambiar la hora de %1$s</string>
     <string name="snoozed_returns">Vuelve %1$s</string>
     <string name="snooze_current">Pospuesto hasta %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1046,6 +1049,9 @@
     <string name="outbox_retry">Reintentar</string>
     <string name="outbox_edit">Editar</string>
     <string name="outbox_delete">Eliminar</string>
+    <string name="outbox_retry_for">Reintentar %1$s</string>
+    <string name="outbox_edit_for">Editar %1$s</string>
+    <string name="outbox_delete_for">Eliminar %1$s</string>
     <string name="outbox_delete_title">¿Eliminar este mensaje?</string>
     <string name="outbox_delete_body">No se ha enviado y no está guardado en ningún otro sitio. Se perderán el mensaje y sus archivos adjuntos.</string>
     <string name="outbox_delete_body_interrupted">Puede que ya se haya enviado y no está guardado en ningún otro sitio. Se perderán el mensaje y sus archivos adjuntos.</string>

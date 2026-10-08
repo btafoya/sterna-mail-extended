@@ -2411,13 +2411,13 @@ private fun ParticipantRow(
         }) {
             Icon(
                 Icons.Filled.PersonAdd,
-                contentDescription = stringResource(R.string.participant_add_to_contacts),
+                contentDescription = stringResource(R.string.a11y_add_to_contacts_named, addr.display()),
             )
         }
         IconButton(onClick = { menuOpen = true }) {
             Icon(
                 Icons.Filled.MoreVert,
-                contentDescription = stringResource(R.string.a11y_participant_more),
+                contentDescription = stringResource(R.string.a11y_more_actions_for, addr.display()),
             )
         }
         DropdownMenu(

@@ -1374,9 +1374,10 @@ fun ComposeScreen(
                             }
                             // weight(1f) and one ellipsized line: a long name shortens instead of
                             // pushing the cross off the screen.
+                            val attachmentName = att.name ?: stringResource(R.string.compose_attachment_fallback)
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    text = att.name ?: stringResource(R.string.compose_attachment_fallback),
+                                    text = attachmentName,
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1395,7 +1396,7 @@ fun ComposeScreen(
                             IconButton(onClick = { viewModel.removeAttachment(att) }) {
                                 Icon(
                                     Icons.Filled.Close,
-                                    contentDescription = stringResource(R.string.compose_remove),
+                                    contentDescription = stringResource(R.string.a11y_remove_named, attachmentName),
                                 )
                             }
                         }

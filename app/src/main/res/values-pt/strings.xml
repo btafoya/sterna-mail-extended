@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Ocultar Cc/Cco</string>
     <string name="compose_remove">Remover</string>
     <string name="compose_remove_recipient">Remover %1$s</string>
+    <string name="a11y_remove_named">Remover %1$s</string>
     <string name="compose_attachment_fallback">anexo</string>
     <string name="compose_attachments_total">Total de anexos: %1$s</string>
     <string name="compose_attachments_total_of">Total de anexos: %1$s de %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Não lidas</string>
     <string name="inbox_unread_view_unread">Não lidas  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Opções da pasta</string>
+    <string name="inbox_folder_options_for">Opções da pasta %1$s</string>
     <string name="inbox_folder_watch">Notificar novas mensagens</string>
     <string name="settings_delivery_section">Entrega de novas mensagens</string>
     <string name="settings_delivery_instant">Instantânea</string>
@@ -291,11 +292,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Recebido em</string>
     <string name="participants_original_sender">Remetente original (não verificado)</string>
-    <string name="participant_add_to_contacts">Adicionar aos contactos</string>
+    <string name="a11y_add_to_contacts_named">Adicionar %1$s aos contactos</string>
     <string name="participant_compose">Escrever a este contacto</string>
     <string name="participant_copy_address">Copiar endereço</string>
     <string name="participant_copy_name_address">Copiar nome e endereço</string>
-    <string name="a11y_participant_more">Mais ações</string>
+    <string name="a11y_more_actions_for">Mais ações para %1$s</string>
     <string name="status_address_copied">Endereço copiado</string>
     <string name="status_link_copied">Link copiado</string>
     <string name="participant_no_contacts_app">Nenhum app para adicionar contatos.</string>
@@ -465,6 +466,8 @@
     <string name="settings_vacation_to_label">Até</string>
     <string name="settings_vacation_date_unset">Não definido</string>
     <string name="settings_vacation_clear_date">Limpar data</string>
+    <string name="settings_vacation_clear_start">Limpar data de início</string>
+    <string name="settings_vacation_clear_end">Limpar data de fim</string>
     <string name="settings_vacation_save">Salvar</string>
     <string name="settings_vacation_saved">Resposta automática salva</string>
     <string name="settings_vacation_unsupported">Seu servidor de e-mail não oferece suporte a respostas automáticas.</string>
@@ -1025,8 +1028,8 @@
     <string name="inbox_snoozed">Adiadas</string>
     <string name="snoozed_title">Adiadas</string>
     <string name="snoozed_empty">Nenhuma mensagem adiada.</string>
-    <string name="snoozed_cancel">Cancelar o adiamento</string>
-    <string name="snoozed_reschedule">Alterar a hora</string>
+    <string name="snoozed_cancel_for">Cancelar o adiamento de %1$s</string>
+    <string name="snoozed_reschedule_for">Alterar a hora de %1$s</string>
     <string name="snoozed_returns">Volta %1$s</string>
     <string name="snooze_current">Adiada até %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1046,6 +1049,9 @@
     <string name="outbox_retry">Tentar de novo</string>
     <string name="outbox_edit">Editar</string>
     <string name="outbox_delete">Eliminar</string>
+    <string name="outbox_retry_for">Tentar de novo: %1$s</string>
+    <string name="outbox_edit_for">Editar %1$s</string>
+    <string name="outbox_delete_for">Eliminar %1$s</string>
     <string name="outbox_delete_title">Eliminar esta mensagem?</string>
     <string name="outbox_delete_body">Ela não foi enviada e não está guardada em nenhum outro lugar. A mensagem e seus anexos serão perdidos.</string>
     <string name="outbox_delete_body_interrupted">Pode já ter sido enviada e não está guardada em nenhum outro lugar. A mensagem e seus anexos serão perdidos.</string>

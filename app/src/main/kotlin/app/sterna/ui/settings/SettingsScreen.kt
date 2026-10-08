@@ -71,6 +71,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.foundation.selection.selectable
@@ -2129,12 +2130,16 @@ private fun AccountDetailScreen(
                                 // Remove is gated so one identity remains across both groups.
                                 if (totalIdentities > 1) {
                                     Spacer(Modifier.weight(1f))
-                                    TextButton(onClick = {
-                                        // Removing the default identity clears the stored choice.
-                                        if (identity.id == defaultIdentityId) defaultIdentityId = null
-                                        identities = identities.filterIndexed { i, _ -> i != index }
-                                        markEdited()
-                                    }) {
+                                    val removeName = stringResource(R.string.a11y_remove_named, trimmedEmail.ifBlank { stringResource(R.string.settings_identity_new) })
+                                    TextButton(
+                                        onClick = {
+                                            // Removing the default identity clears the stored choice.
+                                            if (identity.id == defaultIdentityId) defaultIdentityId = null
+                                            identities = identities.filterIndexed { i, _ -> i != index }
+                                            markEdited()
+                                        },
+                                        modifier = Modifier.semantics { contentDescription = removeName },
+                                    ) {
                                         Text(
                                             stringResource(R.string.settings_remove),
                                             color = MaterialTheme.colorScheme.error,
@@ -2849,11 +2854,13 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel, o
         SettingsSection(stringResource(R.string.settings_vacation_period_section)) {
             VacationDateRow(
                 label = stringResource(R.string.settings_vacation_from_label),
+                clearLabel = stringResource(R.string.settings_vacation_clear_start),
                 millis = state.fromDate,
                 onPick = viewModel::setFromDate,
             )
             VacationDateRow(
                 label = stringResource(R.string.settings_vacation_to_label),
+                clearLabel = stringResource(R.string.settings_vacation_clear_end),
                 millis = state.toDate,
                 onPick = viewModel::setToDate,
             )
@@ -2906,7 +2913,7 @@ private fun VacationForm(state: VacationUiState, viewModel: VacationViewModel, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VacationDateRow(label: String, millis: Long?, onPick: (Long?) -> Unit) {
+private fun VacationDateRow(label: String, clearLabel: String, millis: Long?, onPick: (Long?) -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -2925,7 +2932,7 @@ private fun VacationDateRow(label: String, millis: Long?, onPick: (Long?) -> Uni
         }
         if (millis != null) {
             IconButton(onClick = { onPick(null) }) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_vacation_clear_date))
+                Icon(Icons.Filled.Close, contentDescription = clearLabel)
             }
         }
     }

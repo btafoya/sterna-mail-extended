@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Masquer Cc/Cci</string>
     <string name="compose_remove">Retirer</string>
     <string name="compose_remove_recipient">Retirer %1$s</string>
+    <string name="a11y_remove_named">Retirer %1$s</string>
     <string name="compose_attachment_fallback">pièce jointe</string>
     <string name="compose_attachments_total">Total des pièces jointes : %1$s</string>
     <string name="compose_attachments_total_of">Total des pièces jointes : %1$s sur %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Non lus</string>
     <string name="inbox_unread_view_unread">Non lus  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Options du dossier</string>
+    <string name="inbox_folder_options_for">Options du dossier %1$s</string>
     <string name="inbox_folder_watch">Notifier les nouveaux messages</string>
     <string name="settings_delivery_section">Réception des nouveaux messages</string>
     <string name="settings_delivery_instant">Instantanée</string>
@@ -291,11 +292,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Reçu à l\'adresse</string>
     <string name="participants_original_sender">Expéditeur d\'origine (non vérifié)</string>
-    <string name="participant_add_to_contacts">Ajouter aux contacts</string>
+    <string name="a11y_add_to_contacts_named">Ajouter %1$s aux contacts</string>
     <string name="participant_compose">Écrire à ce contact</string>
     <string name="participant_copy_address">Copier l\'adresse</string>
     <string name="participant_copy_name_address">Copier le nom et l\'adresse</string>
-    <string name="a11y_participant_more">Plus d\'actions</string>
+    <string name="a11y_more_actions_for">Plus d\'actions pour %1$s</string>
     <string name="status_address_copied">Adresse copiée</string>
     <string name="status_link_copied">Lien copié</string>
     <string name="participant_no_contacts_app">Aucune application pour ajouter des contacts.</string>
@@ -465,6 +466,8 @@
     <string name="settings_vacation_to_label">Jusqu\'au</string>
     <string name="settings_vacation_date_unset">Non définie</string>
     <string name="settings_vacation_clear_date">Effacer la date</string>
+    <string name="settings_vacation_clear_start">Effacer la date de début</string>
+    <string name="settings_vacation_clear_end">Effacer la date de fin</string>
     <string name="settings_vacation_save">Enregistrer</string>
     <string name="settings_vacation_saved">Réponse automatique enregistrée</string>
     <string name="settings_vacation_unsupported">Votre serveur de messagerie ne prend pas en charge les réponses automatiques.</string>
@@ -1029,8 +1032,8 @@
     <string name="inbox_snoozed">Reportés</string>
     <string name="snoozed_title">Reportés</string>
     <string name="snoozed_empty">Aucun message reporté.</string>
-    <string name="snoozed_cancel">Annuler le report</string>
-    <string name="snoozed_reschedule">Modifier l\'échéance</string>
+    <string name="snoozed_cancel_for">Annuler le report de %1$s</string>
+    <string name="snoozed_reschedule_for">Modifier l\'échéance de %1$s</string>
     <string name="snoozed_returns">Revient %1$s</string>
     <string name="snooze_current">Reporté à %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1050,6 +1053,9 @@
     <string name="outbox_retry">Réessayer</string>
     <string name="outbox_edit">Modifier</string>
     <string name="outbox_delete">Supprimer</string>
+    <string name="outbox_retry_for">Réessayer %1$s</string>
+    <string name="outbox_edit_for">Modifier %1$s</string>
+    <string name="outbox_delete_for">Supprimer %1$s</string>
     <string name="outbox_delete_title">Supprimer ce message ?</string>
     <string name="outbox_delete_body">Il n\'a pas été envoyé et n\'est enregistré nulle part ailleurs. Le message et ses pièces jointes seront perdus.</string>
     <string name="outbox_delete_body_interrupted">Il est peut-être déjà parti et n\'est enregistré nulle part ailleurs. Le message et ses pièces jointes seront perdus.</string>

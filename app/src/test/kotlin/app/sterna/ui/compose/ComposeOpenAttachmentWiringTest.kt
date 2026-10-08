@@ -138,9 +138,10 @@ class ComposeOpenAttachmentWiringTest {
             row.filter { "removeAttachment(" in it },
         )
         assertEquals(
-            "the cross must be spoken as compose_remove, since its label is no longer on screen. Lines found:",
-            listOf("Icons.Filled.Close,", "contentDescription = stringResource(R.string.compose_remove),"),
-            row.filter { "Icons.Filled.Close" in it || "R.string.compose_remove" in it },
+            "the cross must be spoken with the file it removes: its label is no longer on screen, and a " +
+                "bare 'Remove' is the same on every attachment. Lines found:",
+            listOf("Icons.Filled.Close,", "contentDescription = stringResource(R.string.a11y_remove_named, attachmentName),"),
+            row.filter { "Icons.Filled.Close" in it || "R.string.compose_remove" in it || "R.string.a11y_remove_named" in it },
         )
     }
 

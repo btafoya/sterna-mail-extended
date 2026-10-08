@@ -1904,7 +1904,7 @@ private fun DrawerContent(
                                 Box {
                                     var folderMenu by remember { mutableStateOf(false) }
                                     IconButton(onClick = { folderMenu = true }) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options))
+                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options_for, displayName))
                                     }
                                     DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {
                                         DropdownMenuItem(

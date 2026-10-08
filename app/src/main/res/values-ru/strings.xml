@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Скрыть копию/скрытую копию</string>
     <string name="compose_remove">Убрать</string>
     <string name="compose_remove_recipient">Убрать %1$s</string>
+    <string name="a11y_remove_named">Убрать %1$s</string>
     <string name="compose_attachment_fallback">вложение</string>
     <string name="compose_attachments_total">Всего вложений: %1$s</string>
     <string name="compose_attachments_total_of">Всего вложений: %1$s из %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Непрочитанные</string>
     <string name="inbox_unread_view_unread">Непрочитанные  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Параметры папки</string>
+    <string name="inbox_folder_options_for">Параметры папки %1$s</string>
     <string name="inbox_folder_watch">Уведомлять о новых письмах</string>
     <string name="settings_delivery_section">Доставка новых писем</string>
     <string name="settings_delivery_instant">Мгновенно</string>
@@ -293,11 +294,11 @@
     <string name="participants_cc">Копия</string>
     <string name="participants_received_at">Получено на адрес</string>
     <string name="participants_original_sender">Исходный отправитель (не проверено)</string>
-    <string name="participant_add_to_contacts">Добавить в контакты</string>
+    <string name="a11y_add_to_contacts_named">Добавить в контакты: %1$s</string>
     <string name="participant_compose">Написать этому контакту</string>
     <string name="participant_copy_address">Копировать адрес</string>
     <string name="participant_copy_name_address">Копировать имя и адрес</string>
-    <string name="a11y_participant_more">Другие действия</string>
+    <string name="a11y_more_actions_for">Другие действия: %1$s</string>
     <string name="status_address_copied">Адрес скопирован</string>
     <string name="status_link_copied">Ссылка скопирована</string>
     <string name="participant_no_contacts_app">Нет приложения для добавления контактов.</string>
@@ -467,6 +468,8 @@
     <string name="settings_vacation_to_label">До</string>
     <string name="settings_vacation_date_unset">Не задано</string>
     <string name="settings_vacation_clear_date">Очистить дату</string>
+    <string name="settings_vacation_clear_start">Очистить дату начала</string>
+    <string name="settings_vacation_clear_end">Очистить дату окончания</string>
     <string name="settings_vacation_save">Сохранить</string>
     <string name="settings_vacation_saved">Автоответ сохранён</string>
     <string name="settings_vacation_unsupported">Ваш почтовый сервер не поддерживает автоматические ответы.</string>
@@ -1042,8 +1045,8 @@
     <string name="inbox_snoozed">Отложенные</string>
     <string name="snoozed_title">Отложенные письма</string>
     <string name="snoozed_empty">Нет отложенных писем.</string>
-    <string name="snoozed_cancel">Отменить откладывание</string>
-    <string name="snoozed_reschedule">Изменить время</string>
+    <string name="snoozed_cancel_for">Отменить откладывание: %1$s</string>
+    <string name="snoozed_reschedule_for">Изменить время: %1$s</string>
     <string name="snoozed_returns">Вернётся %1$s</string>
     <string name="snooze_current">Отложено до %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1063,6 +1066,9 @@
     <string name="outbox_retry">Повторить</string>
     <string name="outbox_edit">Изменить</string>
     <string name="outbox_delete">Удалить</string>
+    <string name="outbox_retry_for">Повторить: %1$s</string>
+    <string name="outbox_edit_for">Изменить: %1$s</string>
+    <string name="outbox_delete_for">Удалить: %1$s</string>
     <string name="outbox_delete_title">Удалить это сообщение?</string>
     <string name="outbox_delete_body">Оно не было отправлено и нигде больше не сохранено. Сообщение и вложения будут потеряны.</string>
     <string name="outbox_delete_body_interrupted">Возможно, оно уже было отправлено и нигде больше не сохранено. Сообщение и вложения будут потеряны.</string>

@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Ukryj DW/UDW</string>
     <string name="compose_remove">Usuń</string>
     <string name="compose_remove_recipient">Usuń %1$s</string>
+    <string name="a11y_remove_named">Usuń %1$s</string>
     <string name="compose_attachment_fallback">załącznik</string>
     <string name="compose_attachments_total">Łącznie załączniki: %1$s</string>
     <string name="compose_attachments_total_of">Łącznie załączniki: %1$s z %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Nieprzeczytane</string>
     <string name="inbox_unread_view_unread">Nieprzeczytane  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Opcje folderu</string>
+    <string name="inbox_folder_options_for">Opcje folderu %1$s</string>
     <string name="inbox_folder_watch">Powiadamiaj o nowych wiadomościach</string>
     <string name="settings_delivery_section">Dostarczanie nowych wiadomości</string>
     <string name="settings_delivery_instant">Natychmiast</string>
@@ -293,11 +294,11 @@
     <string name="participants_cc">DW</string>
     <string name="participants_received_at">Odebrano na adres</string>
     <string name="participants_original_sender">Pierwotny nadawca (niezweryfikowany)</string>
-    <string name="participant_add_to_contacts">Dodaj do kontaktów</string>
+    <string name="a11y_add_to_contacts_named">Dodaj do kontaktów: %1$s</string>
     <string name="participant_compose">Napisz do tego kontaktu</string>
     <string name="participant_copy_address">Kopiuj adres</string>
     <string name="participant_copy_name_address">Kopiuj nazwę i adres</string>
-    <string name="a11y_participant_more">Więcej akcji</string>
+    <string name="a11y_more_actions_for">Więcej akcji: %1$s</string>
     <string name="status_address_copied">Skopiowano adres</string>
     <string name="status_link_copied">Skopiowano link</string>
     <string name="participant_no_contacts_app">Brak aplikacji do dodawania kontaktów.</string>
@@ -467,6 +468,8 @@
     <string name="settings_vacation_to_label">Do</string>
     <string name="settings_vacation_date_unset">Nie ustawiono</string>
     <string name="settings_vacation_clear_date">Wyczyść datę</string>
+    <string name="settings_vacation_clear_start">Wyczyść datę początkową</string>
+    <string name="settings_vacation_clear_end">Wyczyść datę końcową</string>
     <string name="settings_vacation_save">Zapisz</string>
     <string name="settings_vacation_saved">Automatyczna odpowiedź zapisana</string>
     <string name="settings_vacation_unsupported">Twój serwer poczty nie obsługuje automatycznych odpowiedzi.</string>
@@ -1040,8 +1043,8 @@
     <string name="inbox_snoozed">Odłożone</string>
     <string name="snoozed_title">Odłożone</string>
     <string name="snoozed_empty">Brak odłożonych wiadomości.</string>
-    <string name="snoozed_cancel">Anuluj odłożenie</string>
-    <string name="snoozed_reschedule">Zmień termin</string>
+    <string name="snoozed_cancel_for">Anuluj odłożenie: %1$s</string>
+    <string name="snoozed_reschedule_for">Zmień termin: %1$s</string>
     <string name="snoozed_returns">Wróci %1$s</string>
     <string name="snooze_current">Odłożone do %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1061,6 +1064,9 @@
     <string name="outbox_retry">Ponów</string>
     <string name="outbox_edit">Edytuj</string>
     <string name="outbox_delete">Usuń</string>
+    <string name="outbox_retry_for">Ponów: %1$s</string>
+    <string name="outbox_edit_for">Edytuj: %1$s</string>
+    <string name="outbox_delete_for">Usuń: %1$s</string>
     <string name="outbox_delete_title">Usunąć tę wiadomość?</string>
     <string name="outbox_delete_body">Nie została wysłana i nie jest nigdzie indziej zapisana. Wiadomość i jej załączniki zostaną utracone.</string>
     <string name="outbox_delete_body_interrupted">Mogła już zostać wysłana i nie jest nigdzie indziej zapisana. Wiadomość i jej załączniki zostaną utracone.</string>

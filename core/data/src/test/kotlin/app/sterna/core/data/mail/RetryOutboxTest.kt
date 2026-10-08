@@ -127,7 +127,7 @@ class RetryOutboxTest {
      */
     @Test fun `the Retry button is offered only under canRetry`() {
         val lines = codeLines(locate("app/src/main/kotlin/app/sterna/ui/outbox/OutboxScreen.kt").readText())
-        val button = lines.indexOf("TextButton(onClick = { viewModel.retry(item.id) }) {")
+        val button = lines.indexOf("TextButton(onClick = { viewModel.retry(item.id) }, modifier = Modifier.semantics { contentDescription = retryName }) {")
         assertTrue("the Retry button line must be there, whole", button > 0)
         assertEquals(
             "the line above the Retry button must be the whole guard: a literal or another row's " +

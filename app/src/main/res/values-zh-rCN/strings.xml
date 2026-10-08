@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">隐藏抄送/密送</string>
     <string name="compose_remove">移除</string>
     <string name="compose_remove_recipient">移除 %1$s</string>
+    <string name="a11y_remove_named">移除 %1$s</string>
     <string name="compose_attachment_fallback">附件</string>
     <string name="compose_attachments_total">附件总计：%1$s</string>
     <string name="compose_attachments_total_of">附件总计：%1$s / %2$s</string>
@@ -125,7 +126,7 @@
     <string name="inbox_unread_view">未读</string>
     <string name="inbox_unread_view_unread">未读 (%1$d)</string>
     <string name="inbox_folder_unread">%1$s (%2$d)</string>
-    <string name="inbox_folder_options">文件夹选项</string>
+    <string name="inbox_folder_options_for">文件夹 %1$s 的选项</string>
     <string name="inbox_folder_watch">新邮件通知</string>
     <string name="settings_delivery_section">新邮件投递</string>
     <string name="settings_delivery_instant">即时模式</string>
@@ -195,8 +196,8 @@
     <string name="inbox_snoozed">稍后提醒</string>
     <string name="snoozed_title">稍后提醒</string>
     <string name="snoozed_empty">没有稍后提醒的邮件。</string>
-    <string name="snoozed_cancel">取消稍后提醒</string>
-    <string name="snoozed_reschedule">更改提醒时间</string>
+    <string name="snoozed_cancel_for">取消 %1$s 的稍后提醒</string>
+    <string name="snoozed_reschedule_for">更改 %1$s 的提醒时间</string>
     <string name="snoozed_returns">%1$s 再次提醒</string>
     <string name="snooze_current">提醒至 %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -216,6 +217,9 @@
     <string name="outbox_retry">重试</string>
     <string name="outbox_edit">编辑</string>
     <string name="outbox_delete">删除</string>
+    <string name="outbox_retry_for">重试 %1$s</string>
+    <string name="outbox_edit_for">编辑 %1$s</string>
+    <string name="outbox_delete_for">删除 %1$s</string>
     <string name="outbox_delete_title">删除此邮件？</string>
     <string name="outbox_delete_body">此邮件尚未发送，也未在其他地方保存。邮件及其附件将丢失。</string>
     <string name="outbox_delete_body_interrupted">此邮件可能已发送，且未在其他地方保存。邮件及其附件将丢失。</string>
@@ -431,11 +435,11 @@
          "(unverified)" is load-bearing: the header is sender-controlled and nothing checks
          that the message was relayed at all, so the label must not assert what it shows. -->
     <string name="participants_original_sender">原始发件人 (未验证)</string>
-    <string name="participant_add_to_contacts">添加到联系人</string>
+    <string name="a11y_add_to_contacts_named">将 %1$s 添加到联系人</string>
     <string name="participant_compose">写信给此联系人</string>
     <string name="participant_copy_address">复制地址</string>
     <string name="participant_copy_name_address">复制姓名和地址</string>
-    <string name="a11y_participant_more">更多操作</string>
+    <string name="a11y_more_actions_for">%1$s 的更多操作</string>
     <string name="status_address_copied">地址已复制</string>
     <string name="status_link_copied">链接已复制</string>
     <string name="participant_no_contacts_app">没有可用于添加联系人的应用。</string>
@@ -626,6 +630,8 @@
     <string name="settings_vacation_to_label">至</string>
     <string name="settings_vacation_date_unset">未设置</string>
     <string name="settings_vacation_clear_date">清除日期</string>
+    <string name="settings_vacation_clear_start">清除开始日期</string>
+    <string name="settings_vacation_clear_end">清除结束日期</string>
     <string name="settings_vacation_save">保存</string>
     <string name="settings_vacation_saved">自动回复已保存</string>
     <string name="settings_vacation_unsupported">您的邮件服务器不支持自动回复。</string>

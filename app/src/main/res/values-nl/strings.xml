@@ -24,6 +24,7 @@
     <string name="compose_hide_cc_bcc">Cc/Bcc verbergen</string>
     <string name="compose_remove">Verwijderen</string>
     <string name="compose_remove_recipient">%1$s verwijderen</string>
+    <string name="a11y_remove_named">%1$s verwijderen</string>
     <string name="compose_attachment_fallback">bijlage</string>
     <string name="compose_attachments_total">Bijlagen totaal: %1$s</string>
     <string name="compose_attachments_total_of">Bijlagen totaal: %1$s van %2$s</string>
@@ -112,7 +113,7 @@
     <string name="inbox_unread_view">Ongelezen</string>
     <string name="inbox_unread_view_unread">Ongelezen  (%1$d)</string>
     <string name="inbox_folder_unread">%1$s  (%2$d)</string>
-    <string name="inbox_folder_options">Mapopties</string>
+    <string name="inbox_folder_options_for">Opties voor map %1$s</string>
     <string name="inbox_folder_watch">Melden bij nieuwe e-mail</string>
     <string name="settings_delivery_section">Bezorging van nieuwe e-mail</string>
     <string name="settings_delivery_instant">Direct</string>
@@ -289,11 +290,11 @@
     <string name="participants_cc">Cc</string>
     <string name="participants_received_at">Ontvangen op</string>
     <string name="participants_original_sender">Oorspronkelijke afzender (niet geverifieerd)</string>
-    <string name="participant_add_to_contacts">Aan contacten toevoegen</string>
+    <string name="a11y_add_to_contacts_named">%1$s aan contacten toevoegen</string>
     <string name="participant_compose">Naar dit contact schrijven</string>
     <string name="participant_copy_address">Adres kopiëren</string>
     <string name="participant_copy_name_address">Naam en adres kopiëren</string>
-    <string name="a11y_participant_more">Meer acties</string>
+    <string name="a11y_more_actions_for">Meer acties voor %1$s</string>
     <string name="status_address_copied">Adres gekopieerd</string>
     <string name="status_link_copied">Link gekopieerd</string>
     <string name="participant_no_contacts_app">Geen app om contacten toe te voegen.</string>
@@ -463,6 +464,8 @@
     <string name="settings_vacation_to_label">Tot</string>
     <string name="settings_vacation_date_unset">Niet ingesteld</string>
     <string name="settings_vacation_clear_date">Datum wissen</string>
+    <string name="settings_vacation_clear_start">Begindatum wissen</string>
+    <string name="settings_vacation_clear_end">Einddatum wissen</string>
     <string name="settings_vacation_save">Opslaan</string>
     <string name="settings_vacation_saved">Automatisch antwoord opgeslagen</string>
     <string name="settings_vacation_unsupported">Je mailserver ondersteunt geen automatische antwoorden.</string>
@@ -1020,8 +1023,8 @@
     <string name="inbox_snoozed">Gesnoozed</string>
     <string name="snoozed_title">Gesnoozed</string>
     <string name="snoozed_empty">Geen gesnoozede berichten.</string>
-    <string name="snoozed_cancel">Snooze annuleren</string>
-    <string name="snoozed_reschedule">Tijdstip wijzigen</string>
+    <string name="snoozed_cancel_for">Snooze voor %1$s annuleren</string>
+    <string name="snoozed_reschedule_for">Tijdstip voor %1$s wijzigen</string>
     <string name="snoozed_returns">Komt %1$s terug</string>
     <string name="snooze_current">Gesnoozed tot %1$s</string>
     <!-- Outbox (persistent send queue) -->
@@ -1041,6 +1044,9 @@
     <string name="outbox_retry">Opnieuw</string>
     <string name="outbox_edit">Bewerken</string>
     <string name="outbox_delete">Verwijderen</string>
+    <string name="outbox_retry_for">%1$s opnieuw proberen</string>
+    <string name="outbox_edit_for">%1$s bewerken</string>
+    <string name="outbox_delete_for">%1$s verwijderen</string>
     <string name="outbox_delete_title">Dit bericht verwijderen?</string>
     <string name="outbox_delete_body">Het is niet verzonden en staat nergens anders opgeslagen. Het bericht en de bijlagen gaan verloren.</string>
     <string name="outbox_delete_body_interrupted">Het is mogelijk al verzonden en staat nergens anders opgeslagen. Het bericht en de bijlagen gaan verloren.</string>
