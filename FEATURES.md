@@ -24,7 +24,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   out of reach for this project. Gmail works with an app-specific password.
 - 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
-- 💡 Calendar conflict detection (needs calendar read access).
 
 ---
 
