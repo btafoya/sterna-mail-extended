@@ -393,8 +393,8 @@ class ScheduledSendFailuresMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema is at v34 (`emails.catchUp`), past this branch's v28",
-            34,
+            "the schema is at v35 (`mailbox_uidvalidity.highestModSeq`), past this branch's v28",
+            35,
             SCHEMA_VERSION,
         )
     }

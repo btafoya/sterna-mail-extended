@@ -45,13 +45,11 @@ class ImapWindowWiringTest {
             {
             checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
             val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
+            val writes = imapFolderWrites(credentials.id)
             return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
-            writePage = { page ->
-            checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-            emailDao.upsertAll(sparingInFlight(page))
-            },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id), delta = writes.delta) },
+            writePage = { page -> writes.writePage(page) },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },
             reconcile = { load, keepIds, spare, evictable ->
@@ -59,12 +57,41 @@ class ImapWindowWiringTest {
             credentials.id, load.targetMailboxId, keepIds, spare,
             evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
             )
+            imap.rememberModSeq(credentials.id, load, writes.everyRowWritten)
             flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
             )
             }
             """.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },
             lines("MailRepository", "imapWriteThrough").filter { it.isNotEmpty() && !it.startsWith("//") },
+        )
+    }
+
+    @Test fun `the cache an IMAP read writes to is handed over whole, with these arguments`() {
+        assertEquals(
+            "MailRepository.imapFolderWrites is no longer, line for line, what this was written " +
+                "against. `ImapFolderWrites` is executed on a socket by IncrementalFolderReadTest, " +
+                "which hands it a cache of its own: what the repository hands it is read only " +
+                "here. An empty `heldLocally` puts back a flag the user has just changed, a page " +
+                "written without `sparingInFlight` puts a swiped row back on screen, and the two " +
+                "id readers swapped fetch every row again on a list that shows no opening line.",
+            """
+            {
+            return ImapFolderWrites(
+            wantsPreviews = listPreviewCache(accountId) != null,
+            idsForMailbox = { mailboxId -> emailDao.idsForMailbox(accountId, mailboxId) },
+            idsWithPreviewForMailbox = { mailboxId -> emailDao.idsWithPreviewForMailbox(accountId, mailboxId) },
+            stillConfigured = {
+            checkAccountStillConfigured(accountId, accountStore.accounts().map { it.id })
+            },
+            heldLocally = { recentlyMutatedIds(accountId) },
+            setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
+            sparingInFlight = ::sparingInFlight,
+            upsertAll = emailDao::upsertAll,
+            )
+            }
+            """.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },
+            lines("MailRepository", "imapFolderWrites").filter { it.isNotEmpty() && !it.startsWith("//") },
         )
     }
 
@@ -146,7 +173,7 @@ class ImapWindowWiringTest {
         // Two facts, and the second is the load-bearing one: the SELECT's answer is taken whole, and
         // this function does not name `existsObserved` or `copy(` at all. The verdict travels
         // through `loadFolder`; it is never written in it.
-        assertLine("ImapMailService", "loadFolder", "val status = session.select(target.path)")
+        assertLine("ImapMailService", "loadFolder", "val status = attempt?.opened ?: session.select(target.path)")
         val body = lines("ImapMailService", "loadFolder").filterNot { it.startsWith("//") }
         listOf("existsObserved", "copy(").forEach { forged ->
             assertEquals(

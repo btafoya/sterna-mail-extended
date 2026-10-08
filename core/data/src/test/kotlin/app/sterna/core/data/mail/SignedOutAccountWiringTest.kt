@@ -124,14 +124,24 @@ class SignedOutAccountWiringTest {
         assertEquals(
             "the writePage of imapWriteThrough is no longer, line for line, what this was written " +
                 "against. IMAP walks a folder in sequence-number pages for minutes on a deep " +
-                "folder — it is the path the defect was reported on.",
+                "folder — it is the path the defect was reported on. The page goes to " +
+                "`ImapFolderWrites.writePage`, which asks before it writes: that order is executed " +
+                "in IncrementalReadDecisionTest, and what it asks is the lambda pinned below.",
             listOf(
-                "writePage = { page ->",
-                "$guard(credentials.id, accountStore.accounts().map { it.id })",
-                "emailDao.upsertAll(sparingInFlight(page))",
+                "val writes = imapFolderWrites(credentials.id)",
+                "writePage = { page -> writes.writePage(page) },",
+            ),
+            lines("imapWriteThrough").filter { "writes" in it && "loadFolder" !in it && "rememberModSeq" !in it },
+        )
+        assertEquals(
+            "the question an IMAP page write and an IMAP flag write both ask is no longer the " +
+                "account list, read again each time, under the id the rows are tagged with.",
+            listOf(
+                "stillConfigured = {",
+                "$guard(accountId, accountStore.accounts().map { it.id })",
                 "},",
             ),
-            block("imapWriteThrough", "writePage = { page ->", 4),
+            block("imapFolderWrites", "stillConfigured = {", 3),
         )
     }
 
@@ -384,7 +394,8 @@ class SignedOutAccountWiringTest {
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
             "MailRepository no longer carries fifteen guard call sites — five entries and ten " +
-                "writes. If a path was added or removed, say so here:\n" +
+                "writes, the tenth being the one `ImapFolderWrites` asks before each page and each " +
+                "flag write of an IMAP folder read. If a path was added or removed, say so here:\n" +
                 sites.joinToString("\n") { body[it].trim() },
             15, sites.size,
         )

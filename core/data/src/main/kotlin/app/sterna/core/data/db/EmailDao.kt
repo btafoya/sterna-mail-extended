@@ -23,6 +23,9 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
+const val READ_AND_STAR_WRITE_SQL: String =
+    "UPDATE emails SET seen = :seen, flagged = :flagged WHERE accountId = :accountId AND id IN (:ids)"
+
 /** [CATCH_UP_OFF_WALK] clear, on the row of the query or subquery it is written in. For the JMAP
  *  older page alone, which a caught-up row neither anchors nor counts: the list still shows it. */
 const val WALKED_SQL: String = "(catchUp & 1) = 0"
@@ -229,6 +232,9 @@ interface EmailDao {
     @Query("UPDATE emails SET flagged = :flagged WHERE accountId = :accountId AND id = :id")
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
 
+    @Query(READ_AND_STAR_WRITE_SQL)
+    suspend fun setReadAndStar(accountId: String, ids: List<String>, seen: Boolean, flagged: Boolean)
+
     /**
      * Take one message out of this place: cached row and search-index row dropped together in one
      */
@@ -325,6 +331,9 @@ interface EmailDao {
      *  [keysForSelection]. */
     @Query("SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun idsForMailbox(accountId: String, mailboxId: String): List<String>
+
+    @Query("SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId AND preview IS NOT NULL")
+    suspend fun idsWithPreviewForMailbox(accountId: String, mailboxId: String): List<String>
 
     /** The (account, id) keys "Select all" may take, built by MailRepository.selectionIdsQuery
      *  from the same where clause the flat list pages with. */

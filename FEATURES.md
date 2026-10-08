@@ -22,7 +22,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
-- 💡 IMAP CONDSTORE incremental sync.
 - 💡 Fuller TalkBack audit and touch-target review.
 
 ---
@@ -150,7 +149,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
 ## Sync, push & notifications
 
-- ✅ ⭐ Incremental sync on JMAP; IMAP does a bounded re-query.
+- ✅ ⭐ Incremental sync on JMAP, and on IMAP servers that support CONDSTORE
+  (only the changes are read); other IMAP servers get a bounded re-query.
 - ✅ ⭐ Push with no Google and no FCM: JMAP EventSource, or IMAP IDLE.
 - ✅ ⭐ UnifiedPush, which drops the persistent connection and its permanent
   notification. An IMAP account can ride it through a relay address you publish

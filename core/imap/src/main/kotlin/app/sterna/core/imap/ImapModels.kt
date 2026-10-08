@@ -111,6 +111,7 @@ data class ImapMailboxStatus(
          * Whether [exists] is a number the server stated, or merely the value it is initialised to.
          */
     val existsObserved: Boolean = false,
+    val highestModSeq: Long? = null,
 )
 
     /**

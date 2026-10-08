@@ -2,7 +2,6 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.MailboxUidValidityDao
-import app.sterna.core.data.db.MailboxUidValidityEntity
 import app.sterna.core.data.db.PurgeSnapshotDao
 
 /**
@@ -166,6 +165,10 @@ interface UidValidityStore {
      *  call is not refused for the same reason. */
     suspend fun invalidate(accountId: String, mailboxId: String, uidValidity: Long)
 
+    suspend fun recordedModSeq(accountId: String, mailboxId: String): Long? = null
+
+    suspend fun recordModSeq(accountId: String, mailboxId: String, mark: ImapModSeqMark) = Unit
+
     /** Called with `(accountId, mailboxId)` on invalidation, for the notification baseline in `:app`.
      *  Cleared, the next pass seeds silently: a diff against the old baseline re-announces read mail. */
     var onRenumbered: ((String, String) -> Unit)?
@@ -196,8 +199,15 @@ class MailboxUidValidityStore(
 
     override suspend fun record(accountId: String, mailboxId: String, uidValidity: Long) {
         if (uidValidity <= 0L) return
-        dao.record(MailboxUidValidityEntity(accountId, mailboxId, uidValidity))
+        dao.recordIfAbsent(accountId, mailboxId, uidValidity)
+        dao.renumber(accountId, mailboxId, uidValidity)
     }
+
+    override suspend fun recordedModSeq(accountId: String, mailboxId: String): Long? =
+        dao.highestModSeq(accountId, mailboxId)
+
+    override suspend fun recordModSeq(accountId: String, mailboxId: String, mark: ImapModSeqMark) =
+        dao.recordHighestModSeq(accountId, mailboxId, mark.uidValidity, mark.highestModSeq)
 
     override suspend fun invalidate(accountId: String, mailboxId: String, uidValidity: Long) {
         bodies.deleteForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))

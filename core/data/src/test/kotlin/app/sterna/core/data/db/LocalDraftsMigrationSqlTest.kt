@@ -460,6 +460,6 @@ class LocalDraftsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v34 (`emails.catchUp`)", 34, SCHEMA_VERSION)
+        assertEquals("the schema now declares v35 (`mailbox_uidvalidity.highestModSeq`)", 35, SCHEMA_VERSION)
     }
 }

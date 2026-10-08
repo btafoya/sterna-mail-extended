@@ -54,7 +54,7 @@ class ListPreviewFillTest {
                 "refresh, in MailFolders, must carry a literal null — it caches no message at all",
             listOf(
                 "val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))",
-                "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },",
+                "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id), delta = writes.delta) },",
                 "val load = imap.loadFolder(credentials, requestedMailboxId = null, limit = 1, onlySubscribed = onlySubscribed, onPage = {}, cachedPreviewsFor = null)",
             ),
             codeLinesNaming(source, "imap.fetchOlderPage(") + codeLinesNaming(source, "imap.loadFolder("),

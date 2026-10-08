@@ -58,6 +58,7 @@ data class ImapFolderLoad(
     val accountName: String,
     val walk: ImapFolderWalk,
     val unreadStated: Set<String> = emptySet(),
+    val modSeq: ImapModSeqMark? = null,
 )
 
 /**
@@ -219,6 +220,8 @@ open class ImapMailService(
     }
 
     private val pool = ConcurrentHashMap<String, Pooled>()
+
+    private val incremental = ImapIncrementalReader(uidValidity)
 
     /**
      * Run [block] on the account's pooled IMAP session, serialised per account and retried once on a
@@ -451,6 +454,7 @@ open class ImapMailService(
         onlySubscribed: Boolean = false,
         onPage: suspend (List<EmailEntity>) -> Unit,
         cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
+        delta: ImapFolderDelta? = null,
     ): ImapFolderLoad {
         return withSession(credentials) { session ->
             val listing = session.listFoldersWithUnseen(onlySubscribed) { listed -> folderToOpen(listed, requestedMailboxId).path }
@@ -458,38 +462,71 @@ open class ImapMailService(
             val chosen = honouredSpecialFolders(credentials.specialFolders, folders.map { it.roleCandidate() })
             val target = folderToOpen(folders, requestedMailboxId)
 
-            val status = session.select(target.path)
-            val unread = session.unseenCount()
-            val unseen = listing.unseen + (target.path to unread)
+            val attempt = delta?.let { cache ->
+                incremental.attempt(
+                    session, credentials.id, target.path, limit, cache,
+                    rowsOf = { status, page -> deltaRows(session, credentials, target.path, status, page, cachedPreviewsFor) },
+                    onPage = onPage,
+                )
+            }
+            val read = attempt?.read ?: run {
+                val status = attempt?.opened ?: session.select(target.path)
+                val unread = session.unseenCount()
+                val walk = withNumberingSettled(
+                    settle = { reconcileNumbering(credentials.id, target.path, status.uidValidity) },
+                    walk = {
+                        session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->
+                            val previews = pagePreviews(session, accountId = credentials.id, mailboxId = target.path, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)
+                            onPage(
+                                page.map {
+                                    val preview = previews[emailId(credentials.id, target.path, it.uid)]
+                                    it.toEntity(credentials.id, target.path, status.uidValidity, preview)
+                                },
+                            )
+                        }
+                    },
+                )
+                ImapFolderRead(
+                    walk = walk,
+                    unread = unread,
+                    modSeq = modSeqMarkOf(status).takeUnless { attempt == null || attempt.abandoned },
+                )
+            }
+            val unseen = listing.unseen + (target.path to read.unread)
             val mailboxes = folders.mapIndexed { index, folder ->
                 imapMailboxEntity(credentials.id, folder, index, chosen, unseen[folder.path])
             }
-            val walk = withNumberingSettled(
-                settle = { reconcileNumbering(credentials.id, target.path, status.uidValidity) },
-                walk = {
-                    session.walkFolder(status, limit, IMAP_FOLDER_PAGE) { page ->
-                        val previews = pagePreviews(session, accountId = credentials.id, mailboxId = target.path, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)
-                        onPage(
-                            page.map {
-                                val preview = previews[emailId(credentials.id, target.path, it.uid)]
-                                it.toEntity(credentials.id, target.path, status.uidValidity, preview)
-                            },
-                        )
-                    }
-                },
-            )
 
             ImapFolderLoad(
                 mailboxes = mailboxes,
                 targetMailboxId = target.path,
                 targetName = target.name,
-                unread = unread,
+                unread = read.unread,
                 accountName = credentials.username,
-                walk = walk,
+                walk = read.walk,
                 unreadStated = unseen.keys,
+                modSeq = read.modSeq,
             )
         }
     }
+
+    private suspend fun deltaRows(
+        session: ImapSession,
+        credentials: AccountCredentials,
+        mailboxId: String,
+        status: ImapMailboxStatus,
+        page: List<ImapMessage>,
+        cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
+    ): List<EmailEntity> {
+        val previews = pagePreviews(session, accountId = credentials.id, mailboxId = mailboxId, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)
+        return page.map {
+            val preview = previews[emailId(credentials.id, mailboxId, it.uid)]
+            it.toEntity(credentials.id, mailboxId, status.uidValidity, preview)
+        }
+    }
+
+    suspend fun rememberModSeq(accountId: String, load: ImapFolderLoad, everyRowWritten: Boolean) =
+        incremental.remember(accountId, load, everyRowWritten)
 
     /**
      * The newest [limit] of the inbox plus each watched folder in [extraPaths], on one session

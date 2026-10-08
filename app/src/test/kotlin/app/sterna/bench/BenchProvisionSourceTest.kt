@@ -133,7 +133,7 @@ class BenchProvisionSourceTest {
 
     private companion object {
         /**
-         * Every directory that ends up in the bench APK. `src/testApp/kotlin` is the receiver;
+         * Every directory that ends up in the bench APK. `src/testApp/kotlin` is the receiver and the IMAP trace installer;
          */
         val BENCH_DIRS = listOf("app/src/testApp/kotlin", "app/src/benchShared/kotlin")
 
@@ -192,12 +192,13 @@ class BenchProvisionSourceTest {
         val ALLOWED_LINES: List<String> = listOf(
             "val specPath = intent.getStringExtra(EXTRA_SPEC)",
             "val outPath = intent.getStringExtra(EXTRA_OUT)",
-            // The two file lines the bench is allowed to have, and no others: the spec handle it
-            // reads, and the one report write, the one that sits behind isBenchOutPathAllowed().
-            // Any third line that opens a file, even an innocent-looking one right beside this
-            // write, is a second, unjudged door to the same truncation.
+            // The two file lines the bench may have, and no others: the spec handle it reads, and
+            // the one report write, behind isBenchOutPathAllowed(). Any third line that opens a
+            // file, even right beside this write, is an unjudged door to the same truncation.
             "val file = File(specPath)",
             "else -> runCatching { File(out).writeText(text) }.onFailure {",
+            // No file line: the `delete` a `ContentProvider` must override, pathless, answering 0.
+            "override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0",
         )
 
         /**

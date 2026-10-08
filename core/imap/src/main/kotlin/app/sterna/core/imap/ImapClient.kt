@@ -49,6 +49,7 @@ class ImapClient(
     /** What this build calls itself in the RFC 2971 `ID` command; `null` sends the name alone.
      *  A parameter, `core/imap` being plain Kotlin/JVM with no `BuildConfig` to read. */
     private val clientVersion: String? = null,
+    private val trace: ImapCommandSink? = null,
 ) {
     suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession =
         withContext(Dispatchers.IO) { openSession(config, connectTimeoutMs) }
@@ -67,7 +68,7 @@ class ImapClient(
                 (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket).verifyingHostname()
             else -> plain
         }
-        val session = ImapSession(socket)
+        val session = ImapSession(socket, trace ?: ImapCommandTap.installed)
         session.withReadTimeout(timeout) {
             session.readGreeting()
             if (config.security == MailSecurity.STARTTLS) {
@@ -95,13 +96,31 @@ class ImapClient(
  * A connected, logged-in IMAP session. Stateful (SELECT then FETCH), so callers
  * keep it for a unit of work and [close] it after. Not thread-safe.
  */
-class ImapSession(private var socket: Socket) : Closeable {
+class ImapSession(private var socket: Socket, private val trace: ImapCommandSink? = null) : Closeable {
     private var input = ImapParser(BufferedInputStream(socket.inputStream))
     private var output: OutputStream = socket.outputStream
     private var tagN = 0
 
     /** What the server says it supports, learned once per session. See [capabilities]. */
     private var advertisedCapabilities: Set<String>? = null
+
+    private fun send(line: String): String {
+        val tag = "a${++tagN}"
+        output.write("$tag $line\r\n".toByteArray(Charsets.UTF_8))
+        output.flush()
+        trace?.sent(tag, traceable(line))
+        return tag
+    }
+
+    private fun sendContinuation(vararg writes: ByteArray) {
+        writes.forEach { output.write(it) }
+        output.flush()
+    }
+
+    private fun traceCompletion(tag: String, line: List<Any?>) {
+        val status = line.getOrNull(1) as? String
+        if (status == "OK" || status == "NO" || status == "BAD") trace?.completed(tag, status)
+    }
 
     internal fun readGreeting() {
         // The greeting's capability list is deliberately not kept: RFC 3501 §7.1 lets it differ
@@ -148,9 +167,7 @@ class ImapSession(private var socket: Socket) : Closeable {
      * and waits for an empty client response before the tagged NO, so we acknowledge it or hang.
      */
     internal fun authenticateXoauth2(username: String, accessToken: String) {
-        val tag = "a${++tagN}"
-        output.write("$tag AUTHENTICATE XOAUTH2 ${xoauth2Payload(username, accessToken)}\r\n".toByteArray(Charsets.UTF_8))
-        output.flush()
+        val tag = send("AUTHENTICATE XOAUTH2 ${xoauth2Payload(username, accessToken)}")
         while (true) {
             val resp = input.readResponse()
             if (resp.isEmpty()) {
@@ -160,6 +177,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             when (resp[0]) {
                 tag -> {
                     val status = resp.getOrNull(1) as? String ?: "BAD"
+                    traceCompletion(tag, resp)
                     if (status != "OK") {
                         throw ImapException(
                             "AUTHENTICATE … failed: ${resp.drop(1).joinToString(" ")}",
@@ -170,10 +188,7 @@ class ImapSession(private var socket: Socket) : Closeable {
                     rememberCapabilities(resp)
                     return
                 }
-                "+" -> {
-                    output.write("\r\n".toByteArray(Charsets.UTF_8))
-                    output.flush()
-                }
+                "+" -> sendContinuation("\r\n".toByteArray(Charsets.UTF_8))
                 // else: an untagged "*" status line, ignore and read on for the tag.
             }
         }
@@ -260,9 +275,7 @@ class ImapSession(private var socket: Socket) : Closeable {
          * per line once it is spent, so a status line stays readable.
          */
     internal fun command(line: String, maxTokensKept: Int = Int.MAX_VALUE): ImapResult {
-        val tag = "a${++tagN}"
-        output.write("$tag $line\r\n".toByteArray(Charsets.UTF_8))
-        output.flush()
+        val tag = send(line)
         val untagged = mutableListOf<List<Any?>>()
         var budget = maxTokensKept
         while (true) {
@@ -276,6 +289,7 @@ class ImapSession(private var socket: Socket) : Closeable {
             when (resp[0]) {
                 tag -> {
                     val status = resp.getOrNull(1) as? String ?: "BAD"
+                    traceCompletion(tag, resp)
                     // Redact the echoed command: LOGIN/AUTHENTICATE carry the password,
                     // and this message surfaces to the UI and logs.
                     if (status != "OK") {
@@ -300,9 +314,7 @@ class ImapSession(private var socket: Socket) : Closeable {
      * false on the keep-alive timeout. Always ends IDLE and consumes the tagged result.
      */
     fun idle(timeoutMs: Int): Boolean {
-        val tag = "a${++tagN}"
-        output.write("$tag IDLE\r\n".toByteArray(Charsets.UTF_8))
-        output.flush()
+        val tag = send("IDLE")
         val previousTimeout = socket.soTimeout
         socket.soTimeout = timeoutMs
         var changed = false
@@ -329,14 +341,16 @@ class ImapSession(private var socket: Socket) : Closeable {
             socket.soTimeout = previousTimeout
             // End IDLE and drain to its tagged completion so the stream is clean.
             runCatching {
-                output.write("DONE\r\n".toByteArray(Charsets.UTF_8))
-                output.flush()
+                sendContinuation("DONE\r\n".toByteArray(Charsets.UTF_8))
                 while (true) {
                     val resp = input.readResponse()
                     if (resp.isEmpty()) {
                         if (socket.isClosed) break else continue
                     }
-                    if (resp[0] == tag) break
+                    if (resp[0] == tag) {
+                        traceCompletion(tag, resp)
+                        break
+                    }
                 }
             }
         }
@@ -492,7 +506,7 @@ class ImapSession(private var socket: Socket) : Closeable {
 
     /** Fetch a single message by UID (envelope + flags), or null if not found, or hidden. */
     fun fetchByUid(uid: Long): ImapMessage? {
-        val result = command("UID FETCH $uid (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
+        val result = command("UID FETCH $uid $FOLDER_LIST_ITEMS")
         return result.messages().firstOrNull()
     }
 
@@ -597,17 +611,19 @@ class ImapSession(private var socket: Socket) : Closeable {
          * of itself (a bare `&`) cannot be told from the decoding of `R&-D`, so the verbatim form is
          * tried after the standard one is refused, SELECT alone, being read-only and idempotent.
          */
-    fun select(path: String, expectedUidValidity: Long? = null): ImapMailboxStatus {
+    fun select(path: String, expectedUidValidity: Long? = null, condstore: Boolean = false): ImapMailboxStatus {
         val encoded = mailboxArg(path)
+        // A server that did not announce CONDSTORE answers BAD to the parameter: the folder would not open.
+        val parameter = if (condstore && hasCapability(CAP_CONDSTORE)) " (CONDSTORE)" else ""
         val result = try {
-            command("SELECT $encoded")
+            command("SELECT $encoded$parameter")
         } catch (refused: ImapException) {
             val verbatim = quote(path)
             // Only where the ambiguity can exist: a pure-ASCII path the encoder would nonetheless
             // have changed. A non-ASCII path has exactly one wire form, so a refusal there means
             // what it says.
             if (verbatim == encoded || path.any { it.code !in 0x20..0x7E }) throw refused
-            command("SELECT $verbatim")
+            command("SELECT $verbatim$parameter")
         }
         var exists = 0
         // Zero is also what this holds when the server said nothing about the folder's size, and
@@ -631,7 +647,7 @@ class ImapSession(private var socket: Socket) : Closeable {
         ) {
             throw ImapUidValidityChanged(path, expectedUidValidity, uidValidity)
         }
-        return ImapMailboxStatus(exists, uidValidity, uidNext, existsObserved)
+        return ImapMailboxStatus(exists, uidValidity, uidNext, existsObserved, highestModSeqStated(result.untagged))
     }
 
     /** Fetch a page of messages by sequence number, newest first: [offset] skips the newest N, up
@@ -640,7 +656,7 @@ class ImapSession(private var socket: Socket) : Closeable {
         val highest = exists - offset
         if (highest < 1) return emptyList()
         val lowest = (highest - limit + 1).coerceAtLeast(1)
-        val result = command("FETCH $lowest:$highest (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
+        val result = command("FETCH $lowest:$highest $FOLDER_LIST_ITEMS")
         return result.messages().sortedByDescending { it.uid }
     }
 
@@ -660,35 +676,50 @@ class ImapSession(private var socket: Socket) : Closeable {
     ): ImapFolderWalk {
         val exists = status.exists
         val lowest = folderWindowLowest(exists, limit)
+        var previous: IntRange? = null
+        val walked = walkRequests(exists, onPage) {
+            nextFolderPage(lowest, exists, previous, pageSize)
+                ?.also { previous = it }
+                ?.let { "FETCH ${it.first}:${it.last} $FOLDER_LIST_ITEMS" }
+        }
+        // "Nothing came back" is not "there is nothing": an empty walk is equally a folder of
+        // zero messages, a SELECT that never stated a size, and a page whose FETCH was unreadable.
+        // Only the first may clear a cache, and only the SELECT tells them apart.
+        return ImapFolderWalk(
+            uids = walked.uids,
+            moved = walked.moved,
+            folderStatedEmpty = status.existsObserved && exists == 0,
+        )
+    }
+
+    /** One request per [nextRequest] until it answers null, movement judged against [startedWith]. */
+    internal suspend fun walkRequests(
+        startedWith: Int,
+        onPage: suspend (List<ImapMessage>) -> Unit,
+        solicited: (List<Any?>) -> Boolean = { true },
+        nextRequest: () -> String?,
+    ): ImapUidWalk {
         // De-duplicated by UID: the walk's own pages can overlap after a renumbering, and a
         // sequence number is not a name. Insertion-ordered so the result stays newest-first.
         val seen = LinkedHashSet<Long>()
         var moved = false
-        var previous: IntRange? = null
+        var first = true
         while (true) {
-            val page = nextFolderPage(lowest, exists, previous, pageSize) ?: break
+            val request = nextRequest() ?: break
             // Every request but the first: give the server its chance to say the folder moved,
             // before the numbering of the range below is used. The NOOP goes out whatever the
             // verdict so far, hence `folderMoved(...) || moved` and not the other way round.
-            if (previous != null) moved = folderMoved(command("NOOP").untagged, exists) || moved
-            val result = command("FETCH ${page.first}:${page.last} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
-            // On a one-page walk no NOOP is ever sent, so this line is the only thing that can
-            // notice the folder moving.
-            moved = folderMoved(result.untagged, exists) || moved
-            // Through messages(), like every other fetch here: the one place a `\Deleted` message
-            // is dropped (Codeberg #99).
-            val fresh = result.messages().sortedByDescending { it.uid }.filter { seen.add(it.uid) }
+            if (!first) moved = folderMoved(command("NOOP").untagged, startedWith) || moved
+            val result = command(request)
+            // A one-page walk sends no NOOP: this line is then the only thing that can notice a move.
+            moved = folderMoved(result.untagged, startedWith) || moved
+            // Through messages(), the one place a `\Deleted` message is dropped (Codeberg #99).
+            val answer = ImapResult(result.status, result.untagged.filter(solicited), result.tagged)
+            val fresh = answer.messages().sortedByDescending { it.uid }.filter { seen.add(it.uid) }
             if (fresh.isNotEmpty()) onPage(fresh)
-            previous = page
+            first = false
         }
-        // "Nothing came back" is not "there is nothing": an empty [seen] is equally a folder of
-        // zero messages, a SELECT that never stated a size, and a page whose FETCH was unreadable.
-        // Only the first may clear a cache, and only the SELECT tells them apart.
-        return ImapFolderWalk(
-            uids = seen.toList(),
-            moved = moved,
-            folderStatedEmpty = status.existsObserved && exists == 0,
-        )
+        return ImapUidWalk(seen.toList(), moved)
     }
 
     /** Unseen messages in the selected mailbox, `\Deleted` ones excluded: this count is the account
@@ -767,7 +798,7 @@ class ImapSession(private var socket: Socket) : Closeable {
     /** Fetch several messages by UID (envelope + flags); `\Deleted` ones are not returned. */
     fun fetchUids(uids: List<Long>): List<ImapMessage> {
         if (uids.isEmpty()) return emptyList()
-        val result = command("UID FETCH ${uids.joinToString(",")} (UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])")
+        val result = command("UID FETCH ${uids.joinToString(",")} $FOLDER_LIST_ITEMS")
         return result.messages()
     }
 
@@ -946,31 +977,27 @@ class ImapSession(private var socket: Socket) : Closeable {
          * `[APPENDUID …]` (RFC 4315), or null on a server that names nothing, which is not a failure.
          */
     fun append(mailbox: String, message: ByteArray, flags: String, internalDate: Long? = null): Long? {
-        val tag = "a${++tagN}"
         val flagPart = if (flags.isNotBlank()) "($flags) " else ""
         val datePart = if (internalDate != null) "${imapDateTime(internalDate)} " else ""
-        output.write(
-            "$tag APPEND ${mailboxArg(mailbox)} $flagPart$datePart{${message.size}}\r\n".toByteArray(Charsets.UTF_8),
-        )
-        output.flush()
+        val tag = send("APPEND ${mailboxArg(mailbox)} $flagPart$datePart{${message.size}}")
         val cont = input.readResponse()
         // Not a "+": the APPEND did not get its go-ahead. This line is not necessarily the tagged
         // completion (RFC 3501 §7 lets an untagged `* 12 exists` / `* BYE …` land here), so the
         // status word counts as a refusal the server pronounced only when the tag is on it.
         if (cont.getOrNull(0) != "+") {
+            if (cont.getOrNull(0) == tag) traceCompletion(tag, cont)
             throw ImapException(
                 "APPEND not accepted: $cont",
                 responseCodeIn(cont),
                 if (cont.getOrNull(0) == tag) cont.getOrNull(1) as? String else null,
             )
         }
-        output.write(message)
-        output.write("\r\n".toByteArray(Charsets.UTF_8))
-        output.flush()
+        sendContinuation(message, "\r\n".toByteArray(Charsets.UTF_8))
         while (true) {
             val resp = input.readResponse()
             if (resp.getOrNull(0) == tag) {
                 val status = resp.getOrNull(1) as? String ?: "BAD"
+                traceCompletion(tag, resp)
                 if (status != "OK") {
                     throw ImapException(
                         "APPEND failed: ${resp.drop(1).joinToString(" ")}",
@@ -1065,22 +1092,22 @@ class ImapSession(private var socket: Socket) : Closeable {
             textPart = firstTextPart(map["BODYSTRUCTURE"]),
         )
     }
+}
 
-    /** Turn a flat FETCH item list [k1, v1, k2, v2, ...] into a name→value map. */
-    private fun pairUp(items: List<Any?>): Map<String, Any?> {
-        val map = mutableMapOf<String, Any?>()
-        var i = 0
-        while (i < items.size) {
-            val key = (items[i] as? String)?.uppercase()
-            if (key == null) {
-                i++
-                continue
-            }
-            map[key] = items.getOrNull(i + 1)
-            i += 2
+/** Turn a flat FETCH item list [k1, v1, k2, v2, ...] into a name→value map. */
+internal fun pairUp(items: List<Any?>): Map<String, Any?> {
+    val map = mutableMapOf<String, Any?>()
+    var i = 0
+    while (i < items.size) {
+        val key = (items[i] as? String)?.uppercase()
+        if (key == null) {
+            i++
+            continue
         }
-        return map
+        map[key] = items.getOrNull(i + 1)
+        i += 2
     }
+    return map
 }
 
 internal fun hasAttachment(bodystructure: Any?): Boolean {
@@ -1095,6 +1122,8 @@ internal fun hasAttachment(bodystructure: Any?): Boolean {
     }
     return walk(bodystructure)
 }
+
+internal const val FOLDER_LIST_ITEMS = "(UID FLAGS INTERNALDATE ENVELOPE BODYSTRUCTURE BODY.PEEK[HEADER.FIELDS (REFERENCES)])"
 
 /** The FETCH item every list fetch asks for beside the envelope: the `References` header alone. */
 internal const val REFERENCES_ITEM = "BODY[HEADER.FIELDS (REFERENCES)]"
@@ -1141,6 +1170,8 @@ internal fun flatten(v: Any?): String = when (v) {
 
 /** The ID extension (RFC 2971), looked for in the post-authentication list, [ImapSession.identify]. */
 internal const val CAP_ID = "ID"
+
+internal const val CAP_CONDSTORE = "CONDSTORE"
 
 /** What Sterna calls itself in the RFC 2971 `ID` command. A protocol field, never translated. */
 internal const val CLIENT_NAME = "Sterna Mail"

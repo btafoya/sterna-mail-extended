@@ -163,6 +163,7 @@ class MailFoldersActOnBothProtocolsTest {
             onlySubscribed: Boolean,
             onPage: suspend (List<EmailEntity>) -> Unit,
             cachedPreviewsFor: (suspend (List<String>, Long?) -> Map<String, String>)?,
+            delta: ImapFolderDelta?,
         ): ImapFolderLoad {
             subscriptionAsked += onlySubscribed
             if (listingFails) throw java.io.IOException("offline")

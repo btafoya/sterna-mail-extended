@@ -24,5 +24,15 @@
             android:name="app.sterna.bench.BenchProvisionReceiver"
             android:enabled="true"
             android:exported="true" />
+
+        <!--
+            A provider only because one is created before any other code of the process runs, so
+            the IMAP command trace is on from the first connection without `src/main` naming it.
+            It serves nothing and is not exported. See ImapTraceInstaller's header.
+        -->
+        <provider
+            android:name="app.sterna.bench.ImapTraceInstaller"
+            android:authorities="${applicationId}.bench.imaptrace"
+            android:exported="false" />
     </application>
 </manifest>

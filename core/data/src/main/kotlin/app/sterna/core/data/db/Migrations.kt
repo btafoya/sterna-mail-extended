@@ -423,3 +423,9 @@ val MIGRATION_33_34 = object : Migration(33, 34) {
         db.execSQL("ALTER TABLE `emails` ADD COLUMN `catchUp` INTEGER NOT NULL DEFAULT 0")
     }
 }
+
+val MIGRATION_34_35 = object : Migration(34, 35) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(MAILBOX_UIDVALIDITY_ADD_MODSEQ_SQL)
+    }
+}

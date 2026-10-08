@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 
 /** Schema version Room opens, named since `@Database` isn't readable at runtime. Bumping
  *  without a step in [ALL_MIGRATIONS] drops every table. */
-internal const val SCHEMA_VERSION = 34
+internal const val SCHEMA_VERSION = 35
 
 @Database(
     entities = [
@@ -58,6 +58,7 @@ abstract class SternaDatabase : RoomDatabase() {
             MIGRATION_31_32,
             MIGRATION_32_33,
             MIGRATION_33_34,
+            MIGRATION_34_35,
         )
 
         fun build(context: Context): SternaDatabase =

@@ -188,6 +188,7 @@ class PreviewFetchWiringTest {
             listOf(
                 "val preview = previews[emailId(credentials.id, target.path, it.uid)]",
                 "val preview = previews[emailId(credentials.id, mailboxId, it.uid)]",
+                "val preview = previews[emailId(credentials.id, mailboxId, it.uid)]",
                 "preview = preview,",
             ),
             codeLinesNaming(source, "preview ="),
@@ -202,6 +203,7 @@ class PreviewFetchWiringTest {
                 "these lints read function BODIES and a declaration is not one",
             listOf(
                 "val previews = pagePreviews(session, accountId = credentials.id, mailboxId = target.path, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)",
+                "val previews = pagePreviews(session, accountId = credentials.id, mailboxId = mailboxId, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)",
                 "val previews = pagePreviews(session, accountId = credentials.id, mailboxId = mailboxId, page = page, uidValidity = UidValidity.stated(status.uidValidity), cachedPreviewsFor = cachedPreviewsFor)",
             ),
             codeLinesNaming(source, "pagePreviews(session"),

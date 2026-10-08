@@ -92,7 +92,15 @@ class SwipeInFlightWiringTest {
         assertTrue(
             "only ${calls.size} emailDao.upsertAll calls found in MailRepository — did the call " +
                 "shape change? An empty scan would pass this rule while checking nothing.",
-            calls.size >= 12,
+            calls.size >= 11,
+        )
+        assertEquals(
+            "one write reaches the cache as a reference and not as a call, the page of an IMAP " +
+                "folder read: it must be handed to `ImapFolderWrites` together with the sparing " +
+                "that class applies before it writes, and nothing else may take that door.",
+            listOf("sparingInFlight = ::sparingInFlight,", "upsertAll = emailDao::upsertAll,"),
+            DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
+                .filter { "::sparingInFlight" in it || "emailDao::upsertAll" in it },
         )
         assertEquals(
             "these are the writes that may reach the cache WITHOUT sparing the rows a swipe is " +

@@ -36,7 +36,7 @@ class SubscribedFoldersWiringTest {
             listOf(
                 "walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, " +
                     "onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, " +
-                    "cachedPreviewsFor = listPreviewCache(credentials.id)) },",
+                    "cachedPreviewsFor = listPreviewCache(credentials.id), delta = writes.delta) },",
                 // Bare, and the only bare one in this list: these rows are never cached, so a
                 // subscription fetched for them is an LSUB paid on every archive and every delete.
                 "val folders = imap.listMailboxes(credentials)",

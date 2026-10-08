@@ -2034,13 +2034,11 @@ class MailRepository(
     ): ImapFolderLoad {
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         val window = fullQueryWindowTarget(accountStore.account(credentials.id)?.syncWindow?.limit, limit)
+        val writes = imapFolderWrites(credentials.id)
         return fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { mailboxId?.let { emailDao.idsForMailbox(credentials.id, it).toSet() } },
-            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id)) },
-            writePage = { page ->
-                checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
-                emailDao.upsertAll(sparingInFlight(page))
-            },
+            walk = { onPage -> imap.loadFolder(credentials, mailboxId, window, onlySubscribed = accountStore.showOnlySubscribedFolders(credentials.id), onPage = onPage, cachedPreviewsFor = listPreviewCache(credentials.id), delta = writes.delta) },
+            writePage = { page -> writes.writePage(page) },
             keepIds = { load -> reconcilableIds(load, credentials.id) },
             spareIds = { recentlyMutatedIds(credentials.id) },
             reconcile = { load, keepIds, spare, evictable ->
@@ -2048,8 +2046,24 @@ class MailRepository(
                     credentials.id, load.targetMailboxId, keepIds, spare,
                     evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
                 )
+                imap.rememberModSeq(credentials.id, load, writes.everyRowWritten)
                 flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
+        )
+    }
+
+    private suspend fun imapFolderWrites(accountId: String): ImapFolderWrites {
+        return ImapFolderWrites(
+            wantsPreviews = listPreviewCache(accountId) != null,
+            idsForMailbox = { mailboxId -> emailDao.idsForMailbox(accountId, mailboxId) },
+            idsWithPreviewForMailbox = { mailboxId -> emailDao.idsWithPreviewForMailbox(accountId, mailboxId) },
+            stillConfigured = {
+                checkAccountStillConfigured(accountId, accountStore.accounts().map { it.id })
+            },
+            heldLocally = { recentlyMutatedIds(accountId) },
+            setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
+            sparingInFlight = ::sparingInFlight,
+            upsertAll = emailDao::upsertAll,
         )
     }
 
@@ -2061,8 +2075,8 @@ class MailRepository(
     ): MailboxMeta {
         val load = imapWriteThrough(credentials, mailboxId, limit)
         mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
-        // Spares the window just fetched, every page of it: IMAP re-queries the folder on every
-        // refresh (#110). The same decision the reconcile took, called again rather than restated.
+        // Spares the window the read just listed, whole, whether it was walked or read as a delta
+        // (#110). The same decision the reconcile took, called again rather than restated.
         if (pruneBeforeMillis != null) {
             pruneRetention(
                 credentials.id,
