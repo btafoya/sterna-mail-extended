@@ -1,0 +1,11 @@
+name: Question
+about: A question about how Sterna works. For a change to the app, use Feature request.
+labels:
+  - question
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true

@@ -1,0 +1,31 @@
+name: Feature request
+about: Suggest a change or an addition
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sterna has the features I planned for it, and I add little now, to keep it simple to use. Your answers below help me decide.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation you are in.
+    validations:
+      required: true
+  - type: textarea
+    id: who
+    attributes:
+      label: Who else would this help?
+      description: Most users, some of them, or mainly your own setup?
+    validations:
+      required: true
+  - type: dropdown
+    id: setting
+    attributes:
+      label: Would it need a new setting?
+      options:
+        - "No, it could work the same for everyone"
+        - "Yes, it only makes sense as an option"
+        - "I don't know"
+    validations:
+      required: true
