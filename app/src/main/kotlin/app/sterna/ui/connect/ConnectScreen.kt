@@ -73,7 +73,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -909,7 +911,7 @@ fun ConnectScreen(
             // two readings of the state would drift in silence. The Column is composed whatever
             // the value is; wrap it in `if (status != null)` and the requester attaches too late.
             val status = statusLine(state, walkStep, ask, handedOver)
-            Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {
+            Column(modifier = Modifier.bringIntoViewRequester(statusReveal).semantics { liveRegion = LiveRegionMode.Polite }) {
                 when (status) {
                     StatusLine.Working -> LoadingRing()
                     StatusLine.ServerNotFound -> Text(

@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
@@ -123,6 +124,21 @@ internal fun chipFill(
     unread: Boolean,
     unreadTint: Boolean,
 ): Color = if (unread && unreadTint && !selected) scheme.surfaceContainerLowest else scheme.surfaceVariant
+
+internal fun rowStateDescription(
+    selected: Boolean,
+    unread: Boolean,
+    starred: Boolean,
+    selectedLabel: String,
+    unreadLabel: String,
+    starredLabel: String,
+): String? = listOfNotNull(
+    selectedLabel.takeIf { selected },
+    unreadLabel.takeIf { unread },
+    starredLabel.takeIf { starred },
+)
+    .joinToString(", ")
+    .ifEmpty { null }
 
 internal fun rowPreviewText(preview: String?, excerpt: String?): String? =
     excerpt?.takeIf { it.isNotBlank() } ?: preview?.takeIf { it.isNotBlank() }
@@ -226,6 +242,17 @@ fun EmailListItem(
         }
     }
     val selectLabel = if (enterSelection != null) stringResource(R.string.a11y_select) else null
+    val selectedLabel = stringResource(R.string.a11y_selected)
+    val unreadLabel = stringResource(R.string.a11y_unread)
+    val starredLabel = stringResource(R.string.a11y_flagged)
+    val rowStates = rowStateDescription(
+        selected = selected,
+        unread = unread,
+        starred = email.isFlagged,
+        selectedLabel = selectedLabel,
+        unreadLabel = unreadLabel,
+        starredLabel = starredLabel,
+    )
     val chipBackground = chipFill(
         scheme = MaterialTheme.colorScheme,
         selected = selected,
@@ -245,6 +272,10 @@ fun EmailListItem(
             .fillMaxWidth()
             .background(rowColor)
             .combinedClickable(onClick = onClick, onLongClick = enterSelection, onLongClickLabel = selectLabel)
+            .semantics {
+                if (selected) this.selected = true
+                rowStates?.let { stateDescription = it }
+            }
             .padding(start = 16.dp, end = 4.dp, top = rowPadding, bottom = rowPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

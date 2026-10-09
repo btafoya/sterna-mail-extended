@@ -24,6 +24,8 @@
     <string name="compose_hide_cc_bcc">Ocultar Cc/Cco</string>
     <string name="compose_remove">Remover</string>
     <string name="compose_remove_recipient">Remover %1$s</string>
+    <string name="compose_recipient_invalid">Endereço inválido</string>
+    <string name="compose_recipient_no_key">Sem chave de cifragem</string>
     <string name="a11y_remove_named">Remover %1$s</string>
     <string name="compose_attachment_fallback">anexo</string>
     <string name="compose_attachments_total">Total de anexos: %1$s</string>
@@ -1167,6 +1169,8 @@
     <string name="a11y_conversation_expanded">Expandida</string>
     <string name="a11y_conversation_collapsed">Recolhida</string>
     <string name="a11y_flagged">Com estrela</string>
+    <string name="a11y_unread">Não lida</string>
+    <string name="a11y_selected">Selecionada</string>
     <string name="settings_theme_sterna_caption">Paleta Sterna: Arctic (claro) · Pelagic (escuro).</string>
     <string name="settings_dynamic_color_title">Cores Material You</string>
     <string name="settings_dynamic_color_subtitle">Usar as cores do seu papel de parede em vez da paleta da Sterna (Android 12+).</string>

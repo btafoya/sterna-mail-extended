@@ -216,8 +216,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Per-account sync window, by age or by message count.
 - ✅ Reply bar toggle, and a compact top bar naming the folder and the account.
 - ✅ About screen: version and release date, source, license, author.
-- ✅ Accessibility pass: screen-reader labels on icon-only controls, and text that
-  scales with the system font size.
+- ✅ Accessibility pass: controls carry a name and a state for screen readers,
+  touch targets were reviewed against 48 dp, and text scales with the system
+  font size.
 - ✅ Ten UI languages.
 - ✅ Coastal line-art empty states.
 

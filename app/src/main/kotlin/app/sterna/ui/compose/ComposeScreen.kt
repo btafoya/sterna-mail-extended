@@ -110,8 +110,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -984,6 +988,7 @@ fun ComposeScreen(
                                 lockMenuModes(openPgp = pgpAvailable, smime = smimeAvailable).forEach { entry ->
                                     DropdownMenuItem(
                                         text = { Text(stringResource(pgpModeLabel(entry))) },
+                                        modifier = Modifier.semantics { selected = entry == pgpMode },
                                         leadingIcon = {
                                             Icon(pgpModeIcon(entry), contentDescription = null)
                                         },
@@ -1085,6 +1090,10 @@ fun ComposeScreen(
                             }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.compose_request_receipt)) },
+                                modifier = Modifier.semantics {
+                                    role = Role.Checkbox
+                                    toggleableState = ToggleableState(requestReceipt)
+                                },
                                 trailingIcon = { Checkbox(checked = requestReceipt, onCheckedChange = null) },
                                 onClick = { moreMenu = false; requestReceipt = !requestReceipt },
                             )
@@ -1790,7 +1799,8 @@ private fun RecipientChipsField(
               ) {
                 chips.forEachIndexed { index, chip ->
                     // Invalid address or (while encrypting) no key for it: flagged.
-                    val valid = isValidEmail(chip) && !missingKey(chip)
+                    val fault = recipientChipFault(chip, missingKey)
+                    val faultSpoken = if (fault == null) null else stringResource(fault.message)
                     val shown = chipLabel(chip, names)
                     val spoken = chipDescription(chip, names)
                     InputChip(
@@ -1810,7 +1820,10 @@ private fun RecipientChipsField(
                         // label narrower than its text; soft-wrapped, `maxLines = 1` would keep the first
                         // word and drop the rest with no mark.
                         label = { Text(shown, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                        modifier = if (spoken == null) Modifier else Modifier.semantics { contentDescription = spoken },
+                        modifier = Modifier.semantics {
+                            if (spoken != null) contentDescription = spoken
+                            if (faultSpoken != null) error(faultSpoken)
+                        },
                         // The cross is only 16dp; the box around it is the tap target, so a tap that
                         // misses the glyph by a few dp removes the chip instead of opening it for editing.
                         // It stays the chip's height, or the chip itself would grow to 48dp.
@@ -1827,7 +1840,7 @@ private fun RecipientChipsField(
                                 Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                             }
                         },
-                        colors = if (valid) {
+                        colors = if (fault == null) {
                             InputChipDefaults.inputChipColors()
                         } else {
                             InputChipDefaults.inputChipColors(

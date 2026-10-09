@@ -191,6 +191,7 @@ class PushWatchTest {
                 "viewModel.setNotificationsEnabled(accountId, it)",
                 "},",
                 ")",
+                "Column(Modifier.selectableGroup()) {",
                 "DeliveryModeOption(",
                 "title = stringResource(R.string.settings_delivery_instant),",
                 "subtitle = stringResource(R.string.settings_delivery_instant_desc),",
@@ -209,11 +210,12 @@ class PushWatchTest {
                 "viewModel.setDeliveryMode(accountId, DeliveryMode.BATTERY_SAVER)",
                 "},",
                 ")",
+                "}",
                 "if (PushController.shouldShowUnwatchedNote(account.isLinked, " +
                     "viewModel.isWatched(accountId), notificationsEnabled)) {",
                 "Text(",
             ),
-            notificationsSectionStatements(29),
+            notificationsSectionStatements(31),
         )
     }
 

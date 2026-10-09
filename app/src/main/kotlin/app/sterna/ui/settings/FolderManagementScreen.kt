@@ -186,15 +186,12 @@ private fun FolderReorderRow(row: FolderManagementRow, handle: Modifier, onMove:
     }
 }
 
-/** A 48 dp move button, or an empty slot of the same size when the row may not move that way: the
- *  arrows of every row then stay in one column. */
+/** A 48 dp move button, disabled rather than removed when the row may not move that way: the node
+ *  under the accessibility focus outlives the press that brings its row to the edge of the list,
+ *  and the arrows of every row stay in one column. */
 @Composable
-internal fun MoveSlot(shown: Boolean, icon: ImageVector, description: String, onClick: () -> Unit) {
-    if (!shown) {
-        Spacer(Modifier.size(48.dp))
-        return
-    }
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+internal fun MoveSlot(enabled: Boolean, icon: ImageVector, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp)) {
         Icon(icon, contentDescription = description)
     }
 }

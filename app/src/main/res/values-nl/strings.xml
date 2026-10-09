@@ -24,6 +24,8 @@
     <string name="compose_hide_cc_bcc">Cc/Bcc verbergen</string>
     <string name="compose_remove">Verwijderen</string>
     <string name="compose_remove_recipient">%1$s verwijderen</string>
+    <string name="compose_recipient_invalid">Ongeldig adres</string>
+    <string name="compose_recipient_no_key">Geen versleutelingssleutel</string>
     <string name="a11y_remove_named">%1$s verwijderen</string>
     <string name="compose_attachment_fallback">bijlage</string>
     <string name="compose_attachments_total">Bijlagen totaal: %1$s</string>
@@ -1159,6 +1161,8 @@
     <string name="a11y_conversation_expanded">Uitgevouwen</string>
     <string name="a11y_conversation_collapsed">Samengevouwen</string>
     <string name="a11y_flagged">Met ster</string>
+    <string name="a11y_unread">Ongelezen</string>
+    <string name="a11y_selected">Geselecteerd</string>
     <string name="settings_theme_sterna_caption">Sterna-palet: Arctic (licht) · Pelagic (donker).</string>
     <string name="settings_dynamic_color_title">Material You-kleuren</string>
     <string name="settings_dynamic_color_subtitle">Gebruik kleuren van je achtergrond in plaats van het palet van Sterna (Android 12+).</string>

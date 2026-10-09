@@ -116,6 +116,7 @@ class NotificationsGateWiringTest {
             notificationsScreen(),
             listOf(
                 "SettingsSection(stringResource(R.string.settings_notif_content_section)) {",
+                "Column(Modifier.selectableGroup()) {",
                 "DeliveryModeOption(",
                 "title = stringResource(R.string.settings_notif_content_preview),",
                 "subtitle = stringResource(R.string.settings_notif_content_preview_desc),",
@@ -140,6 +141,7 @@ class NotificationsGateWiringTest {
                 "selected = state.notificationContent == NotificationContent.NONE,",
                 "onClick = { viewModel.setNotificationContent(NotificationContent.NONE) },",
                 ")",
+                "}",
                 "}",
             ),
             "the notification-content rows",

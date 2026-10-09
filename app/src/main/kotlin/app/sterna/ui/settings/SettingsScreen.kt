@@ -75,6 +75,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.material3.Button
@@ -806,31 +807,33 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
                     )
                 }
                 SettingsSection(stringResource(R.string.settings_notif_content_section)) {
-                    // Most talkative first, most discreet last: the order is itself the information.
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_notif_content_preview),
-                        subtitle = stringResource(R.string.settings_notif_content_preview_desc),
-                        selected = state.notificationContent == NotificationContent.BODY_PREVIEW,
-                        onClick = { viewModel.setNotificationContent(NotificationContent.BODY_PREVIEW) },
-                    )
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_notif_content_full),
-                        subtitle = stringResource(R.string.settings_notif_content_full_desc),
-                        selected = state.notificationContent == NotificationContent.SENDER_AND_SUBJECT,
-                        onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_AND_SUBJECT) },
-                    )
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_notif_content_sender),
-                        subtitle = stringResource(R.string.settings_notif_content_sender_desc),
-                        selected = state.notificationContent == NotificationContent.SENDER_ONLY,
-                        onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_ONLY) },
-                    )
-                    DeliveryModeOption(
-                        title = stringResource(R.string.settings_notif_content_none),
-                        subtitle = stringResource(R.string.settings_notif_content_none_desc),
-                        selected = state.notificationContent == NotificationContent.NONE,
-                        onClick = { viewModel.setNotificationContent(NotificationContent.NONE) },
-                    )
+                    Column(Modifier.selectableGroup()) {
+                        // Most talkative first, most discreet last: the order is itself the information.
+                        DeliveryModeOption(
+                            title = stringResource(R.string.settings_notif_content_preview),
+                            subtitle = stringResource(R.string.settings_notif_content_preview_desc),
+                            selected = state.notificationContent == NotificationContent.BODY_PREVIEW,
+                            onClick = { viewModel.setNotificationContent(NotificationContent.BODY_PREVIEW) },
+                        )
+                        DeliveryModeOption(
+                            title = stringResource(R.string.settings_notif_content_full),
+                            subtitle = stringResource(R.string.settings_notif_content_full_desc),
+                            selected = state.notificationContent == NotificationContent.SENDER_AND_SUBJECT,
+                            onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_AND_SUBJECT) },
+                        )
+                        DeliveryModeOption(
+                            title = stringResource(R.string.settings_notif_content_sender),
+                            subtitle = stringResource(R.string.settings_notif_content_sender_desc),
+                            selected = state.notificationContent == NotificationContent.SENDER_ONLY,
+                            onClick = { viewModel.setNotificationContent(NotificationContent.SENDER_ONLY) },
+                        )
+                        DeliveryModeOption(
+                            title = stringResource(R.string.settings_notif_content_none),
+                            subtitle = stringResource(R.string.settings_notif_content_none_desc),
+                            selected = state.notificationContent == NotificationContent.NONE,
+                            onClick = { viewModel.setNotificationContent(NotificationContent.NONE) },
+                        )
+                    }
                 }
                 SettingsSection(stringResource(R.string.settings_quiet_hours_section)) {
                     SettingSwitch(
@@ -1660,24 +1663,26 @@ private fun AccountDetailScreen(
                         viewModel.setNotificationsEnabled(accountId, it)
                     },
                 )
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_delivery_instant),
-                    subtitle = stringResource(R.string.settings_delivery_instant_desc),
-                    selected = deliveryMode == DeliveryMode.INSTANT,
-                    onClick = {
-                        deliveryMode = DeliveryMode.INSTANT
-                        viewModel.setDeliveryMode(accountId, DeliveryMode.INSTANT)
-                    },
-                )
-                DeliveryModeOption(
-                    title = stringResource(R.string.settings_delivery_saver),
-                    subtitle = stringResource(R.string.settings_delivery_saver_desc),
-                    selected = deliveryMode == DeliveryMode.BATTERY_SAVER,
-                    onClick = {
-                        deliveryMode = DeliveryMode.BATTERY_SAVER
-                        viewModel.setDeliveryMode(accountId, DeliveryMode.BATTERY_SAVER)
-                    },
-                )
+                Column(Modifier.selectableGroup()) {
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_delivery_instant),
+                        subtitle = stringResource(R.string.settings_delivery_instant_desc),
+                        selected = deliveryMode == DeliveryMode.INSTANT,
+                        onClick = {
+                            deliveryMode = DeliveryMode.INSTANT
+                            viewModel.setDeliveryMode(accountId, DeliveryMode.INSTANT)
+                        },
+                    )
+                    DeliveryModeOption(
+                        title = stringResource(R.string.settings_delivery_saver),
+                        subtitle = stringResource(R.string.settings_delivery_saver_desc),
+                        selected = deliveryMode == DeliveryMode.BATTERY_SAVER,
+                        onClick = {
+                            deliveryMode = DeliveryMode.BATTERY_SAVER
+                            viewModel.setDeliveryMode(accountId, DeliveryMode.BATTERY_SAVER)
+                        },
+                    )
+                }
                 // isWatched is re-read each recomposition (no remember): neither the current
                 // account nor the push-all flag is observable.
                 if (PushController.shouldShowUnwatchedNote(account.isLinked, viewModel.isWatched(accountId), notificationsEnabled)) {

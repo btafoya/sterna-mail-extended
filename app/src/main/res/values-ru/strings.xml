@@ -24,6 +24,8 @@
     <string name="compose_hide_cc_bcc">Скрыть копию/скрытую копию</string>
     <string name="compose_remove">Убрать</string>
     <string name="compose_remove_recipient">Убрать %1$s</string>
+    <string name="compose_recipient_invalid">Недопустимый адрес</string>
+    <string name="compose_recipient_no_key">Нет ключа шифрования</string>
     <string name="a11y_remove_named">Убрать %1$s</string>
     <string name="compose_attachment_fallback">вложение</string>
     <string name="compose_attachments_total">Всего вложений: %1$s</string>
@@ -1187,6 +1189,8 @@
     <string name="a11y_conversation_expanded">Развёрнуто</string>
     <string name="a11y_conversation_collapsed">Свёрнуто</string>
     <string name="a11y_flagged">Помечено</string>
+    <string name="a11y_unread">Не прочитано</string>
+    <string name="a11y_selected">Выбрано</string>
     <string name="settings_theme_sterna_caption">Палитра Sterna: Arctic (светлая) · Pelagic (тёмная).</string>
     <string name="settings_dynamic_color_title">Цвета Material You</string>
     <string name="settings_dynamic_color_subtitle">Использовать цвета из ваших обоев вместо палитры Sterna (Android 12+).</string>

@@ -95,7 +95,7 @@ class RecipientNamesWiringTest {
         assertEquals(
             listOf(
                 "val spoken = chipDescription(chip, names)",
-                "modifier = if (spoken == null) Modifier else Modifier.semantics { contentDescription = spoken },",
+                "if (spoken != null) contentDescription = spoken",
             ),
             linesNaming(field, "spoken"),
         )

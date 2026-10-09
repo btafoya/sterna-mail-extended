@@ -232,7 +232,8 @@ class ConnectStatusWiringTest {
         assertRun(
             listOf(
                 "val status = statusLine(state, walkStep, ask, handedOver)",
-                "Column(modifier = Modifier.bringIntoViewRequester(statusReveal)) {",
+                "Column(modifier = Modifier.bringIntoViewRequester(statusReveal)" +
+                    ".semantics { liveRegion = LiveRegionMode.Polite }) {",
                 "when (status) {",
             ),
             "⛔ THE THREE LINES, CONSECUTIVE, AND IN THIS ORDER — each of them load-bearing.\n" +

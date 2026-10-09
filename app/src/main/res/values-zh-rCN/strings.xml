@@ -24,6 +24,8 @@
     <string name="compose_hide_cc_bcc">隐藏抄送/密送</string>
     <string name="compose_remove">移除</string>
     <string name="compose_remove_recipient">移除 %1$s</string>
+    <string name="compose_recipient_invalid">地址无效</string>
+    <string name="compose_recipient_no_key">没有加密密钥</string>
     <string name="a11y_remove_named">移除 %1$s</string>
     <string name="compose_attachment_fallback">附件</string>
     <string name="compose_attachments_total">附件总计：%1$s</string>
@@ -309,6 +311,8 @@
     <string name="a11y_conversation_expanded">已展开</string>
     <string name="a11y_conversation_collapsed">已折叠</string>
     <string name="a11y_flagged">已加星标</string>
+    <string name="a11y_unread">未读</string>
+    <string name="a11y_selected">已选中</string>
     <string name="inbox_flag">星标</string>
 
     <!-- Standard (special-use) folder names — shown for server folders that carry a

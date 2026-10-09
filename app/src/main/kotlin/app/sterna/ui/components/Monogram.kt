@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 
 /**
@@ -27,7 +28,8 @@ fun Monogram(seed: String, label: String, modifier: Modifier = Modifier, color: 
         modifier = modifier
             .size(MonogramSize)
             .clip(CircleShape)
-            .background(background),
+            .background(background)
+            .clearAndSetSemantics {},
         contentAlignment = Alignment.Center,
     ) {
         Text(

@@ -148,6 +148,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
@@ -915,6 +916,7 @@ fun InboxScreen(
                                     SortOrder.entries.forEach { order ->
                                         DropdownMenuItem(
                                             text = { Text(stringResource(sortLabel(order))) },
+                                            modifier = Modifier.semantics { selected = order == ui.sortOrder },
                                             leadingIcon = {
                                                 if (order == ui.sortOrder) Icon(Icons.Filled.Check, contentDescription = null)
                                             },

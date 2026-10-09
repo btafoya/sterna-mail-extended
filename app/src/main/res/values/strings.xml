@@ -24,6 +24,8 @@
     <string name="compose_hide_cc_bcc">Hide Cc/Bcc</string>
     <string name="compose_remove">Remove</string>
     <string name="compose_remove_recipient">Remove %1$s</string>
+    <string name="compose_recipient_invalid">Invalid address</string>
+    <string name="compose_recipient_no_key">No encryption key</string>
     <string name="a11y_remove_named">Remove %1$s</string>
     <string name="compose_attachment_fallback">attachment</string>
     <string name="compose_attachments_total">Total attachments: %1$s</string>
@@ -312,6 +314,8 @@
     <string name="a11y_conversation_expanded">Expanded</string>
     <string name="a11y_conversation_collapsed">Collapsed</string>
     <string name="a11y_flagged">Starred</string>
+    <string name="a11y_unread">Unread</string>
+    <string name="a11y_selected">Selected</string>
     <string name="inbox_flag">Star</string>
 
     <!-- Standard (special-use) folder names — shown for server folders that carry a
