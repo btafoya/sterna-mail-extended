@@ -2,22 +2,27 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AuthType
+import app.sterna.core.data.account.ConnectionSecurity
+import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.RecordingAccountStorage
 import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.CATCH_UP_OFF_WALK
 import app.sterna.core.data.db.CATCH_UP_SILENT
 import app.sterna.core.data.db.CachedFolder
+import app.sterna.core.data.db.CatchUpMark
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailFtsDao
+import app.sterna.core.data.db.EmailKeyRow
 import app.sterna.core.data.db.LocalDraftDao
 import app.sterna.core.data.db.MailboxDao
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.OutboxDao
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RecentContactDao
+import app.sterna.core.data.db.RowNumbering
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.SnoozedDao
 import app.sterna.core.data.db.caughtUp
@@ -54,13 +59,15 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * `MailRepository.backfillUnread` run against a JMAP server that answers and a cache that keeps
- * what it is handed: what goes over the wire and what lands in the cache are both read back.
+ * what it is handed: what goes over the wire and what lands in the cache are both read back. Two
+ * tests run it for an IMAP account against a scripted IMAP server; the decisions of that path are
+ * run one by one in `ImapUnreadBackfillTest`.
  *
  * The cache is a map standing in for the `emails` table. It gives `insertAllIgnoring` the meaning
  * of an insert that skips an existing key and `refile` that of a folder change conditioned on the
  * folder it leaves, which sets both bits of the mark, and refuses every call this path has no
- * business making, `upsertAll` and every delete among them. The statement of `refile` itself is run
- * over SQLite in its own test. The two reads of a notification pass are the shipped statements of
+ * business making, `upsertAll` and every delete but the IMAP pass's eviction by id among them. The
+ * statement of `refile` itself is run over SQLite in its own test. The two reads of a notification pass are the shipped statements of
  * `receivedSince` and `idsReceivedSince`, run over SQLite on the keys, date and mark of the map.
  *
  * What this does not cover:
@@ -83,6 +90,7 @@ class UnreadBackfillTest {
     private data class Refiled(val accountId: String, val id: String, val from: String, val to: String)
 
     private val refileCalls = CopyOnWriteArrayList<Refiled>()
+    private val evictCalls = CopyOnWriteArrayList<List<String>>()
     private val cursorWrites = CopyOnWriteArrayList<String>()
     private val configured = CopyOnWriteArrayList(listOf(ACCOUNT))
 
@@ -224,10 +232,25 @@ class UnreadBackfillTest {
                     mapOf("accountId" to passed[0], "mailboxId" to passed[1], "since" to passed[2]),
                 )
                 "mailboxOf" -> cache[passed[0] as String to passed[1] as String]?.mailboxId
+                "idsForMailbox" -> inFolder(passed[0] as String, passed[1] as String).map { it.id }
+                "unreadKeys" -> inFolder(passed[0] as String, passed[1] as String).filterNot { it.seen }
+                    .map { EmailKeyRow(it.accountId, it.id) }
+                "numberingOfRows" -> (passed[1] as List<String>).mapNotNull { cache[passed[0] as String to it] }
+                    .map { RowNumbering(it.id, it.uidValidity) }
+                "catchUpOf" -> (passed[1] as List<String>).mapNotNull { cache[passed[0] as String to it] }
+                    .map { CatchUpMark(it.id, it.catchUp) }
+                "evictFromCacheKeepingIndex" -> {
+                    val ids = passed[1] as List<String>
+                    evictCalls += ids
+                    ids.forEach { cache.remove(passed[0] as String to it) }
+                }
                 "toString" -> "the cache of UnreadBackfillTest"
-                else -> error("EmailDao.${method.name} was called by a path that only reads folders, inserts and re-files.")
+                else -> error("EmailDao.${method.name} was called by a path that only reads the cache, inserts, re-files and evicts by id.")
             }
         } as EmailDao
+
+    private fun inFolder(accountId: String, mailboxId: String): List<EmailEntity> =
+        cache.values.filter { it.accountId == accountId && it.mailboxId == mailboxId }
 
     /** The ids the shipped statement of `EmailDao.[function]` selects from the map, in its order. */
     private fun shippedRead(function: String, bound: Map<String, Any?>): List<String> {
@@ -286,6 +309,8 @@ class UnreadBackfillTest {
         override fun keys(): Set<String> = emptySet()
     }
 
+    private val imapService by lazy { ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)) }
+
     private val repository: MailRepository by lazy { newRepository() }
 
     /** A repository over the same cache holding nothing in memory, as a process just started does. */
@@ -296,7 +321,7 @@ class UnreadBackfillTest {
             emailFtsDao = unusableDao<EmailFtsDao>(),
             emailBodyDao = unusableDao<EmailBodyDao>(),
             mailboxDao = mailboxDao(),
-            imap = ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)),
+            imap = imapService,
             scheduledSendDao = unusableDao<ScheduledSendDao>(),
             snoozedDao = unusableDao<SnoozedDao>(),
             recentContactDao = unusableDao<RecentContactDao>(),
@@ -547,25 +572,67 @@ class UnreadBackfillTest {
         assertEquals(listOf(listOf("m-new")), idsAskedFor())
     }
 
-    @Test fun `an IMAP account asks nothing and writes nothing`() {
-        serve(message("m-old", mapOf("work" to true)))
-
-        runBlocking { repository.backfillUnread(credentials(MailProtocol.IMAP), inboxAndWork) }
-
-        assertEquals(0, server.requestCount)
-        assertEquals(emptyMap<Pair<String, String>, EmailEntity>(), cache.toMap())
-        assertEquals(emptyList<List<String>>(), insertCalls.toList())
+    /** [block] with an IMAP server holding the folders of [held] and the credentials that reach it. */
+    private fun overImap(held: ScriptedUnreadFolders, block: (ScriptedImapServer, AccountCredentials) -> Unit) {
+        ScriptedImapServer(held::respond).use { imapServer ->
+            val reaching = credentials(MailProtocol.IMAP)
+                .copy(imap = MailEndpoint(imapServer.host, imapServer.port, ConnectionSecurity.NONE))
+            try {
+                block(imapServer, reaching)
+            } finally {
+                runBlocking { runCatching { imapService.disconnect(ACCOUNT) } }
+            }
+        }
     }
 
-    @Test fun `an IMAP account leaves a row cached outside the scope where it is`() {
-        val before = cached(ACCOUNT, "m-twice", "trash")
-        serve(message("m-twice", mapOf("work" to true, "trash" to true)))
+    private fun cachedOverImap(mailboxId: String, uid: Long, catchUp: Int): EmailEntity {
+        val id = ImapMailService.emailId(ACCOUNT, mailboxId, uid)
+        return cached(ACCOUNT, id, mailboxId).copy(seen = false, catchUp = catchUp).also { cache[ACCOUNT to id] = it }
+    }
 
-        runBlocking { repository.backfillUnread(credentials(MailProtocol.IMAP), inboxAndWork) }
+    @Test fun `an IMAP account asks its own server and caches the unread mail no folder read brought in`() {
+        val onServer = ScriptedUnreadFolders()
+        onServer.folder("inbox").unread(7L)
+        onServer.folder("work")
+        serve(message("m-old", mapOf("work" to true)))
 
-        assertEquals(0, server.requestCount)
-        assertEquals(before, cache[ACCOUNT to "m-twice"])
-        assertEquals(emptyList<Refiled>(), refileCalls.toList())
+        overImap(onServer) { imapServer, reaching ->
+            runBlocking { repository.backfillUnread(reaching, inboxAndWork) }
+
+            assertEquals("nothing is asked over JMAP", 0, server.requestCount)
+            val id = ImapMailService.emailId(ACCOUNT, "inbox", 7L)
+            val row = cache[ACCOUNT to id] ?: return@overImap fail("the unread message was not cached: ${cache.keys}")
+            assertEquals("inbox", row.mailboxId)
+            assertEquals("Message 7", row.subject)
+            assertEquals(false, row.seen)
+            assertEquals("received in 2021: off the walk and never announced", BOTH, row.catchUp)
+            assertEquals(listOf(listOf(id)), insertCalls.toList())
+            assertEquals(listOf("SELECT \"inbox\"", "SELECT \"work\""), imapServer.issued("SELECT"))
+            assertEquals(2, imapServer.issued("UID SEARCH UNSEEN").size)
+        }
+    }
+
+    @Test fun `an IMAP account takes out the caught-up row its server no longer holds unread, and leaves a row cached outside the scope where it is`() {
+        val onServer = ScriptedUnreadFolders()
+        onServer.folder("inbox")
+        onServer.folder("work").read(4L, 5L)
+        onServer.folder("trash").read(3L)
+        val outside = cachedOverImap("trash", 3L, catchUp = CATCH_UP_OFF_WALK)
+        val inTheWindow = cachedOverImap("work", 4L, catchUp = 0)
+        val stale = cachedOverImap("work", 5L, catchUp = CATCH_UP_OFF_WALK)
+
+        overImap(onServer) { imapServer, reaching ->
+            runBlocking { repository.backfillUnread(reaching, inboxAndWork) }
+
+            assertEquals("nothing is asked over JMAP", 0, server.requestCount)
+            assertEquals(listOf(listOf(stale.id)), evictCalls.toList())
+            assertEquals(null, cache[ACCOUNT to stale.id])
+            assertEquals(inTheWindow, cache[ACCOUNT to inTheWindow.id])
+            assertEquals(outside, cache[ACCOUNT to outside.id])
+            assertEquals(emptyList<Refiled>(), refileCalls.toList())
+            assertEquals(emptyList<List<String>>(), insertCalls.toList())
+            assertEquals(listOf("SELECT \"inbox\"", "SELECT \"work\""), imapServer.issued("SELECT"))
+        }
     }
 
     @Test fun `a query the server refuses is thrown, not taken for nothing to add`() {

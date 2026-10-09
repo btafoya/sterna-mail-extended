@@ -1578,10 +1578,10 @@ class MailRepository(
                 }
                 return try {
                     val (added, total, cached) = if (credentials.protocol == MailProtocol.IMAP) {
-                        val offset = emailDao.countForMailbox(credentials.id, mailboxId)
+                        val offset = emailDao.walkedCountForMailbox(credentials.id, mailboxId)
                         val (entities, exists) = imap.fetchOlderPage(credentials, mailboxId, offset, PAGE_SIZE, listPreviewCache(credentials.id))
-                        if (entities.isNotEmpty()) emailDao.upsertAll(sparingInFlight(entities))
-                        Triple(entities.size, exists, emailDao.countForMailbox(credentials.id, mailboxId))
+                        if (entities.isNotEmpty()) imapFolderWrites(credentials.id).writePage(entities)
+                        Triple(entities.size, exists, emailDao.walkedCountForMailbox(credentials.id, mailboxId))
                     } else {
                         val ctx = jmapSession(credentials)
                         // Anchor on the oldest walked representative rather than an absolute offset:
@@ -1748,11 +1748,11 @@ class MailRepository(
         }.getOrElse { cached() }
     }
 
-    /** Caches the unread mail of a JMAP account that no folder sync brought in, and files back the rows
-     *  a folder sync left outside [scopes] ([unreadBackfillPlan]), each under a folder of [scopes].
+    /** Caches the unread mail no folder sync brought in, over IMAP through [ImapUnreadBackfill]. Over
+     *  JMAP it also files back the rows a folder sync left outside [scopes] ([unreadBackfillPlan]).
      *  A server failure reaches the caller, and what was written before it stays. */
     suspend fun backfillUnread(credentials: AccountCredentials, scopes: List<Pair<String, String>>) {
-        if (credentials.protocol == MailProtocol.IMAP) return
+        if (credentials.protocol == MailProtocol.IMAP) return backfillUnreadImap(credentials, scopes)
         checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
         // Folder ids are numbered per account: only this account's half of the scopes names its folders.
         val inScope = scopes.filter { it.first == credentials.id }.mapTo(HashSet()) { it.second }
@@ -1796,6 +1796,28 @@ class MailRepository(
             val total = page.total
             if (total != null && walked >= total) break
         }
+    }
+
+    private suspend fun backfillUnreadImap(credentials: AccountCredentials, scopes: List<Pair<String, String>>) {
+        val stillConfigured: suspend () -> Unit = {
+            checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
+        }
+        stillConfigured()
+        val cache = imapUnreadCache(
+            emailDao = emailDao,
+            accountId = credentials.id,
+            unreadCap = UNREAD_RESOLVE_MAX,
+            stillConfigured = stillConfigured,
+            heldLocally = { id -> isRecentlyMutated(credentials.id, id) || inFlightRemovals.containsKey(flightKey(credentials.id, id)) },
+            sparingInFlight = ::sparingInFlight,
+        )
+        ImapUnreadBackfill(
+            accountId = credentials.id,
+            cache = cache,
+            onFolder = { mailboxId, block -> imap.onUnseenOf(credentials, mailboxId, block) },
+            budget = UNREAD_RESOLVE_MAX,
+            now = System::currentTimeMillis,
+        ).run(scopes)
     }
 
     /**
@@ -2046,6 +2068,7 @@ class MailRepository(
                     credentials.id, load.targetMailboxId, keepIds, spare,
                     evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
                 )
+                writes.markKeptWalked(load.targetMailboxId, keepIds)
                 imap.rememberModSeq(credentials.id, load, writes.everyRowWritten)
                 flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
@@ -2064,6 +2087,8 @@ class MailRepository(
             setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
             sparingInFlight = ::sparingInFlight,
             upsertAll = emailDao::upsertAll,
+            markWalked = { mailboxId, ids -> emailDao.markWalked(accountId, mailboxId, ids) },
+            marksOf = { ids -> emailDao.catchUpOf(accountId, ids) },
         )
     }
 

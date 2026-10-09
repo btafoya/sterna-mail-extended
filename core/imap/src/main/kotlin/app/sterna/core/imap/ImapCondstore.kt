@@ -90,10 +90,16 @@ fun ImapSession.liveUids(status: ImapMailboxStatus, limit: Int): ImapLiveUids {
  * Only the answers [isEnvelopeOfOneOf] the page asked for become messages. An `EXISTS` that grew
  * counts as movement here too, although under CONDSTORE it is only an arrival: refusing costs a
  * full walk, accepting it wrongly costs mail.
+ *
+ * A null [startedWith] is the caller that reconciles nothing and only wants the envelopes of UIDs
+ * it holds: no movement is judged and [ImapUidWalk.moved] is always false, an `EXISTS` that grew
+ * being mail that arrived and an `EXPUNGE` a UID that does not answer. The `NOOP`, which only asks
+ * for that verdict, is not sent. Its sets go out through [compressUidSet]. The judged reading keeps
+ * the comma list in the order given, which is what its callers' fixtures parse.
  */
 suspend fun ImapSession.fetchUidsPaged(
     uids: List<Long>,
-    startedWith: Int,
+    startedWith: Int?,
     pageSize: Int,
     onPage: suspend (List<ImapMessage>) -> Unit,
 ): ImapUidWalk {
@@ -103,7 +109,8 @@ suspend fun ImapSession.fetchUidsPaged(
         if (!pages.hasNext()) return@walkRequests null
         val page = pages.next()
         asked = page.toSet()
-        "UID FETCH ${page.joinToString(",")} $FOLDER_LIST_ITEMS"
+        val set = if (startedWith == null) compressUidSet(page) else page.joinToString(",")
+        "UID FETCH $set $FOLDER_LIST_ITEMS"
     }
 }
 

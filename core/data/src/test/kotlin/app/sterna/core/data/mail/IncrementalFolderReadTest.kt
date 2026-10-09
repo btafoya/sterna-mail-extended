@@ -71,6 +71,8 @@ class IncrementalFolderReadTest {
             setReadAndStar = { ids, seen, flagged -> cache.setReadAndStar(account, ids, seen, flagged) },
             sparingInFlight = { rows -> rows.filterNot { it.id in inFlight } },
             upsertAll = { rows -> cache.upsert(rows) },
+            markWalked = { mailboxId, ids -> cache.markWalked(account, mailboxId, ids) },
+            marksOf = { ids -> cache.catchUpOf(account, ids) },
         )
         fullQueryWriteThrough<List<EmailEntity>, ImapFolderLoad>(
             folderIds = { cache.idsForMailbox(account, INBOX).toSet() },
@@ -85,6 +87,7 @@ class IncrementalFolderReadTest {
             spareIds = { emptyList() },
             reconcile = { load, keepIds, spare, evictable ->
                 cache.reconcile(account, load.targetMailboxId, keepIds, spare, evictable)
+                writes.markKeptWalked(load.targetMailboxId, keepIds)
                 service.rememberModSeq(account, load, writes.everyRowWritten)
             },
         )
@@ -176,6 +179,21 @@ class IncrementalFolderReadTest {
         )
         assertEquals(listOf("1", "0", "1", "1", "1"), after.map { it["seen"] })
         assertEquals(folder.highest, modSeq())
+    }
+
+    @Test fun `a caught-up row the delta keeps in its window without fetching it is taken off the catch-up`() {
+        val folder = CondstoreFolder(5)
+        val server = serving(folder)
+        walkedOnce(folder, server)
+        cache.update("UPDATE emails SET catchUp = 3 WHERE id = :id", mapOf("id" to id(103L)))
+        assertEquals("the older page's count leaves the caught-up row out", 4, cache.walkedCount(ACCOUNT, INBOX))
+
+        refresh(server)
+
+        assertNoWalk(server)
+        assertEquals("the delta fetched the row whole", emptyList<String>(), server.envelopeFetchesByUid())
+        assertEquals("the walk bit is cleared and the silent one kept", "2", cache.row(ACCOUNT, id(103L))?.get("catchUp"))
+        assertEquals(5, cache.walkedCount(ACCOUNT, INBOX))
     }
 
     @Test fun `a message that arrived is the only one fetched whole, and the window stays`() {

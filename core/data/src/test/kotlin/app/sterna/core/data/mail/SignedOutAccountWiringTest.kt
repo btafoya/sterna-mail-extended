@@ -130,6 +130,7 @@ class SignedOutAccountWiringTest {
             listOf(
                 "val writes = imapFolderWrites(credentials.id)",
                 "writePage = { page -> writes.writePage(page) },",
+                "writes.markKeptWalked(load.targetMailboxId, keepIds)",
             ),
             lines("imapWriteThrough").filter { "writes" in it && "loadFolder" !in it && "rememberModSeq" !in it },
         )
@@ -393,11 +394,13 @@ class SignedOutAccountWiringTest {
         val body = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
-            "MailRepository no longer carries fifteen guard call sites — five entries and ten " +
+            "MailRepository no longer carries sixteen guard call sites — five entries and eleven " +
                 "writes, the tenth being the one `ImapFolderWrites` asks before each page and each " +
-                "flag write of an IMAP folder read. If a path was added or removed, say so here:\n" +
+                "flag write of an IMAP folder read, the eleventh the one the IMAP unread catch-up " +
+                "asks on entry, before it evicts and before each page it inserts (executed in " +
+                "ImapUnreadBackfillTest). If a path was added or removed, say so here:\n" +
                 sites.joinToString("\n") { body[it].trim() },
-            15, sites.size,
+            16, sites.size,
         )
         sites.forEach { site ->
             val open = openBlocksAt(body, site).filter { "try" in it || "runCatching" in it }
@@ -417,7 +420,7 @@ class SignedOutAccountWiringTest {
         // file is where that costs the most: `AccountStillConfigured.kt` is in the same package, so
         //
         // It is the same family of blindness as the hole this file was extended for: what is not
-        // pinned is invisible. So the declaration itself is pinned, once, for all fifteen sites.
+        // pinned is invisible. So the declaration itself is pinned, once, for all sixteen sites.
         val declaration = Regex("""\bfun\s+$guard\s*[(<]""")
         val found = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
             .map { it.trim() }

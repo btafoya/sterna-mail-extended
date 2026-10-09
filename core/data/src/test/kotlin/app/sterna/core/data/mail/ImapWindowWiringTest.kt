@@ -57,6 +57,7 @@ class ImapWindowWiringTest {
             credentials.id, load.targetMailboxId, keepIds, spare,
             evictableIds = evictable.takeIf { mailboxId != null && mailboxId == load.targetMailboxId },
             )
+            writes.markKeptWalked(load.targetMailboxId, keepIds)
             imap.rememberModSeq(credentials.id, load, writes.everyRowWritten)
             flightsOffMain { reread(credentials.id, load.targetMailboxId) }
             },
@@ -74,7 +75,9 @@ class ImapWindowWiringTest {
                 "which hands it a cache of its own: what the repository hands it is read only " +
                 "here. An empty `heldLocally` puts back a flag the user has just changed, a page " +
                 "written without `sparingInFlight` puts a swiped row back on screen, and the two " +
-                "id readers swapped fetch every row again on a list that shows no opening line.",
+                "id readers swapped fetch every row again on a list that shows no opening line. " +
+                "A `markWalked` that does nothing leaves a row of the unread catch-up out of the " +
+                "older page's count once the list has reached it (#251).",
             """
             {
             return ImapFolderWrites(
@@ -88,6 +91,8 @@ class ImapWindowWiringTest {
             setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
             sparingInFlight = ::sparingInFlight,
             upsertAll = emailDao::upsertAll,
+            markWalked = { mailboxId, ids -> emailDao.markWalked(accountId, mailboxId, ids) },
+            marksOf = { ids -> emailDao.catchUpOf(accountId, ids) },
             )
             }
             """.trimIndent().lines().map { it.trim() }.filter { it.isNotEmpty() },

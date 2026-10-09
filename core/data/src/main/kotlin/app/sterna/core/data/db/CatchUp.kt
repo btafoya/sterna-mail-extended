@@ -4,8 +4,8 @@ package app.sterna.core.data.db
  * Bit of [EmailEntity.catchUp] (v34): older mail of the folder may be missing between this row and
  * the rows its list walked. Set by the unread catch-up, on the rows it inserts and on those it files
  * back, and by the JMAP retention prune through [EmailDao.markOffWalk], on an unread row it keeps
- * while the read mail around it is evicted. Cleared by [EmailDao.markWalked], which only a page of
- * the folder's list calls: a delta re-reading the row says nothing of where it sits in the list.
+ * while the read mail around it is evicted. Cleared by [EmailDao.markWalked], on the rows a page of
+ * the folder's list writes and those an IMAP read keeps in its window; never by a JMAP delta.
  */
 const val CATCH_UP_OFF_WALK: Int = 1
 

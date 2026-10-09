@@ -1,5 +1,7 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.CATCH_UP_OFF_WALK
+import app.sterna.core.data.db.CatchUpMark
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.imap.IMAP_FOLDER_PAGE
 import app.sterna.core.imap.ImapException
@@ -140,11 +142,17 @@ internal fun imapFolderDelta(
     },
 )
 
+/** The rows of [marks] still marked off their folder's walk. */
+internal fun offWalkAmong(marks: List<CatchUpMark>): List<String> =
+    marks.filter { (it.catchUp and CATCH_UP_OFF_WALK) != 0 }.map { it.id }
+
 /**
  * The cache as one read of an IMAP folder writes to it, delta and walk alike. With opening lines
  * wanted, a row that has none is not one the delta may leave as it is: a full walk reads the line
  * it lacks, and nothing else of a delta would. [everyRowWritten] turns false for good once
  * [sparingInFlight] took a row out of a page, which [ImapIncrementalReader.remember] reads.
+ * [markWalked] is told every row a page wrote: a row the unread catch-up had cached ahead of the
+ * folder's list is an ordinary row of it once a page of that list has written it.
  */
 internal class ImapFolderWrites(
     wantsPreviews: Boolean,
@@ -155,6 +163,8 @@ internal class ImapFolderWrites(
     setReadAndStar: suspend (ids: List<String>, seen: Boolean, flagged: Boolean) -> Unit,
     private val sparingInFlight: (List<EmailEntity>) -> List<EmailEntity>,
     private val upsertAll: suspend (List<EmailEntity>) -> Unit,
+    private val markWalked: suspend (mailboxId: String, ids: List<String>) -> Unit,
+    private val marksOf: suspend (ids: List<String>) -> List<CatchUpMark>,
 ) {
     @Volatile
     var everyRowWritten: Boolean = true
@@ -174,6 +184,27 @@ internal class ImapFolderWrites(
         val written = sparingInFlight(page)
         if (written.size != page.size) everyRowWritten = false
         upsertAll(written)
+        written.groupBy({ it.mailboxId }, { it.id }).forEach { (mailboxId, ids) ->
+            ids.chunked(MAX_CHANGES).forEach { markWalked(mailboxId, it) }
+        }
+    }
+
+    /**
+     * Takes off the catch-up the rows of [keepIds] that still carry its mark. To be called with
+     * what a finished read was reconciled against, the window it vouches for: a delta leaves a
+     * cached row as it is, so a caught-up row the window has slid over is written by no page, and
+     * left marked it stays out of the older page's count, which then never reaches the folder's
+     * size. The marks are read first and only the marked rows written: an ordinary refresh has
+     * none, and must not write to the cache for that.
+     */
+    suspend fun markKeptWalked(mailboxId: String, keepIds: Set<String>) {
+        keepIds.chunked(MAX_CHANGES).forEach { chunk ->
+            val offWalk = offWalkAmong(marksOf(chunk))
+            if (offWalk.isNotEmpty()) {
+                stillConfigured()
+                markWalked(mailboxId, offWalk)
+            }
+        }
     }
 }
 

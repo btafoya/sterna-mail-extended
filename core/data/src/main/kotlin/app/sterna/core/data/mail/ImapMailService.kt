@@ -30,7 +30,9 @@ import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
+import app.sterna.core.imap.fetchUidsPaged
 import app.sterna.core.imap.searchFolders
+import app.sterna.core.imap.unseenUids
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.PreviewLines
@@ -679,6 +681,24 @@ open class ImapMailService(
             // No preview: brand-new UIDs, colliding with nothing, so there is nothing to preserve.
             session.fetchUids(uids).map { it.toEntity(credentials.id, mailboxId, status.uidValidity, null) }
         }
+
+    internal suspend fun <T> onUnseenOf(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        block: suspend (ImapUnseenFolder) -> T,
+    ): T = onMailbox(credentials, mailboxId) { session, status ->
+        block(
+            ImapUnseenFolder(
+                uidValidity = status.uidValidity,
+                unseen = session.unseenUids().toSet(),
+                fetch = { uids, onPage ->
+                    session.fetchUidsPaged(uids, startedWith = null, pageSize = IMAP_FOLDER_PAGE) { page ->
+                        onPage(page.map { it.toEntity(credentials.id, mailboxId, status.uidValidity, preview = null) })
+                    }
+                },
+            ),
+        )
+    }
 
     open suspend fun createFolder(credentials: AccountCredentials, path: String) =
         withSession(credentials) { it.createFolder(path) }

@@ -41,3 +41,16 @@ internal fun parseStatusUnseen(untagged: List<List<Any?>>): Map<String, Int> {
     }
     return unseen
 }
+
+/**
+ * Every unread message of the selected folder, newest first, the whole folder and not the synced
+ * window. No cap: without ESEARCH the server cannot be asked for fewer. Every untagged `SEARCH`
+ * line is read, unlike [ImapSession.searchUids]: a dropped tail is unread mail the list never
+ * shows. No line at all is an empty list; a refused search throws. `\Deleted` messages are named
+ * here, unlike in [ImapSession.unseenCount], and dropped when fetched: a UID of this list may never
+ * come back as a message.
+ */
+fun ImapSession.unseenUids(): List<Long> = command("UID SEARCH UNSEEN").untagged
+    .filter { it.getOrNull(1) == "SEARCH" }
+    .flatMap { unseenLine -> unseenLine.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }
+    .sortedDescending()

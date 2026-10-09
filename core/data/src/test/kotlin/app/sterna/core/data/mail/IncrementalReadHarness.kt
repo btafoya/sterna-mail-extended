@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.CatchUpMark
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.MAILBOX_MODSEQ_READ_SQL
 import app.sterna.core.data.db.MAILBOX_MODSEQ_WRITE_SQL
@@ -9,6 +10,7 @@ import app.sterna.core.data.db.MAILBOX_UIDVALIDITY_FIRST_SIGHT_SQL
 import app.sterna.core.data.db.MAILBOX_UIDVALIDITY_RENUMBER_SQL
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.READ_AND_STAR_WRITE_SQL
+import app.sterna.core.data.db.RowNumbering
 import java.io.Closeable
 import java.lang.reflect.Proxy
 import java.sql.Connection
@@ -83,9 +85,14 @@ internal class JdbcMailCache : Closeable {
 
     // ---- emails ---------------------------------------------------------------------------------
 
-    fun upsert(rows: List<EmailEntity>) = rows.forEach { row ->
+    fun upsert(rows: List<EmailEntity>) = write("INSERT OR REPLACE", rows)
+
+    /** What Room's `@Insert(onConflict = IGNORE)` does to a row: the cached one stays whole. */
+    fun insertIgnoring(rows: List<EmailEntity>) = write("INSERT OR IGNORE", rows)
+
+    private fun write(verb: String, rows: List<EmailEntity>) = rows.forEach { row ->
         update(
-            "INSERT OR REPLACE INTO emails(id, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
+            "$verb INTO emails(id, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
                 "fromName, fromEmail, seen, flagged, hasAttachment, sortKey, recipientsJson, replyToJson, " +
                 "ccJson, bccJson, uidValidity, catchUp) VALUES(:id, :accountId, :mailboxId, :threadId, " +
                 ":subject, :preview, :receivedAt, :fromName, :fromEmail, :seen, :flagged, :hasAttachment, " +
@@ -100,6 +107,46 @@ internal class JdbcMailCache : Closeable {
                 "uidValidity" to row.uidValidity, "catchUp" to row.catchUp,
             ),
         )
+    }
+
+    fun markWalked(accountId: String, mailboxId: String, ids: List<String>): Int =
+        update(DaoQuerySource.emailDaoQuery("markWalked"), mapOf("accountId" to accountId, "mailboxId" to mailboxId, "ids" to ids))
+
+    fun walkedCount(accountId: String, mailboxId: String): Int = query(
+        DaoQuerySource.emailDaoQuery("walkedCountForMailbox"),
+        mapOf("accountId" to accountId, "mailboxId" to mailboxId),
+    ) { it.getInt(1) }.single()
+
+    fun catchUpOf(accountId: String, ids: List<String>): List<CatchUpMark> =
+        if (ids.isEmpty()) emptyList()
+        else query(DaoQuerySource.emailDaoQuery("catchUpOf"), mapOf("accountId" to accountId, "ids" to ids)) {
+            CatchUpMark(it.getString(1), it.getInt(2))
+        }
+
+    fun numberingOfRows(accountId: String, ids: List<String>): List<RowNumbering> =
+        if (ids.isEmpty()) emptyList()
+        else query(DaoQuerySource.emailDaoQuery("numberingOfRows"), mapOf("accountId" to accountId, "ids" to ids)) {
+            RowNumbering(it.getString(1), longOrNull(it, 2))
+        }
+
+    fun unreadIds(accountId: String, mailboxId: String, limit: Int): List<String> = query(
+        DaoQuerySource.emailDaoQuery("unreadKeys"),
+        mapOf("accountId" to accountId, "mailboxId" to mailboxId, "limit" to limit),
+    ) { it.getString(2) }
+
+    /** `EmailDao.evictFromCacheKeepingIndex`: the statement of the delete it delegates to. */
+    fun evict(accountId: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        update(DaoQuerySource.emailDaoQuery("deleteRowsByIds"), mapOf("accountId" to accountId, "ids" to ids))
+    }
+
+    fun readAmong(accountId: String, ids: List<String>): List<String> =
+        if (ids.isEmpty()) emptyList()
+        else query(DaoQuerySource.emailDaoQuery("readAmong"), mapOf("accountId" to accountId, "ids" to ids)) { it.getString(1) }
+
+    fun markUnread(accountId: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        update(DaoQuerySource.emailDaoQuery("markUnread"), mapOf("accountId" to accountId, "ids" to ids))
     }
 
     fun idsForMailbox(accountId: String, mailboxId: String): List<String> =

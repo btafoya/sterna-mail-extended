@@ -26,8 +26,8 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
 const val READ_AND_STAR_WRITE_SQL: String =
     "UPDATE emails SET seen = :seen, flagged = :flagged WHERE accountId = :accountId AND id IN (:ids)"
 
-/** [CATCH_UP_OFF_WALK] clear, on the row of the query or subquery it is written in. For the JMAP
- *  older page alone, which a caught-up row neither anchors nor counts: the list still shows it. */
+/** [CATCH_UP_OFF_WALK] clear, on the row of the query or subquery it is written in. For the older
+ *  page alone, which a caught-up row neither anchors nor counts: the list still shows it. */
 const val WALKED_SQL: String = "(catchUp & 1) = 0"
 
 /**
@@ -229,6 +229,12 @@ interface EmailDao {
     @Query("UPDATE emails SET seen = :seen WHERE accountId = :accountId AND id = :id")
     suspend fun setSeen(accountId: String, id: String, seen: Boolean)
 
+    @Query("SELECT id FROM emails WHERE accountId = :accountId AND id IN (:ids) AND seen = 1")
+    suspend fun readAmong(accountId: String, ids: List<String>): List<String>
+
+    @Query("UPDATE emails SET seen = 0 WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun markUnread(accountId: String, ids: List<String>)
+
     @Query("UPDATE emails SET flagged = :flagged WHERE accountId = :accountId AND id = :id")
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
 
@@ -300,7 +306,7 @@ interface EmailDao {
     @Query("DELETE FROM email_fts WHERE accountId = :accountId AND emailId IN (:ids)")
     suspend fun unindexByIds(accountId: String, ids: List<String>)
 
-    /** Cached message count for one account's mailbox (the IMAP older page's offset and end check). */
+    /** Cached message count for one account's mailbox, rows off the folder's walk included. */
     @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
     suspend fun countForMailbox(accountId: String, mailboxId: String): Int
 

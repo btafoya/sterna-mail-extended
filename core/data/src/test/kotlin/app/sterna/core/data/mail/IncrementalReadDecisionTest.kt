@@ -150,6 +150,8 @@ class IncrementalReadDecisionTest {
         setReadAndStar = { _, _, _ -> },
         sparingInFlight = { rows -> rows.filterNot { it.id in inFlight } },
         upsertAll = { rows -> written += rows },
+        markWalked = { _, _ -> },
+        marksOf = { emptyList() },
     )
 
     @Test fun `a page written whole leaves the read free to keep its mark`() {

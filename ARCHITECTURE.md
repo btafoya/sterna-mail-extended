@@ -81,6 +81,10 @@ folder once it has been read, or when a full re-query of its folder no longer
 returns it. Kept alone past the read mail the prune removed, it is not where
 loading older pages starts from. On IMAP an unread message is pruned like any
 other.
+The IMAP Unread view does not rely on the window: opening it, or pulling to
+refresh there, asks each folder the view covers for its unread UIDs
+(`UID SEARCH UNSEEN`) and caches the ones it lacks, as JMAP does; those rows
+leave the cache again when the folder itself is opened or refreshed.
 
 ## Conversations
 

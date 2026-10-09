@@ -26,6 +26,10 @@ import java.sql.DriverManager
  * - That `EmailDao.upsertAll` runs `upsertKeepingCatchUp` and that no caller reaches the bare
  *   `upsertRows`: Room is not on this classpath, so both are read as text, in the last two tests.
  * - That the read and the write of one `upsertAll` share a transaction: `@Transaction` is read as text.
+ * - A mark cleared without a `markWalked(` on one line: a function reference, the lambda of
+ *   `ImapFolderWrites` handed on under another name, a call split before its parenthesis, another
+ *   statement clearing the bit. Nor where a pinned call sits in its function or when it runs: the
+ *   two of `ImapFolderWrites` are executed in `ImapUnreadBackfillTest`.
  */
 class CatchUpMarkSqlTest {
     private lateinit var db: Connection
@@ -274,7 +278,7 @@ class CatchUpMarkSqlTest {
     }
 
     /** Text, as a last resort: no test here can run `syncMailbox` or the list's mediator. */
-    @Test fun `only the three list pages take rows off the catch-up, each right after its write, and the delta does not`() {
+    @Test fun `only the list pages and the window an IMAP read kept take rows off the catch-up, and the JMAP delta does not`() {
         val repository = DaoQuerySource.mailSource("MailRepository").lines().map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("//") }
         val pageWrites = mapOf(
@@ -289,6 +293,10 @@ class CatchUpMarkSqlTest {
                 "markWalked(localAccountId, mailboxId, fresh)",
                 "markWalked(credentials.id, mailboxId, page.emails)",
                 "markWalked(credentials.id, mailboxId, page.emails)",
+                // The IMAP pages, refresh and older page alike, go through `ImapFolderWrites.writePage`,
+                // which calls this after its write, and it is called again for the rows a reconciled
+                // read kept that still carry the mark: both executed in ImapUnreadBackfillTest.
+                "markWalked = { mailboxId, ids -> emailDao.markWalked(accountId, mailboxId, ids) },",
                 "private suspend fun markWalked(accountId: String, mailboxId: String, page: List<Email>) =",
                 "page.map { it.id }.chunked(MAX_CHANGES).forEach { emailDao.markWalked(accountId, mailboxId, it) }",
             ),
@@ -300,10 +308,42 @@ class CatchUpMarkSqlTest {
         assertTrue("the delta's write is no longer the line this test reads", delta > 0)
         assertEquals("the delta's write closes its block: nothing clears a mark after it", "}", repository[delta + 1])
 
-        val elsewhere = File(root, "core/data/src/main/kotlin").walkTopDown()
-            .filter { it.isFile && it.extension == "kt" && it.name != "MailRepository.kt" }
-            .filter { file -> codeLines(file).any { ".markWalked(" in it } }
-            .map { it.name }.toList()
-        assertEquals("no other file clears the mark", emptyList<String>(), elsewhere)
+        val main = File(root, "core/data/src/main")
+        val sources = main.walkTopDown().filter { it.isFile && it.extension == "kt" && it.name != "MailRepository.kt" }
+            .associate { it.relativeTo(main).invariantSeparatorsPath to codeLines(it) }
+        assertEquals(
+            "no file but MailRepository.kt and these two lines clears the mark",
+            mapOf(
+                "kotlin/app/sterna/core/data/mail/ImapIncrementalRead.kt" to listOf(
+                    "ids.chunked(MAX_CHANGES).forEach { markWalked(mailboxId, it) }",
+                    "markWalked(mailboxId, offWalk)",
+                ),
+            ),
+            markWalkedCalls(sources),
+        )
+    }
+
+    /** The lines of each of [sources] that call a `markWalked`, whatever the receiver. A declaration is not a call, its body on the same line is. */
+    private fun markWalkedCalls(sources: Map<String, List<String>>): Map<String, List<String>> =
+        sources.mapValues { (_, lines) -> lines.filter { "markWalked(" in it.replace("fun markWalked(", "") } }.filterValues { it.isNotEmpty() }
+
+    @Test fun `a call of markWalked is seen with or without a receiver, and a declaration only for the call in its body`() {
+        val seen = markWalkedCalls(
+            mapOf(
+                "Dao.kt" to listOf("suspend fun markWalked(accountId: String, mailboxId: String, ids: List<String>): Int"),
+                "Dotted.kt" to listOf("emailDao.markWalked(accountId, mailboxId, ids)", "val unrelated = 1"),
+                "Lambda.kt" to listOf("private val markWalked: suspend (String, List<String>) -> Unit,", "markWalked(mailboxId, ids)"),
+                "Declared.kt" to listOf("private fun markWalked(ids: List<String>) = dao.markWalked(ids)"),
+            ),
+        )
+
+        assertEquals(
+            mapOf(
+                "Dotted.kt" to listOf("emailDao.markWalked(accountId, mailboxId, ids)"),
+                "Lambda.kt" to listOf("markWalked(mailboxId, ids)"),
+                "Declared.kt" to listOf("private fun markWalked(ids: List<String>) = dao.markWalked(ids)"),
+            ),
+            seen,
+        )
     }
 }

@@ -184,11 +184,15 @@ class PreviewFetchWiringTest {
                 "the opening line read for THE ROW BEING BUILT, under that row's own cache id — a " +
                 "lookup under any other id shows one correspondent's words under another " +
                 "correspondent's name. The row then copies what it was handed: a literal there is " +
-                "a rule written twice, and `preview = null,` is issue #187 itself",
+                "a rule written twice, and `preview = null,` is issue #187 itself. The one null " +
+                "written here is the unread catch-up's (#251): its rows reach the cache through " +
+                "an insert that ignores conflicts, so it fills a row the cache does not hold and " +
+                "never blanks the opening line of one it does (executed in ImapUnreadBackfillTest)",
             listOf(
                 "val preview = previews[emailId(credentials.id, target.path, it.uid)]",
                 "val preview = previews[emailId(credentials.id, mailboxId, it.uid)]",
                 "val preview = previews[emailId(credentials.id, mailboxId, it.uid)]",
+                "onPage(page.map { it.toEntity(credentials.id, mailboxId, status.uidValidity, preview = null) })",
                 "preview = preview,",
             ),
             codeLinesNaming(source, "preview ="),

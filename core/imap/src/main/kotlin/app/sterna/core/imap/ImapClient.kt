@@ -692,9 +692,9 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
         )
     }
 
-    /** One request per [nextRequest] until it answers null, movement judged against [startedWith]. */
+    /** One request per [nextRequest] until it answers null, movement judged against [startedWith] unless null. */
     internal suspend fun walkRequests(
-        startedWith: Int,
+        startedWith: Int?,
         onPage: suspend (List<ImapMessage>) -> Unit,
         solicited: (List<Any?>) -> Boolean = { true },
         nextRequest: () -> String?,
@@ -704,15 +704,16 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
         val seen = LinkedHashSet<Long>()
         var moved = false
         var first = true
+        val movedIn: (List<List<Any?>>) -> Boolean = { startedWith != null && folderMoved(it, startedWith) }
         while (true) {
             val request = nextRequest() ?: break
             // Every request but the first: give the server its chance to say the folder moved,
             // before the numbering of the range below is used. The NOOP goes out whatever the
             // verdict so far, hence `folderMoved(...) || moved` and not the other way round.
-            if (!first) moved = folderMoved(command("NOOP").untagged, startedWith) || moved
+            if (!first && startedWith != null) moved = movedIn(command("NOOP").untagged) || moved
             val result = command(request)
             // A one-page walk sends no NOOP: this line is then the only thing that can notice a move.
-            moved = folderMoved(result.untagged, startedWith) || moved
+            moved = movedIn(result.untagged) || moved
             // Through messages(), the one place a `\Deleted` message is dropped (Codeberg #99).
             val answer = ImapResult(result.status, result.untagged.filter(solicited), result.tagged)
             val fresh = answer.messages().sortedByDescending { it.uid }.filter { seen.add(it.uid) }

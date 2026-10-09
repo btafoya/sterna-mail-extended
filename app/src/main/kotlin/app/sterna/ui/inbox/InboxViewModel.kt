@@ -203,8 +203,8 @@ private const val UNDO_BANNER_DISMISS_MS = 6_000L
 /**
  * How many recent messages the "unread" view's pull-to-refresh looks at per folder
  * ([InboxViewModel.refreshUnreadScope]). Not the account's sync window, and the difference is the
- * heap: the IMAP pass holds every folder's envelopes until its loop ends. The cost, IMAP only: in a
- * folder never opened, only its 50 newest are looked at. JMAP: `backfillUnread`, a capped walk.
+ * heap: the IMAP pass holds every folder's envelopes until its loop ends. Not the view's bound, on
+ * either protocol: `backfillUnread`, capped as well, lists the unread mail these 50 leave out.
  */
 internal const val UNREAD_SCOPE_FOLDER_LIMIT = 50
 

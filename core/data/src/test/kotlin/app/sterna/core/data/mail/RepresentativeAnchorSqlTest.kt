@@ -182,8 +182,8 @@ class RepresentativeAnchorSqlTest {
 
         assertEquals(
             listOf(
-                "val offset = emailDao.countForMailbox(credentials.id, mailboxId)",
-                "Triple(entities.size, exists, emailDao.countForMailbox(credentials.id, mailboxId))",
+                "val offset = emailDao.walkedCountForMailbox(credentials.id, mailboxId)",
+                "Triple(entities.size, exists, emailDao.walkedCountForMailbox(credentials.id, mailboxId))",
             ),
             cacheReads(mediator.subList(0, jmapFrom)),
         )
