@@ -1,5 +1,7 @@
 name: Feature request
 about: Suggest a change or an addition
+labels:
+  - feature
 body:
   - type: markdown
     attributes:
