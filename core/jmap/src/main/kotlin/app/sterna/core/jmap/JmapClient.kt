@@ -1174,20 +1174,22 @@ class JmapClient internal constructor(
         }
     }
 
-    /** Move an email so it belongs to exactly [targetMailboxId]. Returns the new state.
-     *  Throws when the server rejects the update (per-id `notUpdated`). */
+    /** Move an email so it belongs to exactly [targetMailboxId]. Returns the new state. [markSeen]
+     *  rides the same update object, so a refused move leaves the message unread (RFC 8620 §5.3). */
     suspend fun move(
         session: JmapSession,
         accountId: String,
         emailId: String,
         targetMailboxId: String,
         auth: JmapAuth,
+        markSeen: Boolean = false,
     ): String? {
         val args = emailSet(session, auth) {
             put("accountId", accountId)
             putJsonObject("update") {
                 putJsonObject(emailId) {
                     putJsonObject("mailboxIds") { put(targetMailboxId, true) }
+                    if (markSeen) put("keywords/\$seen", true)
                 }
             }
         }

@@ -3,6 +3,7 @@ package app.sterna.core.data.mail
 import android.os.SystemClock
 import app.sterna.core.data.db.EmailRetentionRow
 import app.sterna.core.data.getOrElseUnlessCancelled
+import app.sterna.core.jmap.model.Email
 import java.util.concurrent.ConcurrentHashMap
 
 /** An id in both `removed` and `added` only changed position. [isProtected]'s spare can swallow a
@@ -66,14 +67,20 @@ internal fun sparedEvictions(
 internal fun ghostEvictions(cachedIds: List<String>, notFound: Set<String>?): List<String> =
     if (notFound.isNullOrEmpty()) emptyList() else cachedIds.filter { it in notFound }
 
-/** `added` ids the cache has never held, plus cached rows reported `updated`. Every id here lands in
- *  the cache by the end of the sync, so it is also the delta branch's `freshIds` for
- *  [retentionEvictions] (#110). */
+/** `added` ids the cache has never held, plus cached rows reported `updated`. What the delta
+ *  asks for, not what it writes, [stillFiledIn] dropping some; still the delta branch's `freshIds`
+ *  for [retentionEvictions] (#110). */
 internal fun deltaFetches(
     added: Set<String>,
     cachedIds: Set<String>,
     updated: List<String>,
 ): List<String> = ((added - cachedIds) + updated.filter { it in cachedIds }).distinct()
+
+internal fun stillFiledIn(mailboxId: String, fetched: List<Email>): List<Email> =
+    fetched.filter { email ->
+        val serverDidNotSay = email.mailboxIds.isEmpty()
+        serverDidNotSay || email.mailboxIds[mailboxId] == true
+    }
 
 /** Which cached ids the retention window evicts after a refresh; the server still has every one. A
  *  row goes only when dated (`sortKey > 0`), older than [cutoffMillis], outside [freshIds] (what the

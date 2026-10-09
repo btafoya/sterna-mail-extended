@@ -117,25 +117,22 @@ class QuickReplyWiringTest {
         assertEquals(
             "what happens next is DECIDED (BannerDeleteActTest executes it), with the two reads " +
                 "as arguments — a literal there is a rule that answers the same thing forever",
-            listOf("when (bannerDeleteAct(role, hasTrash)) {"),
+            listOf("act = bannerDeleteAct(role, hasTrash),"),
             codeLinesNaming(body, "bannerDeleteAct("),
         )
         assertEquals(
-            "each arm carries its action ON ITS OWN LINE, so swapping two arms cannot pass as " +
-                "the same set of lines. `DoNothing` must reach neither the repository nor the " +
-                "dismissal: doing nothing INCLUDES leaving the banner standing",
-            listOf(
-                "BannerDeleteAct.DoNothing -> return false",
-                "BannerDeleteAct.MoveToTrash -> repo.delete(credentials, emailId)",
-            ),
-            codeLinesNaming(body, "BannerDeleteAct."),
+            "and the ONE end of it: what this function returns is the banner's fate, and it is " +
+                "whatever the flight-holding delete answers (BannerDeleteHoldsItsRowTest executes " +
+                "it, `DoNothing` included). A second exit beside it is a banner that falls on a " +
+                "delete that moved nothing, or never comes down on one that worked",
+            listOf("return deleteHoldingItsRow("),
+            codeLinesNaming(body, "return"),
         )
         assertEquals(
-            "and BOTH ends of it, whole: what this function returns is the banner's fate, and a " +
-                "`return true` turned into `return false` — or a second exit added beside them — " +
-                "is a banner that never comes down again on a delete that worked",
-            listOf("BannerDeleteAct.DoNothing -> return false", "return true"),
-            codeLinesNaming(body, "return"),
+            "no arm of the decision is carried out here: an arm written in this " +
+                "function is a delete that goes out with no flight open",
+            emptyList<String>(),
+            codeLinesNaming(body, "BannerDeleteAct."),
         )
     }
 

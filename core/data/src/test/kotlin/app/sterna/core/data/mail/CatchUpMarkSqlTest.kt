@@ -304,7 +304,7 @@ class CatchUpMarkSqlTest {
         )
         named.take(3).forEach { (at, call) -> assertEquals("the write $call follows", pageWrites.getValue(call), repository[at - 1]) }
 
-        val delta = repository.indexOf("emailDao.upsertAll(sparingInFlight(fetched.map { it.toEntity(localAccountId, mailboxId) }))")
+        val delta = repository.indexOf("emailDao.upsertAll(sparingInFlight(filed.map { it.toEntity(localAccountId, mailboxId) }))")
         assertTrue("the delta's write is no longer the line this test reads", delta > 0)
         assertEquals("the delta's write closes its block: nothing clears a mark after it", "}", repository[delta + 1])
 

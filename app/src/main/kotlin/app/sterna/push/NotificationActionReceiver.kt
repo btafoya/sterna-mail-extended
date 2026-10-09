@@ -3,6 +3,7 @@ package app.sterna.push
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import app.sterna.SternaApplication
@@ -55,8 +56,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     }
                     if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)
                 }
-            } catch (_: Throwable) {
-                // Best-effort; leave the notification so the user can retry from the app.
+            } catch (e: Throwable) {
+                // The banner stays for a retry.
+                Log.w(TAG, "Notification action $action failed: ${notificationActionFailureLabel(e)}")
             } finally {
                 pending.finish()
             }
@@ -75,11 +77,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val cached = runCatching { repo.cachedEmail(accountId, emailId) }.getOrNull()
         val role = runCatching { repo.mailboxRole(accountId, cached?.mailboxId) }.getOrNull()
         val hasTrash = runCatching { repo.hasCachedTrash(accountId) }.getOrDefault(true)
-        when (bannerDeleteAct(role, hasTrash)) {
-            BannerDeleteAct.DoNothing -> return false
-            BannerDeleteAct.MoveToTrash -> repo.delete(credentials, emailId)
-        }
-        return true
+        return deleteHoldingItsRow(
+            act = bannerDeleteAct(role, hasTrash),
+            begin = { repo.beginRemoval(accountId, emailId) },
+            delete = { repo.delete(credentials, emailId) },
+            end = { flight, restore -> repo.endRemoval(flight, restore) },
+        )
     }
 
     /** The Reply path, whose only asset is the text the user just typed. Cache first, exactly like
@@ -189,6 +192,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        private const val TAG = "NotificationAction"
         const val ACTION_MARK_READ = "app.sterna.action.MARK_READ"
         const val ACTION_DELETE = "app.sterna.action.DELETE"
         const val ACTION_REPLY = "app.sterna.action.REPLY"

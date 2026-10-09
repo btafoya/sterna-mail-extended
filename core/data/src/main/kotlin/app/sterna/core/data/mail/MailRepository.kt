@@ -1255,10 +1255,14 @@ class MailRepository(
                 }
                 val cachedIds = emailDao.idsForMailbox(localAccountId, mailboxId).toSet()
                 val toFetch = deltaFetches(added, cachedIds, changes.updated)
+                var elsewhere = 0
                 if (toFetch.isNotEmpty()) {
-                    val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)
+                    val fetched = client.getEmailsWithMailboxIds(session, accountId, toFetch, auth)
                     checkAccountStillConfigured(localAccountId, accountStore.accounts().map { it.id })
-                    emailDao.upsertAll(sparingInFlight(fetched.map { it.toEntity(localAccountId, mailboxId) }))
+                    // A move landing between the two change requests above is `updated` and not `removed` (#252).
+                    val filed = stillFiledIn(mailboxId, fetched)
+                    elsewhere = fetched.size - filed.size
+                    emailDao.upsertAll(sparingInFlight(filed.map { it.toEntity(localAccountId, mailboxId) }))
                 }
                 putSyncState(key, SyncState(queryChanges.newQueryState!!, changes.newState!!))
                 // Ghost sweep: a destroy can reach us through neither delta (Stalwart omits a
@@ -1271,7 +1275,7 @@ class MailRepository(
                 logInfo(
                     "MailSync",
                     "incremental $localAccountId/$mailboxId: +${toFetch.size} -${toDelete.size} " +
-                        "moved=${toRemove.size - toDelete.size} spared=${spared.size} sweep=${claim.reason}",
+                        "moved=${toRemove.size - toDelete.size} spared=${spared.size} sweep=${claim.reason} elsewhere=$elsewhere",
                     null,
                 )
                 val swept = if (claim.sweep) {
@@ -1283,8 +1287,8 @@ class MailRepository(
                 } else {
                     emptyList()
                 }
-                // The rows this delta wrote are mostly ids the cache never held, so the prune must
-                // spare them like a full query's page (#110). Beside them, `toRemove`, not
+                // What this delta asked for, written or not, is mostly ids the cache never held, so the
+                // prune must spare it like a full query's page (#110). Beside it, `toRemove`, not
                 // `queryChanges.removed` (a reorder) and not `toDelete` (folder-bounded), #134.
                 return MailboxSync(fetchedIds = toFetch, departedIds = toRemove + swept)
             }
@@ -3838,13 +3842,17 @@ class MailRepository(
     ): String? {
         // Same rule as every other mover (#99): an individual gesture leaves the destroy list.
         unlistFromTrashPurge(credentials.id, listOf(emailId))
-        // Opt-in: flag the message read on its way out, best-effort before the move (the id changes).
-        if (settings?.markReadOnDelete?.first() == true && movingSeen(credentials.id, emailId) == false) {
+        val markRead = settings?.markReadOnDelete?.first() == true && movingSeen(credentials.id, emailId) == false
+        // IMAP flags first, best-effort: its move takes the UID away. JMAP flags in the move itself,
+        // or a move that fails after the flag leaves the message read in the folder it never left.
+        val seenByMove = markRead && credentials.protocol != MailProtocol.IMAP
+        if (markRead && !seenByMove) {
             runCatching { setRead(credentials, emailId, true) }
                 .onSuccess { flightMarkedSeen(credentials.id, emailId) }
         }
+        if (seenByMove) markRecentlyMutated(credentials.id, emailId)
         val moving = movingRow(credentials.id, emailId)
-        val row = moving.entity
+        val row = if (seenByMove) moving.entity?.copy(seen = true) else moving.entity
         if (credentials.protocol == MailProtocol.IMAP) {
             val trash = imapRoleFolder(credentials, "trash")
                 ?: lastResortImapFolder("trash", "Trash", credentials.specialFolders)?.also { imap.createFolder(credentials, it) }
@@ -3873,14 +3881,18 @@ class MailRepository(
         val mb = row?.mailboxId ?: emailDao.mailboxOf(credentials.id, emailId)
         val trash = trashMailboxId(ctx) ?: createTrashFolder(ctx)
         val newState = try {
-            client.move(ctx.session, ctx.accountId, emailId, trash, ctx.auth)
+            client.move(ctx.session, ctx.accountId, emailId, trash, ctx.auth, markSeen = seenByMove)
         } catch (e: JmapException) {
             if (e.errorType != SET_ERROR_NOT_FOUND) throw e
             pruneServerGone(credentials.id, listOf(emailId))
             return null
         }
+        // Before anything below can throw: a put-back must return the row as the server holds it.
+        if (seenByMove) flightMarkedSeen(credentials.id, emailId)
         recentLocalMoves.mark(credentials.id, emailId)
         emailDao.deleteById(credentials.id, emailId)
+        // A flight took the source's unread at the finger; a cached row still owes it.
+        if (seenByMove && !moving.evicted) adjustFolderUnreadOnRead(credentials.id, mb, wasSeen = false, seen = true)
         adjustCountsForRemoval(listOfNotNull(row), trash, sourceAlreadyLeft = moving.evicted)
         advanceEmailState(newState, credentials.id, mb)
         return trash

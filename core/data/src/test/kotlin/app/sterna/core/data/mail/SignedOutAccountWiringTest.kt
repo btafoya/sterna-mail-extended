@@ -110,11 +110,13 @@ class SignedOutAccountWiringTest {
         assertEquals(
             "the delta's own page write is no longer preceded by the guard.",
             listOf(
-                "val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)",
+                "val fetched = client.getEmailsWithMailboxIds(session, accountId, toFetch, auth)",
                 "$guard(localAccountId, accountStore.accounts().map { it.id })",
-                "emailDao.upsertAll(sparingInFlight(fetched.map { it.toEntity(localAccountId, mailboxId) }))",
+                "val filed = stillFiledIn(mailboxId, fetched)",
+                "elsewhere = fetched.size - filed.size",
+                "emailDao.upsertAll(sparingInFlight(filed.map { it.toEntity(localAccountId, mailboxId) }))",
             ),
-            block("syncMailbox", "val fetched = client.getEmailsByIds(session, accountId, toFetch, auth)", 3),
+            block("syncMailbox", "val fetched = client.getEmailsWithMailboxIds(session, accountId, toFetch, auth)", 5),
         )
     }
 

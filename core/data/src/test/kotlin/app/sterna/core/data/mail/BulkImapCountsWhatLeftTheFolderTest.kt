@@ -101,6 +101,10 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 (args[0] as List<EmailEntity>).forEach { cached["${it.accountId}/${it.id}"] = it }
                 Unit
             }
+            "deleteById" -> {
+                cached.remove("${args[0] as String}/${args[1] as String}")
+                Unit
+            }
             // The three a \Seen store reads and writes. A row a ticket holds is not in the cache,
             // so `seenOf` answers null and the folder's unread is left alone by that write.
             "seenOf" -> cached["${args[0] as String}/${args[1] as String}"]?.seen
@@ -579,6 +583,32 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 server.issued("UID STORE"),
             )
             assertEquals(listOf("UID MOVE 7:8 \"Archive\""), server.issued("UID MOVE"))
+        }
+    }
+
+    @Test fun `mark-read-on-delete of one message stores the flag before the move takes its uid`() {
+        val forward = scripted()
+        val oneMoved = { tag: String, line: String ->
+            if (line.startsWith("UID MOVE")) "$tag OK [COPYUID $NUMBERING 7 100] done\r\n" else forward(tag, line)
+        }
+        ScriptedImapServer(oneMoved).use { server ->
+            val id = cache(INBOX).first()
+            val repository = repository(settingsWith("markReadOnDelete"))
+
+            runBlocking { repository.delete(credentials(server), id, FrozenNumbering.Frozen(NUMBERING)) }
+
+            assertEquals(
+                "IMAP has no write that flags and moves at once, and the move changes the uid: " +
+                    "the store goes first, on the uid the message still has",
+                listOf("UID STORE 7", "UID MOVE 7"),
+                server.issued("UID ").filter { it.startsWith("UID STORE") || it.startsWith("UID MOVE") }
+                    .map { it.split(' ').take(3).joinToString(" ") },
+            )
+            assertEquals(
+                "the inbox loses the message and its unread once, and the Trash gains a read one",
+                listOf(Triple(INBOX, 0, -1), Triple(INBOX, -1, 0), Triple(TRASH, 1, 0)),
+                folderCounts.toList(),
+            )
         }
     }
 

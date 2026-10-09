@@ -18,24 +18,31 @@ import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.db.RecentContactDao
 import app.sterna.core.data.db.ScheduledSendDao
 import app.sterna.core.data.db.SnoozedDao
+import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.jmap.JmapClient
 import app.sterna.core.jmap.OAuthClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -117,6 +124,15 @@ class SwipeSurvivesProcessDeathTest {
     /** The Archive on the server, newest first. */
     private val serverArchive = mutableListOf<String>()
 
+    /** The server lists a Trash folder, by its role. */
+    private var serverHasTrash = false
+
+    /** The `update` argument of every `Email/set` received, in order. */
+    private val emailSets = mutableListOf<JsonObject>()
+
+    /** An `Email/set` that changes a message's folders is answered `notUpdated` for each of its ids. */
+    private var refuseMoves = false
+
     /** The full query lists the inbox's ids and its chained `Email/get` returns none of them. */
     private var muteGet = false
 
@@ -168,6 +184,7 @@ class SwipeSurvivesProcessDeathTest {
                         """{"methodResponses":[["Mailbox/get",{"accountId":"acc1","state":"m1","list":[""" +
                             """{"id":"inbox","name":"Inbox","totalEmails":${serverInbox.size},"unreadEmails":${serverInbox.size}},""" +
                             """{"id":"archive","name":"Archive","totalEmails":${serverArchive.size},"unreadEmails":${serverArchive.size}}""" +
+                            (if (serverHasTrash) """,{"id":"trash","name":"Trash","role":"trash","totalEmails":0,"unreadEmails":0}""" else "") +
                             """],"notFound":[]},"c0"]]}""",
                     )
                     "Email/queryChanges" -> json(
@@ -200,7 +217,15 @@ class SwipeSurvivesProcessDeathTest {
                         )
                     }
                     "Email/set" -> {
-                        val updated = call[1].jsonObject["update"]!!.jsonObject.keys
+                        val update = call[1].jsonObject["update"]!!.jsonObject
+                        emailSets += update
+                        val updated = update.keys
+                        if (refuseMoves && update.values.any { "mailboxIds" in it.jsonObject }) {
+                            return json(
+                                """{"methodResponses":[["Email/set",{"accountId":"acc1","oldState":"e1","newState":"e1",""" +
+                                    """"notUpdated":{${updated.joinToString(",") { "\"$it\":{\"type\":\"forbidden\"}" }}}},"s0"]]}""",
+                            )
+                        }
                         json(
                             """{"methodResponses":[["Email/set",{"accountId":"acc1","oldState":"e1","newState":"e3",""" +
                                 """"updated":{${updated.joinToString(",") { "\"$it\":null" }}}},"s0"]]}""",
@@ -292,6 +317,12 @@ class SwipeSurvivesProcessDeathTest {
                 cached[key]?.let { cached[key] = it.copy(seen = args[2] as Boolean) }
                 Unit
             }
+            "seenOf" -> cached["${args[0]}/${args[1]}"]?.seen
+            "mailboxOf" -> cached["${args[0]}/${args[1]}"]?.mailboxId
+            "deleteById" -> {
+                cached.remove("${args[0]}/${args[1]}")
+                Unit
+            }
             "deleteByIds" -> {
                 val accountId = args[0] as String
                 (args[1] as List<String>).forEach { cached.remove("$accountId/$it") }
@@ -350,8 +381,29 @@ class SwipeSurvivesProcessDeathTest {
         override fun account(id: String): StoredAccount? = accounts().firstOrNull { it.id == id }
     }
 
+    /** Answers the one write every mover starts with, withdrawing its message from a pending purge. */
+    private fun purgeSnapshotDao(): PurgeSnapshotDao = Proxy.newProxyInstance(
+        PurgeSnapshotDao::class.java.classLoader,
+        arrayOf(PurgeSnapshotDao::class.java),
+    ) { _, method, _ ->
+        if (method.name != "unlistEmails") error("PurgeSnapshotDao.${method.name} was not expected here.")
+        Unit
+    } as PurgeSnapshotDao
+
+    /** A [SettingsRepository] with mark-read-on-delete on. Its constructor wants a Context, so it
+     *  is allocated without one and the flow `delete` reads is planted in its field. */
+    private fun markingReadOnDelete(): SettingsRepository {
+        val unsafe = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe").apply { isAccessible = true }.get(null)
+        val settings = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
+            .invoke(unsafe, SettingsRepository::class.java) as SettingsRepository
+        SettingsRepository::class.java.getDeclaredField("markReadOnDelete")
+            .apply { isAccessible = true }
+            .set(settings, flowOf(true))
+        return settings
+    }
+
     /** A process life: everything it holds in memory dies with it, the four stores above do not. */
-    private fun repository(): MailRepository = MailRepository(
+    private fun repository(settings: SettingsRepository? = null): MailRepository = MailRepository(
         client = JmapClient(),
         emailDao = emailDao(),
         emailFtsDao = unusableDao<EmailFtsDao>(),
@@ -363,12 +415,13 @@ class SwipeSurvivesProcessDeathTest {
         recentContactDao = unusableDao<RecentContactDao>(),
         accountStore = accountStore,
         outboxDao = unusableDao<OutboxDao>(),
-        purgeSnapshotDao = unusableDao<PurgeSnapshotDao>(),
+        purgeSnapshotDao = purgeSnapshotDao(),
         localDraftDao = unusableDao<LocalDraftDao>(),
         serverContactDao = unusableDao<app.sterna.core.data.db.ServerContactDao>(),
         mailboxUidValidityDao = unusableDao<MailboxUidValidityDao>(),
         outboxFilesDir = File("outbox-never-read"),
         localDraftFilesDir = File("drafts-never-read"),
+        settings = settings,
         syncStateStore = cursors,
         flightMarkerStore = markers,
     )
@@ -916,5 +969,101 @@ class SwipeSurvivesProcessDeathTest {
             "Subject m1",
             cached["acc/m1"]?.subject,
         )
+    }
+
+    // ---- mark-read-on-delete, carried by the move itself (#252) -----------------------------
+
+    /** [syncedInbox], on a server with a Trash, whose folder row starts empty. */
+    private fun unreadInboxAndTrash() {
+        syncedInbox()
+        serverHasTrash = true
+        folderCounts["acc/trash"] = 0 to 0
+    }
+
+    private val m1TrashedAndSeen = buildJsonObject {
+        putJsonObject("m1") {
+            putJsonObject("mailboxIds") { put("trash", true) }
+            put("keywords/\$seen", true)
+        }
+    }
+
+    @Test fun `a delete the server refuses has sent one write and leaves the message unread`() {
+        unreadInboxAndTrash()
+        refuseMoves = true
+        val repository = repository(markingReadOnDelete())
+
+        val refused = runBlocking { runCatching { repository.delete(credentials(), "m1") } }
+
+        assertTrue("the refusal reaches the caller, which keeps its banner on it", refused.isFailure)
+        assertEquals(
+            "the flag travels in the move's own update. Sent ahead in a write of its own it lands " +
+                "whatever becomes of the move, and the message stays in its folder, read",
+            listOf(m1TrashedAndSeen),
+            emailSets,
+        )
+        assertEquals(false, cached["acc/m1"]?.seen)
+        assertEquals(2 to 2, folderCounts["acc/inbox"])
+        assertEquals(0 to 0, folderCounts["acc/trash"])
+    }
+
+    @Test fun `a delete from the cache takes the message and its unread off the inbox once`() {
+        unreadInboxAndTrash()
+        val repository = repository(markingReadOnDelete())
+
+        runBlocking { repository.delete(credentials(), "m1") }
+
+        assertEquals(listOf(m1TrashedAndSeen), emailSets)
+        assertEquals(listOf("m0"), inboxIds())
+        assertEquals(1 to 1, folderCounts["acc/inbox"])
+        assertEquals("the Trash gains a message the server holds read", 1 to 0, folderCounts["acc/trash"])
+    }
+
+    @Test fun `a delete of a message already read sends the move alone and takes no unread off the inbox`() {
+        unreadInboxAndTrash()
+        cache(row("m1").copy(seen = true))
+        folderCounts["acc/inbox"] = 2 to 1
+        val repository = repository(markingReadOnDelete())
+
+        runBlocking { repository.delete(credentials(), "m1") }
+
+        assertEquals(
+            listOf(buildJsonObject { putJsonObject("m1") { putJsonObject("mailboxIds") { put("trash", true) } } }),
+            emailSets,
+        )
+        assertEquals("m0 is still unread there", 1 to 1, folderCounts["acc/inbox"])
+        assertEquals(1 to 0, folderCounts["acc/trash"])
+    }
+
+    @Test fun `a delete of a row in flight leaves the inbox as the flight left it`() {
+        unreadInboxAndTrash()
+        val repository = repository(markingReadOnDelete())
+        val flight = runBlocking { repository.beginRemoval("acc", "m1") }!!
+        assertEquals(1 to 1, folderCounts["acc/inbox"])
+
+        runBlocking {
+            repository.delete(credentials(), "m1")
+            repository.endRemoval(flight, restore = false)
+        }
+
+        assertEquals(listOf(m1TrashedAndSeen), emailSets)
+        assertEquals("the flight decounted the inbox, unread included", 1 to 1, folderCounts["acc/inbox"])
+        assertEquals(1 to 0, folderCounts["acc/trash"])
+    }
+
+    @Test fun `a refused delete of a row in flight is put back unread`() {
+        unreadInboxAndTrash()
+        refuseMoves = true
+        val repository = repository(markingReadOnDelete())
+        val flight = runBlocking { repository.beginRemoval("acc", "m1") }!!
+
+        runBlocking {
+            assertTrue(runCatching { repository.delete(credentials(), "m1") }.isFailure)
+            repository.endRemoval(flight, restore = true)
+        }
+
+        assertEquals(listOf(m1TrashedAndSeen), emailSets)
+        assertFalse("the server never marked it read, so the row put back is unread", cached["acc/m1"]!!.seen)
+        assertEquals(2 to 2, folderCounts["acc/inbox"])
+        assertEquals(0 to 0, folderCounts["acc/trash"])
     }
 }
