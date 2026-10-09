@@ -10,8 +10,8 @@ works is in [ARCHITECTURE.md](ARCHITECTURE.md).
 - 💡 **Proposed**, not scheduled.
 - ⭐ **JMAP-native**, RFC 8620/8621 gives it almost for free.
 
-Status is read against `main`, not against the latest release (1.5.7), so a ✅ can
-be ahead of the version you have installed.
+Status is read against `main`, not against the latest release, so a ✅ can be ahead
+of the version you have installed.
 
 ---
 
@@ -22,7 +22,6 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ⏸️ Gmail / Google OAuth2. The XOAUTH2 plumbing is done, but Google requires a
   paid, yearly security audit before an app can use the Gmail scopes, which is
   out of reach for this project. Gmail works with an app-specific password.
-- 💡 Fuller TalkBack audit and touch-target review.
 
 ---
 

@@ -21,7 +21,7 @@ Test only against servers and accounts you own; a local Stalwart instance is the
 - **TLS is verified on every connection**, certificate chain and hostname, for JMAP, IMAP, SMTP and ManageSieve. Credentials are sent only once the handshake is done. There is no "trust this certificate anyway" prompt.
 - **Cleartext is never a default.** Sign-in offers only TLS or STARTTLS. The account editor allows an unencrypted connection, for a local bridge such as Proton Bridge on 127.0.0.1, and shows a warning when you pick it. JMAP and OAuth run over HTTPS only, and a redirect that changes scheme is not followed.
 - **ManageSieve** (filters and auto-reply on IMAP accounts) requires STARTTLS. If the server does not offer it, or offers no password login once encrypted, the password is not sent.
-- **OAuth token requests follow no redirect**, and the token endpoint a server advertises is accepted only over HTTPS, on the host that was asked, on your address's domain (or a subdomain of either), or on the OpenID Connect issuer you typed yourself in the advanced fields.
+- **OAuth token requests follow no redirect**, and the token endpoint a server advertises is accepted only over HTTPS, on the host that was asked, on your address's domain, or on the OpenID Connect issuer you typed yourself in the advanced fields (or a subdomain of any of them).
 - **Autoconfiguration** follows redirects only within your address's domain.
 
 Two choices deserve to be stated plainly:
