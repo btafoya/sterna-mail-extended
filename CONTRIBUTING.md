@@ -1,6 +1,10 @@
 # Contributing to Sterna
 
-Sterna is written and maintained by one developer and still changes often, so expect the code around your patch to move. Bug fix pull requests are welcome. For a new feature, open an issue first, so I can say yes or no before you write code.
+Sterna is written and maintained by one developer. It has the features I planned for it, and I now want to keep it simple to use. So I mostly fix bugs and follow changes in Android and in the mail protocols, and I add little.
+
+Bug fix pull requests are welcome. For any other change, please open an issue first, so that nobody writes code I would not merge.
+
+I accept a request when it helps many users and adds little complexity. A request that mostly serves one setup is a better fit for a fork, which the GPLv3 license allows.
 
 ## Build
 

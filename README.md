@@ -193,12 +193,13 @@ per-app in Settings → Appearance.
 ## 👩‍💻 For developers
 
 Architecture and build instructions live in [ARCHITECTURE.md](ARCHITECTURE.md)
-and [CONTRIBUTING.md](CONTRIBUTING.md). The planned and shipped feature set is
-tracked in [FEATURES.md](FEATURES.md). Bug reports and ideas are very welcome. 🙌
+and [CONTRIBUTING.md](CONTRIBUTING.md). What is shipped is tracked in
+[FEATURES.md](FEATURES.md).
 
-Sterna Mail is written and maintained by one developer. Bug fix pull requests
-are welcome. For a new feature, open an issue first, so I can say yes or no
-before you write code. Every change is tested on my own devices before it
+Sterna Mail is written and maintained by one developer. It has the features I
+planned for it, and I now add little, to keep it simple to use. Bug reports and
+bug fix pull requests are welcome. For any other change, please open an issue
+first. Every change is tested on my own devices before it
 ships, but regressions still happen: please report them in the issue tracker
 if you hit one. Release builds are reproducible and checked by F-Droid against
 the published source. AI coding assistants are part of the toolchain. They do
