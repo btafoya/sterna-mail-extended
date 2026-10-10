@@ -1232,6 +1232,29 @@ class ComposeTextTest {
         assertEquals("Just a line", cutAtSignatureDelimiter("Just a line"))
     }
 
+    @Test fun aDelimiterOnTheFirstLineIsBodyNotASignature() {
+        val original = "--\nvrai contenu\nsuite"
+        assertEquals(original, cutAtSignatureDelimiter(original))
+    }
+
+    @Test fun aDelimiterPrecededOnlyByBlankLinesIsBodyToo() {
+        val original = "\n-- \nAlice"
+        assertEquals(original, cutAtSignatureDelimiter(original))
+    }
+
+    @Test fun aDelimiterAfterContentStillCuts() {
+        assertEquals("Body", cutAtSignatureDelimiter("Body\n-- \nSig"))
+    }
+
+    @Test fun anOriginalOpeningOnTheDelimiterIsQuotedWhole() {
+        val mail = Email(
+            id = "q2",
+            textBody = listOf(EmailBodyPart(partId = "1", type = "text/plain")),
+            bodyValues = mapOf("1" to EmailBodyValue("-- \nvrai contenu\nsuite")),
+        )
+        assertEquals("-- \nvrai contenu\nsuite", quotedOriginalText(mail))
+    }
+
     @Test fun quotingCutsTheSignatureButReopeningADraftDoesNot() {
         val mail = Email(
             id = "q1",

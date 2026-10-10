@@ -234,11 +234,15 @@ internal val BLOCKQUOTE_TAG = Regex("(?i)<blockquote\\b[^>]*>|</blockquote\\s*>"
  */
 internal fun deepenQuote(line: String): String = if (line.startsWith(">")) ">$line" else "> $line"
 
-/** [text] up to (excluding) the first line that is exactly "-- " or "--", trailing blanks trimmed. */
+/** [text] up to (excluding) the first line that is exactly "-- " or "--" and follows a non-blank one. */
 internal fun cutAtSignatureDelimiter(text: String): String {
     val lines = text.split("\n")
-    val at = lines.indexOfFirst { it == SIGNATURE_DELIMITER || it == "--" || it == "-- \r" || it == "--\r" }
-    if (at < 0) return text
+    val firstContent = lines.indexOfFirst { it.isNotBlank() }
+    if (firstContent < 0) return text
+    val at = (firstContent + 1 until lines.size).firstOrNull {
+        val line = lines[it]
+        line == SIGNATURE_DELIMITER || line == "--" || line == "-- \r" || line == "--\r"
+    } ?: return text
     return lines.take(at).joinToString("\n").trimEnd()
 }
 
