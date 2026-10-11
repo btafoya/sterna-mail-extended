@@ -1,0 +1,9 @@
+IMAP : la vue Non lus d'un compte montre aussi les anciens non-lus. Sur un serveur CONDSTORE, rafraîchir un dossier déjà lu ne relit que les nouveaux messages et les marques changées.
+
+Un message supprimé depuis sa notification ne revient plus dans la liste.
+
+Répondre à un message OpenPGP qu'on vient de lire cite son texte déchiffré ; la réponse ne part que chiffrée.
+
+Les aperçus n'affichent plus d'entités HTML.
+
+Lecteurs d'écran : plus de boutons nommés, leur état est dit.

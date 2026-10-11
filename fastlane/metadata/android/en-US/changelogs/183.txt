@@ -1,0 +1,9 @@
+IMAP: an account's Unread view also lists older unread mail. On a CONDSTORE server, refreshing a folder already read once fetches only new messages and changed flags.
+
+A message deleted from its notification no longer comes back in the list.
+
+A reply to an OpenPGP message you have just read in Sterna quotes its decrypted text, and can only be sent encrypted.
+
+Previews no longer show HTML entities or filler characters.
+
+Screen readers: more controls have a spoken name and state.
