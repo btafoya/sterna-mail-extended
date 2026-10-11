@@ -1277,6 +1277,12 @@ class ComposerResumeSlotTest {
         Inline.STRIKE to listOf(Span(10, 14)),
     )
 
+    private fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot) =
+        saveComposerResume(state, slot, ComposerBodyMemory { false })
+
+    private fun restoreComposerResume(saved: String, slot: ComposerResumeSlot) =
+        restoreComposerResume(saved, slot, ComposerBodyMemory { false })
+
     private fun longBody(chars: Int): String {
         val line = "Le corps de ce message est long, et c'est tout le problème. "
         return buildString(chars + line.length) {

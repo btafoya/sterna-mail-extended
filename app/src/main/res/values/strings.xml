@@ -50,6 +50,7 @@
     <string name="compose_quote_attribution">On %1$s, %2$s wrote:</string>
     <string name="compose_quote_someone">someone</string>
     <string name="compose_quote_not_added">Quoted message not added: you had already started writing.</string>
+    <string name="compose_quote_not_added_encrypted">Quoted message not added: the original is encrypted.</string>
     <!-- "Date" label in the forwarded-message header (From/Subject/Date/To). -->
     <string name="compose_forward_date">Date</string>
     <string name="compose_could_not_send">Could not send: %1$s</string>
@@ -969,6 +970,7 @@
     <string name="compose_pgp_subject_note">The subject is not encrypted.</string>
     <string name="compose_pgp_not_encrypted_no_key">This message won\'t be encrypted: no public key for %1$s.</string>
     <string name="compose_pgp_no_draft">Encrypted messages can\'t be saved as drafts or scheduled.</string>
+    <string name="compose_decrypted_quote_needs_encryption">This reply quotes an encrypted message, so it can only be sent encrypted.</string>
     <string name="compose_pgp_no_schedule">Signed or encrypted messages can\'t be scheduled: sending later happens without OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Add a recipient first.</string>
     <string name="compose_schedule_invalid_address">One of the addresses isn\'t valid. Correct it first.</string>

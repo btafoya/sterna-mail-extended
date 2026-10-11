@@ -49,6 +49,7 @@
     <string name="compose_quote_attribution">A %1$s, %2$s escreveu:</string>
     <string name="compose_quote_someone">alguém</string>
     <string name="compose_quote_not_added">Mensagem citada não adicionada: já tinha começado a escrever.</string>
+    <string name="compose_quote_not_added_encrypted">Mensagem citada não adicionada: o original está criptografado.</string>
     <string name="compose_forward_date">Data</string>
     <string name="compose_could_not_send">Não foi possível enviar: %1$s</string>
     <string name="compose_could_not_save">Não foi possível salvar o rascunho: %1$s</string>
@@ -788,6 +789,7 @@
     <string name="compose_pgp_subject_note">O assunto não é criptografado.</string>
     <string name="compose_pgp_not_encrypted_no_key">Esta mensagem não será cifrada: sem chave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Mensagens criptografadas não podem ser salvas como rascunho nem agendadas.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Esta resposta cita uma mensagem criptografada, por isso só pode ser enviada criptografada.</string>
     <string name="compose_pgp_no_schedule">Mensagens assinadas ou criptografadas não podem ser agendadas: o envio posterior é feito sem OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Adicione primeiro um destinatário.</string>
     <string name="compose_schedule_invalid_address">Um dos endereços não é válido. Corrija-o primeiro.</string>

@@ -204,7 +204,7 @@ class ScheduleMenuWiringTest {
         assertTrue("ComposeViewModel.mayScheduleOrSay is missing", head >= 0)
         assertEquals(
             listOf(
-                "val refusal = scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true",
+                "val refusal = decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value) ?: scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true",
                 "_notices.tryEmit(refusal)",
                 "return false",
                 "}",

@@ -35,8 +35,12 @@ class PgpModeWiringTest {
         // untouched encrypt-by-default lock to OFF as soon as a recipient turns out to have no key.
         assertEquals(
             "the send no longer captures the mode once for the whole message.",
-            listOf("val mode = _pgpMode.value", "val pgpEntity = if (mode != PgpMode.OFF) {"),
-            block(VIEW_MODEL, "val mode = _pgpMode.value", 2),
+            listOf(
+                "val mode = _pgpMode.value",
+                "decryptedQuoteRefusal(decryptedQuote.held.value, mode)?.let { error(getApplication<Application>().getString(it)) }",
+                "val pgpEntity = if (mode != PgpMode.OFF) {",
+            ),
+            block(VIEW_MODEL, "val mode = _pgpMode.value", 3),
         )
         assertEquals(
             "buildPgpEntity stopped taking the mode as a parameter — it is reading _pgpMode.value " +
@@ -237,7 +241,7 @@ class PgpModeWiringTest {
                 "_pgpMode.value.encrypts",
                 "} else {",
                 "_pgpAvailable.value &&",
-                "(account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)",
+                "(encryptsByDefault(account) || _pgpMode.value.encrypts)",
                 "}",
             ),
             block(VIEW_MODEL, "val care = ", 6),

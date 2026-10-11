@@ -49,6 +49,7 @@
     <string name="compose_quote_attribution">%1$s, %2$s написал(а):</string>
     <string name="compose_quote_someone">кто-то</string>
     <string name="compose_quote_not_added">Цитата не добавлена: вы уже начали писать.</string>
+    <string name="compose_quote_not_added_encrypted">Цитата не добавлена: исходное письмо зашифровано.</string>
     <string name="compose_forward_date">Дата</string>
     <string name="compose_could_not_send">Не удалось отправить: %1$s</string>
     <string name="compose_could_not_save">Не удалось сохранить черновик: %1$s</string>
@@ -792,6 +793,7 @@
     <string name="compose_pgp_subject_note">Тема письма не шифруется.</string>
     <string name="compose_pgp_not_encrypted_no_key">Это письмо не будет зашифровано: нет открытого ключа для %1$s.</string>
     <string name="compose_pgp_no_draft">Зашифрованные письма нельзя сохранить как черновик или запланировать.</string>
+    <string name="compose_decrypted_quote_needs_encryption">В этом ответе цитируется зашифрованное письмо, поэтому его можно отправить только зашифрованным.</string>
     <string name="compose_pgp_no_schedule">Подписанные или зашифрованные письма нельзя запланировать: отложенная отправка идёт без OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Сначала добавьте получателя.</string>
     <string name="compose_schedule_invalid_address">Один из адресов недействителен. Сначала исправьте его.</string>

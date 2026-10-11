@@ -69,6 +69,7 @@ class SendOutbox(private val scope: CoroutineScope) {
         val editingOutboxId: Long? = null,
         /** Whether the message asks for a read receipt (RFC 8098), so an undone send reopens asking. */
         val requestReceipt: Boolean = false,
+        val quotesDecrypted: Boolean = false,
     )
 
     private val _pending = MutableStateFlow<Pending?>(null)

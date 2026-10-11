@@ -258,10 +258,18 @@ class ComposerResumeState(
 /**
  * The decision, on the way out. Two forms carry the text, and a third mark carries a loss:
  */
-internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResumeSlot): String? {
+internal fun saveComposerResume(
+    state: ComposerResumeState,
+    slot: ComposerResumeSlot,
+    memory: ComposerBodyMemory,
+): String? {
     if (state.closed) return null
     val body = state.bodyState.value
     val baseline = state.baselineState.value
+    if (memory.keepsBodyOffDisk) {
+        memory.park(state, slot)
+        return (if (state.bodyWasLost) LOST_FORM else "") + MEMORY_FORM
+    }
     val parked = slot.write(
         token = state.token,
         body = body.text,
@@ -303,12 +311,17 @@ internal fun saveComposerResume(state: ComposerResumeState, slot: ComposerResume
  * The decision, on the way back: rebuild the composer's text, caret and baseline, or, when the
  * body was lost, rebuild a composer that knows it, which is not the same thing as nothing.
  */
-internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): ComposerResumeState? {
+internal fun restoreComposerResume(
+    saved: String,
+    slot: ComposerResumeSlot,
+    memory: ComposerBodyMemory,
+): ComposerResumeState? {
     val lost = saved.startsWith(LOST_FORM)
     val form = if (lost) saved.substring(LOST_FORM.length) else saved
     val resume = when {
         form.startsWith(TOKEN_FORM) -> slot.read(form.substring(TOKEN_FORM.length))
         form.startsWith(INLINE_FORM) -> parseInlineResume(form)
+        form == MEMORY_FORM -> memory.take()
         // Anything else is not ours: a value from an older build, a truncated one, or nothing at
         // all. A fresh composer is the only honest answer, and it is never an exception.
         else -> null
@@ -316,7 +329,8 @@ internal fun restoreComposerResume(saved: String, slot: ComposerResumeSlot): Com
     // A record the parcel names and that came back `null` is a loss, not an absence. `t:<token>`
     // promises that a body WAS parked, and [ComposerResumeSlot.read] collapses five causes into one
     val unreadable = resume == null && (
-        (form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length) ||
+        form == MEMORY_FORM ||
+            (form.startsWith(TOKEN_FORM) && form.length > TOKEN_FORM.length) ||
             (form.startsWith(INLINE_FORM) && form.length > INLINE_FORM.length)
         )
     // `null` only when there was no mark either. With the mark there, returning `null` would drop
@@ -595,9 +609,9 @@ private fun decodeLinks(section: String, length: Int): List<Link>? {
 private val HEX = "0123456789ABCDEF".toCharArray()
 
 /** What goes into the activity's parcel for the composer's body: a short token, and that is all. */
-fun composerResumeSaver(slot: ComposerResumeSlot): Saver<ComposerResumeState, String> = Saver(
-    save = { saveComposerResume(it, slot) },
-    restore = { restoreComposerResume(it, slot) },
+fun composerResumeSaver(slot: ComposerResumeSlot, memory: ComposerBodyMemory): Saver<ComposerResumeState, String> = Saver(
+    save = { saveComposerResume(it, slot, memory) },
+    restore = { restoreComposerResume(it, slot, memory) },
 )
 
 /** Names one composer's slot for as long as that navigation entry lives. Parcelled (a dozen

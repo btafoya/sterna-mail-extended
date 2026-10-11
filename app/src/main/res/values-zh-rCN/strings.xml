@@ -50,6 +50,7 @@
     <string name="compose_quote_attribution">%1$s，%2$s 写道：</string>
     <string name="compose_quote_someone">某人</string>
     <string name="compose_quote_not_added">未添加引用的邮件，因为您已经开始撰写。</string>
+    <string name="compose_quote_not_added_encrypted">未添加引用的邮件，因为原邮件已加密。</string>
     <!-- "Date" label in the forwarded-message header (From/Subject/Date/To). -->
     <string name="compose_forward_date">日期</string>
     <string name="compose_could_not_send">无法发送：%1$s</string>
@@ -960,6 +961,7 @@
     <string name="compose_pgp_subject_note">主题不会被加密。</string>
     <string name="compose_pgp_not_encrypted_no_key">此邮件不会加密：没有 %1$s 的公钥。</string>
     <string name="compose_pgp_no_draft">加密邮件无法保存为草稿或定时发送。</string>
+    <string name="compose_decrypted_quote_needs_encryption">此回复引用了一封加密邮件，因此只能加密发送。</string>
     <string name="compose_pgp_no_schedule">已签名或加密的邮件无法定时发送：定时发送不经过 OpenPGP。</string>
     <string name="compose_schedule_needs_recipient">请先添加收件人。</string>
     <string name="compose_schedule_invalid_address">有一个地址无效，请先更正。</string>

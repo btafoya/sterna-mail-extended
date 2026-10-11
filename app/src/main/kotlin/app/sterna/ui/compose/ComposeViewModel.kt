@@ -44,6 +44,7 @@ import app.sterna.core.data.mail.localDraftPrefill
 import app.sterna.core.data.mail.reopenedDraftIsLossy
 import app.sterna.core.data.mail.scheduledSendDelayMillis
 import app.sterna.core.data.mail.sendDraftTarget
+import app.sterna.core.data.mail.smimeSignalOf
 import app.sterna.core.data.mail.takeLocalDraftEditOrGiveItBack
 import app.sterna.core.data.mail.unlessBodyIsLossy
 import app.sterna.core.data.mail.unlessDraftBelongsElsewhere
@@ -480,6 +481,22 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      *  auto-downgraded. While false the mode is derived from recipient-key availability (#35). */
     private var pgpModeUserSet = false
 
+    private val decryptedQuote = DecryptedQuoteGuard()
+
+    private var quoteLeftOut = false
+
+    val quotesDecrypted: StateFlow<Boolean> = decryptedQuote.held
+
+    val bodyMemory = ComposerBodyMemory { decryptedQuote.held.value }
+
+    private fun encryptsByDefault(account: StoredAccount?): Boolean =
+        encryptByDefaultFor(account?.pgpEncryptByDefault == true, decryptedQuote.held.value)
+
+    fun onQuoteInBody() {
+        if (!settlesLockOnQuote(decryptedQuote.landed(), _pgpMode.value)) return
+        settleLock(pgpAccount(), _pgpAvailable.value, smimeOffered = emptyList())
+    }
+
     /** Recipients with no usable key that kept an opportunistic default from encrypting, surfaced
      *  as an inline hint so it's clear why the message won't be encrypted (#35). */
     private val _pgpKeylessRecipients = MutableStateFlow<List<String>>(emptyList())
@@ -536,7 +553,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             current = _pgpMode.value,
             available = available,
             accountConfigured = account != null,
-            encryptByDefault = account?.pgpEncryptByDefault == true,
+            encryptByDefault = encryptsByDefault(account),
             userSet = pgpModeUserSet,
             smimeOffered = smimeOffered,
         )
@@ -586,7 +603,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             _pgpMode.value.encrypts
         } else {
             _pgpAvailable.value &&
-                (account?.pgpEncryptByDefault == true || _pgpMode.value.encrypts)
+                (encryptsByDefault(account) || _pgpMode.value.encrypts)
         }
         if (!care) {
             _recipientKeys.value = emptyMap()
@@ -616,7 +633,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     private fun deriveAutoMode(addresses: List<String>) {
         val account = pgpAccount() ?: return
-        if (pgpModeUserSet || !account.pgpEncryptByDefault) return
+        if (pgpModeUserSet || !encryptsByDefault(account)) return
         // Encrypt is the default intent; back off only when a recipient is confirmed to have no key,
         // so a pending lookup leaves it optimistic and the lock does not flicker while typing.
         val keyless = addresses.filter { _recipientKeys.value[it] == false }
@@ -1057,6 +1074,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // The saved draft behind this screen (#35) follows the binding: settled at the head of
         // prepare() from the hand-over, which a composer rebuilt after a process death did not have.
         _savedDraftBehind.value = savedDraftBehindScreen(null, d.draftEmailId)
+        decryptedQuote.restore(d.quotesDecrypted)
         // Restore the PGP mode the message carried (#35/#70): a signed item reopens signed, an undone
         // encrypted send reopens with the padlock on, never silently downgraded.
         d.pgpMode?.let { mode ->
@@ -1328,9 +1346,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
             // Then, in the background, fetch the full original, only to enrich the body. This is the
             // call that stalls offline, which is why the headers above did not wait on it.
-            val original = runCatching { repo.fetchEmail(credentials, replyToId) }.getOrNull()
+            val fetched = runCatching { repo.fetchEmail(credentials, replyToId) }.getOrNull()
+            val source = fetched
+                ?.let { quoteSource(opening, it, repo.cryptoKindOf(it) ?: smimeSignalOf(it)) { repo.decryptedOriginalToQuote(credentials.id, it) } }
+                ?.also { decryptedQuote.offer(it) }
 
-            if (original == null) {
+            if (source == null) {
                 // No full body available. The headers are already prefilled from the cache; either way,
                 // say the original couldn't load so the missing quote is not a silent surprise.
                 // Unless the quote is already on screen: the banner would be drawn on top of the very
@@ -1339,6 +1360,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 if (!quoteAlreadyOnScreen) prefillFailed()
                 return@launch
             }
+            val original = source.email
+            quoteLeftOut = source.nothingToQuote
 
             // The fetched original has the complete To and Cc, so it can settle the sending identity
             // the cached row could not (#81). Still before any body is rebuilt below.
@@ -1396,6 +1419,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // To/Subject already on screen. When nothing was cached, emit the full prefill instead.
             inReplyTo = original.messageId
             references = original.references + original.messageId
+            if (source.nothingToQuote) _notices.tryEmit(R.string.compose_quote_not_added_encrypted)
             if (cached == null) {
                 _prefill.value = buildPrefill(original, mode, selves(credentials))
             } else if (!quoteAlreadyOnScreen) {
@@ -1746,6 +1770,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 // Sign/encrypt now, while the provider can still show UI, the outbox worker runs
                 // headless later. The outbox then only ever holds the signed/encrypted entity.
                 val mode = _pgpMode.value
+                decryptedQuoteRefusal(decryptedQuote.held.value, mode)?.let { error(getApplication<Application>().getString(it)) }
                 val pgpEntity = if (mode != PgpMode.OFF) {
                     try {
                         buildPgpEntity(
@@ -1827,6 +1852,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     draftUidValidity = sendTarget.uidValidity,
                     draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = args.requestReceipt,
+                    quotesDecrypted = decryptedQuote.held.value,
                 )
                 val app = getApplication<Application>()
                 // WYSIWYG (#70): every send is queued behind the undo window, and the message only
@@ -1856,7 +1882,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     /** Whether these recipients and the current OpenPGP mode may be scheduled; the refusal, said as a toast. */
     fun mayScheduleOrSay(to: String, cc: String, bcc: String): Boolean {
-        val refusal = scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true
+        val refusal = decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value) ?: scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true
         _notices.tryEmit(refusal)
         return false
     }
@@ -1931,6 +1957,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     draftUidValidity = undoTarget.uidValidity,
                     draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = requestReceipt,
+                    quotesDecrypted = decryptedQuote.held.value,
                 )
                 val label = scheduledHoldLabel(sendAtMillis, { millis, flags -> DateUtils.formatDateTime(app, millis, flags) }) {
                     app.getString(R.string.compose_scheduled_for, it)
@@ -2051,6 +2078,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // goes through. Refuse and say so: the composer stays open with the text intact.
         if (!draftSaveAllowed(_pgpMode.value)) {
             _notices.tryEmit(R.string.compose_pgp_no_draft)
+            return
+        }
+        decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value)?.let {
+            _notices.tryEmit(it)
             return
         }
         // Empty by the #69 rule: persist nothing. A brand-new compose leaves no trace at all; an opened
@@ -2231,6 +2262,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      * The quoted original for a reply: a localised attribution line, then the original body.
      */
     private fun quote(o: Email, zone: ZoneId): String {
+        if (quoteLeftOut) return ""
         val app = getApplication<Application>()
         val sender = o.from.firstOrNull()?.display() ?: app.getString(R.string.compose_quote_someone)
         val date = MailDates.formatFull(o.receivedAt, zone)

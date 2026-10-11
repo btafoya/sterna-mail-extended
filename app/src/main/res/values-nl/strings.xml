@@ -49,6 +49,7 @@
     <string name="compose_quote_attribution">Op %1$s schreef %2$s:</string>
     <string name="compose_quote_someone">iemand</string>
     <string name="compose_quote_not_added">Geciteerd bericht niet toegevoegd: je was al begonnen met schrijven.</string>
+    <string name="compose_quote_not_added_encrypted">Geciteerd bericht niet toegevoegd: het origineel is versleuteld.</string>
     <string name="compose_forward_date">Datum</string>
     <string name="compose_could_not_send">Kon niet verzenden: %1$s</string>
     <string name="compose_could_not_save">Kon het concept niet opslaan: %1$s</string>
@@ -786,6 +787,7 @@
     <string name="compose_pgp_subject_note">Het onderwerp wordt niet versleuteld.</string>
     <string name="compose_pgp_not_encrypted_no_key">Dit bericht wordt niet versleuteld: geen publieke sleutel voor %1$s.</string>
     <string name="compose_pgp_no_draft">Versleutelde berichten kunnen niet als concept worden opgeslagen of ingepland.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Dit antwoord citeert een versleuteld bericht en kan daarom alleen versleuteld worden verzonden.</string>
     <string name="compose_pgp_no_schedule">Ondertekende of versleutelde berichten kunnen niet worden ingepland: later verzenden gebeurt zonder OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Voeg eerst een ontvanger toe.</string>
     <string name="compose_schedule_invalid_address">Een van de adressen is ongeldig. Verbeter het eerst.</string>

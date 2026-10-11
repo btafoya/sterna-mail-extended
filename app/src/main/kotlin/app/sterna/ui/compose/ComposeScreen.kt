@@ -216,6 +216,8 @@ fun ComposeScreen(
     val pgpMode by viewModel.pgpMode.collectAsStateWithLifecycle()
     val recipientKeys by viewModel.recipientKeys.collectAsStateWithLifecycle()
     val pgpKeylessRecipients by viewModel.pgpKeylessRecipients.collectAsStateWithLifecycle()
+    val quotesDecrypted by viewModel.quotesDecrypted.collectAsStateWithLifecycle()
+    val quoteRefusal = decryptedQuoteRefusal(quotesDecrypted, pgpMode)
     val onlyCopy by viewModel.onlyCopy.collectAsStateWithLifecycle()
     val editingOutbox by viewModel.editingOutbox.collectAsStateWithLifecycle()
     val editingDraft by viewModel.editingDraft.collectAsStateWithLifecycle()
@@ -401,7 +403,7 @@ fun ComposeScreen(
     // travel in the activity's saved-state parcel: `Parcel.writeString` writes UTF-16, so a ~324 kB
     val slotId = rememberSaveable { newComposerSlotId() }
     val resumeSlot = remember(context, slotId) { ComposerResumeSlot(composerResumeFile(context, slotId)) }
-    val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {
+    val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot, viewModel.bodyMemory)) {
         ComposerResumeState(TextFieldValue(), "")
     }
     // The body did not come back, and the save must be told. Above the inline bound a failed disk
@@ -542,6 +544,7 @@ fun ComposeScreen(
                     // the ViewModel, which still has it after a rotation empties the hand-off.
                     linkBodyLength = viewModel.claimLinkBody(bodyToken)?.takeIf { it.isNotBlank() }?.length ?: 0,
                 )
+                if (it.quoted) viewModel.onQuoteInBody()
                 body = TextFieldValue(it.body, TextRange(caret ?: 0))
                 // …with the styling the prefill carried (#131). `emptyMap()` here opens a styled
                 // draft with its bold gone from the screen, and the next save stores that.
@@ -596,6 +599,7 @@ fun ComposeScreen(
         // and its baseline would both be emptied, the reply losing its quote and its signature.
         val quote = replyQuote ?: return@LaunchedEffect
         if (canApplyReplyQuote(applied, body.text, initialBody)) {
+            viewModel.onQuoteInBody()
             body = TextFieldValue(quote, TextRange(0))
             // A quote replaces a plain prefill: neither the body nor its baseline carries styling.
             ranges = emptyMap()
@@ -816,7 +820,7 @@ fun ComposeScreen(
         // The leave dialog obeys the same two rules as the toolbar's Save action (#35): an encrypted
         // message may not leave a plaintext copy on the server, so the dialog says why instead of
         // offering to keep a draft.
-        val mayKeepDraft = draftSaveAllowed(pgpMode)
+        val mayKeepDraft = draftSaveAllowed(pgpMode) && quoteRefusal == null
         // What the dialog is allowed to claim, decided by [discardWording] (#70): a message pulled back
         // out of the Outbox is not destroyed by leaving, so it may not be announced as "Discard
         // message?", nor promised delivery, since a failed send returns to failed.
@@ -851,7 +855,7 @@ fun ComposeScreen(
             text = {
                 Text(
                     stringResource(
-                        when (wording) {
+                        quoteRefusal ?: when (wording) {
                             // Two outbox wordings, because the body has to be true of both buttons
                             // beside it: "Save draft" takes the message out of the outbox (#70).
                             DiscardWording.OUTBOX -> R.string.compose_discard_message_outbox
@@ -1338,6 +1342,14 @@ fun ComposeScreen(
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            quoteRefusal?.let { refusal ->
+                Text(
+                    stringResource(refusal),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }

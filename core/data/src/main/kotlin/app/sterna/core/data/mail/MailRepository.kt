@@ -2364,7 +2364,10 @@ class MailRepository(
     /** Raw sources of crypto messages being decrypted (avoids refetching on interaction retries). */
     private val rawSourceCache = MemoryLru<String>(4)
 
-    private fun cryptoKey(accountId: String, emailId: String) = "$accountId:$emailId"
+    /** The body a reply to [original] quotes when the reader decrypted it this process (see
+     *  [quotableClear]), else null. Memory only: no network, no OpenPGP provider, nothing marked read. */
+    fun decryptedOriginalToQuote(accountId: String, original: Email): Email? =
+        quotableClear(accountId, original) { decryptedCache.get(it)?.body }
 
     /**
      * Structural check for OpenPGP content on an already-fetched [Email]. Public because the reader's cache

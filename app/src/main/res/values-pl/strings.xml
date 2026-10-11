@@ -49,6 +49,7 @@
     <string name="compose_quote_attribution">Dnia %1$s, %2$s napisał(a):</string>
     <string name="compose_quote_someone">ktoś</string>
     <string name="compose_quote_not_added">Nie dodano cytowanej wiadomości: pisanie było już rozpoczęte.</string>
+    <string name="compose_quote_not_added_encrypted">Nie dodano cytowanej wiadomości: oryginał jest zaszyfrowany.</string>
     <string name="compose_forward_date">Data</string>
     <string name="compose_could_not_send">Nie udało się wysłać: %1$s</string>
     <string name="compose_could_not_save">Nie udało się zapisać wersji roboczej: %1$s</string>
@@ -792,6 +793,7 @@
     <string name="compose_pgp_subject_note">Temat nie jest szyfrowany.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ta wiadomość nie zostanie zaszyfrowana: brak klucza publicznego dla %1$s.</string>
     <string name="compose_pgp_no_draft">Zaszyfrowanych wiadomości nie można zapisać jako wersji roboczej ani zaplanować.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Ta odpowiedź cytuje zaszyfrowaną wiadomość, więc można ją wysłać tylko zaszyfrowaną.</string>
     <string name="compose_pgp_no_schedule">Wiadomości podpisanych ani zaszyfrowanych nie można zaplanować: wysyłka później odbywa się bez OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Najpierw dodaj odbiorcę.</string>
     <string name="compose_schedule_invalid_address">Jeden z adresów jest nieprawidłowy. Najpierw go popraw.</string>

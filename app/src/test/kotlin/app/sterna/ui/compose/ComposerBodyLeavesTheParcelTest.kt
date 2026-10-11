@@ -42,7 +42,7 @@ class ComposerBodyLeavesTheParcelTest {
     @Test
     fun `the resume state is parcelled through its own saver`() {
         assertPinned(
-            SCREEN, "val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {",
+            SCREEN, "val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot, viewModel.bodyMemory)) {",
             "`rememberSaveable(saver = …)` is what puts the token in the parcel and reads it back. " +
                 "A plain `remember` compiles, passes every other rule here, and silently drops the " +
                 "user's text on every process death.",
@@ -337,7 +337,7 @@ class ComposerBodyLeavesTheParcelTest {
         val BODY = Regex("""\bbody\b""")
         val BASELINE = Regex("""\binitialBody\b""")
 
-        const val RESUME_STATE = "val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot)) {"
+        const val RESUME_STATE = "val resume = rememberSaveable(saver = composerResumeSaver(resumeSlot, viewModel.bodyMemory)) {"
         const val WIRING =
             "LaunchedEffect(resume.bodyWasLost) { if (resume.bodyWasLost) viewModel.onComposerBodyLost() }"
         const val RAISER = "fun onComposerBodyLost() {"

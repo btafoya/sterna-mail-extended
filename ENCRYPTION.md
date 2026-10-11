@@ -36,8 +36,8 @@ Two limits worth knowing up front:
 - **The subject line is not encrypted.** OpenPGP protects the body and
   attachments, not the envelope. Keep sensitive details out of the subject.
 - **A decrypted message body is never stored.** It lives only in memory while
-  you read it: not written to disk, not cached, not search-indexed. Close and
-  reopen the message and it is decrypted again. **Attachments are the
+  you read it or reply to it: not written to disk, not cached, not
+  search-indexed. Close and reopen the message and it is decrypted again. **Attachments are the
   exception**: opening one writes the decrypted file into the app's own storage,
   where it stays until the cache is cleared (Settings → Storage), and saving one
   writes it, decrypted, into the folder you pick — outside the app, where

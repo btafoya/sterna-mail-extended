@@ -49,6 +49,7 @@
     <string name="compose_quote_attribution">Am %1$s schrieb %2$s:</string>
     <string name="compose_quote_someone">jemand</string>
     <string name="compose_quote_not_added">Zitierte Nachricht nicht eingefügt: Sie hatten bereits zu schreiben begonnen.</string>
+    <string name="compose_quote_not_added_encrypted">Zitierte Nachricht nicht eingefügt: Das Original ist verschlüsselt.</string>
     <string name="compose_forward_date">Datum</string>
     <string name="compose_could_not_send">Senden fehlgeschlagen: %1$s</string>
     <string name="compose_could_not_save">Entwurf konnte nicht gespeichert werden: %1$s</string>
@@ -786,6 +787,7 @@
     <string name="compose_pgp_subject_note">Der Betreff wird nicht verschlüsselt.</string>
     <string name="compose_pgp_not_encrypted_no_key">Diese Nachricht wird nicht verschlüsselt: kein öffentlicher Schlüssel für %1$s.</string>
     <string name="compose_pgp_no_draft">Verschlüsselte Nachrichten können nicht als Entwurf gespeichert oder geplant werden.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Diese Antwort zitiert eine verschlüsselte Nachricht und kann daher nur verschlüsselt gesendet werden.</string>
     <string name="compose_pgp_no_schedule">Signierte oder verschlüsselte Nachrichten können nicht geplant werden: Späteres Senden erfolgt ohne OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Füge zuerst einen Empfänger hinzu.</string>
     <string name="compose_schedule_invalid_address">Eine der Adressen ist ungültig. Korrigiere sie zuerst.</string>
