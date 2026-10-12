@@ -198,6 +198,7 @@ fun ComposeScreen(
      * is gone: it takes the row back by this id once the startup sweep has parked it.
      */
     outboxId: Long? = null,
+    editAsNewId: String? = null,
     viewModel: ComposeViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -311,6 +312,7 @@ fun ComposeScreen(
             replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId,
             quoteAlreadyOnScreen = quoteLanded,
             outboxId = outboxId,
+            editAsNewId = editAsNewId,
         )
         // Attach any files shared into the app (ACTION_SEND), a one-shot handoff we read and clear,
         // so it only lands on this compose screen (#45).

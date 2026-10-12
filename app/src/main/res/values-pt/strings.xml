@@ -212,6 +212,7 @@
     <string name="message_reply_all">Responder a todos</string>
     <string name="message_forward">Encaminhar</string>
     <string name="message_forward_attachment">Encaminhar como anexo</string>
+    <string name="message_edit_as_new">Editar como nova</string>
     <string name="message_flag">Adicionar estrela</string>
     <string name="message_unflag">Remover estrela</string>
     <string name="message_archive">Arquivar</string>

@@ -90,6 +90,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.DeleteForever
@@ -186,7 +187,9 @@ import androidx.compose.ui.layout.ContentScale
 import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
+import app.sterna.ui.compose.EditAsNewReader
 import app.sterna.ui.compose.SnoozePreset
+import app.sterna.ui.compose.mayEditAsNew
 import app.sterna.ui.compose.snoozePresetsAt
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.MinTouchTarget
@@ -263,6 +266,7 @@ fun MessageScreen(
     threadEntries: List<Pair<String, String?>>? = null,
     onBack: () -> Unit,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
+    onEditAsNew: (emailId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
@@ -330,6 +334,7 @@ fun MessageScreen(
                         },
                         onBack = onBack,
                         onReply = onReply,
+                        onEditAsNew = onEditAsNew,
                         onDelete = onDelete,
                         onArchive = onArchive,
                         onMove = onMove,
@@ -353,6 +358,7 @@ fun MessageScreen(
                     entryAt = { i -> searchResults.getOrNull(i)?.let { it.id to it.accountId } },
                     onBack = onBack,
                     onReply = onReply,
+                    onEditAsNew = onEditAsNew,
                     onDelete = onDelete,
                     onArchive = onArchive,
                     onMove = onMove,
@@ -384,6 +390,7 @@ fun MessageScreen(
                     showPosition = true,
                     onBack = onBack,
                     onReply = onReply,
+                    onEditAsNew = onEditAsNew,
                     onDelete = onDelete,
                     onArchive = onArchive,
                     onMove = onMove,
@@ -399,6 +406,7 @@ fun MessageScreen(
                 entryAt = { anchorEmailId to anchorAccountId },
                 onBack = onBack,
                 onReply = onReply,
+                onEditAsNew = onEditAsNew,
                 onDelete = onDelete,
                 onArchive = onArchive,
                 onMove = onMove,
@@ -429,6 +437,7 @@ private fun MessagePager(
     showPosition: Boolean = false,
     onBack: () -> Unit,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
+    onEditAsNew: (emailId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
@@ -471,7 +480,7 @@ private fun MessagePager(
     Scaffold(
         topBar = {
             Column {
-                MessageTopBar(activeMessage, onBack, onReply, onDelete, onArchive, onMove, paneMode)
+                MessageTopBar(activeMessage, onBack, onReply, onEditAsNew, onDelete, onArchive, onMove, paneMode)
                 // The position line belongs to the header, under the app bar rather than in its
                 // title slot: the toolbar already carries five actions, and on a narrow screen a
                 // counter squeezed between them would clip. Hidden outright for a one-message
@@ -704,6 +713,7 @@ private fun MessageTopBar(
     active: ActiveMessage?,
     onBack: () -> Unit,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
+    onEditAsNew: (emailId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
@@ -727,7 +737,7 @@ private fun MessageTopBar(
         },
         actions = {
             if (active != null) {
-                MessageActions(active, onBack, onReply, onDelete, onArchive, onMove)
+                MessageActions(active, onBack, onReply, onEditAsNew, onDelete, onArchive, onMove)
             }
         },
     )
@@ -743,6 +753,7 @@ private fun MessageActions(
     active: ActiveMessage,
     onBack: () -> Unit,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
+    onEditAsNew: (emailId: String, accountId: String?) -> Unit,
     onDelete: (Email) -> Unit,
     onArchive: (Email) -> Unit,
     onMove: (Email, String, String?) -> Unit,
@@ -787,6 +798,7 @@ private fun MessageActions(
     // its cached header and nothing else, and a "Print" entry offered on it would print a blank page.
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val printable = messages.firstOrNull()?.body != null
+    val crypto by viewModel.crypto.collectAsStateWithLifecycle()
     val loaded = state as? MessageState.Loaded ?: return
     val senderEmail = loaded.email.from.firstOrNull()?.email
     val senderAllowed = senderEmail?.lowercase()?.let { it in imageAllowlist } == true
@@ -939,6 +951,13 @@ private fun MessageActions(
                 leadingIcon = { Icon(Icons.Filled.AttachFile, contentDescription = null) },
                 onClick = { menuOpen = false; onReply("forwardAttachment", replyTargetId, accountId) },
             )
+            if (mayEditAsNew(loaded.email, EditAsNewReader(bodyShown = printable, crypto = crypto))) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.message_edit_as_new)) },
+                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                    onClick = { menuOpen = false; onEditAsNew(replyTargetId, accountId) },
+                )
+            }
             // Reading mode (#149). The label says what the tap DOES, so it follows the mode actually
             // rendered, which is why the entry reads "Show HTML" on a message the setting opened as
             // text. Transitory: the deviation is forgotten when the message is left.

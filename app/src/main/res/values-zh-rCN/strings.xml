@@ -353,6 +353,7 @@
     <string name="message_reply_all">全部回复</string>
     <string name="message_forward">转发</string>
     <string name="message_forward_attachment">作为附件转发</string>
+    <string name="message_edit_as_new">作为新邮件编辑</string>
     <string name="message_flag">星标</string>
     <string name="message_unflag">取消星标</string>
     <string name="message_archive">归档</string>

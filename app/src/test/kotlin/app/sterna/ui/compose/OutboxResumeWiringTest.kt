@@ -104,9 +104,10 @@ class OutboxResumeWiringTest {
                 "replyTo, mode, accountId, restore, to, cc, bcc, subject, body, draftId,",
                 "quoteAlreadyOnScreen = quoteLanded,",
                 "outboxId = outboxId,",
+                "editAsNewId = editAsNewId,",
                 ")",
             ),
-            blockAt(screen, "quoteAlreadyOnScreen = quoteLanded,", before = 2, size = 5),
+            blockAt(screen, "quoteAlreadyOnScreen = quoteLanded,", before = 2, size = 6),
         )
         assertTrue(
             "ComposeScreen must declare `outboxId: Long? = null` beside draftId",

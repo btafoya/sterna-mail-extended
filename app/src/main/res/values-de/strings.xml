@@ -212,6 +212,7 @@
     <string name="message_reply_all">Allen antworten</string>
     <string name="message_forward">Weiterleiten</string>
     <string name="message_forward_attachment">Als Anhang weiterleiten</string>
+    <string name="message_edit_as_new">Als neu bearbeiten</string>
     <string name="message_flag">Markieren</string>
     <string name="message_unflag">Markierung entfernen</string>
     <string name="message_archive">Archivieren</string>

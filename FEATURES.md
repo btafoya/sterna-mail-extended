@@ -102,6 +102,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Compose and send on both protocols; opens `mailto:` links from other apps.
 - ✅ Reply, reply-all and forward, quoted and threaded.
 - ✅ Forward as attachment (`message/rfc822`).
+- ✅ Edit as new: reopen a message in the composer as a new message; the original stays where it is.
 - ✅ Drafts saved to the server; closing with unsaved edits asks first.
 - ✅ Attachments: pick (several files at once), take a photo, send, download and open, also from the composer before sending. Inline `cid:` images render.
 - ✅ Save an attachment into a document you choose, or save all of a message's attachments at once into a folder you choose.

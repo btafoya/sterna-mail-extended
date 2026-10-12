@@ -212,6 +212,7 @@
     <string name="message_reply_all">Allen beantwoorden</string>
     <string name="message_forward">Doorsturen</string>
     <string name="message_forward_attachment">Doorsturen als bijlage</string>
+    <string name="message_edit_as_new">Bewerken als nieuw</string>
     <string name="message_flag">Ster toevoegen</string>
     <string name="message_unflag">Ster verwijderen</string>
     <string name="message_archive">Archiveren</string>

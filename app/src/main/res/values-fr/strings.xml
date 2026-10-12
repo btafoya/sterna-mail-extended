@@ -212,6 +212,7 @@
     <string name="message_reply_all">Répondre à tous</string>
     <string name="message_forward">Transférer</string>
     <string name="message_forward_attachment">Transférer en pièce jointe</string>
+    <string name="message_edit_as_new">Modifier comme nouveau</string>
     <string name="message_flag">Suivre</string>
     <string name="message_unflag">Ne plus suivre</string>
     <string name="message_archive">Archiver</string>

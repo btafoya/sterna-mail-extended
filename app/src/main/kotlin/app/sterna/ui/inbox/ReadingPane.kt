@@ -29,6 +29,7 @@ fun ReadingPane(
     state: ReadingPaneState,
     inboxViewModel: InboxViewModel,
     onReply: (mode: String, replyToId: String, accountId: String?) -> Unit,
+    onEditAsNew: (emailId: String, accountId: String?) -> Unit,
     onComposeTo: (address: String) -> Unit,
 ) {
     val anchor = state.anchor
@@ -63,6 +64,7 @@ fun ReadingPane(
                 if (inboxViewModel.closePane()) inboxViewModel.moveTo(email, targetMailboxId, targetAccountId)
             },
             onReply = onReply,
+            onEditAsNew = onEditAsNew,
             onComposeTo = onComposeTo,
             signatureSheet = inboxViewModel.signatureSheet,
             moveSheet = inboxViewModel.moveSheet,

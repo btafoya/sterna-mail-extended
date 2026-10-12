@@ -212,6 +212,7 @@
     <string name="message_reply_all">Responder a todos</string>
     <string name="message_forward">Reenviar</string>
     <string name="message_forward_attachment">Reenviar como adjunto</string>
+    <string name="message_edit_as_new">Editar como nuevo</string>
     <string name="message_flag">Destacar</string>
     <string name="message_unflag">Quitar destacado</string>
     <string name="message_archive">Archivar</string>

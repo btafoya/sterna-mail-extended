@@ -458,6 +458,11 @@ private fun MainNavHost(
                                     nav.navigate("compose?replyTo=${Uri.encode(replyToId)}&mode=$mode$accountArg")
                                 }
                             },
+                            onEditAsNew = { emailId, accountId ->
+                                entry.navigateOnce {
+                                    nav.navigate(composeEditAsNewRoute(emailId, accountId.orEmpty()) { Uri.encode(it) })
+                                }
+                            },
                             onComposeTo = { address ->
                                 entry.navigateOnce { nav.navigate("compose?to=${Uri.encode(address)}") }
                             },
@@ -580,6 +585,11 @@ private fun MainNavHost(
                             nav.navigate("compose?replyTo=${Uri.encode(replyToId)}&mode=$mode$accountArg")
                         }
                     },
+                    onEditAsNew = { emailId, accountId ->
+                        entry.navigateOnce {
+                            nav.navigate(composeEditAsNewRoute(emailId, accountId.orEmpty()) { Uri.encode(it) })
+                        }
+                    },
                     onComposeTo = { address ->
                         entry.navigateOnce {
                             nav.navigate("compose?to=${Uri.encode(address)}")
@@ -593,6 +603,7 @@ private fun MainNavHost(
         }
         composable(
             route = "compose?replyTo={replyTo}&mode={mode}&accountId={accountId}&restore={restore}" +
+                "&editAsNew={editAsNew}" +
                 "&to={to}&cc={cc}&bcc={bcc}&subject={subject}&bodyToken={bodyToken}&draftId={draftId}&outboxId={outboxId}",
             arguments = listOf(
                 navArgument("replyTo") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -601,6 +612,8 @@ private fun MainNavHost(
                 // A queued row reopened by Edit from the Outbox (#70), the twin of draftId: the id rides in
                 // the route, which is what Android restores after a process death.
                 navArgument("outboxId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                // Edit as new (#254), see `composeEditAsNewRoute` for why neither `draftId` nor `replyTo`.
+                navArgument("editAsNew") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("mode") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("restore") { type = NavType.StringType; nullable = true; defaultValue = null },
@@ -646,6 +659,7 @@ private fun MainNavHost(
                     bodyToken = entry.arguments?.getString("bodyToken"),
                     draftId = entry.arguments?.getString("draftId")?.let { Uri.decode(it) }?.ifBlank { null },
                     outboxId = entry.arguments?.getString("outboxId")?.toLongOrNull(),
+                    editAsNewId = entry.arguments?.getString("editAsNew")?.let { Uri.decode(it) }?.ifBlank { null },
                 )
             }
         }

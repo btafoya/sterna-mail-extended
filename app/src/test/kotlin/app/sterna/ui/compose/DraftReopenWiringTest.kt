@@ -58,9 +58,10 @@ class DraftReopenWiringTest {
      */
     @Test fun `every line that names the wait flag, declaration included`() {
         assertEquals(
-            "ComposeViewModel.kt must name _draftLoading on exactly these six lines: it is declared " +
-                "false, exposed read-only, and raised-then-lowered once per reopen route — the " +
-                "phone's own store first (#95), the server's second. A seventh line, or a " +
+            "ComposeViewModel.kt must name _draftLoading on exactly these eight lines: it is declared " +
+                "false, exposed read-only, and raised-then-lowered once per route that reads a " +
+                "message before drawing the editor — the phone's own store first (#95), the " +
+                "server's second, Edit as new third (#254). A ninth line, or a " +
                 "declaration that starts true, raises it " +
                 "on paths that have no finally to lower it: the composer then hangs on a spinner with " +
                 "an empty bar and only the X — for a new message whose signature block is empty, for " +
@@ -72,6 +73,8 @@ class DraftReopenWiringTest {
                 "val draftLoading: StateFlow<Boolean> = _draftLoading.asStateFlow()",
                 "_draftLoading.value = true",
                 "try { prepareLocalDraft(draftId!!) } finally { _draftLoading.value = false }",
+                "_draftLoading.value = true",
+                "_draftLoading.value = false",
                 "_draftLoading.value = true",
                 "_draftLoading.value = false",
             ),
@@ -122,9 +125,10 @@ class DraftReopenWiringTest {
      */
     @Test fun `every line that names the failure notice, declaration included`() {
         assertEquals(
-            "ComposeViewModel.kt must name _draftLoadFailed on exactly these seven lines: declared " +
+            "ComposeViewModel.kt must name _draftLoadFailed on exactly these ten lines: declared " +
                 "null, exposed read-only, written once per failure inside the reopened-draft " +
-                "branch, and once per failure of a reopen off the PHONE's own store (#95) — no " +
+                "branch, once per failure inside the Edit as new branch (#254, the same two " +
+                "verdicts, and its refusal of an encrypted message), and once per failure of a reopen off the PHONE's own store (#95) — no " +
                 "account to resolve, the row already consumed by the uploader, and the row this " +
                 "composer may not open right now because its files are being staged or it is being " +
                 "uploaded (noticeLocalDraftBusy). Born non-null, or written anywhere " +
@@ -136,6 +140,9 @@ class DraftReopenWiringTest {
             listOf(
                 "private val _draftLoadFailed = MutableStateFlow<Int?>(null)",
                 "val draftLoadFailed: StateFlow<Int?> = _draftLoadFailed.asStateFlow()",
+                "_draftLoadFailed.value = draftLoadNoticeFor(offline = false)",
+                "_draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))",
+                "_draftLoadFailed.value = draftLoadNoticeFor(offline = false)",
                 "_draftLoadFailed.value = draftLoadNoticeFor(offline = false)",
                 "_draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))",
                 "_draftLoadFailed.value = R.string.compose_draft_load_failed",

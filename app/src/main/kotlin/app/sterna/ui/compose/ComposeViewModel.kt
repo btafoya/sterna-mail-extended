@@ -1125,6 +1125,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         draftId: String? = null,
         quoteAlreadyOnScreen: Boolean = false,
         outboxId: Long? = null,
+        editAsNewId: String? = null,
     ) {
         if (prepared) return
         prepared = true
@@ -1275,6 +1276,32 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 return
             }
             DraftOpenRoute.NONE -> Unit
+        }
+
+        if (editAsNewId != null) {
+            _draftLoading.value = true
+            viewModelScope.launch {
+                try {
+                    val credentials = credentials() ?: run {
+                        _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
+                        return@launch
+                    }
+                    val message = repo.fetchEmail(credentials, editAsNewId)
+                    if (!mayEditAsNew(message, reader = null)) {
+                        _draftLoadFailed.value = draftLoadNoticeFor(offline = false)
+                        return@launch
+                    }
+                    preselectReceivingIdentity(credentials.id, message)
+                    if (!carryDraftAttachments(credentials, message)) _notices.tryEmit(R.string.compose_forward_attachment_dropped)
+                    _prefill.value = editAsNewFieldsOf(message)
+                } catch (t: Throwable) {
+                    val app = getApplication<Application>()
+                    _draftLoadFailed.value = draftLoadNoticeFor(isOfflineFailure(t, online = hasUsableNetwork(app)))
+                } finally {
+                    _draftLoading.value = false
+                }
+            }
+            return
         }
 
         // A fresh mail pre-addressed to a participant, or prefilled from a mailto: link
