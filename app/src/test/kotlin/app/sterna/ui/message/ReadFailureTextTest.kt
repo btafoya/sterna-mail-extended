@@ -37,7 +37,7 @@ class ReadFailureTextTest {
     @Test fun theSentenceIsDeclaredInEveryLanguage() {
         // A German reader is the one who reported this. Name the languages that are missing it,
         // in one assertion, so a forgotten file says which.
-        val expected = listOf("values", "values-de", "values-es", "values-fr", "values-it",
+        val expected = listOf("values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN")
         val declared = expected.filter { dir ->
             val xml = File(repoRoot, "app/src/main/res/$dir/strings.xml").readText()

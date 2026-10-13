@@ -24,7 +24,7 @@ class UnsubscribeConfirmationNamesTargetTest {
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
             .sortedBy { it.parentFile.name }
-        assertTrue("expected ten languages, found ${files.size}", files.size == 10)
+        assertTrue("expected eleven languages, found ${files.size}", files.size == 11)
 
         val unnamed = files.flatMap { file ->
             val strings = stringsOf(file)

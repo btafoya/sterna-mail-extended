@@ -44,13 +44,13 @@ class DraftKeptToastFitTest {
     /**
      * Fail closed, second half: the resources. An id the string map does not resolve is measured
      */
-    @Test fun `the sentence resolves in the ten languages`() {
+    @Test fun `the sentence resolves in the eleven languages`() {
         val strings = locales().associate { it.name to stringsOf(it) }
         val unresolved = noticeIds().sorted().flatMap { id ->
             strings.filterValues { id !in it }.keys.sorted().map { "R.string.$id: not read from $it" }
         }
         assertEquals(
-            "the sentence must be READABLE by this rule in all ten locales, or the rules below " +
+            "the sentence must be READABLE by this rule in all eleven locales, or the rules below " +
                 "are measuring nothing while reporting success. An id that resolves nowhere is " +
                 "not a translation problem — TranslationParityTest is happy with a key " +
                 "consistently absent from THIS rule's view — it is this rule going blind. " +
@@ -76,7 +76,7 @@ class DraftKeptToastFitTest {
             "a Toast renders TWO LINES beside the app icon and ellipsises the rest: measured on " +
                 "emu at 411 dp on 2026-08-25, this sentence came out as \"… weil diese Kop…\" in " +
                 "German and \"… because this copy couldn't carry e…\" in English. A sentence " +
-                "shown in a toast must hold in $maxToastChars characters in all ten languages " +
+                "shown in a toast must hold in $maxToastChars characters in all eleven languages " +
                 "(derivation on maxToastChars, and in AccountToastFitTest: a 411 dp bench reading " +
                 "brought back to the 360 dp bench, with a margin for scripts that set wider than " +
                 "Latin). Too long:\n" + offenders.joinToString("\n"),
@@ -210,13 +210,13 @@ class DraftKeptToastFitTest {
         return line.trimEnd()
     }
 
-    /** The ten shipped locales, as `AccountToastFitTest.locales()` counts them. */
+    /** The eleven shipped locales, as `AccountToastFitTest.locales()` counts them. */
     private fun locales(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && File(it, "strings.xml").isFile }
         .sortedBy { it.name }
         .also {
-            check(it.size == 10) {
-                "expected 10 locales carrying a strings.xml, found ${it.size} " +
+            check(it.size == 11) {
+                "expected 11 locales carrying a strings.xml, found ${it.size} " +
                     "(${it.joinToString { d -> d.name }}) — a language added or a file moved " +
                     "leaves this sentence unmeasured in it"
             }

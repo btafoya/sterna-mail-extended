@@ -591,6 +591,7 @@ private fun languageLabel(context: Context, language: AppLanguage): String = whe
     AppLanguage.RUSSIAN -> context.getString(R.string.settings_language_russian)
     AppLanguage.POLISH -> context.getString(R.string.settings_language_polish)
     AppLanguage.CHINESE -> context.getString(R.string.settings_language_chinese)
+    AppLanguage.HUNGARIAN -> context.getString(R.string.settings_language_hungarian)
 }
 
 private fun themeLabel(context: Context, mode: ThemeMode): String = when (mode) {

@@ -121,7 +121,7 @@ class DraftDeleteBodyTest {
         const val CAP = 140
 
         val LOCALES = listOf(
-            "values", "values-de", "values-es", "values-fr", "values-it",
+            "values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
@@ -134,6 +134,7 @@ class DraftDeleteBodyTest {
             "values-de" to listOf("Papierkorb", "gelöscht", "Konto keinen hat", "nicht gespeichert"),
             "values-es" to listOf("Papelera", "se elimina", "no tiene carpeta", "no se guarda"),
             "values-fr" to listOf("Corbeille", "supprimé", "n'a pas de dossier", "n'est pas enregistré"),
+            "values-hu" to listOf("Kukába", "törlődik", "nincs Kuka mappája", "nincs mentve"),
             "values-it" to listOf("Cestino", "eliminata", "non ha una cartella", "non viene salvato"),
             "values-nl" to listOf("Prullenbak", "verwijderd", "account er geen heeft", "niet opgeslagen"),
             "values-pl" to listOf("Kosz", "usunięta", "nie ma folderu", "nie jest zapisywane"),
@@ -154,6 +155,7 @@ class DraftDeleteBodyTest {
             "values-fr" to listOf(
                 "nulle part ailleurs", "perdus", "définitivement", "pour de bon", "votre dossier", "sera", "ira",
             ),
+            "values-hu" to listOf("sehol máshol", "elvesz", "végleg", "örökre", "az Ön Kuk", "fog "),
             "values-it" to listOf(
                 "altra parte", "andranno persi", "definitivamente", "per sempre", "tua cartella", "verrà", "andrà",
             ),

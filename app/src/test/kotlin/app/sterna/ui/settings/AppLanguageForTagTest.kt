@@ -29,6 +29,7 @@ class AppLanguageForTagTest {
         assertReads(AppLanguage.DUTCH, "nl-NL", "nl-BE")
         assertReads(AppLanguage.RUSSIAN, "ru-RU")
         assertReads(AppLanguage.POLISH, "pl-PL")
+        assertReads(AppLanguage.HUNGARIAN, "hu", "hu-HU")
     }
 
     @Test fun `simplified Chinese reads as Chinese whatever the system spelled`() {

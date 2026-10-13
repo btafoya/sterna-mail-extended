@@ -19,6 +19,7 @@ enum class AppLanguage(val tag: String) {
     RUSSIAN("ru"),
     POLISH("pl"),
     CHINESE("zh-CN"),
+    HUNGARIAN("hu"),
 }
 
 fun currentAppLanguage(): AppLanguage {

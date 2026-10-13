@@ -88,14 +88,14 @@ class AccountAddedToastTest {
 }
 
 /**
- * Resource lint, the sentence exists in the ten languages the app ships, and carries something.
+ * Resource lint, the sentence exists in the eleven languages the app ships, and carries something.
  */
 class AccountRefreshedStringTest {
 
-    @Test fun `the re-add sentence is there, and not empty, in the ten languages`() {
+    @Test fun `the re-add sentence is there, and not empty, in the eleven languages`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships ten languages, and a directory that disappears takes this sentence " +
+            "the app ships eleven languages, and a directory that disappears takes this sentence " +
                 "with it without failing anything else here",
             LOCALES,
             files.map { it.parentFile.name },
@@ -137,7 +137,7 @@ class AccountRefreshedStringTest {
         val STRING = Regex("<string\\s+name=\"([^\"]+)\"[^>]*>(.*?)</string>", RegexOption.DOT_MATCHES_ALL)
 
         val LOCALES = listOf(
-            "values", "values-de", "values-es", "values-fr", "values-it",
+            "values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 

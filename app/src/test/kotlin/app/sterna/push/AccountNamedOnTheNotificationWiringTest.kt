@@ -165,7 +165,7 @@ class AccountNamedOnTheNotificationWiringTest {
         val files = File(root, RES_PATH).listFiles().orEmpty()
             .map { File(it, "strings.xml") }
             .filter { it.isFile && "name=\"notif_group_line\"" in it.readText() }
-        assertEquals("the default and its nine translations", 10, files.size)
+        assertEquals("the default and its ten translations", 11, files.size)
         files.forEach { file ->
             assertEquals(
                 "${file.parentFile.name}: the pair keeps the account first and the middle dot",

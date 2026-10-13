@@ -231,7 +231,7 @@ class FeatureUnavailableTest {
 
     // -- the resources ----------------------------------------------------------------------------
 
-    @Test fun `the filters strings are all there in ten languages, and none that nothing draws any more`() {
+    @Test fun `the filters strings are all there in eleven languages, and none that nothing draws any more`() {
         val files = RES.listFiles().orEmpty()
             .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) }
             .map { File(it, "strings.xml") }
@@ -239,7 +239,7 @@ class FeatureUnavailableTest {
             .sortedBy { it.parentFile.name }
         assertEquals(
             listOf(
-                "values", "values-de", "values-es", "values-fr", "values-it",
+                "values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
                 "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
             ),
             files.map { it.parentFile.name },
@@ -271,7 +271,7 @@ class FeatureUnavailableTest {
     @Test fun `Sieve and the port are only ever on the second line`() {
         val locales = RES.listFiles().orEmpty()
             .filter { it.isDirectory && (it.name == "values" || it.name.startsWith("values-")) && File(it, "strings.xml").isFile }
-        assertEquals(10, locales.size)
+        assertEquals(11, locales.size)
         val offenders = locales
             .flatMap { dir ->
                 val texts = strings(File(dir, "strings.xml"))

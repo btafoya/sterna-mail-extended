@@ -17,4 +17,4 @@ Vie privée et sécurité :
 Configuration et notifications :
 * Configuration à partir de la seule adresse e-mail, ou formulaire manuel quand le domaine ne publie rien
 * Notifications push sans Google, via JMAP, IMAP IDLE ou UnifiedPush
-* Disponible en dix langues
+* Disponible en onze langues

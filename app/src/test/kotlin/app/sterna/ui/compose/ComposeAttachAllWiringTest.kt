@@ -181,7 +181,7 @@ class ComposeAttachAllWiringTest {
         const val PICKED = "viewModel.attachAll(uris)"
         const val SHARED = "viewModel.attachAll(shared)"
         val LANGUAGES = listOf(
-            "values", "values-de", "values-es", "values-fr", "values-it",
+            "values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
     }

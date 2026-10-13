@@ -17,4 +17,4 @@ Privacy and security:
 Setup and notifications:
 * Setup from your email address alone, or a manual form when the domain publishes nothing
 * Push notifications without Google, over JMAP, IMAP IDLE or UnifiedPush
-* Available in ten languages
+* Available in eleven languages

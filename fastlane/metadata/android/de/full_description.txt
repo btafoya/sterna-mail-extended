@@ -17,4 +17,4 @@ Datenschutz und Sicherheit:
 Einrichtung und Benachrichtigungen:
 * Einrichtung allein über die E-Mail-Adresse, oder ein manuelles Formular, wenn die Domain nichts veröffentlicht
 * Push-Benachrichtigungen ohne Google, über JMAP, IMAP IDLE oder UnifiedPush
-* In zehn Sprachen verfügbar
+* In elf Sprachen verfügbar

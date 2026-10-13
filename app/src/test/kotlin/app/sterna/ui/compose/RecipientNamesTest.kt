@@ -55,7 +55,7 @@ class RecipientNamesTest {
         val res = generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, "app/src/main/res") }
             .first { File(it, "values/strings.xml").isFile }
-        val dirs = listOf("values", "values-de", "values-es", "values-fr", "values-it", "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN")
+        val dirs = listOf("values", "values-de", "values-es", "values-fr", "values-hu", "values-it", "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN")
         val entry = Regex("""<string name="compose_remove_recipient">([^<]*)</string>""")
         for (dir in dirs) {
             val xml = File(res, "$dir/strings.xml").readText()

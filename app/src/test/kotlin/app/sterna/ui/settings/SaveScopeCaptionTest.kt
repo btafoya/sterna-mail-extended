@@ -37,7 +37,7 @@ import java.io.File
  *    contains none of the forbidden words. So each caption must also say three things, checked
  *    against the same locale's own resources, its own Save label, its own Identities section
  *    name, plus two sentences and a connective meaning "as soon as you change them". Only the
- *    connective list is written per language here; the other two anchors hold ten translations
+ *    connective list is written per language here; the other two anchors hold eleven translations
  *    without this file containing any of them.
  *
  * What is not covered: that any translation means what it says. No test reads a sentence for
@@ -219,8 +219,8 @@ class SaveScopeCaptionTest {
      */
     private fun promisesImmediateEffect(locale: String, caption: String): Boolean {
         val banned = IMMEDIACY[locale] ?: error(
-            "no immediacy vocabulary for $locale — an eleventh language cannot be checked by a list " +
-                "written for ten, and passing it silently would be the failure this rule exists for",
+            "no immediacy vocabulary for $locale — a twelfth language cannot be checked by a list " +
+                "written for eleven, and passing it silently would be the failure this rule exists for",
         )
         val text = caption.lowercase()
         return banned.any { it in text }
@@ -237,12 +237,12 @@ class SaveScopeCaptionTest {
     ): List<String> {
         val text = caption.lowercase()
         val connectives = AS_SOON_AS[locale] ?: error(
-            "no \"as soon as\" vocabulary for $locale — an eleventh language cannot be checked by a " +
-                "list written for ten",
+            "no \"as soon as\" vocabulary for $locale — a twelfth language cannot be checked by a " +
+                "list written for eleven",
         )
         val buttonWords = BUTTON[locale] ?: error(
-            "no word for \"button\" for $locale — an eleventh language cannot be checked by a list " +
-                "written for ten",
+            "no word for \"button\" for $locale — a twelfth language cannot be checked by a list " +
+                "written for eleven",
         )
         return buildList {
             // Both the label and the word "button": in English and Italian the Save label IS the
@@ -364,6 +364,7 @@ class SaveScopeCaptionTest {
             "values-de" to listOf("sofort", "unmittelbar", "wirk", "anwend", "angewend", "übernomm", "greif", "gelten", "gilt", "in kraft"),
             "values-es" to listOf("inmediat", "aplic", "surte", "al instante", "vigor"),
             "values-it" to listOf("immediat", "subito", "applic", "effetto", "istantane", "in vigore"),
+            "values-hu" to listOf("azonnal", "rögtön", "nyomban", "tüstént", "életbe", "érvénybe", "érvényes", "hatály", "alkalmaz"),
             "values-nl" to listOf("onmiddellijk", "meteen", "direct", "van kracht", "toepass", "toegepast", "gelden", "geldt", "werking"),
             "values-pl" to listOf("natychmiast", "zaraz", "od razu", "stosowan", "stosuj", "obowiąz", "wchodzą w życie", "w życie"),
             "values-pt" to listOf("imediat", "aplic", "surte", "no ato", "vigor"),
@@ -384,6 +385,7 @@ class SaveScopeCaptionTest {
             "values-de" to "Die übrigen Einstellungen gelten ab dem Moment der Änderung.",
             "values-es" to "Los demás ajustes entran en vigor al momento.",
             "values-it" to "Le altre impostazioni hanno effetto subito.",
+            "values-hu" to "A képernyő többi beállítása a módosítás pillanatától érvényes.",
             "values-nl" to "De overige instellingen zijn meteen van kracht.",
             "values-pl" to "Pozostałe ustawienia zaczynają obowiązywać od zaraz.",
             "values-pt" to "As outras configurações entram em vigor de imediato.",
@@ -398,6 +400,7 @@ class SaveScopeCaptionTest {
             "values-de" to listOf("schaltfläche", "knopf", "button"),
             "values-es" to listOf("botón"),
             "values-it" to listOf("pulsante"),
+            "values-hu" to listOf("gomb"),
             "values-nl" to listOf("knop"),
             "values-pl" to listOf("przycisk"),
             "values-pt" to listOf("botão"),
@@ -412,6 +415,7 @@ class SaveScopeCaptionTest {
             "values-de" to listOf("sobald", "in dem moment"),
             "values-es" to listOf("en cuanto", "tan pronto como", "nada más"),
             "values-it" to listOf("appena", "nel momento in cui"),
+            "values-hu" to listOf("amint", "mihelyt", "abban a pillanatban"),
             "values-nl" to listOf("zodra", "op het moment dat"),
             "values-pl" to listOf("w chwili", "z chwilą", "gdy tylko", "kiedy tylko"),
             "values-pt" to listOf("assim que", "logo que", "no momento em que"),

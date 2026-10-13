@@ -220,12 +220,12 @@ class MoveSuggestionsWiringLintTest {
         assertEquals("the reader's sheet is composed inside `if (movePicker)`", 1, opensBefore(MESSAGE_SCREEN, "if (movePicker) {", "MoveFolderSheet("))
     }
 
-    @Test fun `the two titles and the sender mark exist in the ten languages`() {
+    @Test fun `the two titles and the sender mark exist in the eleven languages`() {
         val files = listOf(File(res, "values/strings.xml")) + (res.listFiles() ?: emptyArray())
             .filter { it.isDirectory && it.name.startsWith("values-") }
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
-        assertEquals("ten string files", 10, files.size)
+        assertEquals("eleven string files", 11, files.size)
         val expected = setOf("inbox_move_suggestions", "inbox_move_all_folders", "inbox_move_usual_for_sender")
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }.filterValues { it.isNotEmpty() }
         assertEquals(emptyMap<String, Set<String>>(), missing)

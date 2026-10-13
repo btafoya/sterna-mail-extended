@@ -16,7 +16,7 @@ class FilterChipStringsTest {
     fun `every language carries the shared filter words, the funnel's state, and none of the words they replaced`() {
         val offenders = mutableListOf<String>()
         val files = localeFiles()
-        assertEquals("values/ plus nine languages", 10, files.size)
+        assertEquals("values/ plus ten languages", 11, files.size)
         for (file in files) {
             val locale = file.parentFile.name
             val names = NAME.findAll(file.readText()).map { it.groupValues[1] }.toSet()

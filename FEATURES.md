@@ -223,7 +223,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Accessibility pass: controls carry a name and a state for screen readers,
   touch targets were reviewed against 48 dp, and text scales with the system
   font size.
-- ✅ Ten UI languages.
+- ✅ Eleven UI languages.
 - ✅ Coastal line-art empty states.
 
 ## Server-side extras

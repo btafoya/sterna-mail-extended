@@ -16,7 +16,7 @@ class SearchStringsTest {
     fun `every language carries the search's words and none of the retired screen's`() {
         val offenders = mutableListOf<String>()
         val files = localeFiles()
-        assertEquals("values/ plus nine languages", 10, files.size)
+        assertEquals("values/ plus ten languages", 11, files.size)
         for (file in files) {
             val locale = file.parentFile.name
             val values = NAMED.findAll(file.readText()).associate { it.groupValues[1] to it.groupValues[2] }

@@ -182,10 +182,10 @@ The full, tracked feature set lives in [FEATURES.md](FEATURES.md).
 
 ## 🌍 Languages
 
-Sterna's interface is fully translated into ten languages:
+Sterna's interface is fully translated into eleven languages:
 
 🇬🇧 English · 🇫🇷 French · 🇩🇪 German · 🇪🇸 Spanish · 🇮🇹 Italian · 🇵🇹 Portuguese ·
-🇳🇱 Dutch · 🇷🇺 Russian · 🇵🇱 Polish · 🇨🇳 Simplified Chinese
+🇳🇱 Dutch · 🇷🇺 Russian · 🇵🇱 Polish · 🇨🇳 Simplified Chinese · 🇭🇺 Hungarian
 
 It also respects your system language out of the box, and you can override it
 per-app in Settings → Appearance.

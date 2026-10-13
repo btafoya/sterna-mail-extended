@@ -91,14 +91,14 @@ class UnsubscribeConfirmationShowsMailTextTest {
         )
     }
 
-    /** The string itself, in all ten languages: two placeholders, or a text goes unshown. */
+    /** The string itself, in all eleven languages: two placeholders, or a text goes unshown. */
     @Test fun `the preview string keeps both placeholders in every language`() {
         val files = listOf(File(res, "values/strings.xml")) + (res.listFiles() ?: emptyArray())
             .filter { it.isDirectory && it.name.startsWith("values-") }
             .map { File(it, "strings.xml") }
             .filter { it.isFile }
             .sortedBy { it.parentFile.name }
-        assertTrue("expected ten languages, found ${files.size}", files.size == 10)
+        assertTrue("expected eleven languages, found ${files.size}", files.size == 11)
 
         val broken = files.filter { file ->
             val text = STRING.find(file.readText())

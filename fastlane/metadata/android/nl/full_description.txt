@@ -17,4 +17,4 @@ Privacy en beveiliging:
 Instellen en meldingen:
 * Instellen met alleen je e-mailadres, of een handmatig formulier als het domein niets publiceert
 * Pushmeldingen zonder Google, via JMAP, IMAP IDLE of UnifiedPush
-* Beschikbaar in tien talen
+* Beschikbaar in elf talen

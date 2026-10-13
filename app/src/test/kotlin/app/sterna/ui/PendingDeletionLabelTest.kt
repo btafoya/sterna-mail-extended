@@ -11,7 +11,7 @@ import java.io.File
 class PendingDeletionLabelTest {
 
     /**
-     * The mark itself, in the ten languages: a label posted before the write leaves the phone ends
+     * The mark itself, in the eleven languages: a label posted before the write leaves the phone ends
      */
     @Test
     fun `the three labels of a delete that has not happened yet say it is under way`() {
@@ -93,7 +93,7 @@ class PendingDeletionLabelTest {
     }
 
     /**
-     * Run [check] over the three keys in the ten languages and collect what it complains about.
+     * Run [check] over the three keys in the eleven languages and collect what it complains about.
      */
     private fun eachValue(
         keys: List<String> = PENDING_KEYS,
@@ -101,7 +101,7 @@ class PendingDeletionLabelTest {
     ): List<String> {
         val files = listOf(File(res, "values/strings.xml")) + translations()
         assertEquals(
-            "the app ships ten languages, and a directory that disappears takes its three labels " +
+            "the app ships eleven languages, and a directory that disappears takes its three labels " +
                 "with it without failing anything else here",
             LOCALES,
             files.map { it.parentFile.name },
@@ -151,7 +151,7 @@ class PendingDeletionLabelTest {
         val PENDING_KEYS = listOf(DESTROY, EMPTY, FOLDER)
 
         val LOCALES = listOf(
-            "values", "values-de", "values-es", "values-fr", "values-it",
+            "values", "values-de", "values-es", "values-fr", "values-hu", "values-it",
             "values-nl", "values-pl", "values-pt", "values-ru", "values-zh-rCN",
         )
 
@@ -179,6 +179,11 @@ class PendingDeletionLabelTest {
                 DESTROY to "Message supprimé définitivement",
                 EMPTY to "Corbeille vidée",
                 FOLDER to "Dossier « %1\$s » supprimé",
+            ),
+            "values-hu" to mapOf(
+                DESTROY to "Üzenet véglegesen törölve",
+                EMPTY to "Kuka kiürítve",
+                FOLDER to "„%1\$s” mappa törölve",
             ),
             "values-it" to mapOf(
                 DESTROY to "Messaggio eliminato definitivamente",

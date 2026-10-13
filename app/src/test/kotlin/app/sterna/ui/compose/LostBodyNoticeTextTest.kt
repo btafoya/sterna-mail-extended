@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Resource lint, what the two sentences of a refused send are allowed to say, in the ten
+ * Resource lint, what the two sentences of a refused send are allowed to say, in the eleven languages.
  */
 class LostBodyNoticeTextTest {
 
@@ -21,22 +21,22 @@ class LostBodyNoticeTextTest {
     /**
      * Fail closed. A rule that reads its subject can read nothing, a key renamed, a `<string>` tag
      */
-    @Test fun `both sentences resolve in the ten languages`() {
+    @Test fun `both sentences resolve in the eleven languages`() {
         val strings = localeStrings()
         val missing = KEYS.sorted().flatMap { key ->
             strings.filterValues { key !in it }.keys.sorted().map { "$key: not read from $it" }
         }
         assertEquals(
-            "every rule below reads these two keys out of the ten strings.xml files; one that " +
+            "every rule below reads these two keys out of the eleven strings.xml files; one that " +
                 "resolves nowhere is not a translation problem — parity is happy with a key " +
                 "consistently absent from THIS rule's view — it is this rule going blind. Missing:\n" +
                 missing.joinToString("\n"),
             emptyList<String>(),
             missing,
         )
-        assertEquals("ten locales carry a strings.xml, and each one is screened", 10, strings.size)
+        assertEquals("eleven locales carry a strings.xml, and each one is screened", 11, strings.size)
         assertEquals(
-            "each of the ten locales must have a forbidden-fragment list of its own. A language " +
+            "each of the eleven locales must have a forbidden-fragment list of its own. A language " +
                 "added without one would be screened by nothing, which is how a sentence " +
                 "promising that the text is safe gets shipped in one language only.",
             emptyList<String>(),
@@ -87,12 +87,12 @@ class LostBodyNoticeTextTest {
     }
 
     /**
-     * The ENGLISH, whole, by equality, because it is the source the nine others are translated
+     * The ENGLISH, whole, by equality, because it is the source the ten others are translated
      */
     @Test fun `the English of both sentences is the one that was reviewed`() {
         assertEquals(
             "the English text of these two sentences changed. They are the source the other " +
-                "nine are translated from, so a reword is a deliberate gesture, not a tidy-up. " +
+                "ten are translated from, so a reword is a deliberate gesture, not a tidy-up. " +
                 "What each owes: with a draft stored behind the screen, a gesture that WORKS " +
                 "(close, reopen) and no promise about what comes back; with no draft anywhere, " +
                 "retyping, which is then the only thing left to do. Swap the two and the app hands " +
@@ -104,7 +104,7 @@ class LostBodyNoticeTextTest {
 
     // -- reading the resources -------------------------------------------------------------------
 
-    /** The ten locales' strings, as the reader sees them. */
+    /** The eleven locales' strings, as the reader sees them. */
     private fun localeStrings(): Map<String, Map<String, String>> =
         locales().associate { dir ->
             dir.name to STRING.findAll(File(dir, "strings.xml").readText())
@@ -112,13 +112,13 @@ class LostBodyNoticeTextTest {
                 .filterKeys { it in KEYS }
         }
 
-    /** The ten shipped locales, as `DraftKeptToastFitTest.locales()` counts them. */
+    /** The eleven shipped locales, as `DraftKeptToastFitTest.locales()` counts them. */
     private fun locales(): List<File> = (res.listFiles() ?: emptyArray())
         .filter { it.isDirectory && File(it, "strings.xml").isFile }
         .sortedBy { it.name }
         .also {
-            check(it.size == 10) {
-                "expected 10 locales carrying a strings.xml, found ${it.size} " +
+            check(it.size == 11) {
+                "expected 11 locales carrying a strings.xml, found ${it.size} " +
                     "(${it.joinToString { d -> d.name }})"
             }
         }
@@ -172,6 +172,7 @@ class LostBodyNoticeTextTest {
             "values-de" to listOf("gespeichert", "sicher", "wiederhergestellt", "aufbewahrt", "gerettet"),
             "values-es" to listOf("guardad", "salvo", "seguro", "recuperad", "conservad"),
             "values-fr" to listOf("enregistr", "sauvegard", "récupér", "conserv", "sécurité", "sûr"),
+            "values-hu" to listOf("mentve", "mentett", "biztons", "megőriz", "megmarad", "helyreáll", "visszaáll"),
             "values-it" to listOf("salv", "sicuro", "recuperat", "conservat"),
             "values-nl" to listOf("opgeslagen", "veilig", "hersteld", "bewaard", "gered"),
             "values-pl" to listOf("zapisan", "bezpieczn", "odzyskan", "zachowan", "uratowan"),

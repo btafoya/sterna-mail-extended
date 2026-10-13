@@ -17,4 +17,4 @@ Sterna Mail 是一款自由、注重隐私的 Android 电子邮件客户端。�
 设置与通知:
 * 只需邮箱地址即可完成设置；域名未发布配置时可手动填写
 * 无需 Google 的推送通知，支持 JMAP、IMAP IDLE 或 UnifiedPush
-* 支持十种语言
+* 支持十一种语言

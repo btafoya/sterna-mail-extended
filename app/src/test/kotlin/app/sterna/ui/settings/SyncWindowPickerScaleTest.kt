@@ -9,7 +9,7 @@ import java.io.File
 
 /**
  * What the "Messages to sync" row offers, and the weld between each offered number and the label it
- * is shown under, in all ten languages.
+ * is shown under, in all eleven languages.
  */
 class SyncWindowPickerScaleTest {
 
@@ -105,7 +105,7 @@ class SyncWindowPickerScaleTest {
         ).forEach { (key, window) ->
             val perLocale = stringFiles().associate { it.parentFile.name to value(it, key) }
             assertEquals(
-                "$key is missing from a locale — ten languages is the cost of one new label",
+                "$key is missing from a locale — eleven languages is the cost of one new label",
                 emptyList<String>(),
                 perLocale.filterValues { it == null }.keys.toList(),
             )
@@ -148,7 +148,7 @@ class SyncWindowPickerScaleTest {
     @Test fun `the Everything strings are still shipped, they are just not shown any more`() {
         // Nothing may be deleted: `SyncWindow.All` stays in the enum for ever (its name is on
         // disk), and a string removed today is a string a later volet cannot put back without a
-        // translation round. Ten locales, still there, SyncEverythingLabelTest pins the words.
+        // translation round. Eleven locales, still there, SyncEverythingLabelTest pins the words.
         assertEquals(
             "settings_sync_everything was dropped from a locale",
             emptyList<String>(),
@@ -156,8 +156,8 @@ class SyncWindowPickerScaleTest {
         )
     }
 
-    @Test fun `the ten languages carry the three new labels and no locale was left behind`() {
-        assertEquals("ten locales ship; this test read a different number of them", 10, stringFiles().size)
+    @Test fun `the eleven languages carry the three new labels and no locale was left behind`() {
+        assertEquals("eleven locales ship; this test read a different number of them", 11, stringFiles().size)
     }
 
     // -- reading the sources ---------------------------------------------------------------------------

@@ -85,7 +85,7 @@ class RowMonogramTest {
         val files = File(root, "app/src/main/res").listFiles { f -> f.name.startsWith("values") }!!
             .map { File(it, "strings.xml") }
             .filter { it.isFile && it.readText().contains("name=\"a11y_favourite\"") }
-        assertEquals("the ten languages carrying the star's label", 10, files.size)
+        assertEquals("the eleven languages carrying the star's label", 11, files.size)
         val missing = files.associate { file ->
             file.parentFile.name to listOf("a11y_select", "a11y_deselect")
                 .filterNot { file.readText().contains("<string name=\"$it\">") }

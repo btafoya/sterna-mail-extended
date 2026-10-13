@@ -1,0 +1,20 @@
+A Sterna Mail szabad, privát e-mail-kliens Androidra. A JMAP-hoz, az IMAP modern utódjához készült, és ugyanilyen jól működik bármely IMAP/SMTP-szolgáltatóval.
+
+Nincs követés, nincs reklám, nincsenek Google-szolgáltatások. A kód GPLv3 licencű, és az F-Droid ellenőrzi, hogy az általa terjesztett alkalmazás bájtról bájtra megegyezik a közzétett forrásból készülttel.
+
+Olvasás:
+* Több fiók, JMAP és IMAP egymás mellett, offline is működő egyesített beérkezett üzenetekkel
+* Beszélgetések, keresés gépelés közben és elhalasztás
+
+Írás:
+* Több személyazonosság, mindegyik saját aláírással
+* Küldés visszavonása és ütemezett küldés
+
+Adatvédelem és biztonság:
+* OpenPGP-titkosítás egy olyan alkalmazáson keresztül, mint az OpenKeychain
+* A távoli képek és a követőpixelek alapértelmezés szerint tiltva, alkalmazászár ujjlenyomattal vagy PIN-kóddal
+
+Beállítás és értesítések:
+* Beállítás pusztán az e-mail-címéből, vagy kézi űrlappal, ha a tartomány semmit sem tesz közzé
+* Push-értesítések Google nélkül, JMAP-on, IMAP IDLE-n vagy UnifiedPushon keresztül
+* Tizenegy nyelven érhető el

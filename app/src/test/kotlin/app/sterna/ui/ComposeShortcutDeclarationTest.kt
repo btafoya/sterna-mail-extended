@@ -121,7 +121,7 @@ class ComposeShortcutDeclarationTest {
             }
         }
         assertEquals(emptyList<String>(), wrong)
-        assertEquals("the ten shipped languages", 10, locales.size)
+        assertEquals("the eleven shipped languages", 11, locales.size)
     }
 
     private fun expected(pkg: String) = mapOf(

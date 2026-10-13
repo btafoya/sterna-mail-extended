@@ -6,7 +6,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source and resource lint, not a behaviour test: it reads seven source files and the ten string
+ * Source and resource lint, not a behaviour test: it reads seven source files and the eleven string
  * files as text and proves nothing about what is drawn. Same instrument as
  * [BoldUnreadFoldersWiringTest], whose shape it copies, for the switch that adds a Starred entry
  * to the folder drawer (#255).

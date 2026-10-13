@@ -29,6 +29,7 @@ class ComposeTextTest {
             "Смотри вложение",                       // ru
             "W załączeniu przesyłam plik",           // pl
             "请查收附件",
+            "A részleteket a mellékletben találja",
         )
         positives.forEach { assertTrue("should flag: $it", mentionsAttachment(it)) }
     }
@@ -38,6 +39,12 @@ class ComposeTextTest {
 
     @Test fun flagsChineseSuifuWithoutTheWordForAttachment() =
         assertTrue(mentionsAttachment("随附合同草案，请审阅"))
+
+    @Test fun flagsHungarianCsatolWithoutTheWordForAttachment() =
+        assertTrue(mentionsAttachment("Csatolom a havi jelentést"))
+
+    @Test fun flagsHungarianMellekelWithoutTheWordForAttachment() =
+        assertTrue(mentionsAttachment("Mellékelten küldöm a szerződés tervezetét"))
 
     @Test fun caseInsensitive() {
         assertTrue(mentionsAttachment("SEE THE ATTACHED FILE"))
@@ -51,6 +58,7 @@ class ComposeTextTest {
             "Bonjour, à demain",
             "Re: Project Phoenix review",
             "下周我们在公司附近碰面",
+            "Holnap csatlakozom a megbeszéléshez",
         ).forEach { assertFalse("should not flag: $it", mentionsAttachment(it)) }
     }
 

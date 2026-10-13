@@ -56,6 +56,7 @@ internal val ATTACHMENT_HINTS = listOf(
     // pl
     "załącznik", "załączeniu", "załączam",
     "附件", "附上", "随附",
+    "melléklet", "csatol", "mellékel",
 )
 
 internal fun mentionsAttachment(text: String): Boolean {

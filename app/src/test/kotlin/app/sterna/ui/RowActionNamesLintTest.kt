@@ -154,7 +154,7 @@ class RowActionNamesLintTest {
      * stay green on a `values/` entry written without its `%1$s`, and on a translation pasted
      * from the English.
      */
-    @Test fun `every new name exists once in the ten languages, with its argument, translated`() {
+    @Test fun `every new name exists once in the eleven languages, with its argument, translated`() {
         val wrong = mutableListOf<String>()
         val english = textsOf("values")
         (listOf("values") + LANGUAGES.map { "values-$it" }).forEach { dir ->
@@ -204,7 +204,7 @@ class RowActionNamesLintTest {
         const val MESSAGE = "$UI/message/MessageScreen.kt"
         const val SETTINGS = "$UI/settings/SettingsScreen.kt"
 
-        val LANGUAGES = listOf("de", "es", "fr", "it", "nl", "pl", "pt", "ru", "zh-rCN")
+        val LANGUAGES = listOf("de", "es", "fr", "hu", "it", "nl", "pl", "pt", "ru", "zh-rCN")
 
         /** Key to whether it takes the row's text as `%1$s`. */
         val NAMED = mapOf(

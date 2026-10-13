@@ -62,7 +62,7 @@ class GroupSummaryObeysTheContentSettingWiringTest {
         assertEquals(
             "…and the two strings, each formatted by getString like the other. Concatenating the " +
                 "count in Kotlin would put the number on the wrong side of the sentence in four of " +
-                "the ten languages",
+                "the eleven languages",
             listOf(
                 "val title = if (account == null) {",
                 "context.getString(R.string.notif_group_count_no_account, count)",
@@ -78,7 +78,7 @@ class GroupSummaryObeysTheContentSettingWiringTest {
         val files = File(root, RES_PATH).listFiles().orEmpty()
             .map { File(it, "strings.xml") }
             .filter { it.isFile && "name=\"notif_group_count\"" in it.readText() }
-        assertEquals("the default and its nine translations", 10, files.size)
+        assertEquals("the default and its ten translations", 11, files.size)
         files.forEach { file ->
             val line = file.readLines().map { it.trim() }
                 .filter { "name=\"notif_group_count_no_account\"" in it }
@@ -89,7 +89,7 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 "%1\$d" in line.first() && "%2\$s" !in line.first(),
             )
             assertTrue(
-                "${file.parentFile.name}: left in English it reaches nine readers of ten in a " +
+                "${file.parentFile.name}: left in English it reaches ten readers of eleven in a " +
                     "language they did not choose: <${line.first()}>",
                 file.parentFile.name == "values" || "new messages" !in line.first(),
             )

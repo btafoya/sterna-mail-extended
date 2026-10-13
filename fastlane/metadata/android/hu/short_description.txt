@@ -1,0 +1,1 @@
+Privát e-mail-kliens JMAP-hoz és IMAP/SMTP-hez. Nincs Google, nincs követés.

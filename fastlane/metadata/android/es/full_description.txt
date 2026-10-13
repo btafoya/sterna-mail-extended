@@ -17,4 +17,4 @@ Privacidad y seguridad:
 Configuración y notificaciones:
 * Configuración solo con tu dirección de correo, o un formulario manual cuando el dominio no publica nada
 * Notificaciones push sin Google, mediante JMAP, IMAP IDLE o UnifiedPush
-* Disponible en diez idiomas
+* Disponible en once idiomas

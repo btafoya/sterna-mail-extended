@@ -5,11 +5,11 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The ten "Everything" labels, and the fact that they are still shipped.
+ * The eleven "Everything" labels, and the fact that they are still shipped.
  */
 class SyncEverythingLabelTest {
 
-    @Test fun `the ten labels are unchanged, and none of them hedges`() {
+    @Test fun `the eleven labels are unchanged, and none of them hedges`() {
         assertEquals(
             "settings_sync_everything changed or was deleted. It is not on the picker any more, " +
                 "but an account can still CARRY that window and the row has to name it — see " +
@@ -19,6 +19,7 @@ class SyncEverythingLabelTest {
                 "values-de" to "Alles",
                 "values-es" to "Todo",
                 "values-fr" to "Tout",
+                "values-hu" to "Minden",
                 "values-it" to "Tutto",
                 "values-nl" to "Alles",
                 "values-pl" to "Wszystko",
