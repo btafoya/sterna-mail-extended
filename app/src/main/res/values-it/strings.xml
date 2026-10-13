@@ -398,6 +398,8 @@
     <string name="settings_list_monogram_subtitle">Il cerchio colorato all\'inizio di ogni riga dell\'elenco dei messaggi.</string>
     <string name="settings_bold_unread_folders_title">Cartelle con messaggi non letti in grassetto</string>
     <string name="settings_bold_unread_folders_subtitle">Nel pannello delle cartelle, il nome di una cartella è in grassetto finché contiene messaggi non letti.</string>
+    <string name="settings_starred_in_drawer_title">«Speciali» nel pannello delle cartelle</string>
+    <string name="settings_starred_in_drawer_subtitle">Aggiunge al pannello delle cartelle la voce «Speciali». Apre una ricerca dei messaggi speciali, che interroga il server.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Chiaro</string>
     <string name="settings_theme_dark">Scuro</string>

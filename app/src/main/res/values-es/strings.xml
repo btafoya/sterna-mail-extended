@@ -398,6 +398,8 @@
     <string name="settings_list_monogram_subtitle">El círculo de color al principio de cada fila de la lista de mensajes.</string>
     <string name="settings_bold_unread_folders_title">Carpetas con mensajes no leídos en negrita</string>
     <string name="settings_bold_unread_folders_subtitle">En el panel de carpetas, el nombre de una carpeta aparece en negrita mientras contiene mensajes no leídos.</string>
+    <string name="settings_starred_in_drawer_title">«Destacados» en el panel de carpetas</string>
+    <string name="settings_starred_in_drawer_subtitle">Añade al panel de carpetas la entrada «Destacados». Abre una búsqueda de los mensajes destacados, que consulta al servidor.</string>
     <string name="settings_theme_auto">Automático</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Oscuro</string>

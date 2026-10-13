@@ -57,6 +57,7 @@ data class SettingsBackup(
     /** Whether each message-list row starts with the sender's coloured initials (#144). */
     val listMonogram: Boolean? = null,
     val boldUnreadFolders: Boolean? = null,
+    val starredInDrawer: Boolean? = null,
     val searchHistory: Boolean? = null,
     val volumeTextSize: Boolean? = null,
     /** [DeliveryMode] name (Instant / Battery saver). */

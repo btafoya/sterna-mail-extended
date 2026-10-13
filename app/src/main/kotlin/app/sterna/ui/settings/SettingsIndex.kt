@@ -114,6 +114,10 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "bold_unread_folders", APPEARANCE, R.string.settings_bold_unread_folders_title,
         R.string.settings_bold_unread_folders_subtitle,
     ),
+    SettingEntry(
+        "starred_in_drawer", APPEARANCE, R.string.settings_starred_in_drawer_title,
+        R.string.settings_starred_in_drawer_subtitle,
+    ),
 
     SettingEntry("conversation", READING, R.string.settings_conversation_title, R.string.settings_conversation_subtitle),
     SettingEntry(

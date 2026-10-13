@@ -20,6 +20,7 @@ import app.sterna.core.data.settings.REPLY_BAR_DEFAULT
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
 import app.sterna.core.data.settings.VOLUME_TEXT_SIZE_DEFAULT
 import app.sterna.core.data.settings.SEARCH_HISTORY_DEFAULT
+import app.sterna.core.data.settings.STARRED_IN_DRAWER_DEFAULT
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
 import app.sterna.core.data.settings.SwipeAction
@@ -150,6 +151,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setBoldUnreadFolders(enabled: Boolean) {
         viewModelScope.launch { settings.setBoldUnreadFolders(enabled) }
+    }
+
+    val starredInDrawer = settings.starredInDrawer.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = STARRED_IN_DRAWER_DEFAULT,
+    )
+
+    fun setStarredInDrawer(enabled: Boolean) {
+        viewModelScope.launch { settings.setStarredInDrawer(enabled) }
     }
 
     val swipeRight = settings.swipeRightAction.stateIn(

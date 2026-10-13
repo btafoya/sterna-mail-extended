@@ -5,6 +5,7 @@ import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.PreviewLines
+import app.sterna.core.data.settings.STARRED_IN_DRAWER_DEFAULT
 import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
 
 /**
@@ -26,3 +27,5 @@ val LocalUnreadTint = compositionLocalOf { UNREAD_TINT_DEFAULT }
 val LocalListMonogram = compositionLocalOf { LIST_MONOGRAM_DEFAULT }
 
 val LocalBoldUnreadFolders = compositionLocalOf { BOLD_UNREAD_FOLDERS_DEFAULT }
+
+val LocalStarredInDrawer = compositionLocalOf { STARRED_IN_DRAWER_DEFAULT }

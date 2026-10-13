@@ -3330,6 +3330,12 @@ class InboxViewModel(
         barSearch.ask(SearchQuery(from = address), AddressNames())
     }
 
+    fun openStarredSearch() {
+        clearSelection()
+        setSearchActive(true)
+        barSearch.ask(SearchQuery(flagged = true), AddressNames())
+    }
+
     fun recordSearch() {
         val typed = searchState.value.query
         searchState.value = searchState.value.copy(typing = false)

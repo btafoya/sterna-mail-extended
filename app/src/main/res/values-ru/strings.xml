@@ -400,6 +400,8 @@
     <string name="settings_list_monogram_subtitle">Цветной кружок в начале каждой строки списка писем.</string>
     <string name="settings_bold_unread_folders_title">Выделять папки с непрочитанными письмами жирным</string>
     <string name="settings_bold_unread_folders_subtitle">В панели папок название папки выделяется жирным, пока в ней есть непрочитанные письма.</string>
+    <string name="settings_starred_in_drawer_title">«Помеченные» в панели папок</string>
+    <string name="settings_starred_in_drawer_subtitle">Добавляет в панель папок пункт «Помеченные». Он открывает поиск помеченных писем, который обращается к серверу.</string>
     <string name="settings_theme_auto">Авто</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>

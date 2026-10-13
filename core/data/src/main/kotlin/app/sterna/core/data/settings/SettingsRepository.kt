@@ -134,6 +134,12 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_BOLD_UNREAD_FOLDERS] = enabled }
     }
 
+    val starredInDrawer: Flow<Boolean> = dataStore.data.map(::starredInDrawerFrom)
+
+    suspend fun setStarredInDrawer(enabled: Boolean) {
+        dataStore.edit { it[KEY_STARRED_IN_DRAWER] = enabled }
+    }
+
     val swipeRightAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_RIGHT, SwipeAction.TOGGLE_READ)
     val swipeLeftAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_LEFT, SwipeAction.DELETE)
 
@@ -390,6 +396,7 @@ class SettingsRepository(context: Context) {
         pureBlack = pureBlack.first(),
         listMonogram = listMonogram.first(),
         boldUnreadFolders = boldUnreadFolders.first(),
+        starredInDrawer = starredInDrawer.first(),
         searchHistory = searchHistory.first(),
         volumeTextSize = volumeTextSize.first(),
         deliveryMode = deliveryMode.first().name,
@@ -430,6 +437,7 @@ class SettingsRepository(context: Context) {
         backup.pureBlack?.let { setPureBlack(it) }
         backup.listMonogram?.let { setListMonogram(it) }
         backup.boldUnreadFolders?.let { setBoldUnreadFolders(it) }
+        backup.starredInDrawer?.let { setStarredInDrawer(it) }
         backup.searchHistory?.let { setSearchHistory(it) }
         backup.volumeTextSize?.let { setVolumeTextSize(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
@@ -626,6 +634,13 @@ const val BOLD_UNREAD_FOLDERS_DEFAULT = true
 
 internal fun boldUnreadFoldersFrom(prefs: Preferences): Boolean =
     prefs[KEY_BOLD_UNREAD_FOLDERS] ?: BOLD_UNREAD_FOLDERS_DEFAULT
+
+internal val KEY_STARRED_IN_DRAWER = booleanPreferencesKey("starred_in_drawer")
+
+const val STARRED_IN_DRAWER_DEFAULT = false
+
+internal fun starredInDrawerFrom(prefs: Preferences): Boolean =
+    prefs[KEY_STARRED_IN_DRAWER] ?: STARRED_IN_DRAWER_DEFAULT
 
 /** The key the plain-text reading switch is stored under. */
 internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")

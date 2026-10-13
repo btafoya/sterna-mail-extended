@@ -400,6 +400,8 @@
     <string name="settings_list_monogram_subtitle">Kolorowe kółko na początku każdego wiersza listy wiadomości.</string>
     <string name="settings_bold_unread_folders_title">Pogrubiaj foldery z nieprzeczytanymi wiadomościami</string>
     <string name="settings_bold_unread_folders_subtitle">W panelu folderów nazwa folderu jest pogrubiona, dopóki zawiera on nieprzeczytane wiadomości.</string>
+    <string name="settings_starred_in_drawer_title">„Oznaczone” w panelu folderów</string>
+    <string name="settings_starred_in_drawer_subtitle">Dodaje do panelu folderów pozycję „Oznaczone”. Otwiera ona wyszukiwanie oznaczonych wiadomości, które odpytuje serwer.</string>
     <string name="settings_theme_auto">Automatyczny</string>
     <string name="settings_theme_light">Jasny</string>
     <string name="settings_theme_dark">Ciemny</string>

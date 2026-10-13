@@ -396,6 +396,8 @@
     <string name="settings_list_monogram_subtitle">De gekleurde cirkel aan het begin van elke rij in de berichtenlijst.</string>
     <string name="settings_bold_unread_folders_title">Mappen met ongelezen berichten vet weergeven</string>
     <string name="settings_bold_unread_folders_subtitle">In de mappenlade staat de naam van een map vet zolang die ongelezen berichten bevat.</string>
+    <string name="settings_starred_in_drawer_title">“Met ster” in de mappenlade</string>
+    <string name="settings_starred_in_drawer_subtitle">Voegt het item “Met ster” toe aan de mappenlade. Het opent een zoekopdracht naar berichten met ster, die de server raadpleegt.</string>
     <string name="settings_theme_auto">Automatisch</string>
     <string name="settings_theme_light">Licht</string>
     <string name="settings_theme_dark">Donker</string>

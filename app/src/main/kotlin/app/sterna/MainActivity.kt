@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
+import app.sterna.core.data.settings.STARRED_IN_DRAWER_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.PreviewLines
@@ -28,6 +29,7 @@ import app.sterna.ui.message.NavFadeGuard
 import app.sterna.ui.message.VolumeTextSizeRelay
 import app.sterna.ui.message.volumeKeyDecision
 import app.sterna.ui.components.LocalBoldUnreadFolders
+import app.sterna.ui.components.LocalStarredInDrawer
 import app.sterna.ui.components.LocalListDensity
 import app.sterna.ui.components.LocalListMonogram
 import app.sterna.ui.components.LocalPreviewLines
@@ -77,9 +79,10 @@ class MainActivity : AppCompatActivity() {
             // UNREAD_TINT_DEFAULT, not a literal: this is the first frame's copy of a default that
             // exists in three places, and a literal that drifts flashes the wrong list on launch.
             val unreadTint by settings.unreadTint.collectAsState(initial = UNREAD_TINT_DEFAULT)
-            // LIST_MONOGRAM_DEFAULT and BOLD_UNREAD_FOLDERS_DEFAULT: not literals, for the same reason.
+            // LIST_MONOGRAM_DEFAULT, BOLD_UNREAD_FOLDERS_DEFAULT, STARRED_IN_DRAWER_DEFAULT: not literals, same reason.
             val listMonogram by settings.listMonogram.collectAsState(initial = LIST_MONOGRAM_DEFAULT)
             val boldUnreadFolders by settings.boldUnreadFolders.collectAsState(initial = BOLD_UNREAD_FOLDERS_DEFAULT)
+            val starredInDrawer by settings.starredInDrawer.collectAsState(initial = STARRED_IN_DRAWER_DEFAULT)
             // PURE_BLACK_DEFAULT, not a literal, for the same reason: one that drifts repaints the
             // whole theme a frame after launch.
             val pureBlack by settings.pureBlack.collectAsState(initial = PURE_BLACK_DEFAULT)
@@ -90,6 +93,7 @@ class MainActivity : AppCompatActivity() {
                     LocalUnreadTint provides unreadTint,
                     LocalListMonogram provides listMonogram,
                     LocalBoldUnreadFolders provides boldUnreadFolders,
+                    LocalStarredInDrawer provides starredInDrawer,
                     LocalVolumeTextSizeRelay provides volumeTextSizeRelay,
                 ) {
                     SternaApp(

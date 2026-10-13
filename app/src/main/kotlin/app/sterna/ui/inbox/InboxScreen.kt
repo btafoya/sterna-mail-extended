@@ -203,6 +203,7 @@ import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.touchOverflow
 import app.sterna.ui.components.touchTargetOverflow
 import app.sterna.ui.components.LocalBoldUnreadFolders
+import app.sterna.ui.components.LocalStarredInDrawer
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.components.TernRefreshIndicator
@@ -1649,6 +1650,7 @@ private fun DrawerContent(
     onDeleteFolder: (Mailbox) -> Unit,
 ) {
               val boldUnreadFolders = LocalBoldUnreadFolders.current
+              val starredInDrawer = LocalStarredInDrawer.current
               // Scroll the whole drawer so long folder lists (and Settings below them) stay reachable (#7).
               Column(Modifier.verticalScroll(rememberScrollState())) {
                 val currentAccount = accounts.firstOrNull { it.id == currentAccountId }
@@ -1790,6 +1792,21 @@ private fun DrawerContent(
                         selected = ui.unified,
                         onClick = {
                             viewModel.selectUnified()
+                            scope.launch { drawerState.close() }
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
+                }
+                // Outside the guard above too: a search for starred mail means as much on a
+                // single-account install. Never selected, it opens the search on the account or
+                // accounts of the view in hand and is not a view of its own.
+                if (starredInDrawer) {
+                    NavigationDrawerItem(
+                        icon = { Icon(Icons.Filled.Star, contentDescription = null) },
+                        label = { Text(stringResource(R.string.filter_starred)) },
+                        selected = false,
+                        onClick = {
+                            viewModel.openStarredSearch()
                             scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(horizontal = 12.dp),
