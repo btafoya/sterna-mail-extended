@@ -61,6 +61,7 @@ internal fun SelectionTopBar(
     currentRole: String?,
     inboxId: String?,
     trash: Boolean,
+    besideReader: Boolean,
     onMove: () -> Unit,
     onSelectAll: () -> Unit,
 ) {
@@ -89,11 +90,13 @@ internal fun SelectionTopBar(
         },
         actions = {
             // Toggle read/unread, keeping the selection (only the state changes).
-            IconButton(onClick = { viewModel.toggleSelectedRead() }) {
-                Icon(
-                    if (selectionAllRead) Icons.Filled.MarkEmailUnread else Icons.Filled.DoneAll,
-                    contentDescription = stringResource(if (selectionAllRead) R.string.inbox_mark_unread else R.string.inbox_mark_read),
-                )
+            if (!besideReader) {
+                IconButton(onClick = { viewModel.toggleSelectedRead() }) {
+                    Icon(
+                        if (selectionAllRead) Icons.Filled.MarkEmailUnread else Icons.Filled.DoneAll,
+                        contentDescription = stringResource(if (selectionAllRead) R.string.inbox_mark_unread else R.string.inbox_mark_read),
+                    )
+                }
             }
             if (currentRole == "archive" || currentRole == "all") {
                 IconButton(
@@ -107,8 +110,10 @@ internal fun SelectionTopBar(
                     Icon(Icons.Filled.Archive, contentDescription = stringResource(R.string.inbox_archive))
                 }
             }
-            IconButton(onClick = onMove) {
-                Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.inbox_move_to_folder))
+            if (!besideReader) {
+                IconButton(onClick = onMove) {
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = stringResource(R.string.inbox_move_to_folder))
+                }
             }
             IconButton(onClick = { viewModel.deleteSelected() }) {
                 // In Trash the button destroys, not moves-to-Trash, so a Trash-can
@@ -119,7 +124,7 @@ internal fun SelectionTopBar(
                     contentDescription = stringResource(if (trash) R.string.inbox_delete_forever else R.string.inbox_delete),
                 )
             }
-            // Overflow: snooze + report/not-spam for the whole selection.
+            // Overflow: snooze + report/not-spam for the whole selection; read/unread and move too beside a reader.
             var selMenu by remember { mutableStateOf(false) }
             var selSnooze by remember { mutableStateOf(false) }
             val selContext = LocalContext.current
@@ -147,6 +152,18 @@ internal fun SelectionTopBar(
                             onClick = { selMenu = false; selSnooze = false; viewModel.pickInstant.open(PickInstantOpen.SELECTION) },
                         )
                     } else {
+                        if (besideReader) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (selectionAllRead) R.string.inbox_mark_unread else R.string.inbox_mark_read)) },
+                                leadingIcon = { Icon(if (selectionAllRead) Icons.Filled.MarkEmailUnread else Icons.Filled.DoneAll, contentDescription = null) },
+                                onClick = { selMenu = false; viewModel.toggleSelectedRead() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.inbox_move_to_folder)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                                onClick = { selMenu = false; onMove() },
+                            )
+                        }
                         val inJunk = currentRole == "junk"
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.inbox_select_all)) },

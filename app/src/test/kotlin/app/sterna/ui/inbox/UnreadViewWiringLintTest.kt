@@ -88,21 +88,32 @@ class UnreadViewWiringLintTest {
             listOf(listOf("unreadView = ui.unreadView", "toggles = ui.filterToggles")),
             asked,
         )
+        val reach = Regex(
+            """(\bListCriterion\.\w+ -> )?\bviewModel\.(toggleUnreadOnly|toggleFlaggedOnly|toggleWithAttachment)\s*\(""" +
+                """|\bIconToggleButton\b|\bListCriterion\.entries\b|\bmenu\.filters\.forEach\b|\bFilterMenuEntries\s*\(""",
+        )
         assertEquals(
-            "The toolbar must reach the list filters only through the menu's own entries, one arm " +
-                "per criterion of menu.filters: an unconditional unread control (the old funnel " +
-                "toggle) or a loop over ListCriterion.entries offers Unread in the unread view. " +
+            "The toolbar must reach the list filters only through FilterMenuEntries, in the funnel's " +
+                "menu and in the overflow's beside a reader: an unconditional unread control (the old " +
+                "funnel toggle) or a loop over ListCriterion.entries offers Unread in the unread view. " +
                 "Matches found in the toolbar's actions were:",
+            listOf("FilterMenuEntries(", "FilterMenuEntries("),
+            reach.findAll(actions).map { it.value }.toList(),
+        )
+        val text = codeText(INBOX_SCREEN)
+        val entries = text.indexOf("private fun FilterMenuEntries(")
+        check(entries >= 0) { "InboxScreen.kt no longer declares FilterMenuEntries" }
+        assertEquals(
+            "FilterMenuEntries must draw one arm per criterion of menu.filters. Matches found in " +
+                "its declaration were:",
             listOf(
+                "FilterMenuEntries(",
                 "menu.filters.forEach",
                 "ListCriterion.UNREAD -> viewModel.toggleUnreadOnly(",
                 "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly(",
                 "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment(",
             ),
-            Regex(
-                """(\bListCriterion\.\w+ -> )?\bviewModel\.(toggleUnreadOnly|toggleFlaggedOnly|toggleWithAttachment)\s*\(""" +
-                    """|\bIconToggleButton\b|\bListCriterion\.entries\b|\bmenu\.filters\.forEach\b""",
-            ).findAll(actions).map { it.value }.toList(),
+            reach.findAll(balancedFrom(text, entries)).map { it.value }.toList(),
         )
     }
 

@@ -5,17 +5,20 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Source lint, not a behaviour test. What the list screen does with the toggles: the bar's funnel
- * and the menu it opens, the search's own chip row, the ViewModel's toggles, and the empty state's
- * scene, sentence and "Clear filters". The decisions are run by `FilterMenuTest` and
+ * Source lint, not a behaviour test. What the list screen does with the toggles: the menu entries,
+ * drawn by `FilterMenuEntries` in the two places the bar holds them (the funnel's menu, and the
+ * overflow's beside a reader), the search's own chip row, the ViewModel's toggles, and the empty
+ * state's scene, sentence and "Clear filters". The decisions are run by `FilterMenuTest` and
  * `EmptyListSceneTest`; this pins that the screen asks them. Holes (CONTRIBUTING.md, Tests):
  *  1. `ui.filterToggles` and `ui.unreadView` are names: nothing here proves they hold the toggles
  *     the pager reads, or the view the list pages.
- *  2. Whole calls and whole blocks are pinned, not what wraps the funnel's block: an `if` around it
- *     would hide the funnel and still read the same block.
+ *  2. Whole calls and whole blocks are pinned, not what wraps them: which of the two places is
+ *     composed is `ListBesideReaderWiringLintTest`'s rule, and this one would read the same blocks
+ *     under any condition.
  *  3. The funnel's place is pinned as source order inside the browse bar's `actions`, not as a
- *     position on screen; that the menu stays open after a tick is pinned as the absence of a
- *     closing assignment, not as what `DropdownMenu` does on a click.
+ *     position on screen. That a tick leaves its menu open is pinned as the absence of a closing
+ *     assignment in the funnel and of any callback in `FilterMenuEntries`, not as what
+ *     `DropdownMenu` does on a click: neither menu is opened here.
  *  4. Nothing here holds the value the composable collects, nor proves an item is drawn ticked or a
  *     dot drawn: `DropdownMenuItem`, `Checkbox` and `Badge` are trusted.
  *  The overflow button's own content is `OutboxCountWiringTest`'s rule.
@@ -41,7 +44,8 @@ class FilterEntryWiringLintTest {
         val text = codeText(INBOX_SCREEN)
         val icons = Regex("""\bIcons\.Filled\.FilterList\b""").findAll(text).toList()
         assertEquals("Exactly one funnel in the screen, the browse bar's.", 1, icons.size)
-        val funnel = balancedFrom(text, text.lastIndexOf("Box {", icons.single().range.first))
+        val funnelAt = text.lastIndexOf("Box {", icons.single().range.first)
+        val funnel = balancedFrom(text, funnelAt)
         assertEquals(
             "The funnel must be boxed with its menu (#74), say 'Filters' and, when lit, 'Filter on'; " +
                 "its dot and tint must read menu.active, never the raw toggles (the unread view's " +
@@ -52,7 +56,34 @@ class FilterEntryWiringLintTest {
             funnel,
         )
         val items = Regex("""(?<!fun )\bFilterMenuItem\s*\(""").findAll(text).map { callAt(text, it.range.first) }.toList()
-        assertEquals("One FilterMenuItem call, the funnel's.", listOf(EXPECTED_ITEM), items)
+        assertEquals("One FilterMenuItem call, in FilterMenuEntries.", listOf(EXPECTED_ITEM), items)
+        val entries = text.indexOf("private fun FilterMenuEntries(")
+        check(entries >= 0) { "InboxScreen.kt no longer declares FilterMenuEntries" }
+        assertEquals(
+            "The entries take the menu and the ViewModel and no callback: a tick then has no way to " +
+                "close whichever menu holds them, the funnel's or the overflow's (#126). Declaration " +
+                "found was:\n${balancedFrom(text, entries)}",
+            EXPECTED_ENTRIES_DECLARATION,
+            balancedFrom(text, entries),
+        )
+        val sites = Regex("""(?<!fun )\bFilterMenuEntries\s*\(""").findAll(text).map { it.range.first }.toList()
+        assertEquals(
+            "Two places draw the filter entries, both from the one menu: the funnel's, and the " +
+                "overflow's beside a reader. Calls found were:\n${sites.map { callAt(text, it) }}",
+            listOf(EXPECTED_ENTRIES_CALL, EXPECTED_ENTRIES_CALL),
+            sites.map { callAt(text, it) },
+        )
+        val overflowMenu = text.indexOf("DropdownMenu(expanded = overflowOpen")
+        check(overflowMenu >= 0) { "InboxScreen.kt no longer opens the overflow menu on overflowOpen" }
+        assertEquals(
+            "One call inside the funnel's block, the other inside the overflow's menu.",
+            listOf(true, true),
+            listOf(
+                sites[0] in funnelAt until funnelAt + funnel.length,
+                sites[1] in overflowMenu until overflowMenu + callAt(text, overflowMenu).length +
+                    balancedFrom(text, overflowMenu + callAt(text, overflowMenu).length).length,
+            ),
+        )
         val writes = Regex("""(\w+ = \{ )?\bfilterOpen\s*=(?!=)\s*[^,;})]+""").findAll(text).map { it.value.trim() }.toList()
         assertEquals(
             "A tick must leave the menu open: the filters combine, so the funnel's menu is opened " +
@@ -62,9 +93,9 @@ class FilterEntryWiringLintTest {
             writes,
         )
         assertEquals(
-            "A funnel entry must not close the overflow menu either.",
+            "A filter entry must not close the overflow menu either.",
             false,
-            Regex("""\boverflowOpen\b""").containsMatchIn(items.single()),
+            Regex("""\boverflowOpen\b""").containsMatchIn(balancedFrom(text, entries)),
         )
     }
 
@@ -90,7 +121,7 @@ class FilterEntryWiringLintTest {
     }
 
     @Test
-    fun `the funnel comes first in the browse bar, before sort, search and the overflow`() {
+    fun `where the funnel is drawn it comes first, before sort, search and the overflow`() {
         val actions = browseBarActions(codeText(INBOX_SCREEN))
         val offsets = listOf(
             "Icons.Filled.FilterList",
@@ -306,6 +337,8 @@ class FilterEntryWiringLintTest {
                 "ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly() " +
                 "ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment() } }, )"
 
+        private const val EXPECTED_ENTRIES_CALL = "FilterMenuEntries(menu = menu, viewModel = viewModel)"
+
         private const val EXPECTED_FUNNEL =
             "Box { IconButton( onClick = { filterOpen = true }, " +
                 "modifier = if (menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier, ) { " +
@@ -314,8 +347,11 @@ class FilterEntryWiringLintTest {
                 "Icon( Icons.Filled.FilterList, contentDescription = stringResource(R.string.search_filters), " +
                 "tint = if (menu.active) MaterialTheme.colorScheme.primary else LocalContentColor.current, ) } } " +
                 "DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, " +
-                "shape = MaterialTheme.shapes.medium) { menu.filters.forEach { filter -> " +
-                EXPECTED_ITEM + " } } }"
+                "shape = MaterialTheme.shapes.medium) { " + EXPECTED_ENTRIES_CALL + " } }"
+
+        private const val EXPECTED_ENTRIES_DECLARATION =
+            "private fun FilterMenuEntries(menu: FilterMenu, viewModel: InboxViewModel) { " +
+                "menu.filters.forEach { filter -> " + EXPECTED_ITEM + " } }"
 
         private const val EXPECTED_ITEM_DECLARATION =
             "private fun FilterMenuItem(label: String, icon: ImageVector, checked: Boolean, onClick: () -> Unit) { " +

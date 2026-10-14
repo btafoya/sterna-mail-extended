@@ -66,7 +66,7 @@ class OutboxCountWiringTest {
         val dot = codeLines(INBOX_VIEW_MODEL).filter { Regex("""\b(val|var|fun)\s+$DOT\b""").containsMatchIn(it) }
         assertEquals(
             "InboxViewModel must declare no $DOT: the Outbox lives in the drawer, the overflow " +
-                "button carries no dot, and a graced count nobody draws is the " +
+                "button carries no outbox dot, and a graced count nobody draws is the " +
                 "flow the next edit wires back onto the Outbox entry. Declarations found:\n" +
                 dot.joinToString("\n"),
             emptyList<String>(),
@@ -84,15 +84,17 @@ class OutboxCountWiringTest {
 
     // -- the screen: which count each indicator draws ------------------------------------------
 
-    @Test fun `the overflow button carries no dot at all`() {
-        val content = overflowButtonContent()
+    @Test fun `the overflow button carries no outbox dot, and the filters' dot only where it holds them`() {
+        val (arguments, content) = overflowButton()
         assertEquals(
-            "the overflow button must draw its icon and nothing else. The Outbox is no longer in " +
-                "that menu, so an outbox dot there points at an entry that is not behind it; the " +
-                "filters are shown by the funnel's own dot, so a filter dot there repeats it in a " +
-                "place that does not change them. Content was:\n$content",
-            OVERFLOW_CONTENT,
-            content,
+            "the overflow button must draw its icon and, only when filter and sort are folded into " +
+                "its menu beside a reader, the filters' dot and state, read from menu.active. The " +
+                "Outbox is no longer in that menu, so an outbox dot there points at an entry that is " +
+                "not behind it; on the phone the filters are shown by the funnel's own dot, so a " +
+                "filter dot there repeats it in a place that does not change them. Button was:\n" +
+                "$arguments\n$content",
+            listOf(OVERFLOW_ARGUMENTS, OVERFLOW_CONTENT),
+            listOf(arguments, content),
         )
     }
 
@@ -117,17 +119,20 @@ class OutboxCountWiringTest {
 
     // -- reading the sources --------------------------------------------------------------------
 
-    /** The content lambda of the overflow button, found by the `onClick` that opens the menu: a
-     *  second such button fails here instead of being skipped. Whitespace collapsed. */
-    private fun overflowButtonContent(): String {
+    /** The overflow button's arguments and its content lambda, found by the `onClick` that opens
+     *  the menu: a second such button fails here instead of being skipped. Whitespace collapsed. */
+    private fun overflowButton(): Pair<String, String> {
         val text = code(INBOX_SCREEN).replace(Regex("""\s+"""), " ")
-        val starts = Regex(Regex.escape(OVERFLOW_BUTTON)).findAll(text).map { it.range.last + 1 }.toList()
+        val opens = Regex(Regex.escape(OVERFLOW_OPENS)).findAll(text).map { it.range.first }.toList()
         assertEquals(
-            "InboxScreen is expected to open the overflow menu from exactly one '$OVERFLOW_BUTTON'. " +
-                "Found ${starts.size}.",
-            1, starts.size,
+            "InboxScreen is expected to open the overflow menu from exactly one '$OVERFLOW_OPENS'. " +
+                "Found ${opens.size}.",
+            1, opens.size,
         )
-        return balanced(text, starts.single(), '{', '}')
+        val call = text.lastIndexOf("IconButton(", opens.single())
+        val arguments = balanced(text, call, '(', ')')
+        val afterArguments = text.indexOf(')', text.indexOf(arguments, call) + arguments.length) + 1
+        return arguments to balanced(text, afterArguments, '{', '}')
     }
 
     /** The drawer entry that opens the Outbox, found by the string it labels itself with, not by
@@ -246,12 +251,18 @@ class OutboxCountWiringTest {
                 """OutboxLogic\.isWaitingInOutbox\(\s*it\.state\s*,?\s*\)\s*}\s*}""",
         )
 
-        /** The call that opens the overflow menu, up to the content lambda it is followed by. */
-        private const val OVERFLOW_BUTTON = "IconButton(onClick = { overflowOpen = true })"
+        private const val OVERFLOW_OPENS = "onClick = { overflowOpen = true }"
 
-        /** The overflow button's content, whole: the icon and no badge of any kind. */
+        /** The overflow button's arguments, whole: lit and named only where it holds the filters. */
+        private const val OVERFLOW_ARGUMENTS =
+            "onClick = { overflowOpen = true }, " +
+                "modifier = if (listBesideReader && menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,"
+
+        /** The overflow button's content, whole: the icon, and no badge but the filters' dot. */
         private const val OVERFLOW_CONTENT =
-            "Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))"
+            "val dotColor = LocalContentColor.current " +
+                "BadgedBox(badge = { if (listBesideReader && menu.active) Badge(containerColor = dotColor) }) { " +
+                "Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more)) }"
 
         /** The label the Outbox drawer entry is found by. */
         private const val OUTBOX_LABEL = "R.string.inbox_outbox"

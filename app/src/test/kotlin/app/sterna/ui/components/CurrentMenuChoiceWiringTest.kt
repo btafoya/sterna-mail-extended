@@ -15,6 +15,10 @@ import java.io.File
  * Unlike a mail row, the boolean is set on every entry: in a one-of-many menu "Not selected" on
  * the others is the information, and no entry carries a `stateDescription` that would mute it.
  *
+ * The sort entries are drawn by `SortMenuEntries`, from the sort button's menu and from the overflow
+ * menu beside a reader: the loop is pinned in it, and each call site is pinned to hand it
+ * `ui.sortOrder`.
+ *
  * Holes of `CONTRIBUTING.md` that apply: 1 (`ui.sortOrder` and `pgpMode` are only names: nothing
  * here proves they hold the value in force, nor that a lambda parameter does not rebind them), 3
  * (each loop is pinned whole, so the item cannot leave its `forEach`, but nothing sees a branch
@@ -30,15 +34,34 @@ class CurrentMenuChoiceWiringTest {
                 SORT_LOOP,
                 "DropdownMenuItem(",
                 "text = { Text(stringResource(sortLabel(order))) },",
-                "modifier = Modifier.semantics { selected = order == ui.sortOrder },",
+                "modifier = Modifier.semantics { selected = order == current },",
                 "leadingIcon = {",
-                "if (order == ui.sortOrder) Icon(Icons.Filled.Check, contentDescription = null)",
+                "if (order == current) Icon(Icons.Filled.Check, contentDescription = null)",
                 "},",
-                "onClick = { viewModel.setSortOrder(order); sortOpen = false },",
+                "onClick = { onPick(order) },",
                 ")",
                 "}",
             ),
-            loop("app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt", SORT_LOOP),
+            loop(INBOX_SCREEN, SORT_LOOP),
+        )
+        assertEquals(
+            "SortMenuEntries must say `current` is the order in force, and pick through `onPick`",
+            listOf("private fun SortMenuEntries(current: SortOrder, onPick: (SortOrder) -> Unit) {"),
+            DeclarationSource.codeLines(DeclarationSource.file(INBOX_SCREEN)).filter { "fun SortMenuEntries(" in it },
+        )
+    }
+
+    @Test fun `both sort menus are handed the order in force, and a pick closes the menu it is in`() {
+        assertEquals(
+            "Each call site must hand `ui.sortOrder` as `current`, set the order picked and close its " +
+                "own menu: the sort button's, and the overflow's beside a reader. Handed anything " +
+                "else, every entry says the wrong order is in force.",
+            listOf(
+                "SortMenuEntries(current = ui.sortOrder, onPick = { viewModel.setSortOrder(it); sortOpen = false })",
+                "SortMenuEntries(current = ui.sortOrder, onPick = { viewModel.setSortOrder(it); overflowOpen = false })",
+            ),
+            DeclarationSource.codeLines(DeclarationSource.file(INBOX_SCREEN))
+                .filter { "SortMenuEntries(" in it && "fun SortMenuEntries(" !in it },
         )
     }
 
@@ -79,6 +102,7 @@ class CurrentMenuChoiceWiringTest {
     }
 
     private companion object {
+        const val INBOX_SCREEN = "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt"
         const val SORT_LOOP = "SortOrder.entries.forEach { order ->"
         const val LOCK_LOOP = "lockMenuModes(openPgp = pgpAvailable, smime = smimeAvailable).forEach { entry ->"
     }

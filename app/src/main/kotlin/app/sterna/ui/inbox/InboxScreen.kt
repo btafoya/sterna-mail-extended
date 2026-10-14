@@ -146,6 +146,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -368,6 +369,10 @@ fun InboxScreen(
     // [inboxBackAction] so exactly one handler is ever enabled. Search is one of those modes, not a
     // screen (#86), and so is the reading pane, between the selection and the search (#103).
     val backAction = inboxBackAction(selectionActive, detailOpen = detail != null && pane.anchor != null, ui.searching, ui.atInbox)
+    // The list is a pane's width, not the window's, whenever a reader is drawn beside it (#258).
+    // Read from `detail` and not `panes`: a split the reading pane setting refused (#228) leaves
+    // the list the whole window, and its bar the phone's.
+    val listBesideReader = detail != null
     BackHandler(enabled = backAction == InboxBackAction.CLEAR_SELECTION) { viewModel.clearSelection() }
     BackHandler(enabled = backAction == InboxBackAction.CLOSE_DETAIL) { viewModel.closePane() }
     BackHandler(enabled = backAction == InboxBackAction.CLOSE_SEARCH) { viewModel.setSearchActive(false) }
@@ -736,6 +741,7 @@ fun InboxScreen(
                         currentRole = ui.mailboxes.firstOrNull { it.id == ui.selectedMailboxId }?.role,
                         inboxId = ui.mailboxes.firstOrNull { it.role == "inbox" }?.id,
                         trash = trash,
+                        besideReader = listBesideReader,
                         onMove = { showMoveSheet = true },
                         onSelectAll = { viewModel.selectAll() },
                     )
@@ -868,61 +874,42 @@ fun InboxScreen(
                         },
                         actions = {
                             val menu = filterMenu(unreadView = ui.unreadView, toggles = ui.filterToggles)
-                            var filterOpen by remember { mutableStateOf(false) }
                             val filterOnLabel = stringResource(R.string.inbox_filter_active)
-                            // Boxed with its button for the anchoring reason spelled out on the
-                            // overflow menu below (#74).
-                            Box {
-                                IconButton(
-                                    onClick = { filterOpen = true },
-                                    modifier = if (menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,
-                                ) {
-                                    // The dot reads by its shape, not by an accent colour.
-                                    val dotColor = LocalContentColor.current
-                                    BadgedBox(badge = { if (menu.active) Badge(containerColor = dotColor) }) {
-                                        Icon(
-                                            Icons.Filled.FilterList,
-                                            contentDescription = stringResource(R.string.search_filters),
-                                            tint = if (menu.active) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                                        )
+                            // Beside a reader, the title and the row of buttons do not fit a pane's width
+                            // (#258): filter and sort open from the top of the overflow menu instead,
+                            // and the overflow button carries the funnel's dot.
+                            if (!listBesideReader) {
+                                var filterOpen by remember { mutableStateOf(false) }
+                                // Boxed with its button for the anchoring reason spelled out on the
+                                // overflow menu below (#74).
+                                Box {
+                                    IconButton(
+                                        onClick = { filterOpen = true },
+                                        modifier = if (menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,
+                                    ) {
+                                        // The dot reads by its shape, not by an accent colour.
+                                        val dotColor = LocalContentColor.current
+                                        BadgedBox(badge = { if (menu.active) Badge(containerColor = dotColor) }) {
+                                            Icon(
+                                                Icons.Filled.FilterList,
+                                                contentDescription = stringResource(R.string.search_filters),
+                                                tint = if (menu.active) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                            )
+                                        }
+                                    }
+                                    DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, shape = MaterialTheme.shapes.medium) {
+                                        FilterMenuEntries(menu = menu, viewModel = viewModel)
                                     }
                                 }
-                                // A tick leaves the menu open: the filters combine, and closing on
-                                // each one would cost a reopen per filter.
-                                DropdownMenu(expanded = filterOpen, onDismissRequest = { filterOpen = false }, shape = MaterialTheme.shapes.medium) {
-                                    menu.filters.forEach { filter ->
-                                        FilterMenuItem(
-                                            label = stringResource(filterLabel(filter.criterion)),
-                                            icon = filterIcon(filter.criterion),
-                                            checked = filter.checked,
-                                            onClick = {
-                                                when (filter.criterion) {
-                                                    ListCriterion.UNREAD -> viewModel.toggleUnreadOnly()
-                                                    ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly()
-                                                    ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment()
-                                                }
-                                            },
-                                        )
+                                var sortOpen by remember { mutableStateOf(false) }
+                                // Boxed with its button for the anchoring reason spelled out on the
+                                // overflow menu below (#74).
+                                Box {
+                                    IconButton(onClick = { sortOpen = true }) {
+                                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.inbox_sort))
                                     }
-                                }
-                            }
-                            var sortOpen by remember { mutableStateOf(false) }
-                            // Boxed with its button for the anchoring reason spelled out on the
-                            // overflow menu below (#74).
-                            Box {
-                                IconButton(onClick = { sortOpen = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.inbox_sort))
-                                }
-                                DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }, shape = MaterialTheme.shapes.medium) {
-                                    SortOrder.entries.forEach { order ->
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(sortLabel(order))) },
-                                            modifier = Modifier.semantics { selected = order == ui.sortOrder },
-                                            leadingIcon = {
-                                                if (order == ui.sortOrder) Icon(Icons.Filled.Check, contentDescription = null)
-                                            },
-                                            onClick = { viewModel.setSortOrder(order); sortOpen = false },
-                                        )
+                                    DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }, shape = MaterialTheme.shapes.medium) {
+                                        SortMenuEntries(current = ui.sortOrder, onPick = { viewModel.setSortOrder(it); sortOpen = false })
                                     }
                                 }
                             }
@@ -936,13 +923,27 @@ fun InboxScreen(
                             // layout node that contains it, so emitted straight into the actions row
                             // a narrow menu opened under the leftmost icon (#74).
                             Box {
-                                IconButton(onClick = { overflowOpen = true }) {
-                                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
+                                IconButton(
+                                    onClick = { overflowOpen = true },
+                                    modifier = if (listBesideReader && menu.active) Modifier.semantics { stateDescription = filterOnLabel } else Modifier,
+                                ) {
+                                    val dotColor = LocalContentColor.current
+                                    BadgedBox(badge = { if (listBesideReader && menu.active) Badge(containerColor = dotColor) }) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
+                                    }
                                 }
                                 // Frequent actions first, nearest the anchor; the rarely-visited
                                 // by-sender list comes after them (#48). In the Trash the destructive
                                 // "Empty trash" is pushed to the very bottom.
                                 DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }, shape = MaterialTheme.shapes.medium) {
+                                    if (listBesideReader) {
+                                        MenuSectionLabel(stringResource(R.string.search_filters))
+                                        FilterMenuEntries(menu = menu, viewModel = viewModel)
+                                        HorizontalDivider()
+                                        MenuSectionLabel(stringResource(R.string.inbox_sort))
+                                        SortMenuEntries(current = ui.sortOrder, onPick = { viewModel.setSortOrder(it); overflowOpen = false })
+                                        HorizontalDivider()
+                                    }
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.inbox_select_all)) },
                                         leadingIcon = { Icon(Icons.Filled.Checklist, contentDescription = null) },
@@ -2879,6 +2880,55 @@ private fun filterIcon(criterion: ListCriterion): ImageVector = when (criterion)
     ListCriterion.UNREAD -> Icons.Filled.MarkEmailUnread
     ListCriterion.FLAGGED -> Icons.Filled.Star
     ListCriterion.ATTACHMENT -> Icons.Filled.AttachFile
+}
+
+/**
+ * The filter entries, drawn the same in the funnel's menu and in the overflow's. No callback: a tick
+ * leaves whichever menu holds them open, since the filters combine and closing on each one would
+ * cost a reopen per filter.
+ */
+@Composable
+private fun FilterMenuEntries(menu: FilterMenu, viewModel: InboxViewModel) {
+    menu.filters.forEach { filter ->
+        FilterMenuItem(
+            label = stringResource(filterLabel(filter.criterion)),
+            icon = filterIcon(filter.criterion),
+            checked = filter.checked,
+            onClick = {
+                when (filter.criterion) {
+                    ListCriterion.UNREAD -> viewModel.toggleUnreadOnly()
+                    ListCriterion.FLAGGED -> viewModel.toggleFlaggedOnly()
+                    ListCriterion.ATTACHMENT -> viewModel.toggleWithAttachment()
+                }
+            },
+        )
+    }
+}
+
+/** One of many: every entry sets `selected`, so "Not selected" is read on the others. */
+@Composable
+private fun SortMenuEntries(current: SortOrder, onPick: (SortOrder) -> Unit) {
+    SortOrder.entries.forEach { order ->
+        DropdownMenuItem(
+            text = { Text(stringResource(sortLabel(order))) },
+            modifier = Modifier.semantics { selected = order == current },
+            leadingIcon = {
+                if (order == current) Icon(Icons.Filled.Check, contentDescription = null)
+            },
+            onClick = { onPick(order) },
+        )
+    }
+}
+
+/** A section title inside a menu: no click, so it is not read out as one more entry. */
+@Composable
+private fun MenuSectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).semantics { heading() },
+    )
 }
 
 /** `onCheckedChange = null` leaves the box without semantics: the item carries the checked state. */
