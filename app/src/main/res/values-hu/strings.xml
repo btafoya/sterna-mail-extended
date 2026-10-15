@@ -90,7 +90,7 @@
     <string name="compose_many_recipients_send">Küldés mindenkinek</string>
     <string name="compose_forgot_attachment_title">Lemaradt a melléklet?</string>
     <string name="compose_forgot_attachment_message">Az üzenete mellékletet említ, de egyet sem csatolt.</string>
-    <string name="compose_forgot_attachment_send">Küldés így is</string>
+    <string name="compose_forgot_attachment_send">Küldés mindenképpen</string>
     <string name="compose_forgot_attachment_back">Vissza</string>
     <string name="schedule_in_1_hour">1 óra múlva</string>
     <string name="schedule_this_evening">Ma este, %1$s</string>
@@ -156,7 +156,7 @@
     <string name="settings_account_notifications_unwatched_note">Ez a fiók nincs megfigyelve. Kapcsolja be a „Push minden fiókhoz” beállítást, hogy az új levelei a háttérben letöltődjenek, és értesítést kapjon róluk.</string>
     <string name="up_picker_title">Értesítések kézbesítése ezzel:</string>
     <string name="inbox_delete_folder_recursive_title">Az almappákat is törli?</string>
-    <string name="inbox_delete_folder_recursive_body">„%1$s” almappákat tartalmaz. Mindegyik törlődik, az üzeneteikkel együtt.</string>
+    <string name="inbox_delete_folder_recursive_body">„%1$s” almappát tartalmaz. Mindegyik törlődik, az üzeneteikkel együtt.</string>
     <string name="inbox_folder_deleted">„%1$s” mappa törlése…</string>
     <string name="inbox_settings">Beállítások</string>
     <string name="inbox_cancel_selection">Kijelölés megszüntetése</string>
@@ -400,7 +400,7 @@
     <string name="message_load_error">Nem sikerült betölteni az üzenetet:\n%1$s</string>
     <string name="message_retry">Újra</string>
     <string name="message_unknown_sender">(ismeretlen feladó)</string>
-    <string name="message_received_at">Érkezett ide: %1$s</string>
+    <string name="message_received_at">Beérkezett: %1$s</string>
     <string name="message_no_subject">(nincs tárgy)</string>
     <string name="message_no_content">(nincs tartalom)</string>
     <string name="message_quoted_text">Idézett szöveg</string>
@@ -442,7 +442,7 @@
          that the message was relayed at all, so the label must not assert what it shows. -->
     <string name="participants_original_sender">Eredeti feladó (nem ellenőrzött)</string>
     <string name="a11y_add_to_contacts_named">%1$s hozzáadása a névjegyekhez</string>
-    <string name="participant_compose">Írás ennek a névjegynek</string>
+    <string name="participant_compose">Írás neki</string>
     <string name="participant_copy_address">Cím másolása</string>
     <string name="participant_copy_name_address">Név és cím másolása</string>
     <string name="a11y_more_actions_for">További műveletek: %1$s</string>
@@ -546,7 +546,7 @@
     <string name="settings_message_list_section">Üzenetlista</string>
     <string name="settings_density_title">Sűrűség</string>
     <string name="settings_open_on_title">Megnyitáskor</string>
-    <string name="settings_open_on_last">A legutóbb elhagyott nézet</string>
+    <string name="settings_open_on_last">Utoljára használt nézet</string>
     <string name="settings_preview_title">Előnézet</string>
     <string name="settings_unread_tint_title">Olvasatlan háttér</string>
     <string name="settings_unread_tint_subtitle">Az olvasatlan üzenetek a félkövér szöveg mellett saját hátteret is kapnak.</string>
@@ -561,7 +561,7 @@
     <string name="settings_theme_dark">Sötét</string>
     <string name="settings_density_compact">Tömör</string>
     <string name="settings_density_normal">Normál</string>
-    <string name="settings_density_spaced">Szellős</string>
+    <string name="settings_density_spaced">Laza</string>
     <string name="settings_reading_pane_title">Üzenet a lista mellett</string>
     <string name="settings_reading_pane_always">Mindig</string>
     <string name="settings_reading_pane_landscape">Csak fekvő módban</string>
@@ -690,7 +690,7 @@
     <string name="settings_filters_bulwark_rule">Bulwark-szabály: a Bulwarkban szerkeszthető</string>
     <string name="settings_filters_edit_text">Szerkesztés szövegként</string>
     <string name="settings_filters_text_help">Mentéskor a kiszolgáló ellenőrzi</string>
-    <string name="settings_filters_text_uncut">Egy szabály szövegében nyitva maradt egy zárójel, egy idézőjel vagy egy megjegyzés. Mentés előtt zárja le.</string>
+    <string name="settings_filters_text_uncut">Egy szabály szövegében nyitva maradt egy zárójel, egy idézőjel vagy egy megjegyzés. Mentés előtt zárja be.</string>
     <string name="settings_filters_overwrite_title">Lecseréli a szűrőszkriptet?</string>
     <string name="settings_filters_overwrite_body">A Sterna Mail nem tudta beolvasni ennek a fióknak a szűrőszkriptjét. A mentés a teljes szkriptet lecseréli az ezen a képernyőn lévő szabályokra, így elvész minden, amit tartalmaz, de itt nem látható. Ez nem vonható vissza.</string>
     <string name="settings_filters_overwrite_confirm">Csere</string>
@@ -760,7 +760,7 @@
     <string name="settings_confirm_links_subtitle">Megjeleníti a célt, és rákérdez, mielőtt megnyitna egy üzenetben lévő hivatkozást.</string>
     <string name="settings_read_receipt_section">Olvasási visszaigazolási kérések</string>
     <string name="settings_read_receipt_title">Kérdés olvasási visszaigazolás küldése előtt</string>
-    <string name="settings_read_receipt_subtitle">Egyes feladók értesítést kérnek arról, hogy az üzenetük megjelent. Kikapcsolva a kérés figyelmen kívül marad. Bekapcsolva a megnyitott üzenet felajánlja a válaszadást, és semmi sem megy el, amíg Ön nem engedélyezi.</string>
+    <string name="settings_read_receipt_subtitle">Egyes feladók értesítést kérnek arról, hogy az üzenetük megjelent. Kikapcsolva a kérés figyelmen kívül marad. Bekapcsolva a megnyitott üzenet felajánlja a válaszadást, és semmi sem kerül elküldésre, amíg Ön nem engedélyezi.</string>
     <string name="settings_quoted_dates_utc_section">Idézett dátumok</string>
     <string name="settings_quoted_dates_utc_title">Idézett dátumok írása UTC szerint</string>
     <string name="settings_quoted_dates_utc_subtitle">A válasz idézősorában, a továbbított üzenet fejlécében és minden elküldött üzenetén a dátum UTC szerint szerepel, nem az eszköz helyi ideje szerint.</string>
