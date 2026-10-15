@@ -146,7 +146,7 @@ import app.sterna.core.data.settings.SwipeAction
 import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.DeliveryMode
 import app.sterna.core.data.settings.NotificationContent
-import app.sterna.core.data.text.htmlToText
+import app.sterna.core.data.text.signatureText
 import app.sterna.push.DirectLine
 import app.sterna.push.PushController
 import app.sterna.push.PushStatus
@@ -2023,7 +2023,7 @@ private fun AccountDetailScreen(
                                         // and the HTML sent as-is while untouched.
                                         pendingImport = { html ->
                                             overrideServer(server) {
-                                                it.copy(signature = htmlToText(html), signatureHtml = html)
+                                                it.copy(signature = signatureText(html), signatureHtml = html)
                                             }
                                         }
                                         importLauncher.launch("text/html")
@@ -2134,7 +2134,7 @@ private fun AccountDetailScreen(
                             ) {
                                 OutlinedButton(onClick = {
                                     pendingImport = { html ->
-                                        update { it.copy(signature = htmlToText(html), signatureHtml = html) }
+                                        update { it.copy(signature = signatureText(html), signatureHtml = html) }
                                     }
                                     importLauncher.launch("text/html")
                                 }) {

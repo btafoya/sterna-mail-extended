@@ -178,6 +178,15 @@ class ComposeSignatureTest {
         )
     }
 
+    @Test fun anImageOnlySignatureSendsTheImageNotItsPlaceholder() {
+        val img = "<img src=\"https://x/y.png\">"
+        val body = "Hi Bob," + bodyWithSignature("", "[image]", delimiter = true)
+        val html = htmlBodyWithSignature(RichBody.plain(body), "[image]", img, delimiter = true)
+        assertTrue(html, "<img" in html)
+        assertFalse(html, "[image]" in html)
+        assertEquals("Hi Bob,<br><br>-- <br>$img", html)
+    }
+
     @Test fun anEditedSignatureWinsOverTheStoredHtml() {
         val edited = "Hi Bob,\n\n-- \nAlex Rivera\nAcme — mobile only"
         assertEquals(

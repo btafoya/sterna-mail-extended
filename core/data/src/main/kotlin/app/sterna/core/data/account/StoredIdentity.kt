@@ -1,6 +1,6 @@
 package app.sterna.core.data.account
 
-import app.sterna.core.data.text.htmlToText
+import app.sterna.core.data.text.signatureText
 import app.sterna.core.data.text.looksLikeHtml
 import kotlinx.serialization.Serializable
 
@@ -18,14 +18,14 @@ data class StoredIdentity(
     /** "Name <email>" or just the address when unnamed. */
     fun display(): String = if (name.isBlank()) email else "$name <$email>"
 
-    /** Splits a legacy signature holding raw HTML in [signature] (pre-1.3.13 "Import HTML")
-     *  into [signatureHtml] + flattened text. Idempotent otherwise. */
-    fun withSplitSignature(): StoredIdentity =
-        if (signatureHtml.isBlank() && looksLikeHtml(signature)) {
-            copy(signature = htmlToText(signature), signatureHtml = signature)
-        } else {
-            this
-        }
+    /** Splits raw HTML left in [signature] (pre-1.3.13 "Import HTML") into [signatureHtml] + text, and gives
+     *  an HTML-only signature a text: without one the composer finds no block and the HTML is never sent. */
+    fun withSplitSignature(): StoredIdentity = when {
+        signatureHtml.isBlank() && looksLikeHtml(signature) ->
+            copy(signature = signatureText(signature), signatureHtml = signature)
+        signature.isBlank() && signatureHtml.isNotBlank() -> copy(signature = signatureText(signatureHtml))
+        else -> this
+    }
 }
 
 /** Every address that IS the user on this account, plus its login. [username] is added even
