@@ -10,6 +10,7 @@ import app.sterna.core.data.db.MAILBOX_UIDVALIDITY_FIRST_SIGHT_SQL
 import app.sterna.core.data.db.MAILBOX_UIDVALIDITY_RENUMBER_SQL
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.READ_AND_STAR_WRITE_SQL
+import app.sterna.core.data.db.ReadAndStar
 import app.sterna.core.data.db.RowNumbering
 import java.io.Closeable
 import java.lang.reflect.Proxy
@@ -39,6 +40,7 @@ internal class JdbcMailCache : Closeable {
                     "seen INTEGER NOT NULL, flagged INTEGER NOT NULL, hasAttachment INTEGER NOT NULL, " +
                     "sortKey INTEGER NOT NULL, recipientsJson TEXT, replyToJson TEXT, ccJson TEXT, " +
                     "bccJson TEXT, uidValidity INTEGER, catchUp INTEGER NOT NULL DEFAULT 0, " +
+                    "answered INTEGER NOT NULL DEFAULT 0, forwarded INTEGER NOT NULL DEFAULT 0, " +
                     "PRIMARY KEY(accountId, id))",
             )
             st.executeUpdate(MAILBOX_UIDVALIDITY_CREATE_SQL)
@@ -94,9 +96,10 @@ internal class JdbcMailCache : Closeable {
         update(
             "$verb INTO emails(id, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
                 "fromName, fromEmail, seen, flagged, hasAttachment, sortKey, recipientsJson, replyToJson, " +
-                "ccJson, bccJson, uidValidity, catchUp) VALUES(:id, :accountId, :mailboxId, :threadId, " +
-                ":subject, :preview, :receivedAt, :fromName, :fromEmail, :seen, :flagged, :hasAttachment, " +
-                ":sortKey, :recipientsJson, :replyToJson, :ccJson, :bccJson, :uidValidity, :catchUp)",
+                "ccJson, bccJson, uidValidity, catchUp, answered, forwarded) VALUES(:id, :accountId, :mailboxId, " +
+                ":threadId, :subject, :preview, :receivedAt, :fromName, :fromEmail, :seen, :flagged, " +
+                ":hasAttachment, :sortKey, :recipientsJson, :replyToJson, :ccJson, :bccJson, :uidValidity, " +
+                ":catchUp, :answered, :forwarded)",
             mapOf(
                 "id" to row.id, "accountId" to row.accountId, "mailboxId" to row.mailboxId,
                 "threadId" to row.threadId, "subject" to row.subject, "preview" to row.preview,
@@ -105,6 +108,7 @@ internal class JdbcMailCache : Closeable {
                 "sortKey" to row.sortKey, "recipientsJson" to row.recipientsJson,
                 "replyToJson" to row.replyToJson, "ccJson" to row.ccJson, "bccJson" to row.bccJson,
                 "uidValidity" to row.uidValidity, "catchUp" to row.catchUp,
+                "answered" to row.answered, "forwarded" to row.forwarded,
             ),
         )
     }
@@ -165,9 +169,25 @@ internal class JdbcMailCache : Closeable {
         ) { it.getString(1) to it.getString(2) }.toMap()
     }
 
-    fun setReadAndStar(accountId: String, ids: List<String>, seen: Boolean, flagged: Boolean) {
-        update(READ_AND_STAR_WRITE_SQL, mapOf("accountId" to accountId, "ids" to ids, "seen" to seen, "flagged" to flagged))
+    fun setReadAndStar(accountId: String, ids: List<String>, seen: Boolean, flagged: Boolean, answered: Boolean, forwarded: Boolean) {
+        update(
+            READ_AND_STAR_WRITE_SQL,
+            mapOf(
+                "accountId" to accountId, "ids" to ids, "seen" to seen, "flagged" to flagged,
+                "answered" to answered, "forwarded" to forwarded,
+            ),
+        )
     }
+
+    fun readAndStarOf(accountId: String, id: String): ReadAndStar? =
+        query(DaoQuerySource.emailDaoQuery("readAndStarOf"), mapOf("accountId" to accountId, "id" to id)) {
+            ReadAndStar(
+                seen = it.getBoolean("seen"),
+                flagged = it.getBoolean("flagged"),
+                answered = it.getBoolean("answered"),
+                forwarded = it.getBoolean("forwarded"),
+            )
+        }.singleOrNull()
 
     /** `EmailDao.reconcileMailbox`'s decision, the shipped one, then its delete. */
     fun reconcile(accountId: String, mailboxId: String, keepIds: Set<String>, spareIds: List<String>, evictableIds: Set<String>?) {

@@ -1083,6 +1083,7 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
             seen = flags.any { it.equals("\\Seen", true) },
             flagged = flags.any { it.equals("\\Flagged", true) },
             answered = flags.any { it.equals("\\Answered", true) },
+            forwarded = flags.any { it.equals("\$Forwarded", true) },
             deleted = flags.any { it.equals("\\Deleted", true) },
             hasAttachment = hasAttachment(map["BODYSTRUCTURE"]),
             messageId = messageId,

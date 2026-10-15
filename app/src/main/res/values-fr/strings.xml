@@ -1173,6 +1173,8 @@
     <string name="a11y_select">Sélectionner</string>
     <string name="a11y_deselect">Désélectionner</string>
     <string name="a11y_has_attachment">Contient une pièce jointe</string>
+    <string name="a11y_answered">Répondu</string>
+    <string name="a11y_forwarded">Transféré</string>
     <string name="draft_label">Brouillon</string>
     <string name="local_draft_not_uploaded">Non téléversé</string>
     <string name="a11y_conversation_pill">Conversation, %1$d messages</string>

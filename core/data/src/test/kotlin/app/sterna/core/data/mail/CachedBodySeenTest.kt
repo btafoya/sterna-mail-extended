@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The read state and the star of a message body served from a cache (issues #148, #232).
+ * Read state, star, answer and forward of a message body served from a cache (#148, #232, #259).
  */
 class CachedBodySeenTest {
 
@@ -30,7 +30,8 @@ class CachedBodySeenTest {
             inlineImages = mapOf("cid1" to "data:image/png;base64,AAAA"),
         )
 
-    private fun row(seen: Boolean, flagged: Boolean = false) = ReadAndStar(seen = seen, flagged = flagged)
+    private fun row(seen: Boolean, flagged: Boolean = false, answered: Boolean = false, forwarded: Boolean = false) =
+        ReadAndStar(seen = seen, flagged = flagged, answered = answered, forwarded = forwarded)
 
     // --- 1. executed: the four states the reconciliation can be handed -------------------------
 
@@ -144,6 +145,52 @@ class CachedBodySeenTest {
         )
     }
 
+    // --- executed: the answer and the forward, issue #259 --------------------------------------
+
+    @Test fun `a body cached before the reply shows it answered once the row says so`() {
+        val reconciled = reconcileCachedFlags(cached = body(seen = true), row = row(seen = true, answered = true))
+
+        assertEquals(
+            "the read state and the star agree, the answer alone has moved: a short-circuit that " +
+                "compares only `\$seen` and `\$flagged` hands back the body of before the reply",
+            mapOf("\$seen" to true, "\$answered" to true),
+            reconciled.email.keywords,
+        )
+    }
+
+    @Test fun `a body cached before the forward shows it forwarded once the row says so`() {
+        val reconciled = reconcileCachedFlags(cached = body(seen = true), row = row(seen = true, forwarded = true))
+
+        assertEquals(mapOf("\$seen" to true, "\$forwarded" to true), reconciled.email.keywords)
+    }
+
+    @Test fun `an answer and a forward the row no longer holds are removed, keys and all`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = true, keywords = mapOf("\$answered" to true, "\$forwarded" to true)),
+            row = row(seen = true),
+        )
+
+        assertEquals(mapOf("\$seen" to true), reconciled.email.keywords)
+    }
+
+    @Test fun `the answer and the forward are not swapped on the way`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = true, keywords = mapOf("\$forwarded" to true)),
+            row = row(seen = true, answered = true),
+        )
+
+        assertEquals(mapOf("\$seen" to true, "\$answered" to true), reconciled.email.keywords)
+    }
+
+    @Test fun `a body agreeing with the row on all four flags is handed back as it is`() {
+        val cached = body(seen = true, keywords = mapOf("\$flagged" to true, "\$answered" to true, "\$forwarded" to true))
+
+        assertSame(
+            cached,
+            reconcileCachedFlags(cached = cached, row = row(seen = true, flagged = true, answered = true, forwarded = true)),
+        )
+    }
+
     // --- executed: a row that cannot be read is unknown, and the message still opens ------------
 
     @Test fun `a row read that throws is an unknown state, not a failed open`() = runTest {
@@ -176,12 +223,15 @@ class CachedBodySeenTest {
 
     // --- the witness: nothing else about the body moves -----------------------------------------
 
-    @Test fun `only the read state and the star are reconciled, the rest of the body survives`() {
+    @Test fun `only the four flags are reconciled, the rest of the body survives`() {
         // Read together with the tests above: they would all pass on a function that returned a
         // bare `Email(id, keywords)`, which is not a message anyone can read.
         val cached = body(seen = false, keywords = mapOf("\$answered" to true, "\$forwarded" to true))
 
-        val reconciled = reconcileCachedFlags(cached = cached, row = row(seen = true, flagged = true))
+        val reconciled = reconcileCachedFlags(
+            cached = cached,
+            row = row(seen = true, flagged = true, answered = true, forwarded = true),
+        )
 
         assertEquals("m1", reconciled.email.id)
         assertEquals("accA", reconciled.email.accountId)
@@ -189,8 +239,6 @@ class CachedBodySeenTest {
         assertEquals("see you there", reconciled.email.textContent())
         assertEquals(mapOf("cid1" to "data:image/png;base64,AAAA"), reconciled.inlineImages)
         assertEquals(
-            "`\$answered` and `\$forwarded` are not in the row this reads: only `\$seen` and " +
-                "`\$flagged` may move",
             mapOf("\$answered" to true, "\$forwarded" to true, "\$seen" to true, "\$flagged" to true),
             reconciled.email.keywords,
         )

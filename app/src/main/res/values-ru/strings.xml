@@ -1189,6 +1189,8 @@
     <string name="a11y_select">Выбрать</string>
     <string name="a11y_deselect">Отменить выбор</string>
     <string name="a11y_has_attachment">Есть вложение</string>
+    <string name="a11y_answered">Отвечено</string>
+    <string name="a11y_forwarded">Переслано</string>
     <string name="draft_label">Черновик</string>
     <string name="local_draft_not_uploaded">Не загружено</string>
     <string name="a11y_conversation_pill">Переписка, сообщений: %1$d</string>

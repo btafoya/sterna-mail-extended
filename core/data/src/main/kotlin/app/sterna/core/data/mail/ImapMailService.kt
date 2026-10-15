@@ -1003,6 +1003,8 @@ internal fun ImapMessage.toEntity(
         flagged = flagged,
         hasAttachment = hasAttachment,
         sortKey = dateMillis,
+        answered = answered,
+        forwarded = forwarded,
         recipientsJson = EmailRecipients.encode(
             to.map { EmailAddress(name = it.name, email = it.email.orEmpty()) },
         ),

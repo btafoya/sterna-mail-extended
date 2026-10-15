@@ -40,4 +40,6 @@ data class EmailEntity(
      *  `mailbox_uidvalidity` so a renumbered folder can't make a purge hit different, live mail. */
     val uidValidity: Long? = null,
     val catchUp: Int = 0,
+    val answered: Boolean = false,
+    val forwarded: Boolean = false,
 )

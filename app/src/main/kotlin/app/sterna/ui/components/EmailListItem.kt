@@ -324,6 +324,11 @@ fun EmailListItem(
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                ReplyMarkIcons(
+                    answered = email.isAnswered,
+                    forwarded = email.isForwarded,
+                    modifier = Modifier.padding(end = 4.dp),
+                )
                 Text(
                     text = email.subject?.takeIf { it.isNotBlank() } ?: stringResource(R.string.message_no_subject),
                     style = MaterialTheme.typography.bodyMedium,

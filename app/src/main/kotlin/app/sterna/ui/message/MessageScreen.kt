@@ -197,6 +197,7 @@ import app.sterna.ui.components.touchOverflow
 import app.sterna.ui.components.touchTargetOverflow
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
+import app.sterna.ui.components.ReplyMarkIcons
 import app.sterna.ui.inbox.MoveFolderSheet
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberLeaveOnce
@@ -2128,6 +2129,11 @@ private fun MessageHeader(
                     }
                 }
             }
+            ReplyMarkIcons(
+                answered = msg.header.isAnswered,
+                forwarded = msg.header.isForwarded,
+                modifier = Modifier.padding(start = 8.dp),
+            )
             // Flagged star and an attachment paperclip, mirroring the message-list row.
             if (msg.header.isFlagged) {
                 Spacer(Modifier.width(8.dp))

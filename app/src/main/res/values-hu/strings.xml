@@ -304,6 +304,8 @@
     <string name="a11y_select">Kijelölés</string>
     <string name="a11y_deselect">Kijelölés megszüntetése</string>
     <string name="a11y_has_attachment">Melléklettel</string>
+    <string name="a11y_answered">Megválaszolva</string>
+    <string name="a11y_forwarded">Továbbítva</string>
     <string name="draft_label">Piszkozat</string>
     <string name="local_draft_not_uploaded">Nincs feltöltve</string>
     <string name="a11y_conversation_pill">Beszélgetés, %1$d üzenet</string>

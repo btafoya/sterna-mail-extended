@@ -73,7 +73,13 @@ internal class IncrementalAttempt(
     val abandoned: Boolean,
 )
 
-data class ImapFlagWrite(val id: String, val seen: Boolean, val flagged: Boolean)
+data class ImapFlagWrite(
+    val id: String,
+    val seen: Boolean,
+    val flagged: Boolean,
+    val answered: Boolean,
+    val forwarded: Boolean,
+)
 
 /**
  * The flag writes [changes] ask for, of rows in [cachedIds] only: a message the cache does not hold
@@ -90,6 +96,8 @@ internal fun flagWritesFor(
             id = ImapMailService.emailId(accountId, mailboxId, change.uid),
             seen = change.flags.any { it.equals("\\Seen", true) },
             flagged = change.flags.any { it.equals("\\Flagged", true) },
+            answered = change.flags.any { it.equals("\\Answered", true) },
+            forwarded = change.flags.any { it.equals("\$Forwarded", true) },
         )
     }
     .filter { it.id in cachedIds }
@@ -128,15 +136,17 @@ internal fun imapFolderDelta(
     cachedIds: suspend (mailboxId: String) -> List<String>,
     stillConfigured: suspend () -> Unit,
     heldLocally: () -> Collection<String>,
-    setReadAndStar: suspend (ids: List<String>, seen: Boolean, flagged: Boolean) -> Unit,
+    setReadAndStar: suspend (ids: List<String>, seen: Boolean, flagged: Boolean, answered: Boolean, forwarded: Boolean) -> Unit,
 ): ImapFolderDelta = ImapFolderDelta(
     cachedIds = { mailboxId -> cachedIds(mailboxId).toSet() },
     writeFlags = { writes ->
         stillConfigured()
         val held = heldLocally().toSet()
         val (spared, due) = writes.partition { it.id in held }
-        due.groupBy { it.seen to it.flagged }.forEach { (state, rows) ->
-            rows.map { it.id }.chunked(MAX_CHANGES).forEach { ids -> setReadAndStar(ids, state.first, state.second) }
+        due.groupBy { it.copy(id = "") }.forEach { (state, rows) ->
+            rows.map { it.id }.chunked(MAX_CHANGES).forEach { ids ->
+                setReadAndStar(ids, state.seen, state.flagged, state.answered, state.forwarded)
+            }
         }
         spared.isEmpty()
     },
@@ -160,7 +170,7 @@ internal class ImapFolderWrites(
     idsWithPreviewForMailbox: suspend (mailboxId: String) -> List<String>,
     private val stillConfigured: suspend () -> Unit,
     heldLocally: () -> Collection<String>,
-    setReadAndStar: suspend (ids: List<String>, seen: Boolean, flagged: Boolean) -> Unit,
+    setReadAndStar: suspend (ids: List<String>, seen: Boolean, flagged: Boolean, answered: Boolean, forwarded: Boolean) -> Unit,
     private val sparingInFlight: (List<EmailEntity>) -> List<EmailEntity>,
     private val upsertAll: suspend (List<EmailEntity>) -> Unit,
     private val markWalked: suspend (mailboxId: String, ids: List<String>) -> Unit,

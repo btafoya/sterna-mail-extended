@@ -63,6 +63,8 @@ internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
         flagged = isFlagged,
         hasAttachment = hasAttachment,
         sortKey = epochMillis(receivedAt),
+        answered = isAnswered,
+        forwarded = isForwarded,
         // Persisted since v17: every fetch path that caches a row asks the server for `to`, so
         // what lands here is the message's real recipient set, empty included (a draft with no
         // addressee yet), which is exactly what the row should then show.
@@ -105,6 +107,8 @@ internal fun EmailEntity.toEmail(): Email = Email(
     keywords = buildMap {
         if (seen) put("\$seen", true)
         if (flagged) put("\$flagged", true)
+        if (answered) put("\$answered", true)
+        if (forwarded) put("\$forwarded", true)
         if (draftKey(accountId, id) in recentDrafts) put("\$draft", true)
     },
 )

@@ -306,6 +306,8 @@
     <string name="a11y_select">选择</string>
     <string name="a11y_deselect">取消选择</string>
     <string name="a11y_has_attachment">包含附件</string>
+    <string name="a11y_answered">已回复</string>
+    <string name="a11y_forwarded">已转发</string>
     <string name="draft_label">草稿</string>
     <string name="local_draft_not_uploaded">未上传</string>
     <string name="a11y_conversation_pill">会话，共 %1$d 封邮件</string>

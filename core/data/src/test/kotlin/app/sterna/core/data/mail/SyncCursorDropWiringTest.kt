@@ -76,12 +76,12 @@ class SyncCursorDropWiringTest {
     @Test fun `the store's schema marker and version are the ones already on disk`() {
         // One character changed in either and the constructor's `if (… < CURSOR_VERSION) clear()`
         // fires on the next start: every account's cursors fall at once, every folder does a full
-        // re-query, and nothing anywhere says why. Bumping it is a legitimate migration, it has
-        // been used once, for the uncollapsed folder queries, but it must cost a deliberate edit.
+        // re-query, and nothing anywhere says why. Bumping it is a legitimate migration (folder
+        // queries uncollapsed, then the replied and forwarded marks), but a deliberate edit.
         val lines = DaoQuerySource.mailSource("SyncStateStore").lines().map { it.trim() }
         listOf(
             """private const val VERSION_KEY = "cursor_version"""",
-            "private const val CURSOR_VERSION = 2",
+            "private const val CURSOR_VERSION = 3",
             """private val prefs = context.getSharedPreferences("sync_states", Context.MODE_PRIVATE)""",
         ).forEach {
             assertTrue(

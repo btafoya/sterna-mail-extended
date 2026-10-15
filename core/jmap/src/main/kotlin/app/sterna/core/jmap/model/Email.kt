@@ -126,6 +126,10 @@ data class Email(
     /** Whether the message is flagged/starred ($flagged keyword). */
     val isFlagged: Boolean get() = keywords["\$flagged"] == true
 
+    val isAnswered: Boolean get() = keywords["\$answered"] == true
+
+    val isForwarded: Boolean get() = keywords["\$forwarded"] == true
+
         /** Whether this is a draft ($draft keyword). A trashed draft keeps the keyword even though it
          *  has left the Drafts folder, so the row can flag it as a draft anywhere it surfaces;
          *  otherwise it is indistinguishable from a sent mail (#69). */

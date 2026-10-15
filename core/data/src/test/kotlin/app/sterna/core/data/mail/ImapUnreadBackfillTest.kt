@@ -699,7 +699,7 @@ class ImapUnreadBackfillTest {
         idsWithPreviewForMailbox = { cache.idsWithPreviewForMailbox(ACCOUNT, it) },
         stillConfigured = {},
         heldLocally = { emptyList() },
-        setReadAndStar = { _, _, _ -> },
+        setReadAndStar = { _, _, _, _, _ -> },
         sparingInFlight = { it },
         upsertAll = { rows -> upsertKeepingCatchUp(rows, { accountId, ids -> cache.catchUpOf(accountId, ids) }, { cache.upsert(it) }) },
         markWalked = { mailboxId, ids ->

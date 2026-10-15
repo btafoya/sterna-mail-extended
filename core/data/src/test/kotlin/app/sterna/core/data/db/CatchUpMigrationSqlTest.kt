@@ -130,13 +130,18 @@ class CatchUpMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumn() {
-        assertEquals(35, SCHEMA_VERSION)
+        assertEquals(36, SCHEMA_VERSION)
         assertEquals(
             SCHEMA_VERSION,
             SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion },
         )
         seedV33()
         registeredStep(33).migrate(supportDb())
+        db.createStatement().use { st ->
+            st.executeUpdate(MAILBOX_UIDVALIDITY_CREATE_SQL)
+            st.executeUpdate(MAILBOX_UIDVALIDITY_ADD_MODSEQ_SQL)
+        }
+        registeredStep(35).migrate(supportDb())
         val fields = EmailEntity::class.java.declaredFields
             .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) && !it.isSynthetic }
         assertEquals(

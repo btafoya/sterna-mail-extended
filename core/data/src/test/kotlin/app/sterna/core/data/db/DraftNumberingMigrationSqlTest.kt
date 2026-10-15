@@ -456,7 +456,7 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v35 (`mailbox_uidvalidity.highestModSeq`)", 35, SCHEMA_VERSION)
+        assertEquals("the schema now declares v36 (`emails.answered`, `emails.forwarded`)", 36, SCHEMA_VERSION)
     }
 
     // --- v24 → v25: the numbering each cached row was read under ---------------------------------

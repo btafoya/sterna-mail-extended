@@ -1161,6 +1161,8 @@
     <string name="a11y_select">Selecteren</string>
     <string name="a11y_deselect">Deselecteren</string>
     <string name="a11y_has_attachment">Heeft een bijlage</string>
+    <string name="a11y_answered">Beantwoord</string>
+    <string name="a11y_forwarded">Doorgestuurd</string>
     <string name="draft_label">Concept</string>
     <string name="local_draft_not_uploaded">Niet geüpload</string>
     <string name="a11y_conversation_pill">Gesprek, %1$d berichten</string>

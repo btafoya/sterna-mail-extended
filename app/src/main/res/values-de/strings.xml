@@ -1158,6 +1158,8 @@
     <string name="a11y_select">Auswählen</string>
     <string name="a11y_deselect">Auswahl aufheben</string>
     <string name="a11y_has_attachment">Hat einen Anhang</string>
+    <string name="a11y_answered">Beantwortet</string>
+    <string name="a11y_forwarded">Weitergeleitet</string>
     <string name="draft_label">Entwurf</string>
     <string name="local_draft_not_uploaded">Nicht hochgeladen</string>
     <string name="a11y_conversation_pill">Unterhaltung, %1$d Nachrichten</string>

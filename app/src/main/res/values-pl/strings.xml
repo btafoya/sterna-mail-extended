@@ -1186,6 +1186,8 @@
     <string name="a11y_select">Zaznacz</string>
     <string name="a11y_deselect">Odznacz</string>
     <string name="a11y_has_attachment">Zawiera załącznik</string>
+    <string name="a11y_answered">Odpowiedziano</string>
+    <string name="a11y_forwarded">Przekazano</string>
     <string name="draft_label">Wersja robocza</string>
     <string name="local_draft_not_uploaded">Nie przesłano</string>
     <string name="a11y_conversation_pill">Rozmowa, %1$d wiadomości</string>

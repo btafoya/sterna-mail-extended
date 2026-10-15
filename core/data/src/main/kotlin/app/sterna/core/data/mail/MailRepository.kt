@@ -160,18 +160,31 @@ internal fun decodeCachedEmail(bodyJson: String): Email =
 internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean =
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
 
-/** [cached]'s `$seen` and `$flagged` taken from the `emails` [row]: a cached body's keywords are
- *  frozen at write time (#148, #232). Null [row] means unknown. An unstarred row removes `$flagged`,
- *  as `toggleFlag` does; `$answered` and `$forwarded` stay as cached. */
+/** [cached]'s `$seen`, `$flagged`, `$answered` and `$forwarded` taken from the `emails` [row]: a
+ *  cached body's keywords are frozen at write time (#148, #232, #259). Null [row] means unknown. A
+ *  flag the row does not hold removes its key, as `toggleFlag` does; `$seen` alone is kept as false. */
 internal fun reconcileCachedFlags(cached: MessageBody, row: ReadAndStar?): MessageBody {
     if (row == null) return cached
     val email = cached.email
-    if (email.isSeen == row.seen && email.isFlagged == row.flagged) return cached
+    if (
+        email.isSeen == row.seen && email.isFlagged == row.flagged &&
+        email.isAnswered == row.answered && email.isForwarded == row.forwarded
+    ) {
+        return cached
+    }
     val keywords = email.keywords + ("\$seen" to row.seen)
     return cached.copy(
-        email = email.copy(keywords = if (row.flagged) keywords + ("\$flagged" to true) else keywords - "\$flagged"),
+        email = email.copy(
+            keywords = keywords
+                .withKeyword("\$flagged", row.flagged)
+                .withKeyword("\$answered", row.answered)
+                .withKeyword("\$forwarded", row.forwarded),
+        ),
     )
 }
+
+private fun Map<String, Boolean>.withKeyword(keyword: String, held: Boolean): Map<String, Boolean> =
+    if (held) this + (keyword to true) else this - keyword
 
 /** The row [read] reports, or null when it cannot be read, the "unknown" [reconcileCachedFlags]
  *  answers by handing the body back. A locked database must not cost the open. */
@@ -2088,7 +2101,9 @@ class MailRepository(
                 checkAccountStillConfigured(accountId, accountStore.accounts().map { it.id })
             },
             heldLocally = { recentlyMutatedIds(accountId) },
-            setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
+            setReadAndStar = { ids, seen, flagged, answered, forwarded ->
+                emailDao.setReadAndStar(accountId, ids, seen, flagged, answered, forwarded)
+            },
             sparingInFlight = ::sparingInFlight,
             upsertAll = emailDao::upsertAll,
             markWalked = { mailboxId, ids -> emailDao.markWalked(accountId, mailboxId, ids) },

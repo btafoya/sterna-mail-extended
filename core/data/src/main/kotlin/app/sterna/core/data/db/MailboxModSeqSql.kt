@@ -22,6 +22,9 @@ const val MAILBOX_UIDVALIDITY_RENUMBER_SQL: String =
         "highestModSeq = CASE WHEN uidValidity = :uidValidity THEN highestModSeq ELSE NULL END, " +
         "uidValidity = :uidValidity WHERE accountId = :accountId AND mailboxId = :mailboxId"
 
+/** v36: a delta never rereads an unchanged message, so only a full walk finds marks set before. */
+const val MAILBOX_MODSEQ_FORGET_SQL: String = "UPDATE mailbox_uidvalidity SET highestModSeq = NULL"
+
 const val MAILBOX_MODSEQ_READ_SQL: String =
     "SELECT highestModSeq FROM mailbox_uidvalidity WHERE accountId = :accountId AND mailboxId = :mailboxId"
 

@@ -99,10 +99,13 @@ class IncrementalReadDecisionTest {
 
     // -- what a delta writes -----------------------------------------------------------------------
 
-    @Test fun `flag writes name cached rows only, with the two flags a row holds`() {
+    private fun write(uid: Long, seen: Boolean = false, flagged: Boolean = false, answered: Boolean = false, forwarded: Boolean = false) =
+        ImapFlagWrite(id(uid), seen = seen, flagged = flagged, answered = answered, forwarded = forwarded)
+
+    @Test fun `flag writes name cached rows only, with the four flags a row holds`() {
         val writes = flagWritesFor(
             changes = listOf(
-                ImapFlagChange(7L, listOf("\\Seen", "\\Flagged", "\\Answered")),
+                ImapFlagChange(7L, listOf("\\Seen", "\\Flagged", "\\Answered", "\$Forwarded", "\\Deleted")),
                 ImapFlagChange(8L, emptyList()),
                 ImapFlagChange(9L, listOf("\\seen")),
             ),
@@ -112,7 +115,27 @@ class IncrementalReadDecisionTest {
         )
 
         assertEquals(
-            listOf(ImapFlagWrite(id(7), seen = true, flagged = true), ImapFlagWrite(id(8), seen = false, flagged = false)),
+            listOf(write(7, seen = true, flagged = true, answered = true, forwarded = true), write(8)),
+            writes,
+        )
+    }
+
+    @Test fun `an answer or a forward alone is a change the delta writes, whatever the case`() {
+        val writes = flagWritesFor(
+            changes = listOf(
+                ImapFlagChange(7L, listOf("\\Seen", "\\answered")),
+                ImapFlagChange(8L, listOf("\\Seen", "\$forwarded")),
+                ImapFlagChange(9L, listOf("\\Seen", "Forwarded", "\\Forwarded")),
+            ),
+            accountId = account,
+            mailboxId = inbox,
+            cachedIds = setOf(id(7), id(8), id(9)),
+        )
+
+        assertEquals(
+            "`\\Answered` and `\$Forwarded` are compared as `\\Seen` is, without regard to case; " +
+                "`\$Forwarded` has no backslash, and a bare or backslashed `Forwarded` is another word",
+            listOf(write(7, seen = true, answered = true), write(8, seen = true, forwarded = true), write(9, seen = true)),
             writes,
         )
     }
@@ -123,7 +146,7 @@ class IncrementalReadDecisionTest {
             account, inbox, setOf(id(7)),
         )
 
-        assertEquals(listOf(ImapFlagWrite(id(7), seen = true, flagged = false)), writes)
+        assertEquals(listOf(write(7, seen = true)), writes)
     }
 
     @Test fun `what the cache lacks is fetched newest first, under this account and folder`() {
@@ -147,7 +170,7 @@ class IncrementalReadDecisionTest {
         idsWithPreviewForMailbox = { emptyList() },
         stillConfigured = stillConfigured,
         heldLocally = { emptyList() },
-        setReadAndStar = { _, _, _ -> },
+        setReadAndStar = { _, _, _, _, _ -> },
         sparingInFlight = { rows -> rows.filterNot { it.id in inFlight } },
         upsertAll = { rows -> written += rows },
         markWalked = { _, _ -> },
@@ -189,8 +212,10 @@ class IncrementalReadDecisionTest {
         assertEquals(emptyList<EmailEntity>(), written)
     }
 
+    private data class Applied(val ids: List<String>, val seen: Boolean, val flagged: Boolean, val answered: Boolean, val forwarded: Boolean)
+
     private class Writes {
-        val applied = mutableListOf<Triple<List<String>, Boolean, Boolean>>()
+        val applied = mutableListOf<Applied>()
         var asked = 0
     }
 
@@ -198,7 +223,7 @@ class IncrementalReadDecisionTest {
         cachedIds = { emptyList() },
         stillConfigured = { writes.asked++; stillConfigured() },
         heldLocally = { held },
-        setReadAndStar = { ids, seen, flagged -> writes.applied += Triple(ids, seen, flagged) },
+        setReadAndStar = { ids, seen, flagged, answered, forwarded -> writes.applied += Applied(ids, seen, flagged, answered, forwarded) },
     )
 
     @Test fun `flag writes go out grouped by state, and say they were all applied`() {
@@ -206,17 +231,33 @@ class IncrementalReadDecisionTest {
 
         val all = runBlocking {
             delta(writes).writeFlags(
-                listOf(
-                    ImapFlagWrite(id(7), seen = true, flagged = false),
-                    ImapFlagWrite(id(8), seen = false, flagged = true),
-                    ImapFlagWrite(id(9), seen = true, flagged = false),
-                ),
+                listOf(write(7, seen = true), write(8, flagged = true), write(9, seen = true)),
             )
         }
 
         assertTrue(all)
         assertEquals(
-            setOf(Triple(listOf(id(7), id(9)), true, false), Triple(listOf(id(8)), false, true)),
+            setOf(Applied(listOf(id(7), id(9)), true, false, false, false), Applied(listOf(id(8)), false, true, false, false)),
+            writes.applied.toSet(),
+        )
+    }
+
+    @Test fun `rows that differ by their answer or their forward alone are written apart`() {
+        val writes = Writes()
+
+        runBlocking {
+            delta(writes).writeFlags(
+                listOf(write(7, seen = true), write(8, seen = true, answered = true), write(9, seen = true, forwarded = true)),
+            )
+        }
+
+        assertEquals(
+            "a grouping on the read state and the star alone writes one row's answer onto its neighbours",
+            setOf(
+                Applied(listOf(id(7)), true, false, false, false),
+                Applied(listOf(id(8)), true, false, true, false),
+                Applied(listOf(id(9)), true, false, false, true),
+            ),
             writes.applied.toSet(),
         )
     }
@@ -226,12 +267,12 @@ class IncrementalReadDecisionTest {
 
         val all = runBlocking {
             delta(writes, held = setOf(id(8))).writeFlags(
-                listOf(ImapFlagWrite(id(7), seen = true, flagged = false), ImapFlagWrite(id(8), seen = false, flagged = false)),
+                listOf(write(7, seen = true), write(8)),
             )
         }
 
         assertFalse("a held-back write was reported as applied: the mod-sequence would move past it", all)
-        assertEquals(listOf(Triple(listOf(id(7)), true, false)), writes.applied)
+        assertEquals(listOf(Applied(listOf(id(7)), true, false, false, false)), writes.applied)
     }
 
     @Test fun `the account is asked about before a flag is written, and its refusal writes nothing`() {
@@ -241,12 +282,12 @@ class IncrementalReadDecisionTest {
         val thrown = runCatching {
             runBlocking {
                 delta(writes, stillConfigured = { throw gone })
-                    .writeFlags(listOf(ImapFlagWrite(id(7), seen = true, flagged = false)))
+                    .writeFlags(listOf(write(7, seen = true)))
             }
         }.exceptionOrNull()
 
         assertTrue("the refusal did not climb out: $thrown", thrown is AccountGoneException)
         assertEquals(1, writes.asked)
-        assertEquals(emptyList<Triple<List<String>, Boolean, Boolean>>(), writes.applied)
+        assertEquals(emptyList<Applied>(), writes.applied)
     }
 }

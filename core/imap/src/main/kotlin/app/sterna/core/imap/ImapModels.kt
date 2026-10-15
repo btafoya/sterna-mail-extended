@@ -83,6 +83,7 @@ data class ImapMessage(
     val seen: Boolean,
     val flagged: Boolean,
     val answered: Boolean,
+    val forwarded: Boolean = false,
         /** The `\Deleted` flag: the server has been told this message is to go, and only an EXPUNGE
          *  (from any client) removes it. Sterna never shows such a message, see
          *  [ImapSession.messages], the one place that acts on this. */

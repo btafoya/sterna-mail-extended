@@ -94,7 +94,7 @@ class ModSeqMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumns() {
-        assertEquals(35, SCHEMA_VERSION)
+        assertEquals(36, SCHEMA_VERSION)
         assertEquals(
             SCHEMA_VERSION,
             SternaDatabase.ALL_MIGRATIONS.filter { it.startVersion >= 15 }.maxOf { it.endVersion },

@@ -476,8 +476,8 @@ class FolderOrderIndexMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v35: `mailbox_uidvalidity.highestModSeq`",
-            35,
+            "the schema declares v36: `emails.answered`, `emails.forwarded`",
+            36,
             SCHEMA_VERSION,
         )
     }

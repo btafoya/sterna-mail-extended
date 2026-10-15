@@ -23,8 +23,12 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
+const val READ_AND_STAR_READ_SQL: String =
+    "SELECT seen, flagged, answered, forwarded FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1"
+
 const val READ_AND_STAR_WRITE_SQL: String =
-    "UPDATE emails SET seen = :seen, flagged = :flagged WHERE accountId = :accountId AND id IN (:ids)"
+    "UPDATE emails SET seen = :seen, flagged = :flagged, answered = :answered, forwarded = :forwarded " +
+        "WHERE accountId = :accountId AND id IN (:ids)"
 
 /** [CATCH_UP_OFF_WALK] clear, on the row of the query or subquery it is written in. For the older
  *  page alone, which a caught-up row neither anchors nor counts: the list still shows it. */
@@ -164,7 +168,7 @@ interface EmailDao {
     @Query("SELECT seen FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun seenOf(accountId: String, id: String): Boolean?
 
-    @Query("SELECT seen, flagged FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
+    @Query(READ_AND_STAR_READ_SQL)
     suspend fun readAndStarOf(accountId: String, id: String): ReadAndStar?
 
     @Upsert
@@ -239,7 +243,14 @@ interface EmailDao {
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
 
     @Query(READ_AND_STAR_WRITE_SQL)
-    suspend fun setReadAndStar(accountId: String, ids: List<String>, seen: Boolean, flagged: Boolean)
+    suspend fun setReadAndStar(
+        accountId: String,
+        ids: List<String>,
+        seen: Boolean,
+        flagged: Boolean,
+        answered: Boolean,
+        forwarded: Boolean,
+    )
 
     /**
      * Take one message out of this place: cached row and search-index row dropped together in one
@@ -480,6 +491,8 @@ data class CachedFolder(
 data class ReadAndStar(
     val seen: Boolean,
     val flagged: Boolean,
+    val answered: Boolean,
+    val forwarded: Boolean,
 )
 
 /** Projection for [EmailDao.keysForSelection]: the account-qualified key of one selectable row. */

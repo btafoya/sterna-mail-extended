@@ -9,8 +9,8 @@ class SyncStateStore(context: Context) : SyncCursorStore {
     private val prefs = context.getSharedPreferences("sync_states", Context.MODE_PRIVATE)
 
     init {
-        // v2: a queryState minted by the old collapsed query describes a different query, and an
-        // Email/queryChanges against it can silently omit thread members. Drop those cursors once.
+        // Each version drops every cursor once. v2: a collapsed-query queryState, whose queryChanges
+        // can omit thread members. v3: rows cached before `answered`/`forwarded`, which read 0.
         if (prefs.getInt(VERSION_KEY, 1) < CURSOR_VERSION) clear()
     }
 
@@ -38,4 +38,4 @@ class SyncStateStore(context: Context) : SyncCursorStore {
 
 /** Store schema marker; sync keys are "<localAccountId><mailboxId>", which can't collide. */
 private const val VERSION_KEY = "cursor_version"
-private const val CURSOR_VERSION = 2
+private const val CURSOR_VERSION = 3

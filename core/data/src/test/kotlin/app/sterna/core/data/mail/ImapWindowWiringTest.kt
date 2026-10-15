@@ -88,7 +88,9 @@ class ImapWindowWiringTest {
             checkAccountStillConfigured(accountId, accountStore.accounts().map { it.id })
             },
             heldLocally = { recentlyMutatedIds(accountId) },
-            setReadAndStar = { ids, seen, flagged -> emailDao.setReadAndStar(accountId, ids, seen, flagged) },
+            setReadAndStar = { ids, seen, flagged, answered, forwarded ->
+            emailDao.setReadAndStar(accountId, ids, seen, flagged, answered, forwarded)
+            },
             sparingInFlight = ::sparingInFlight,
             upsertAll = emailDao::upsertAll,
             markWalked = { mailboxId, ids -> emailDao.markWalked(accountId, mailboxId, ids) },

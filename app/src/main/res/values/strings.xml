@@ -309,6 +309,8 @@
     <string name="a11y_select">Select</string>
     <string name="a11y_deselect">Deselect</string>
     <string name="a11y_has_attachment">Has attachment</string>
+    <string name="a11y_answered">Replied</string>
+    <string name="a11y_forwarded">Forwarded</string>
     <string name="draft_label">Draft</string>
     <string name="local_draft_not_uploaded">Not uploaded</string>
     <string name="a11y_conversation_pill">Conversation, %1$d messages</string>

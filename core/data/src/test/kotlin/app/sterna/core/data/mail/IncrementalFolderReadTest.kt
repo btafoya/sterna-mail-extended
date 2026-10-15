@@ -68,7 +68,9 @@ class IncrementalFolderReadTest {
             idsWithPreviewForMailbox = { mailboxId -> cache.idsWithPreviewForMailbox(account, mailboxId) },
             stillConfigured = {},
             heldLocally = { held },
-            setReadAndStar = { ids, seen, flagged -> cache.setReadAndStar(account, ids, seen, flagged) },
+            setReadAndStar = { ids, seen, flagged, answered, forwarded ->
+                cache.setReadAndStar(account, ids, seen, flagged, answered, forwarded)
+            },
             sparingInFlight = { rows -> rows.filterNot { it.id in inFlight } },
             upsertAll = { rows -> cache.upsert(rows) },
             markWalked = { mailboxId, ids -> cache.markWalked(account, mailboxId, ids) },

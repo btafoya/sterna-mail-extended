@@ -429,3 +429,11 @@ val MIGRATION_34_35 = object : Migration(34, 35) {
         db.execSQL(MAILBOX_UIDVALIDITY_ADD_MODSEQ_SQL)
     }
 }
+
+val MIGRATION_35_36 = object : Migration(35, 36) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `answered` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `forwarded` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL(MAILBOX_MODSEQ_FORGET_SQL)
+    }
+}

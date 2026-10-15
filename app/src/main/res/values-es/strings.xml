@@ -1167,6 +1167,8 @@
     <string name="a11y_select">Seleccionar</string>
     <string name="a11y_deselect">Deseleccionar</string>
     <string name="a11y_has_attachment">Tiene un archivo adjunto</string>
+    <string name="a11y_answered">Respondido</string>
+    <string name="a11y_forwarded">Reenviado</string>
     <string name="draft_label">Borrador</string>
     <string name="local_draft_not_uploaded">Sin subir</string>
     <string name="a11y_conversation_pill">Conversación, %1$d mensajes</string>
