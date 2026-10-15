@@ -598,7 +598,7 @@ open class ImapMailService(
     suspend fun markSeen(credentials: AccountCredentials, mailboxId: String, uid: Long) =
         setFlag(credentials, mailboxId, uid, "\\Seen", true)
 
-    suspend fun setFlag(credentials: AccountCredentials, mailboxId: String, uid: Long, flag: String, set: Boolean) =
+    open suspend fun setFlag(credentials: AccountCredentials, mailboxId: String, uid: Long, flag: String, set: Boolean) =
         onMailbox(credentials, mailboxId) { session, _ -> session.setFlag(uid, flag, set) }
 
     /**

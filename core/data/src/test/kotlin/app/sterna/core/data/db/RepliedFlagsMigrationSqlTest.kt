@@ -162,7 +162,7 @@ class RepliedFlagsMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumns() {
-        assertEquals(36, SCHEMA_VERSION)
+        assertEquals(37, SCHEMA_VERSION)
         assertEquals(
             "the step is written and not handed to Room: every install opening v36 loses its cache, its outbox and its local drafts",
             SCHEMA_VERSION,

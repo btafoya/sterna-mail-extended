@@ -33,6 +33,7 @@ class DraftNumberingCarriedWiringTest {
         draftUidValidity = draftUidValidity,
         outboxId = 42,
         requestReceipt = false,
+        originalMark = null,
     )
 
     @Test fun `a queued message reopens carrying the numbering its row held`() {

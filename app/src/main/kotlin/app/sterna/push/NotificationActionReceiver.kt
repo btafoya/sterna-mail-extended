@@ -10,6 +10,8 @@ import app.sterna.SternaApplication
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AccountStore
 import app.sterna.core.data.mail.MailRepository
+import app.sterna.core.data.mail.OriginalMark
+import app.sterna.core.data.mail.ReplyMark
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.jmap.model.Email
@@ -146,6 +148,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             references = fetched?.references.orEmpty() + fetched?.messageId.orEmpty(),
             // A quick reply is typed in the shade and replaces no saved draft.
             draftUidValidity = null,
+            originalMark = OriginalMark(accountId, emailId, ReplyMark.ANSWERED),
         )
     }
 

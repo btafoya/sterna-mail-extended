@@ -104,6 +104,8 @@ class ScheduledSendAttachmentsTest {
         override suspend fun destroyDraft(credentials: AccountCredentials, emailId: String, frozenUidValidity: Long?) =
             error("nothing is destroyed here")
 
+        override fun noteOwnKeywordWrite(accountId: String, emailId: String) = error("nothing is marked here")
+
         override suspend fun imapDraftAddressing(
             credentials: AccountCredentials,
             emailId: String,

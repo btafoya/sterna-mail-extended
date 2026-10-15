@@ -25,7 +25,9 @@ class EditAsNewWiringTest {
                 "`replacedServerDraftId` are what a send, a re-save, an emptied composer and the " +
                 "Delete button read to find the message to destroy, and here that message is the " +
                 "original; `inReplyTo` and `references` thread the new message onto it; " +
-                "`draftId` and `localDraftReplacing` are the draft reopen's own. Branch was:\n$branch",
+                "`draftId` and `localDraftReplacing` are the draft reopen's own; `originalMark` is " +
+                "what marks the original answered or forwarded once the send is delivered, and a " +
+                "message rewritten as new answers nothing. Branch was:\n$branch",
             emptyList<String>(),
             named,
         )
@@ -246,6 +248,8 @@ class EditAsNewWiringTest {
             "references",
             "draftId",
             "localDraftReplacing",
+            "originalMark",
+            "OriginalMark",
         )
 
         private val root: File by lazy {

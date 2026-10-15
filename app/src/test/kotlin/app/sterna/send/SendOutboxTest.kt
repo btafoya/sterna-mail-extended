@@ -37,6 +37,7 @@ class SendOutboxTest {
         // that a construction site cannot leave the freeze behind without the compiler saying so.
         draftEmailId = "d1", draftUidValidity = 42L,
         draftBodyIsLossy = false,
+        originalMark = null,
     )
 
     @Test fun `hold surfaces a pending affordance and no restored draft yet`() {
@@ -103,7 +104,7 @@ class SendOutboxTest {
             fromAccountId = "accA", fromEmail = "alex@masto.top",
             attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
             pgpMode = null, draftEmailId = null, draftUidValidity = null,
-            outboxId = 42, requestReceipt = false,
+            outboxId = 42, requestReceipt = false, originalMark = null,
         )
 
     @Test fun `a queued message this app styled reopens with its styling`() {
@@ -196,7 +197,7 @@ class SendOutboxTest {
                 attachments = emptyList(), inReplyTo = emptyList(), references = emptyList(),
                 htmlBody = null,
                 pgpMode = null, draftEmailId = "d1", draftUidValidity = null,
-                outboxId = 42, requestReceipt = false,
+                outboxId = 42, requestReceipt = false, originalMark = null,
             ),
         )
         assertTrue(

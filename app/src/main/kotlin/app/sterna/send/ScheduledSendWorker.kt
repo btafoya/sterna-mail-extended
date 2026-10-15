@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import app.sterna.container
 import app.sterna.core.data.mail.ScheduledSendRetry
 import app.sterna.core.data.mail.accountDepartureIsProven
+import app.sterna.core.data.mail.originalMarkOf
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.push.Notifications
 import kotlinx.coroutines.flow.first
@@ -66,6 +67,7 @@ class ScheduledSendWorker(context: Context, params: WorkerParameters) : Coroutin
                 // …and one the user asked a read receipt for still asks: dropped here, a request
                 // that only lived on the scheduled row would be lost.
                 requestReceipt = row.requestReceipt,
+                originalMark = originalMarkOf(row.originalAccountId, row.originalEmailId, row.originalMark),
             )
             repo.sending.deleteScheduledSend(id)
             Result.success()

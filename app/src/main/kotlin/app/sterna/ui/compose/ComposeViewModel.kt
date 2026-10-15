@@ -28,6 +28,7 @@ import app.sterna.core.data.mail.LOCAL_DRAFT_FILES_DIR
 import app.sterna.core.data.mail.DraftSaveOutcome
 import app.sterna.core.data.mail.DraftToOpen
 import app.sterna.core.data.mail.LocalDraftEdit
+import app.sterna.core.data.mail.OriginalMark
 import app.sterna.core.data.mail.ScheduledAttachmentFetchFailed
 import app.sterna.core.data.mail.SendDraftTarget
 import app.sterna.core.data.mail.abandonPlan
@@ -732,6 +733,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     /** Account to send from: the replied-to message's account (unified inbox), else current. */
     private var accountId: String? = null
 
+    private var originalMark: OriginalMark? = null
+
     /**
      * The saved draft being edited (#63): compose was opened from a message in Drafts.
      */
@@ -1071,6 +1074,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // while this flag fell back to false, and re-sending destroyed an original the first send had
         // deliberately spared.
         editingDraftLossyOnOpen = d.draftBodyIsLossy
+        originalMark = d.originalMark
         // The saved draft behind this screen (#35) follows the binding: settled at the head of
         // prepare() from the hand-over, which a composer rebuilt after a process death did not have.
         _savedDraftBehind.value = savedDraftBehindScreen(null, d.draftEmailId)
@@ -1347,6 +1351,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // of them does not know cannot open, in silence, a threaded quoted reply.
             val opening = composeOpening(mode)
             _forwardedPreview.value = forwardedPreview(opening, forwarded = null, failed = false)
+            originalMark = OriginalMark(accountId ?: credentials.id, replyToId, opening.mark)
             fun prefillFailed() {
                 _forwardedPreview.value = forwardedPreview(opening, forwarded, failed = true)
                 _attachmentStatus.value =
@@ -1850,6 +1855,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                             // Asked for on this screen, written at delivery time by a headless worker,
                             // so it has to be on the row, not in this process.
                             requestReceipt = args.requestReceipt,
+                            originalMark = originalMark,
                         )
                     },
                     consume = { local -> consumeEditingLocalDraft(local) },
@@ -1880,6 +1886,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = args.requestReceipt,
                     quotesDecrypted = decryptedQuote.held.value,
+                    originalMark = originalMark,
                 )
                 val app = getApplication<Application>()
                 // WYSIWYG (#70): every send is queued behind the undo window, and the message only
@@ -1985,6 +1992,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                     draftBodyIsLossy = editingDraftLossy,
                     requestReceipt = requestReceipt,
                     quotesDecrypted = decryptedQuote.held.value,
+                    originalMark = originalMark,
                 )
                 val label = scheduledHoldLabel(sendAtMillis, { millis, flags -> DateUtils.formatDateTime(app, millis, flags) }) {
                     app.getString(R.string.compose_scheduled_for, it)
@@ -2018,6 +2026,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                                 // The row waits for hours; the request has to wait with it, or the
                                 // hand-over to the outbox drops it.
                                 requestReceipt = requestReceipt,
+                                originalAccountId = originalMark?.accountId,
+                                originalEmailId = originalMark?.emailId,
+                                originalMark = originalMark?.mark?.name,
                             ),
                             // Copied before the row exists: a throw here, a blob the server no
                             // longer gives back included, schedules nothing and consumes no draft.

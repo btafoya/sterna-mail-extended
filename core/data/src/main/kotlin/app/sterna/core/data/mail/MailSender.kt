@@ -35,11 +35,17 @@ import app.sterna.core.jmap.model.SubmissionEnvelope
 import java.time.OffsetDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.cancellation.CancellationException
 
 /** Wall-clock budget for the IMAP envelope read the send path makes before it may destroy the draft
  *  a message was edited from. It bounds the connect and the reads, not the wait for the account's
  *  IMAP mutex, which nothing bounds. Expiry throws, read as "could not be established". */
 private const val SEND_PROOF_BUDGET_MS = 10_000
+
+/** Wall-clock budget for marking a delivered message's original answered or forwarded. */
+private const val ORIGINAL_MARK_BUDGET_MS = 10_000
 
 /**
  * What [MailSender] needs from [MailRepository] and nothing more. It is an interface so the
@@ -77,6 +83,10 @@ interface MailSendHost {
 
     /** The addressing an IMAP draft carries, or null for "could not be established". */
     suspend fun imapDraftAddressing(credentials: AccountCredentials, emailId: String, budgetMs: Int): Set<String>?
+
+    /** Record that this app is about to change [emailId]'s keywords, so a sync running from a state
+     *  read before the change does not report the row gone. Called before the server write. */
+    fun noteOwnKeywordWrite(accountId: String, emailId: String)
 }
 
 /**
@@ -200,6 +210,9 @@ class MailSender(
         requestReceipt: Boolean = false,
         /** Teach these addresses to the contact suggestions. False for a receipt, [recipientsToLearn]. */
         learnRecipients: Boolean = true,
+        /** The message this send answers or forwards, marked once delivered. No default: a call site
+         *  that forgets it would deliver a reply and leave its original looking unanswered. */
+        originalMark: OriginalMark?,
     ): Long {
         val recipients = to.map { it.trim() }.filter { it.isNotEmpty() }
         require(recipients.isNotEmpty()) { "Add at least one recipient." }
@@ -243,6 +256,9 @@ class MailSender(
                 draftEmailId = replaceableDraftId,
                 draftUidValidity = draftUidValidity,
                 requestReceipt = requestReceipt,
+                originalAccountId = originalMark?.accountId,
+                originalEmailId = originalMark?.emailId,
+                originalMark = originalMark?.mark?.name,
             ),
         )
         // Staging runs after the insert (it needs the id), and a throw must roll the row back: an
@@ -353,6 +369,8 @@ class MailSender(
         val outboxId: Long,
         /** Whether the queued item asks for a read receipt. No default: the row is its only home. */
         val requestReceipt: Boolean,
+        /** The original the item marks once delivered. No default, for the same reason. */
+        val originalMark: OriginalMark?,
     )
 
     /** Mark the row editing (#70); it stays, so a process death costs the edit and not the mail. */
@@ -416,6 +434,47 @@ class MailSender(
         // null, that branch opposing the folder instead (#122).
         item.draftEmailId?.let {
             runCatching { host.destroyDraft(credentials, it, item.draftUidValidity) }
+        }
+    }
+
+    /**
+     * Mark the original [item] answers or forwards, once [item] is delivered and its row deleted.
+     * Not part of [performSend]: the row would still read SENDING while the mark waits on the
+     * account's IMAP mutex or a dead socket, and a worker stopped there leaves a delivered message
+     * parked as interrupted, whose re-send is a duplicate. Bounded for the same reason, and every
+     * failure but a cancellation is swallowed: the message has left, only the mark is lost.
+     */
+    suspend fun markOriginalOf(item: OutboxEntity, budgetMs: Int = ORIGINAL_MARK_BUDGET_MS) {
+        val original = originalMarkOf(item.originalAccountId, item.originalEmailId, item.originalMark) ?: return
+        try {
+            withTimeoutOrNull(budgetMs.toLong()) {
+                withContext(ImapReadBudget(budgetMs)) { markOriginal(original) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            logWarn("MailRepository", "outbox ${item.id}: original not marked", e)
+        }
+    }
+
+    /**
+     * Set [OriginalMark.mark] on the original, on the server then on its cached row, under the
+     * account the original was read in. A UID that has gone answers OK on IMAP and is not looked for;
+     * an id that has gone throws on JMAP and leaves the row unwritten.
+     */
+    private suspend fun markOriginal(original: OriginalMark) {
+        val owner = accountStore.credentials(original.accountId) ?: return
+        host.noteOwnKeywordWrite(owner.id, original.emailId)
+        if (owner.protocol == MailProtocol.IMAP) {
+            val (mailbox, uid) = ImapMailService.targetOf(original.emailId) ?: return
+            imap.setFlag(owner, mailbox, uid, original.mark.imapFlag, true)
+        } else {
+            val ctx = host.jmapSession(owner)
+            client.setKeyword(ctx.session, ctx.accountId, original.emailId, original.mark.jmapKeyword, true, ctx.auth)
+        }
+        when (original.mark) {
+            ReplyMark.ANSWERED -> emailDao.markAnswered(owner.id, original.emailId)
+            ReplyMark.FORWARDED -> emailDao.markForwarded(owner.id, original.emailId)
         }
     }
 
@@ -664,6 +723,7 @@ class MailSender(
             fromEmail = identity?.email,
             // An invitation reply replaces no draft: nothing to freeze, nothing to destroy.
             draftUidValidity = null,
+            originalMark = null,
         )
     }
 
@@ -693,6 +753,7 @@ class MailSender(
             fromName = mail.fromName,
             fromEmail = mail.fromEmail,
             draftUidValidity = null,
+            originalMark = null,
         )
     }
 
@@ -729,6 +790,7 @@ class MailSender(
             prebuiltEntity = mail.prebuiltEntity,
             learnRecipients = mail.learnRecipients,
             draftUidValidity = null,
+            originalMark = null,
         )
         return mail.preview()
     }

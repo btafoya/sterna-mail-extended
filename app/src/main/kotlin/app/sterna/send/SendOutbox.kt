@@ -1,6 +1,7 @@
 package app.sterna.send
 
 import app.sterna.core.data.mail.MailSender
+import app.sterna.core.data.mail.OriginalMark
 import app.sterna.core.data.text.Block
 import app.sterna.core.data.text.Inline
 import app.sterna.core.data.text.Link
@@ -70,6 +71,7 @@ class SendOutbox(private val scope: CoroutineScope) {
         /** Whether the message asks for a read receipt (RFC 8098), so an undone send reopens asking. */
         val requestReceipt: Boolean = false,
         val quotesDecrypted: Boolean = false,
+        val originalMark: OriginalMark?,
     )
 
     private val _pending = MutableStateFlow<Pending?>(null)
@@ -160,5 +162,6 @@ internal fun composeDraftOf(draft: MailSender.OutboxDraft): SendOutbox.ComposeDr
         draftBodyIsLossy = true,
         editingOutboxId = draft.outboxId,
         requestReceipt = draft.requestReceipt,
+        originalMark = draft.originalMark,
     )
 }

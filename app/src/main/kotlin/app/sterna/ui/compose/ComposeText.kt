@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.sterna.R
+import app.sterna.core.data.mail.ReplyMark
 import app.sterna.core.data.pgp.PgpMode
 import app.sterna.core.data.pgp.encrypts
 import app.sterna.core.data.text.RichBody
@@ -1160,6 +1161,12 @@ internal enum class ComposeOpening(
     FORWARD(threads = false, subjectPrefix = "Fwd:", quotes = false, carriesOriginal = true, attachesSource = false),
     FORWARD_ATTACHMENT(threads = false, subjectPrefix = "Fwd:", quotes = false, carriesOriginal = false, attachesSource = true),
 }
+
+internal val ComposeOpening.mark: ReplyMark
+    get() = when (this) {
+        ComposeOpening.REPLY, ComposeOpening.REPLY_ALL -> ReplyMark.ANSWERED
+        ComposeOpening.FORWARD, ComposeOpening.FORWARD_ATTACHMENT -> ReplyMark.FORWARDED
+    }
 
 /** The one reader of the route's `mode`. Null and any unknown string open a reply, as the
  *  `else` of the old `when` did. */

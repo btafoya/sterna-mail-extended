@@ -88,9 +88,10 @@ class OutboxParkWiringTest {
                 // and the row leaves the outbox only after the send returned: deleted before, a
                 // failure would have destroyed the only copy of the message.
                 "repo.sending.deleteOutbox(id)",
+                "repo.sending.markOriginalOf(item)",
                 "Result.success()",
             ),
-            blockAt(lines, "override suspend fun doWork(): Result {", before = 0, size = 33),
+            blockAt(lines, "override suspend fun doWork(): Result {", before = 0, size = 34),
         )
         assertTrue(
             "⛔ and the parking must sit ahead of the delivery in the file, not merely somewhere " +
@@ -120,6 +121,26 @@ class OutboxParkWiringTest {
             ),
             linesOf(WORKER).filter { "repo.sending.deleteOutbox(" in it },
         )
+    }
+
+    @Test fun `the original is marked after the row is deleted, and nowhere else`() {
+        val lines = linesOf(WORKER)
+        val send = lines.indexOf("repo.sending.performSend(credentials, item)")
+        assertTrue("no line reads exactly 'repo.sending.performSend(credentials, item)' any more", send >= 0)
+        assertEquals(
+            "the original a reply or forward answers (#259) is marked once the row is gone, never " +
+                "before the delete: a worker stopped while the mark waits on the network would leave " +
+                "a delivered message SENDING, parked as interrupted at the next pickup, and its " +
+                "re-send would reach the recipient twice. After the delete, a stop costs the mark alone.",
+            listOf(
+                "repo.sending.performSend(credentials, item)",
+                "repo.sending.deleteOutbox(id)",
+                "repo.sending.markOriginalOf(item)",
+                "Result.success()",
+            ),
+            lines.subList(send, send + 4),
+        )
+        assertEquals(listOf("repo.sending.markOriginalOf(item)"), lines.filter { "markOriginalOf" in it })
     }
 
     @Test fun `the worker names no parked state of its own`() {

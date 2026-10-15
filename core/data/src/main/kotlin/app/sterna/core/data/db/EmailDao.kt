@@ -242,6 +242,12 @@ interface EmailDao {
     @Query("UPDATE emails SET flagged = :flagged WHERE accountId = :accountId AND id = :id")
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
 
+    @Query("UPDATE emails SET answered = 1 WHERE accountId = :accountId AND id = :id")
+    suspend fun markAnswered(accountId: String, id: String)
+
+    @Query("UPDATE emails SET forwarded = 1 WHERE accountId = :accountId AND id = :id")
+    suspend fun markForwarded(accountId: String, id: String)
+
     @Query(READ_AND_STAR_WRITE_SQL)
     suspend fun setReadAndStar(
         accountId: String,

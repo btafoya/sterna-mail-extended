@@ -66,4 +66,7 @@ data class OutboxEntity(
     /** Asks for a read receipt (RFC 8098); `default 0` ([MIGRATION_21_22]), pre-v22 rows read back as "not asked for".
      *  */
     val requestReceipt: Boolean = false,
+    val originalAccountId: String? = null,
+    val originalEmailId: String? = null,
+    val originalMark: String? = null,
 )

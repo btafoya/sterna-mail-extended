@@ -199,6 +199,9 @@ class MailSenderDeliversOnBothProtocolsTest {
             emailId: String,
             budgetMs: Int,
         ): Set<String>? = error("the addressing proof belongs to the queueing path, not to delivery")
+
+        override fun noteOwnKeywordWrite(accountId: String, emailId: String) =
+            error("no row here names an original to mark")
     }
 
     private fun mailboxDaoAnswering(role: String, id: String?, asked: MutableList<Pair<String, String>>): MailboxDao =

@@ -112,6 +112,7 @@ class ComposeTitleTest {
         draftUidValidity = 42L,
         draftBodyIsLossy = false,
         editingOutboxId = editingOutboxId,
+        originalMark = null,
     )
 
     @Test fun aRestoreCarryingAQueuedRowHoldsIt() {

@@ -437,3 +437,13 @@ val MIGRATION_35_36 = object : Migration(35, 36) {
         db.execSQL(MAILBOX_MODSEQ_FORGET_SQL)
     }
 }
+
+val MIGRATION_36_37 = object : Migration(36, 37) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        listOf("outbox", "scheduled_sends").forEach { table ->
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN `originalAccountId` TEXT")
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN `originalEmailId` TEXT")
+            db.execSQL("ALTER TABLE `$table` ADD COLUMN `originalMark` TEXT")
+        }
+    }
+}

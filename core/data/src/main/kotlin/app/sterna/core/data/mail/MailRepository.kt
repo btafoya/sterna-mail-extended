@@ -378,6 +378,7 @@ internal fun outboxDraftOf(
     draftUidValidity = item.draftUidValidity,
     outboxId = item.id,
     requestReceipt = item.requestReceipt,
+    originalMark = originalMarkOf(item.originalAccountId, item.originalEmailId, item.originalMark),
 )
 
 /** The Drafts-list row for a just-saved draft (#63). Every addressing field with a column must be
@@ -4434,6 +4435,8 @@ class MailRepository(
     /** The draft a delivered message replaces (#63), destroyed under the numbering the row froze (#99). */
     override suspend fun destroyDraft(credentials: AccountCredentials, emailId: String, frozenUidValidity: Long?) =
         drafts.destroyDraft(credentials, emailId, frozenUidValidity)
+
+    override fun noteOwnKeywordWrite(accountId: String, emailId: String) = markRecentlyMutated(accountId, emailId)
 
     /** The bytes of an attachment part; [maxBytes] is the ceiling this caller accepts. */
     suspend fun downloadAttachment(

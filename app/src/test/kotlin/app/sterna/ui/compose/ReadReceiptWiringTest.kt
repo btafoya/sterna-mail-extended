@@ -35,6 +35,7 @@ class ReadReceiptWiringTest {
         draftUidValidity = 77L,
         outboxId = 42,
         requestReceipt = requestReceipt,
+        originalMark = null,
     )
 
     @Test fun `a queued message that asked for a receipt reopens still asking`() {

@@ -62,6 +62,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         return try {
             repo.sending.performSend(credentials, item)
             repo.sending.deleteOutbox(id)
+            repo.sending.markOriginalOf(item)
             Result.success()
         } catch (t: Throwable) {
             val attempts = OutboxLogic.attemptsAfterFailure(item.attemptCount, t)
