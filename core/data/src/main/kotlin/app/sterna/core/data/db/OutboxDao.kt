@@ -3,7 +3,10 @@ package app.sterna.core.data.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
+import app.sterna.core.data.mail.OriginalMark
+import app.sterna.core.data.mail.ReplyMark
 import kotlinx.coroutines.flow.Flow
 
 /** Two fields the outbox badge needs, so counting never loads bodies (see
@@ -71,4 +74,20 @@ interface OutboxDao {
 
     @Query("DELETE FROM outbox WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Transaction
+    suspend fun deleteMarkingOriginal(id: Long, original: OriginalMark?) {
+        delete(id)
+        if (original == null) return
+        when (original.mark) {
+            ReplyMark.ANSWERED -> markAnswered(original.accountId, original.emailId)
+            ReplyMark.FORWARDED -> markForwarded(original.accountId, original.emailId)
+        }
+    }
+
+    @Query("UPDATE emails SET answered = 1 WHERE accountId = :accountId AND id = :id")
+    suspend fun markAnswered(accountId: String, id: String)
+
+    @Query("UPDATE emails SET forwarded = 1 WHERE accountId = :accountId AND id = :id")
+    suspend fun markForwarded(accountId: String, id: String)
 }

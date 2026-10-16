@@ -75,13 +75,16 @@ interface EmailDao {
      * Paged source for the list; the query is built dynamically (MailRepository.pagingQuery)
      * because the order by and mailbox-id set vary per view.
      */
-    @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
-    fun pagingSource(query: SupportSQLiteQuery): PagingSource<Int, EmailEntity>
+    @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class, OutboxEntity::class])
+    fun pagingSource(query: SupportSQLiteQuery): PagingSource<Int, EmailListRow>
 
     /** Paged source for the conversation (collapsed-thread) list, built dynamically by
      *  MailRepository.conversationQuery. */
-    @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class])
+    @RawQuery(observedEntities = [EmailEntity::class, SnoozedEntity::class, OutboxEntity::class])
     fun conversationPagingSource(query: SupportSQLiteQuery): PagingSource<Int, ConversationRow>
+
+    @RawQuery(observedEntities = [EmailEntity::class, OutboxEntity::class])
+    fun observeShownReplyMarks(query: SupportSQLiteQuery): Flow<List<ShownReplyMarkRow>>
 
     /**
      * One-shot bounded read of the latest messages across every account's inbox, for the widget
@@ -241,12 +244,6 @@ interface EmailDao {
 
     @Query("UPDATE emails SET flagged = :flagged WHERE accountId = :accountId AND id = :id")
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
-
-    @Query("UPDATE emails SET answered = 1 WHERE accountId = :accountId AND id = :id")
-    suspend fun markAnswered(accountId: String, id: String)
-
-    @Query("UPDATE emails SET forwarded = 1 WHERE accountId = :accountId AND id = :id")
-    suspend fun markForwarded(accountId: String, id: String)
 
     @Query(READ_AND_STAR_WRITE_SQL)
     suspend fun setReadAndStar(

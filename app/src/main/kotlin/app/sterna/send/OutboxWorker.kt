@@ -61,7 +61,7 @@ class OutboxWorker(context: Context, params: WorkerParameters) : CoroutineWorker
         repo.sending.updateOutboxState(id, OutboxState.SENDING, item.attemptCount, item.lastError)
         return try {
             repo.sending.performSend(credentials, item)
-            repo.sending.deleteOutbox(id)
+            repo.sending.deleteOutboxMarkingOriginal(item)
             repo.sending.markOriginalOf(item)
             Result.success()
         } catch (t: Throwable) {

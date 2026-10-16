@@ -14,4 +14,6 @@ data class ConversationRow(
     val threadTotal: Int,
     /** 0 (falsy) when any message in the thread is unread: MIN(seen) over the group. */
     val threadUnread: Int,
+    val shownAnswered: Boolean,
+    val shownForwarded: Boolean,
 )

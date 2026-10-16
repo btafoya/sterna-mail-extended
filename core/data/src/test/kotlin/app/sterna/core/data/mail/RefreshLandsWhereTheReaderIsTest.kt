@@ -291,10 +291,10 @@ class RefreshLandsWhereTheReaderIsTest {
     @Test
     fun `all four paged lists page through the anchored source`() {
         val expected = listOf(
-            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, accountId = null, sentMailboxes = sentMailboxes))) },",
-            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },",
-            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, credentials.id, sentMailboxes))) },",
-            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },",
+            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(ShownReplyMarksQuery(conversationQuery(scopes, sort, filter, accountId = null, sentMailboxes = sentMailboxes)))) },",
+            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(ShownReplyMarksQuery(pagingQuery(scopes, sort, filter)))) },",
+            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(ShownReplyMarksQuery(conversationQuery(scopes, sort, filter, credentials.id, sentMailboxes)))) },",
+            "pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(ShownReplyMarksQuery(pagingQuery(scopes, sort, filter)))) },",
         )
         val actual = (
             DaoQuerySource.mailFunctionBody("MailRepository", "pagedMailbox") +

@@ -1537,13 +1537,13 @@ class MailRepository(
         return if (conversationView) {
             Pager(
                 config = pagingConfig(),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, accountId = null, sentMailboxes = sentMailboxes))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(ShownReplyMarksQuery(conversationQuery(scopes, sort, filter, accountId = null, sentMailboxes = sentMailboxes)))) },
             ).flow.map { data -> data.map { it.toInboxRow() } }
         } else {
             Pager(
                 config = pagingConfig(),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },
-            ).flow.map { data -> data.map { InboxRow(it.toEmail(), threadCount = 1, unread = !it.seen) } }
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(ShownReplyMarksQuery(pagingQuery(scopes, sort, filter)))) },
+            ).flow.map { data -> data.map { it.toInboxRow() } }
         }
     }
 
@@ -1566,14 +1566,14 @@ class MailRepository(
             Pager(
                 config = pagingConfig(),
                 remoteMediator = folderMediator(credentials, mailboxId, conversationView = true),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(conversationQuery(scopes, sort, filter, credentials.id, sentMailboxes))) },
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.conversationPagingSource(ShownReplyMarksQuery(conversationQuery(scopes, sort, filter, credentials.id, sentMailboxes)))) },
             ).flow.map { data -> data.map { it.toInboxRow() } }
         } else {
             Pager(
                 config = pagingConfig(),
                 remoteMediator = folderMediator(credentials, mailboxId, conversationView = false),
-                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(pagingQuery(scopes, sort, filter))) },
-            ).flow.map { data -> data.map { InboxRow(it.toEmail(), threadCount = 1, unread = !it.seen) } }
+                pagingSourceFactory = { AnchoredRefreshPagingSource(emailDao.pagingSource(ShownReplyMarksQuery(pagingQuery(scopes, sort, filter)))) },
+            ).flow.map { data -> data.map { it.toInboxRow() } }
         }
     }
 

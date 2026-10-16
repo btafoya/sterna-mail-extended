@@ -2,6 +2,7 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.db.ConversationRow
 import app.sterna.core.data.db.EmailEntity
+import app.sterna.core.data.db.EmailListRow
 import app.sterna.core.data.db.EmailFtsEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.FtsHit
@@ -39,11 +40,14 @@ private fun draftKey(accountId: String, id: String) = "$accountId\u0000$id"
 /** Map a grouped conversation row to the domain [InboxRow] (unread = any in thread). */
 internal fun ConversationRow.toInboxRow(): InboxRow =
     InboxRow(
-        email = email.toEmail(),
+        email = email.copy(answered = shownAnswered, forwarded = shownForwarded).toEmail(),
         threadCount = threadCount,
         unread = threadUnread == 0,
         threadExpandable = threadTotal > 1,
     )
+
+internal fun EmailListRow.toInboxRow(): InboxRow =
+    InboxRow(email.copy(answered = shownAnswered, forwarded = shownForwarded).toEmail(), threadCount = 1, unread = !email.seen)
 
 internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
     val sender = from.firstOrNull()

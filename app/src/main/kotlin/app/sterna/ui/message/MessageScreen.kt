@@ -1428,6 +1428,7 @@ private fun MessageContent(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val shownReplyMarks by viewModel.shownReplyMarks.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
     val attachmentThumbnails by viewModel.attachmentThumbnails.collectAsStateWithLifecycle()
     val calendar by viewModel.calendar.collectAsStateWithLifecycle()
@@ -1596,7 +1597,7 @@ private fun MessageContent(
                 }
             }
             is MessageState.Loaded -> ConversationBody(
-                messages = messages,
+                messages = remember(messages, shownReplyMarks) { messages.withShownReplyMarks(shownReplyMarks) },
                 blockRemote = !showRemote,
                 // Not the same question as `blockRemote`: this one says whether the reader ever had
                 // anything held back on this page, and it is read once.

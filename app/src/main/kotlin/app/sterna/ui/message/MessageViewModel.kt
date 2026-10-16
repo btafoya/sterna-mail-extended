@@ -9,7 +9,11 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.compose.ui.graphics.ImageBitmap
+import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.MessageCrypto
+import app.sterna.core.data.mail.ShownReplyMarks
+import app.sterna.core.data.mail.emailKey
+import app.sterna.core.data.mail.withShownReplyMarks
 import app.sterna.core.data.mail.MessageUnavailableException
 import app.sterna.core.data.mail.requireAttachmentBytes
 import app.sterna.core.data.mail.smimeSignalOf
@@ -80,7 +84,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -105,6 +111,9 @@ data class ThreadMessage(
     val body: Email? = null,
     val inlineImages: Map<String, String> = emptyMap(),
 )
+
+internal fun List<ThreadMessage>.withShownReplyMarks(shown: Map<EmailKey, ShownReplyMarks>): List<ThreadMessage> =
+    map { it.copy(header = it.header.withShownReplyMarks(shown)) }
 
 /**
  * Download/parse state for a calendar invite. [failed] is true if the .ics could not be fetched or
@@ -416,6 +425,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     /** The whole conversation as a stack of collapsible messages, oldest first. */
     private val _messages = MutableStateFlow<List<ThreadMessage>>(emptyList())
     val messages = _messages.asStateFlow()
+
+    val shownReplyMarks: StateFlow<Map<EmailKey, ShownReplyMarks>> = _messages
+        .map { list -> list.map { it.header.emailKey() } }
+        .distinctUntilChanged()
+        .flatMapLatest { keys -> repo.sending.observeShownReplyMarks(keys).catch { emit(emptyMap()) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Transient status while downloading/opening an attachment. */
     private val _attachmentStatus = MutableStateFlow<String?>(null)

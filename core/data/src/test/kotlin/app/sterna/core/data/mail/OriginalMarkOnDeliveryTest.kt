@@ -48,18 +48,19 @@ import java.lang.reflect.Proxy
 import java.time.ZoneId
 
 /**
- * `MailSender.performSend` then `MailSender.markOriginalOf` RUN, in the worker's order, with a row
- * naming the message it answers or forwards (#259): what is set on the original, on which account,
- * and what a failure, a hang or a cancellation of the mark leaves behind. `performSend` alone marks
- * nothing: the worker deletes the row between the two. Every write is recorded into one trace, so
- * an order is read and not inferred.
+ * `MailSender.performSend`, `MailSender.deleteOutboxMarkingOriginal` then `MailSender.markOriginalOf`
+ * RUN, in the worker's order, with a row naming the message it answers or forwards (#259): what is
+ * set on the original, on which account, and what a failure, a hang or a cancellation of the mark
+ * leaves behind. `performSend` alone marks nothing. Every write is recorded into one trace, so an
+ * order is read and not inferred.
  *
  * The sending account is always `account-1` and the original's account `account-2`, as when the
  * From picker moved a reply to another account: a mark set through the sender's credentials would
  * land on a message of the wrong mailbox, or on none.
  *
  * What this does NOT cover: `MailRepository.noteOwnKeywordWrite` itself (the repository is not
- * built here), nor whether a sync afterwards reads the mark back.
+ * built here), whether a sync afterwards reads the mark back, nor that Room runs
+ * `OutboxDao.deleteMarkingOriginal` as one transaction: the DAO is a recording stand-in here.
  */
 class OriginalMarkOnDeliveryTest {
 
@@ -169,18 +170,34 @@ class OriginalMarkOnDeliveryTest {
         }
     }
 
-    /** The two writes a mark makes on the cache, recorded; anything else asked of the DAO fails. */
+    /** Nothing a delivery does may reach the message cache but through [recordingOutboxDao]. */
     private fun recordingEmailDao(): EmailDao =
-        Proxy.newProxyInstance(EmailDao::class.java.classLoader, arrayOf(EmailDao::class.java)) { _, method, args ->
+        Proxy.newProxyInstance(EmailDao::class.java.classLoader, arrayOf(EmailDao::class.java)) { _, method, _ ->
             when (method.name) {
-                "markAnswered", "markForwarded" -> {
-                    trace += "${method.name} ${args[0]} ${args[1]}"
-                    Unit
-                }
                 "toString" -> "recording EmailDao"
                 else -> error("EmailDao.${method.name} was not expected here.")
             }
         } as EmailDao
+
+    /** The delivered row's way out, recorded; [transactionFails] makes the transaction throw. */
+    private fun recordingOutboxDao(transactionFails: Boolean = false): OutboxDao =
+        Proxy.newProxyInstance(OutboxDao::class.java.classLoader, arrayOf(OutboxDao::class.java)) { _, method, args ->
+            when (method.name) {
+                "deleteMarkingOriginal" -> {
+                    if (transactionFails) error("database is locked")
+                    val original = args[1] as OriginalMark?
+                    trace += "deleteMarkingOriginal ${args[0]} " +
+                        (original?.let { "${it.accountId} ${it.emailId} ${it.mark}" } ?: "nothing")
+                    Unit
+                }
+                "delete" -> {
+                    trace += "delete ${args[0]}"
+                    Unit
+                }
+                "toString" -> "recording OutboxDao"
+                else -> error("OutboxDao.${method.name} was not expected here.")
+            }
+        } as OutboxDao
 
     private val sentFolder: MailboxDao =
         Proxy.newProxyInstance(MailboxDao::class.java.classLoader, arrayOf(MailboxDao::class.java)) { _, method, args ->
@@ -191,7 +208,7 @@ class OriginalMarkOnDeliveryTest {
     private fun sender(
         store: RecordingAccountStorage,
         imap: ImapMailService = RecordingImap(store),
-        outboxDao: OutboxDao = unusableDao<OutboxDao>(),
+        outboxDao: OutboxDao = recordingOutboxDao(),
     ) = MailSender(
         client = JmapClient(),
         imap = imap,
@@ -228,9 +245,10 @@ class OriginalMarkOnDeliveryTest {
 
     private val imapOriginal = "imap:account-2:INBOX:42"
 
-    /** What `OutboxWorker` does with a row, the row's own deletion left out. */
+    /** What `OutboxWorker` does with a row once it is SENDING, in its order. */
     private suspend fun deliverThenMark(sender: MailSender, credentials: AccountCredentials, item: OutboxEntity) {
         sender.performSend(credentials, item)
+        sender.deleteOutboxMarkingOriginal(item)
         sender.markOriginalOf(item)
     }
 
@@ -251,8 +269,10 @@ class OriginalMarkOnDeliveryTest {
             listOf(
                 "send from account-1",
                 "note account-2 $imapOriginal",
+                "deleteMarkingOriginal 7 account-2 $imapOriginal ANSWERED",
+                "delete 7",
+                "note account-2 $imapOriginal",
                 "setFlag account-2 INBOX 42 \\Answered true",
-                "markAnswered account-2 $imapOriginal",
             ),
             trace,
         )
@@ -273,8 +293,10 @@ class OriginalMarkOnDeliveryTest {
             listOf(
                 "send from account-1",
                 "note account-2 $imapOriginal",
+                "deleteMarkingOriginal 7 account-2 $imapOriginal FORWARDED",
+                "delete 7",
+                "note account-2 $imapOriginal",
                 "setFlag account-2 INBOX 42 \$Forwarded true",
-                "markForwarded account-2 $imapOriginal",
             ),
             trace,
         )
@@ -297,8 +319,8 @@ class OriginalMarkOnDeliveryTest {
         assertEquals(listOf("send from account-1", "destroyDraft account-1 draft-9"), trace)
     }
 
-    /** The original is gone, or the server refuses the flag: the message has left, only the mark is lost. */
-    @Test fun `a mark that fails returns and leaves the cache unwritten`() {
+    /** The original is gone, or the server refuses the flag: the message has left, only the server's mark is lost. */
+    @Test fun `a server mark that fails returns and writes nothing on the phone`() {
         val store = Accounts(credentials("account-1", MailProtocol.IMAP), credentials("account-2", MailProtocol.IMAP))
         val sender = sender(store, imap = RecordingImap(store, flagFails = true))
 
@@ -355,7 +377,18 @@ class OriginalMarkOnDeliveryTest {
 
         runBlocking { deliverThenMark(sender(store), credentials("account-1", MailProtocol.IMAP), item()) }
 
-        assertEquals(listOf("send from account-1"), trace)
+        assertEquals(listOf("send from account-1", "deleteMarkingOriginal 7 nothing", "delete 7"), trace)
+    }
+
+    /** A throw here would reach the worker's catch, which re-queues a message that has already left. */
+    @Test fun `a transaction that fails still takes the delivered row out, and does not throw`() {
+        val store = Accounts(credentials("account-1", MailProtocol.IMAP), credentials("account-2", MailProtocol.IMAP))
+        val sender = sender(store, outboxDao = recordingOutboxDao(transactionFails = true))
+
+        val outcome = runCatching { runBlocking { sender.deleteOutboxMarkingOriginal(item("account-2", imapOriginal, "ANSWERED")) } }
+
+        assertNull("deleteOutboxMarkingOriginal relayed ${outcome.exceptionOrNull()}", outcome.exceptionOrNull())
+        assertEquals(listOf("note account-2 $imapOriginal", "delete 7"), trace)
     }
 
     // ---- JMAP
@@ -382,7 +415,15 @@ class OriginalMarkOnDeliveryTest {
         }
 
         assertEquals(
-            listOf("send from account-1", "note account-2 M9", "session account-2", "Email/set", "markForwarded account-2 M9"),
+            listOf(
+                "send from account-1",
+                "note account-2 M9",
+                "deleteMarkingOriginal 7 account-2 M9 FORWARDED",
+                "delete 7",
+                "note account-2 M9",
+                "session account-2",
+                "Email/set",
+            ),
             trace,
         )
         assertEquals(
@@ -391,7 +432,7 @@ class OriginalMarkOnDeliveryTest {
         )
     }
 
-    @Test fun `a jmap original the server no longer has leaves the cache unwritten and the send standing`() {
+    @Test fun `a jmap original the server no longer has leaves the send standing`() {
         serveEmailSet("""{"newState":"s2","notUpdated":{"M9":{"type":"notFound"}}}""")
         val store = Accounts(credentials("account-1", MailProtocol.IMAP), credentials("account-2", MailProtocol.JMAP))
 
@@ -399,7 +440,18 @@ class OriginalMarkOnDeliveryTest {
             deliverThenMark(sender(store), credentials("account-1", MailProtocol.IMAP), item("account-2", "M9", "ANSWERED"))
         }
 
-        assertEquals(listOf("send from account-1", "note account-2 M9", "session account-2", "Email/set"), trace)
+        assertEquals(
+            listOf(
+                "send from account-1",
+                "note account-2 M9",
+                "deleteMarkingOriginal 7 account-2 M9 ANSWERED",
+                "delete 7",
+                "note account-2 M9",
+                "session account-2",
+                "Email/set",
+            ),
+            trace,
+        )
         assertEquals(
             Json.parseToJsonElement("""{"accountId":"acc-two","update":{"M9":{"keywords/${'$'}answered":true}}}"""),
             emailSets.single(),

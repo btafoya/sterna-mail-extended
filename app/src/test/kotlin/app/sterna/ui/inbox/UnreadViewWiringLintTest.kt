@@ -457,7 +457,7 @@ class UnreadViewWiringLintTest {
             "private val baseState = combine(mailboxes, selection, meta, status, unifiedUnread) { mailboxes, sel, meta, status, unifiedUnread ->",
             "private val countedState = combine(orderedState, selection, everyAccountUnreadTotal) { ordered, sel, everyTotal ->",
             "private val orderedState = combine(badgedState, currentFolderOrder) { badged, order ->",
-            "val state: StateFlow<MailUi> = combine(countedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->",
+            "val state: StateFlow<MailUi> = combine(countedState, shownSearchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->",
         )
 
         /** The badge, computed once, from the scope the pager uses. */

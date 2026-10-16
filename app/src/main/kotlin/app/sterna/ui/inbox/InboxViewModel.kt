@@ -40,6 +40,7 @@ import app.sterna.core.data.mail.MailRepository
 import app.sterna.core.data.mail.UidValidity
 import app.sterna.core.data.mail.deleteDestroysMessage
 import app.sterna.core.data.mail.emailKey
+import app.sterna.core.data.mail.withShownReplyMarks
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.SortOrder
 import app.sterna.core.data.settings.SwipeAction
@@ -86,6 +87,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -851,6 +853,14 @@ class InboxViewModel(
 
     private val searchState = MutableStateFlow(SearchUi())
 
+    private val shownSearchState: Flow<SearchUi> = searchState.flatMapLatest { search ->
+        val results = search.results
+        if (results.isNullOrEmpty()) flowOf(search)
+        else repo.sending.observeShownReplyMarks(results.map { it.emailKey() })
+            .catch { emit(emptyMap()) }
+            .map { shown -> search.copy(results = results.map { it.withShownReplyMarks(shown) }) }
+    }
+
     private val barResults = object : ShownResults {
         override val rows: List<Email>? get() = searchState.value.results
         override fun drop(keys: Set<EmailKey>) {
@@ -1148,7 +1158,7 @@ class InboxViewModel(
         ordered.copy(unreadViewCount = unreadEntryCount(sel, ordered.unreadViewCount, everyTotal))
     }
 
-    val state: StateFlow<MailUi> = combine(countedState, searchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->
+    val state: StateFlow<MailUi> = combine(countedState, shownSearchState, settings.sortOrder, filterToggles, connectivity.online) { base, search, sortOrder, toggles, online ->
         MailUi(
             accountId = base.accountId,
             accountName = base.accountName,

@@ -87,7 +87,7 @@ class OutboxParkWiringTest {
                 "repo.sending.performSend(credentials, item)",
                 // and the row leaves the outbox only after the send returned: deleted before, a
                 // failure would have destroyed the only copy of the message.
-                "repo.sending.deleteOutbox(id)",
+                "repo.sending.deleteOutboxMarkingOriginal(item)",
                 "repo.sending.markOriginalOf(item)",
                 "Result.success()",
             ),
@@ -117,24 +117,25 @@ class OutboxParkWiringTest {
                 "repo.sending.deleteOutbox(id)",
                 // 2. After performSend returned. Moved above it, a throw would have destroyed the
                 // only copy, and the catch below would then retry a row that no longer exists.
-                "repo.sending.deleteOutbox(id)",
+                "repo.sending.deleteOutboxMarkingOriginal(item)",
             ),
-            linesOf(WORKER).filter { "repo.sending.deleteOutbox(" in it },
+            linesOf(WORKER).filter { "repo.sending.deleteOutbox" in it },
         )
     }
 
-    @Test fun `the original is marked after the row is deleted, and nowhere else`() {
+    @Test fun `the original is marked on the server after the row is deleted, and nowhere else`() {
         val lines = linesOf(WORKER)
         val send = lines.indexOf("repo.sending.performSend(credentials, item)")
         assertTrue("no line reads exactly 'repo.sending.performSend(credentials, item)' any more", send >= 0)
         assertEquals(
-            "the original a reply or forward answers (#259) is marked once the row is gone, never " +
-                "before the delete: a worker stopped while the mark waits on the network would leave " +
-                "a delivered message SENDING, parked as interrupted at the next pickup, and its " +
-                "re-send would reach the recipient twice. After the delete, a stop costs the mark alone.",
+            "the original a reply or forward answers (#259) is marked on the phone in the delete's " +
+                "own transaction, and on the server once the row is gone, never before: a worker " +
+                "stopped while the mark waits on the network would leave a delivered message SENDING, " +
+                "parked as interrupted at the next pickup, and its re-send would reach the recipient " +
+                "twice. After the delete, a stop costs the server's mark alone.",
             listOf(
                 "repo.sending.performSend(credentials, item)",
-                "repo.sending.deleteOutbox(id)",
+                "repo.sending.deleteOutboxMarkingOriginal(item)",
                 "repo.sending.markOriginalOf(item)",
                 "Result.success()",
             ),

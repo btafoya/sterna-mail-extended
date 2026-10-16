@@ -34,6 +34,9 @@ import app.sterna.core.jmap.model.JmapSession
 import app.sterna.core.jmap.model.SubmissionEnvelope
 import java.time.OffsetDateTime
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -331,6 +334,16 @@ class MailSender(
 
     suspend fun outboxItem(id: Long): OutboxEntity? = outboxDao.byId(id)
 
+    /** The marks of [keys] as shown ([shownReplyMarksOfSql]), live. A key without its account is left out. */
+    fun observeShownReplyMarks(keys: Collection<EmailKey>): Flow<Map<EmailKey, ShownReplyMarks>> {
+        val pairs = keys.mapNotNull { key -> key.accountId?.let { it to key.emailId } }.distinct()
+        if (pairs.isEmpty()) return flowOf(emptyMap())
+        val reads = pairs.chunked(SHOWN_MARK_KEYS_PER_QUERY).map { emailDao.observeShownReplyMarks(shownReplyMarksOfQuery(it)) }
+        return combine(reads) { parts ->
+            parts.asList().flatten().associate { EmailKey(it.accountId, it.id) to ShownReplyMarks(it.answered, it.forwarded) }
+        }.distinctUntilChanged()
+    }
+
     suspend fun unfinishedOutbox(): List<OutboxEntity> = outboxDao.unfinished()
 
     suspend fun updateOutboxState(id: Long, state: OutboxState, attemptCount: Int, lastError: String?) {
@@ -438,11 +451,28 @@ class MailSender(
     }
 
     /**
-     * Mark the original [item] answers or forwards, once [item] is delivered and its row deleted.
-     * Not part of [performSend]: the row would still read SENDING while the mark waits on the
-     * account's IMAP mutex or a dead socket, and a worker stopped there leaves a delivered message
-     * parked as interrupted, whose re-send is a duplicate. Bounded for the same reason, and every
-     * failure but a cancellation is swallowed: the message has left, only the mark is lost.
+     * Takes the delivered [item]'s row out and writes, in the same transaction, the mark of the
+     * original it answers or forwards on the cached row ([OutboxDao.deleteMarkingOriginal]). A failed
+     * transaction is not relayed: the message has left, and a throw would bring it back through
+     * `OutboxLogic.stateAfterFailure` to be sent again. The [deleteOutbox] that follows either way
+     * takes the staged directory, and the row too when the transaction failed; only it can throw
+     * from here, as it could before a mark existed.
+     */
+    suspend fun deleteOutboxMarkingOriginal(item: OutboxEntity) {
+        val original = originalMarkOf(item.originalAccountId, item.originalEmailId, item.originalMark)
+        if (original != null) host.noteOwnKeywordWrite(original.accountId, original.emailId)
+        val failure = runCatching { outboxDao.deleteMarkingOriginal(item.id, original) }.exceptionOrNull()
+        if (failure is CancellationException) throw failure
+        if (failure != null) logWarn("MailRepository", "outbox ${item.id}: original not marked on the phone", failure)
+        deleteOutbox(item.id)
+    }
+
+    /**
+     * Mark the original [item] answers or forwards on the server, once [item] is delivered and its
+     * row deleted. Not part of [performSend]: the row would still read SENDING while the mark waits
+     * on the account's IMAP mutex or a dead socket, and a worker stopped there leaves a delivered
+     * message parked as interrupted, whose re-send is a duplicate. Bounded for the same reason, and
+     * every failure but a cancellation is swallowed: the message has left, only the mark is lost.
      */
     suspend fun markOriginalOf(item: OutboxEntity, budgetMs: Int = ORIGINAL_MARK_BUDGET_MS) {
         val original = originalMarkOf(item.originalAccountId, item.originalEmailId, item.originalMark) ?: return
@@ -458,9 +488,9 @@ class MailSender(
     }
 
     /**
-     * Set [OriginalMark.mark] on the original, on the server then on its cached row, under the
-     * account the original was read in. A UID that has gone answers OK on IMAP and is not looked for;
-     * an id that has gone throws on JMAP and leaves the row unwritten.
+     * Set [OriginalMark.mark] on the original on the server, under the account the original was read
+     * in. A UID that has gone answers OK on IMAP and is not looked for; an id that has gone throws on
+     * JMAP. The cached row is not written here: [deleteOutboxMarkingOriginal] has done it already.
      */
     private suspend fun markOriginal(original: OriginalMark) {
         val owner = accountStore.credentials(original.accountId) ?: return
@@ -471,10 +501,6 @@ class MailSender(
         } else {
             val ctx = host.jmapSession(owner)
             client.setKeyword(ctx.session, ctx.accountId, original.emailId, original.mark.jmapKeyword, true, ctx.auth)
-        }
-        when (original.mark) {
-            ReplyMark.ANSWERED -> emailDao.markAnswered(owner.id, original.emailId)
-            ReplyMark.FORWARDED -> emailDao.markForwarded(owner.id, original.emailId)
         }
     }
 
