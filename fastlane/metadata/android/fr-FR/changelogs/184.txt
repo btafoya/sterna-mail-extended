@@ -1,0 +1,11 @@
+Les marques « répondu » et « transféré » s'affichent dans la liste et l'en-tête du message, et Sterna les pose sur l'original quand la réponse ou le transfert part.
+
+« Modifier comme nouveau » dans le menu du message le rouvre dans l'éditeur.
+
+Entrée « Suivis » facultative dans le tiroir des dossiers.
+
+Interface en hongrois.
+
+Écran large : filtre, tri, lu et déplacer passent dans les menus quand un message est ouvert à côté.
+
+Une signature HTML faite d'une seule image n'est plus perdue.

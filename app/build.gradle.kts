@@ -24,11 +24,11 @@ android {
         applicationId = "app.sterna"
         minSdk = 26
         targetSdk = 36
-        versionCode = 183
-        versionName = "1.6.2"
+        versionCode = 184
+        versionName = "1.6.3"
         // Shown on the Settings About row. Bump alongside versionCode/versionName at each
         // release (a static literal, so builds stay reproducible — never derive from clock).
-        buildConfigField("String", "VERSION_DATE", "\"2026-10-11\"")
+        buildConfigField("String", "VERSION_DATE", "\"2026-10-17\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The launcher/settings/notification label. Substituted verbatim into the manifest,
         // so without -PtestApp the merged manifest still reads android:label="@string/app_name"

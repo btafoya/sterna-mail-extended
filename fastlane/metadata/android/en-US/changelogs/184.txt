@@ -1,0 +1,11 @@
+Replied and forwarded marks now show in the message list and the message header, and Sterna sets them on the original when your reply or forward is sent.
+
+"Edit as new" in the message menu reopens a message in the composer as a new one.
+
+An optional Starred entry in the folder drawer.
+
+Hungarian interface.
+
+On wide screens, filter, sort, mark read and move fold into the menus when a message is open beside the list.
+
+An HTML signature that is only an image is no longer dropped.
