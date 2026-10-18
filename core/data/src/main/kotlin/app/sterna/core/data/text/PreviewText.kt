@@ -27,7 +27,7 @@ fun previewForDisplay(raw: String): String? {
     val decoded = unescapeEntities(uncut)
     val unpadded = decoded.filterNot(::isInvisiblePadding)
     val shown = withBlankRunsFolded(withoutBidiAndControls(withBlankRunsFolded(unpadded)))
-    return shown.takeUnless { it.isEmpty() || (it in CLOSING_DOTS && raw.trim() != it) }
+    return shown.takeUnless { it.isEmpty() || isRawMimePreview(it) || (it in CLOSING_DOTS && raw.trim() != it) }
 }
 
 /**
@@ -37,6 +37,21 @@ fun previewForDisplay(raw: String): String? {
  */
 private val CUT_REFERENCE =
     Regex("&(?:#(?:[0-9]{0,7}|[xX][0-9a-fA-F]{0,6})|z(?:w(?:nj?|j)?)?|n(?:b(?:sp?)?)?)?(?=(?:\\.\\.\\.|…)?$)")
+
+/**
+ * Whether [text] is the head of a MIME body rather than its words (#262): a boundary line, then a part
+ * header, with or without a blank between them. The header has to follow the boundary token at once:
+ * `--Bonjour, le serveur renvoie Content-Type: …` is a sentence, and a token of dashes alone a rule.
+ *
+ * A cached one is read again (`previewIdsToRead`) but stays in the column until a read replaces it,
+ * since `pageOpenings` writes the cache's value for every row the read left out; the display hides it.
+ */
+fun isRawMimePreview(text: String): Boolean = RAW_MIME_HEAD.containsMatchIn(text)
+
+private val RAW_MIME_HEAD = Regex(
+    "^\\s*--(?=-*[^\\s;\"-])[^\\s;\"]+?\\s*Content-(?:Type|Transfer-Encoding|Disposition):",
+    RegexOption.IGNORE_CASE,
+)
 
 private val CLOSING_DOTS = setOf("...", "…")
 

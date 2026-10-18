@@ -1,6 +1,7 @@
 package app.sterna.core.data.mail
 
-
+import app.sterna.core.imap.ImapMessage
+import app.sterna.core.imap.ImapTextPart
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -140,5 +141,78 @@ class ListPreviewFillTest {
                 read = mapOf("imap:acct-1:INBOX:7" to "freshly read"),
             ),
         )
+    }
+
+    private val rawHead = "--=felis-alternative=1 Content-Transfer-Encoding: base64Content-Type: text/plain"
+
+    private fun message(uid: Long) = ImapMessage(
+        uid = uid,
+        subject = "Subject $uid",
+        fromName = "Alex",
+        fromEmail = "alex@example.org",
+        to = emptyList(),
+        dateMillis = 1_700_000_000_000L,
+        seen = false,
+        flagged = false,
+        answered = false,
+        hasAttachment = false,
+        messageId = "<$uid@example.org>",
+        inReplyTo = null,
+        textPart = ImapTextPart(section = "1", mime = "text/plain", encoding = "7bit", charset = "utf-8"),
+    )
+
+    private val page = listOf(message(7L), message(8L))
+    private val ids = listOf("imap:acct-1:INBOX:7", "imap:acct-1:INBOX:8")
+
+    @Test fun `a cached MIME head is asked for again, a cached opening line is not`() {
+        assertEquals(
+            setOf("imap:acct-1:INBOX:8"),
+            previewIdsToRead(ids, mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to rawHead)),
+        )
+        assertEquals(
+            "a row the cache lacks is still asked for",
+            setOf("imap:acct-1:INBOX:8"),
+            previewIdsToRead(ids, mapOf("imap:acct-1:INBOX:7" to "Bonjour")),
+        )
+    }
+
+    @Test fun `a cached opening that starts with two dashes but is no MIME head is not asked for again`() {
+        listOf(
+            "-- Jean",
+            "---",
+            "--Bonjour l'equipe, le serveur renvoie Content-Type: text/plain depuis hier",
+            "--- Content-Type: application/json",
+        ).forEach { opening ->
+            assertEquals(
+                opening,
+                emptySet<String>(),
+                previewIdsToRead(ids, mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to opening)),
+            )
+        }
+    }
+
+    @Test fun `a cached MIME head is replaced by the line read again`() {
+        val asked = mutableListOf<Long>()
+        val opened = pageOpenings(
+            mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to rawHead),
+            previewsForPage("acct-1", "INBOX", page, previewIdsToRead(ids, mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to rawHead))) { _, uids ->
+                asked += uids
+                uids.associateWith { "Read again $it" }
+            },
+        )
+        assertEquals("only the MIME head goes to the server", listOf(8L), asked)
+        assertEquals(mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to "Read again 8"), opened)
+    }
+
+    @Test fun `a cached MIME head the read cannot replace stays in the column`() {
+        val cached = mapOf("imap:acct-1:INBOX:7" to "Bonjour", "imap:acct-1:INBOX:8" to rawHead)
+        listOf<Map<Long, String>>(emptyMap(), mapOf(8L to "")).forEach { answer ->
+            assertEquals(
+                "a read that brings nothing back must not blank the row: the upsert would write null " +
+                    "and the cache would lose what the display already hides",
+                cached,
+                pageOpenings(cached, previewsForPage("acct-1", "INBOX", page, previewIdsToRead(ids, cached)) { _, _ -> answer }),
+            )
+        }
     }
 }

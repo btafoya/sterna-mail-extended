@@ -242,7 +242,7 @@ class PreviewFetchWiringTest {
                 "cached = cachedPreviewsFor(ids, uidValidity)",
                 "pageOpenings(",
                 "cached,",
-                "previewsForPage(accountId, mailboxId, page, ids.toSet() - cached.keys) { section, uids ->",
+                "previewsForPage(accountId, mailboxId, page, previewIdsToRead(ids, cached)) { section, uids ->",
                 "session.fetchSectionPartials(uids, section, IMAP_PREVIEW_FETCH_BYTES)",
                 "},",
                 ")",

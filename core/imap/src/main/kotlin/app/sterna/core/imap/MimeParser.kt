@@ -415,6 +415,55 @@ object MimeParser {
         else -> content.toByteArray(Charsets.ISO_8859_1)
     }
 
+    data class FragmentTextPart(val body: String, val mime: String, val encoding: String, val charset: String?)
+
+    fun multipartFragmentBoundary(fragment: String): String? {
+        val match = FRAGMENT_OPENING.find(fragment) ?: return null
+        val rest = fragment.substring(match.range.last + 1)
+        val headerBlock = BLANK_LINE.find(rest)?.let { rest.substring(0, it.range.first) } ?: rest
+        if (!PART_CONTENT_HEADER.containsMatchIn(headerBlock)) return null
+        return match.groupValues[1]
+    }
+
+    fun firstTextPartOfFragment(fragment: String, boundary: String): FragmentTextPart? {
+        if (fragment.length > MAX_BODY_CHARS) return null
+        return textPartOfParts(fragment, boundary, depth = 1)
+    }
+
+    private fun textPartOfParts(body: String, boundary: String, depth: Int): FragmentTextPart? {
+        for (sub in splitMultipart(body, boundary)) {
+            val sep = Regex("\\r?\\n\\r?\\n").find(sub) ?: return null
+            val headers = parseHeaders(sub.substring(0, sep.range.first))
+            val content = sub.substring(sep.range.last + 1)
+            val contentType = headers["content-type"] ?: "text/plain"
+            val mime = contentType.substringBefore(';').trim().lowercase()
+            if (mime.startsWith("multipart/")) {
+                if (depth >= MAX_DEPTH) continue
+                val inner = paramOf(contentType, "boundary") ?: continue
+                textPartOfParts(content, inner, depth + 1)?.let { return it }
+                continue
+            }
+            if (mime != "text/plain" && mime != "text/html") continue
+            val disposition = headers["content-disposition"] ?: ""
+            val filename = mimeParamValue(disposition, "filename") ?: mimeParamValue(contentType, "name")
+            if (!filename.isNullOrBlank() || disposition.lowercase().contains("attachment")) continue
+            return FragmentTextPart(
+                body = content.removeSuffix("\n").removeSuffix("\r"),
+                mime = mime,
+                encoding = headers["content-transfer-encoding"]?.substringBefore(';')?.trim()?.lowercase() ?: "7bit",
+                charset = paramOf(contentType, "charset"),
+            )
+        }
+        return null
+    }
+
+    private val FRAGMENT_OPENING = Regex("""\A(?:\r?\n)*--([^\s";]+)\r?\n(?=[!-9;-~]+:)""")
+    private val BLANK_LINE = Regex("""\r?\n\r?\n""")
+    private val PART_CONTENT_HEADER = Regex(
+        """^content-(?:type|transfer-encoding|disposition)[ \t]*:""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE),
+    )
+
     private fun splitHeaders(part: String): Pair<String, String> {
         val sep = Regex("\\r?\\n\\r?\\n").find(part)
         return if (sep == null) part to "" else part.substring(0, sep.range.first) to part.substring(sep.range.last + 1)

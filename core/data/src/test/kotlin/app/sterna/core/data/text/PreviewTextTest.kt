@@ -3,6 +3,7 @@ package app.sterna.core.data.text
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** What a stored `preview` becomes on its way to a list row or a notification. */
@@ -136,5 +137,48 @@ class PreviewTextTest {
         assertEquals("a &.. b", previewForDisplay("a &.. b"))
         assertEquals("a &....", previewForDisplay("a &...."))
         assertEquals("&zw...", previewForDisplay("&amp;zw..."))
+    }
+
+    // ---- a MIME head stored as the preview (#262) ----------------------------------------------
+
+    private val reported =
+        "--=felis-alternative=1 Content-Transfer-Encoding: base64Content-Type: text/plain; charset=utf-8"
+
+    @Test fun `the head of a MIME body is recognised, however its blanks fell`() {
+        listOf(
+            reported,
+            "  $reported",
+            "--=felis-alternative=1Content-Type: text/plain",
+            "--b1_abc\nContent-Type: text/plain; charset=utf-8",
+            "--b1_abc\r\nContent-Disposition: inline",
+            "--Apple-Mail=_0D3A content-transfer-encoding: quoted-printable",
+            "--b1_abc CONTENT-TYPE: text/html",
+        ).forEach { text -> assertTrue("'$text' is a MIME head", isRawMimePreview(text)) }
+    }
+
+    @Test fun `words that only mention a header are no MIME head`() {
+        listOf(
+            "--Bonjour l'equipe, le serveur renvoie Content-Type: text/plain depuis hier",
+            "-- \nsignature",
+            "--\nContent-Type: text/plain",
+            "Content-Type: text/plain",
+            "Re: --b1_abc Content-Type: text/plain",
+            "--b1_abc Content-Length: 12",
+            "---\nContent-Type: application/json",
+            "----- Content-Type: text/plain",
+        ).forEach { text -> assertFalse("'$text' is the sender's text", isRawMimePreview(text)) }
+    }
+
+    @Test fun `a MIME head is no preview`() {
+        assertNull(previewForDisplay(reported))
+        assertNull(previewForDisplay("--b1_abc\nContent-Type: text/plain; charset=utf-8\n\nBonjour"))
+        assertNull(previewForDisplay("--b1&#10;Content-Type: text/plain; charset=utf-8"))
+    }
+
+    @Test fun `a sentence that mentions a header is still shown`() {
+        assertEquals(
+            "--Bonjour l'equipe, le serveur renvoie Content-Type: text/plain",
+            previewForDisplay("--Bonjour l'equipe, le serveur renvoie Content-Type: text/plain"),
+        )
     }
 }

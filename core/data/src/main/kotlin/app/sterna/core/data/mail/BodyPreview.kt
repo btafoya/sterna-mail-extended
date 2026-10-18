@@ -9,11 +9,18 @@ object BodyPreview {
 
     /** Null, never "" and never a blank line: an empty preview leaves the subject line alone. */
     fun fromPart(raw: String, part: ImapTextPart): String? {
-        val bytes = MimeParser.decodeBytes(decodable(raw, part.encoding), part.encoding)
+        val boundary = MimeParser.multipartFragmentBoundary(raw)
+            ?: return readable(raw, part.mime, part.encoding, part.charset)
+        val inner = MimeParser.firstTextPartOfFragment(raw, boundary) ?: return null
+        return readable(inner.body, inner.mime, inner.encoding, inner.charset)
+    }
+
+    private fun readable(raw: String, mime: String, encoding: String?, charset: String?): String? {
+        val bytes = MimeParser.decodeBytes(decodable(raw, encoding), encoding)
         // The fragment was cut at a byte boundary, so the last character may have been halved: the
         // decoder leaves U+FFFD, which reads as a corrupted message rather than a truncated one.
-        val text = String(bytes, MimeParser.charsetNamed(part.charset)).trimEnd(REPLACEMENT)
-        val readable = if (part.mime == "text/html") htmlToText(closedHtml(text)) else text
+        val text = String(bytes, MimeParser.charsetNamed(charset)).trimEnd(REPLACEMENT)
+        val readable = if (mime == "text/html") htmlToText(closedHtml(text)) else text
         return readable.takeIf { it.isNotBlank() }
     }
 

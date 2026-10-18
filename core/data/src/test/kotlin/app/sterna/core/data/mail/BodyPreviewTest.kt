@@ -4,8 +4,10 @@ import app.sterna.core.imap.ImapTextPart
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.charset.Charset
+import java.util.Base64
 
 /**
  * A fetched fragment of a body, turned into the line a notification may show, executed, on the
@@ -190,5 +192,166 @@ class BodyPreviewTest {
         assertEquals(long, preview(long))
         assertEquals("line one\nline two", preview("line one\nline two"))
         assertEquals("  spaced  out ", preview("  spaced  out "))
+    }
+
+    private val felis = "=felis-alternative=20261016114211=20715"
+
+    private val russian = "Здравствуйте! Ваша скидка недели уже ждёт вас: двадцать процентов на всё, " +
+        "что лежит в корзине, до воскресенья включительно. Спасибо, что вы с нами."
+
+    private fun b64Lines(text: String): String =
+        Base64.getMimeEncoder().encodeToString(text.toByteArray(Charsets.UTF_8))
+
+    private fun felisFragment(textBody: String): String =
+        "--$felis\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+            "\r\n" +
+            textBody + "\r\n" +
+            "--$felis\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "Content-Type: text/html; charset=\"utf-8\"\r\n" +
+            "\r\n" +
+            b64Lines("<p>HTML</p>") + "\r\n" +
+            "--$felis--\r\n"
+
+    @Test fun `a multipart fragment behind a text-plain structure shows its first text part`() {
+        val raw = felisFragment(b64Lines(russian))
+        assertEquals(russian, preview(raw, encoding = "7bit"))
+        assertEquals(russian, preview(raw, encoding = "base64"))
+        assertEquals(russian, preview(raw, encoding = null, charset = null))
+    }
+
+    @Test fun `a multipart fragment cut inside its base64 text part shows the readable start`() {
+        val encoded = b64Lines(russian)
+        val cut = "--$felis\r\n" +
+            "Content-Transfer-Encoding: base64\r\n" +
+            "Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+            "\r\n" +
+            encoded.substring(0, 4 * 30 + 2 + 2)
+        for (encoding in listOf("7bit", "base64")) {
+            val shown = preview(cut, encoding = encoding)!!
+            assertTrue(shown, russian.startsWith(shown))
+            assertTrue(shown, shown.startsWith("Здравствуйте! Ваша скидка"))
+            assertFalse(shown, shown.contains('\uFFFD'))
+        }
+    }
+
+    @Test fun `a multipart fragment whose first text part is HTML shows the HTML as text`() {
+        val raw = "--$felis\r\n" +
+            "Content-Type: text/html; charset=\"utf-8\"\r\n" +
+            "Content-Transfer-Encoding: quoted-printable\r\n" +
+            "\r\n" +
+            "<p>Caf=C3=A9 ouvert</p>\r\n" +
+            "--$felis\r\n" +
+            "Content-Type: text/plain; charset=\"utf-8\"\r\n" +
+            "\r\n" +
+            "plain twin\r\n"
+        assertEquals("Café ouvert", preview(raw))
+    }
+
+    @Test fun `a nested alternative inside a mixed fragment is read with its own boundary`() {
+        val raw = "--=felis-mixed=1\r\n" +
+            "Content-Type: multipart/alternative; boundary=\"$felis\"\r\n" +
+            "\r\n" +
+            felisFragment(b64Lines(russian)) +
+            "--=felis-mixed=1\r\n" +
+            "Content-Type: application/pdf; name=\"a.pdf\"\r\n" +
+            "\r\n" +
+            "JVBERi0=\r\n"
+        assertEquals(russian, preview(raw))
+    }
+
+    @Test fun `a file or an invite before the body is not the body`() {
+        val raw = "--b1\r\n" +
+            "Content-Type: text/calendar; method=REQUEST\r\n" +
+            "\r\n" +
+            "BEGIN:VCALENDAR\r\n" +
+            "--b1\r\n" +
+            "Content-Type: text/plain; name=\"notes.txt\"\r\n" +
+            "\r\n" +
+            "file content\r\n" +
+            "--b1\r\n" +
+            "Content-Type: text/plain\r\n" +
+            "Content-Disposition: attachment\r\n" +
+            "\r\n" +
+            "another file\r\n" +
+            "--b1\r\n" +
+            "Content-Type: text/plain; charset=utf-8\r\n" +
+            "Content-Disposition: inline\r\n" +
+            "\r\n" +
+            "the body\r\n"
+        assertEquals("the body", preview(raw))
+    }
+
+    @Test fun `a multipart fragment with nothing readable yields null, never the raw MIME`() {
+        val cutInHeaders = "--$felis\r\n" +
+            "Content-Type: multipart/related; boundary=\"inner\"\r\n" +
+            "\r\n" +
+            "--inner\r\n" +
+            "Content-Type: text/pl"
+        assertNull(preview(cutInHeaders))
+        assertNull(preview(cutInHeaders, encoding = "base64"))
+        val imageOnly = "--b1\r\nContent-Type: image/png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n"
+        assertNull(preview(imageOnly))
+    }
+
+    @Test fun `a multipart fragment nested past the depth bound yields null`() {
+        val depth = 40
+        val sb = StringBuilder()
+        for (i in 0 until depth) sb.append("--x${i}y\r\nContent-Type: multipart/mixed; boundary=x${i + 1}y\r\n\r\n")
+        sb.append("--x${depth}y\r\nContent-Type: text/plain\r\n\r\ndeep\r\n")
+        assertNull(preview(sb.toString()))
+    }
+
+    @Test fun `text that opens with two dashes but no header after is not a multipart`() {
+        val signatureLike = "--Bonjour l'equipe,\nle serveur renvoie Content-Type: text/plain sans rien d'autre."
+        assertEquals(signatureLike, preview(signatureLike))
+        val bareDashes = "--abc\nle serveur renvoie Content-Type: text/plain"
+        assertEquals(bareDashes, preview(bareDashes))
+    }
+
+    @Test fun `a multipart fragment is decoded by its inner part's charset, not the outer one`() {
+        val cp1251 = charset("windows-1251")
+        val eightBit = "--b1\r\n" +
+            "Content-Type: text/plain; charset=windows-1251\r\n" +
+            "Content-Transfer-Encoding: 8bit\r\n" +
+            "\r\n" +
+            wire("Привет, мир", cp1251) + "\r\n" +
+            "--b1--\r\n"
+        assertEquals("Привет, мир", preview(eightBit, encoding = "7bit", charset = "utf-8"))
+        val qp = "Привет".toByteArray(cp1251).joinToString("") { "=%02X".format(it.toInt() and 0xFF) }
+        val quoted = "--b1\r\n" +
+            "Content-Type: text/plain; charset=windows-1251\r\n" +
+            "Content-Transfer-Encoding: quoted-printable\r\n" +
+            "\r\n" +
+            qp + "\r\n" +
+            "--b1--\r\n"
+        assertEquals("Привет", preview(quoted, encoding = "7bit", charset = "utf-8"))
+    }
+
+    @Test fun `a multipart fragment with bare line feeds shows its text part`() {
+        val raw = "--b1\nContent-Type: text/plain; charset=utf-8\n\nSalut\n--b1--\n"
+        assertEquals("Salut", preview(raw))
+    }
+
+    @Test fun `MIME quoted in the middle of a text is the text`() {
+        val raw = "Bonjour,\n--b\nContent-Type: text/plain\n\nx"
+        assertEquals(raw, preview(raw))
+    }
+
+    @Test fun `a word and a colon after two dashes are not part headers`() {
+        for (raw in listOf(
+            "--Rappel\r\n10:30 salle B",
+            "--Rappel\r\n10:30 salle B\r\n\r\nMerci",
+            "--Lien\nhttps://exemple.fr",
+        )) {
+            assertEquals(raw, preview(raw))
+        }
+    }
+
+    @Test fun `a part whose content headers come after another header is still a part`() {
+        val raw = "--b\r\nX-Mailer: x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nSalut"
+        assertEquals("Salut", preview(raw))
     }
 }

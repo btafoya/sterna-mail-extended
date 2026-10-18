@@ -693,4 +693,16 @@ class MimeParserTest {
         assertEquals("Réunion", headers["X-Legacy"])
         assertEquals("=?utf-8?B?UsOpdW5pb24=?=", headers["X-Encoded"])
     }
+
+    @Test
+    fun readsABareBoundaryThatCarriesEquals() {
+        val b = "=felis-alternative=20261016114211=20715"
+        for (param in listOf("boundary", "Boundary")) {
+            val raw = "Content-Type: multipart/alternative; $param=$b\r\n\r\n" +
+                "--$b\r\nContent-Type: text/plain; charset=\"utf-8\"\r\nContent-Transfer-Encoding: base64\r\n\r\n" +
+                Base64.getEncoder().encodeToString("Здравствуйте".toByteArray()) + "\r\n" +
+                "--$b--\r\n"
+            assertEquals(param, "Здравствуйте", MimeParser.parseBody(raw).text?.trim())
+        }
+    }
 }

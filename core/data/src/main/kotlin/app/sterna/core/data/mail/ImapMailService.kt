@@ -36,6 +36,7 @@ import app.sterna.core.imap.unseenUids
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.PreviewLines
+import app.sterna.core.data.text.isRawMimePreview
 import app.sterna.core.jmap.model.EmailAddress
 import app.sterna.core.jmap.model.SearchQuery
 import kotlinx.coroutines.CancellationException
@@ -163,6 +164,9 @@ internal fun previewsForPage(
  * rest (#187).
  */
 internal fun pageOpenings(cached: Map<String, String>, read: Map<String, String>): Map<String, String> = cached + read
+
+internal fun previewIdsToRead(ids: List<String>, cached: Map<String, String>): Set<String> =
+    ids.toSet() - cached.filterValues { !isRawMimePreview(it) }.keys
 
 /** The deadline arithmetic behind a time-bounded IMAP call: a retry must not double the wait. */
 internal object ImapBudget {
@@ -841,7 +845,7 @@ open class ImapMailService(
             cached = cachedPreviewsFor(ids, uidValidity)
             pageOpenings(
                 cached,
-                previewsForPage(accountId, mailboxId, page, ids.toSet() - cached.keys) { section, uids ->
+                previewsForPage(accountId, mailboxId, page, previewIdsToRead(ids, cached)) { section, uids ->
                     session.fetchSectionPartials(uids, section, IMAP_PREVIEW_FETCH_BYTES)
                 },
             )
