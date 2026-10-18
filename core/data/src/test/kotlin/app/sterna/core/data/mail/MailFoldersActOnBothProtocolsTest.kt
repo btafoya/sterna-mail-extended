@@ -122,6 +122,8 @@ class MailFoldersActOnBothProtocolsTest {
          *  `ImapMailService` does, instead of handing [listed] over: which choices that object
          *  carries is then readable in what the cache is written. */
         private val rolesFromChoices: Boolean = false,
+        /** Paths whose `DELETE` the server refuses. */
+        private val refused: Set<String> = emptySet(),
     ) : ImapMailService(ImapClient(), SmtpClient(), OAuthTokenRefresher(OAuthClient(), store)) {
         /** What the server holds now: a rename moves the folder and its subtree here, as a server
          *  does, so no listing that follows one still carries the path left behind. */
@@ -152,6 +154,7 @@ class MailFoldersActOnBothProtocolsTest {
 
         override suspend fun deleteFolder(credentials: AccountCredentials, path: String) {
             deleted += path
+            if (path in refused) throw java.io.IOException("NO [CANNOT] refused")
         }
 
         override suspend fun listImapFolders(credentials: AccountCredentials): List<ImapFolder> = onServer
@@ -193,6 +196,7 @@ class MailFoldersActOnBothProtocolsTest {
     private fun mailboxDaoRecording(
         replaced: MutableList<Pair<String, List<MailboxEntity>>>,
         hidden: MutableList<Pair<String, List<String>>>,
+        dropped: MutableList<Pair<String, String>> = mutableListOf(),
     ): MailboxDao =
         Proxy.newProxyInstance(MailboxDao::class.java.classLoader, arrayOf(MailboxDao::class.java)) { _, method, args ->
             when (method.name) {
@@ -204,6 +208,10 @@ class MailFoldersActOnBothProtocolsTest {
                 "deleteByIds" -> {
                     @Suppress("UNCHECKED_CAST")
                     hidden += (args[0] as String) to (args[1] as List<String>)
+                    Unit
+                }
+                "dropFolderContents" -> {
+                    dropped += (args[0] as String) to (args[1] as String)
                     Unit
                 }
                 else -> error("MailboxDao.${method.name} was not expected here.")
@@ -398,6 +406,33 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals(
             subtree.map { mapOf("id" to ACCOUNT, "folderId" to it, "watched" to false) },
             storeCalls("setFolderWatched"),
+        )
+    }
+
+    /**
+     * #255: a folder the server acknowledged destroying takes its index rows with its cache; one it
+     * refused is still there, and so are its messages. The cache itself is emptied for all of them.
+     */
+    @Test fun `an imap delete drops the contents of the folders the server acknowledged, and only those`() {
+        val imap = RecordingImap(
+            store,
+            listing = listOf(folder("Archive.2024", "."), folder("Archive.2024.Trips", "."), folder("Archive.2024.Trips.Photos", ".")),
+            refused = setOf("Archive.2024.Trips"),
+        )
+        val dropped = mutableListOf<Pair<String, String>>()
+        val emptied = mutableListOf<Pair<String, String>>()
+        val folders = folders(
+            imap,
+            mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf(), dropped),
+            emailDao = emailDaoRecording(emptied),
+        )
+
+        runBlocking { folders.deleteFolder(credentials(MailProtocol.IMAP), "Archive.2024") }
+
+        assertEquals(listOf(ACCOUNT to "Archive.2024.Trips.Photos", ACCOUNT to "Archive.2024"), dropped)
+        assertEquals(
+            listOf("Archive.2024.Trips.Photos", "Archive.2024.Trips", "Archive.2024").map { ACCOUNT to it },
+            emptied,
         )
     }
 
@@ -957,9 +992,10 @@ class MailFoldersActOnBothProtocolsTest {
             mailbox("mb-elsewhere"),
         ).joinToString(",", "[", "]")
         val emptied = mutableListOf<Pair<String, String>>()
+        val dropped = mutableListOf<Pair<String, String>>()
         val folders = folders(
             RecordingImap(store),
-            mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf()),
+            mailboxDao = mailboxDaoRecording(mutableListOf(), mutableListOf(), dropped),
             emailDao = emailDaoRecording(emptied),
             host = RecordingHost(jmapSession()),
         )
@@ -970,6 +1006,7 @@ class MailFoldersActOnBothProtocolsTest {
         assertEquals(subtree, destroys())
         assertEquals(subtree, destroyed)
         assertEquals(subtree.map { ACCOUNT to it }, emptied)
+        assertEquals("a JMAP delete keeps the index: its message ids outlive the folder (#255)", emptyList<Pair<String, String>>(), dropped)
         assertEquals(listOf(mapOf("id" to ACCOUNT, "folderIds" to subtree)), storeCalls("forgetFolderOrder"))
     }
 

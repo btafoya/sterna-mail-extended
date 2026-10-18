@@ -723,9 +723,11 @@ open class ImapMailService(
         criteria: ImapSearchCriteria,
         requireAttachment: Boolean,
         limit: Int,
+        indexClaims: Map<String, Set<Long>> = emptyMap(),
     ): ImapSearchHits {
         if (mailboxIds.isEmpty() || limit <= 0) return ImapSearchHits(emptyList(), complete = true)
         val command = buildImapSearch(criteria)
+        val claims = claimsUnderRecordedNumbering(indexClaims) { path -> uidValidity.recorded(credentials.id, path) }
         // The walk holds this account's only connection: stop between folders if the caller is gone.
         val caller = currentCoroutineContext()[Job]
         // What each folder's SELECT stated, recorded after the walk (the store is suspending):
@@ -741,6 +743,7 @@ open class ImapMailService(
                 onFolderError = { mailbox, error ->
                     android.util.Log.w("ImapSearch", "search failed in $mailbox: ${error.message}")
                 },
+                claims = claims,
             )
             folders.forEach { hits -> numbering += hits.mailbox to hits.uidValidity }
             ImapSearchHits(
@@ -750,6 +753,8 @@ open class ImapMailService(
                     .sortedByDescending { it.sortKey }
                     .take(limit),
                 complete = folders.none { it.incomplete },
+                indexGone = indexGoneOf(credentials.id, folders),
+                indexFlags = indexFlagsOf(credentials.id, folders),
             )
         }
         numbering.forEach { (path, observed) -> reconcileNumbering(credentials.id, path, observed) }
@@ -773,13 +778,20 @@ open class ImapMailService(
             session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity, null)
         }
 
-    /**
-     * The envelope of a message named by cache ID alone (#159), through [fetchByUid] and so through
-     */
-    suspend fun fetchById(credentials: AccountCredentials, emailId: String): EmailEntity? {
-        if (accountOf(emailId) != credentials.id) return null
-        val (mailboxId, uid) = targetOf(emailId) ?: return null
-        return fetchByUid(credentials, mailboxId, uid)
+    /** The envelope of a message named by cache ID alone (#159), through `onMailbox`'s UIDVALIDITY
+     *  guard: a renumbered folder or a refused SELECT raises, and is never [ImapLookup.Gone]. */
+    suspend fun fetchById(credentials: AccountCredentials, emailId: String): ImapLookup {
+        if (accountOf(emailId) != credentials.id) return ImapLookup.Unproven
+        val (mailboxId, uid) = targetOf(emailId) ?: return ImapLookup.Unproven
+        val recorded = uidValidity.recorded(credentials.id, mailboxId)
+        return onMailbox(credentials, mailboxId, expectedUidValidity = recorded) { session, status ->
+            val entity = session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity, null)
+            when {
+                entity != null -> ImapLookup.Found(entity)
+                UidValidity.verdict(recorded, status.uidValidity) == UidValidity.Verdict.SAME -> ImapLookup.Gone
+                else -> ImapLookup.Unproven
+            }
+        }
     }
 
     /**
@@ -1030,7 +1042,12 @@ internal fun ImapMessage.toEntity(
 }
 
 /** What an IMAP search found; [complete] is false when a folder's local attachment filter hit its scan cap. */
-data class ImapSearchHits(val messages: List<EmailEntity>, val complete: Boolean)
+data class ImapSearchHits(
+    val messages: List<EmailEntity>,
+    val complete: Boolean,
+    val indexGone: List<String> = emptyList(),
+    val indexFlags: List<IndexFlags> = emptyList(),
+)
 
 /**
  * A folder's UIDs and the numbering they belong to, read in the same SELECT: a list of UIDs without

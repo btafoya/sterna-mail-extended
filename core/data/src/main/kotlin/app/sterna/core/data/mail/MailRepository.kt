@@ -2242,18 +2242,7 @@ class MailRepository(
         // A `local-draft:` id sent down this path is the one copy of a text that exists nowhere else.
         val uid = ImapMailService.uidOf(emailId) ?: error("Not an IMAP message.")
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()?.toEmail()
-        val fetched = if (cached != null) null else try {
-            imap.fetchById(credentials, emailId)?.toEmail()
-        } catch (cancelled: CancellationException) {
-            // Rethrown as-is, which is why this is a `try` and not a `runCatching`:
-            // AccountGoneException IS a CancellationException, and must keep its job upstream.
-            throw cancelled
-        } catch (failure: Throwable) {
-            throw MessageUnavailableException("Could not fetch $emailId from the server.", failure)
-        }
-        // A fetch that came back empty is a message the server no longer holds: same answer.
-        val envelope = cached ?: fetched
-            ?: throw MessageUnavailableException("Message $emailId is not in the cache and the server did not return it.")
+        val envelope = imapEnvelope(credentials.id, emailId, cached, { imap.fetchById(credentials, emailId) }, ::forgetGoneImapMessage)
         val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
         val raw = imap.fetchSource(credentials, mailboxId, uid)
         // Before the parse, because parsing "" succeeds: it yields a body the composer paints as a
@@ -2290,6 +2279,12 @@ class MailRepository(
             // occurrence wins, which for a relay header names the outermost alias, not the hop.
             originalSender = originalSenderHeaderOf(headers),
         )
+    }
+
+    /** No `emails` row to drop: [imapEnvelope] asks the server only on a cache miss. */
+    private suspend fun forgetGoneImapMessage(accountId: String, emailId: String) {
+        emailFtsDao.deleteById(accountId, emailId)
+        emailBodyDao.deleteById(accountId, emailId)
     }
 
     private fun headerIds(value: String?): List<String> {
@@ -4089,12 +4084,24 @@ class MailRepository(
             // Nothing to search at all, not even an inbox id. That is "we looked nowhere", which must
             // never be reported as the confident "No results" the empty state states as a fact.
             if (folders.isEmpty()) return MailSearchResult(emptyList(), complete = false)
-            val hits = imap.search(credentials, folders, query.toImapCriteria(), query.requiresLocalScan(), limit)
+            // The index's two steps are side work: a locked FTS table (#71) must not fail the search.
+            val claims: Map<String, Set<Long>> = if (query.indexMayBeContradicted()) {
+                indexStep(emptyMap()) {
+                    indexClaimsOf(emailFtsDao.uncachedMatching(credentials.id, folders, query.unread, query.flagged), folders)
+                }
+            } else {
+                emptyMap()
+            }
+            val hits = imap.search(credentials, folders, query.toImapCriteria(), query.requiresLocalScan(), limit, claims)
+            val purged = indexStep(emptySet<EmailKey>()) {
+                applyIndexVerdict(credentials.id, hits, emailFtsDao::deleteByIds, emailFtsDao::setFlags)
+            }
             return MailSearchResult(
                 emails = withCachedSearchPreviews(hits.messages) { ids, numbering ->
                     emailDao.cachedPreviews(credentials.id, ids, numbering)
                 }.map { it.toEmail() },
                 complete = imapSearchComplete(known, hits.complete, hits.messages.size, limit),
+                purged = purged,
             )
         }
         val ctx = jmapSession(credentials)
@@ -4121,6 +4128,13 @@ class MailRepository(
             excerpts = excerptsOf(resolved, hits.snippetPreviews),
         )
     }
+
+    private suspend fun <T> indexStep(fallback: T, step: suspend () -> T): T =
+        runCatching { step() }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            logWarn("MailSearch", "index step of a server search skipped: ${error.javaClass.simpleName}", null)
+            fallback
+        }
 
     /** Unified search across several accounts, each [search] in parallel. A failing account is skipped,
      *  logged, and makes the answer incomplete rather than passing for the whole result. */

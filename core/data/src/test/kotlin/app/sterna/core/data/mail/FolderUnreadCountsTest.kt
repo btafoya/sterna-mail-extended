@@ -279,6 +279,11 @@ class FolderUnreadCountsTest {
         override suspend fun roleForId(accountId: String, id: String): String? = error("unused")
         override suspend fun adjustCounts(accountId: String, id: String, totalDelta: Int, unreadDelta: Int): Unit =
             error("unused")
+        override suspend fun cachedFolderIds(accountId: String): List<String> = emptyList()
+        override suspend fun indexedFolderIds(accountId: String): List<String> = emptyList()
+        override suspend fun deleteFolderMail(accountId: String, mailboxId: String) = Unit
+        override suspend fun deleteFolderIndex(accountId: String, mailboxId: String) = Unit
+        override suspend fun deleteFolderBodies(accountId: String, idPrefix: String) = Unit
     }
 
     private companion object {

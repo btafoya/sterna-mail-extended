@@ -253,7 +253,7 @@ internal class JdbcMailCache : Closeable {
 
     /** The shipped store over this table; what a renumbering drops elsewhere is not observed here. */
     fun store(): MailboxUidValidityStore =
-        MailboxUidValidityStore(uidValidityDao, permissive(), permissive(), PendingExpungeStore.None)
+        MailboxUidValidityStore(uidValidityDao, permissive(), permissive(), permissive(), PendingExpungeStore.None)
 
     private inline fun <reified T : Any> permissive(): T =
         Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, _, _ -> Unit } as T

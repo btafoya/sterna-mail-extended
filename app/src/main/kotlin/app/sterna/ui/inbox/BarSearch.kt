@@ -153,7 +153,9 @@ internal class BarSearch(
         }
         if (answersCurrent(state.value, criteria, within)) {
             state.value = state.value.copy(
-                results = mergeHits(state.value.results.orEmpty(), found.emails),
+                // The local leg may have shown a row the server just proved gone and purged.
+                results = mergeHits(state.value.results.orEmpty(), found.emails)
+                    .filterNot { it.emailKey() in found.purged },
                 loading = false,
                 complete = searchComplete(local = localLegComplete, server = found.complete),
                 excerpts = excerptsByResultKey(found),

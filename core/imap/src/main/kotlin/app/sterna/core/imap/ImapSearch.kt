@@ -70,6 +70,7 @@ data class ImapFolderHits(
          * The folder's UIDVALIDITY as the SELECT of this walk stated it, or 0 when it stated none.
          */
     val uidValidity: Long = 0L,
+    val verdict: ImapIndexVerdict? = null,
 )
 
 /** How many UIDs are fetched per `UID FETCH` while walking candidates for the attachment filter. */
@@ -88,6 +89,7 @@ fun ImapSession.searchFolders(
     command: ImapSearchCommand,
     requireAttachment: Boolean,
     limit: Int,
+    claims: Map<String, ImapIndexClaims> = emptyMap(),
     stillWanted: () -> Boolean = { true },
     onFolderError: (mailbox: String, error: Throwable) -> Unit = { _, _ -> },
 ): List<ImapFolderHits> {
@@ -106,15 +108,18 @@ fun ImapSession.searchFolders(
             hits += ImapFolderHits(mailbox, emptyList(), incomplete = true)
             continue
         }
-        if (scan.messages.isNotEmpty() || scan.truncated) {
-            hits += ImapFolderHits(mailbox, scan.messages, incomplete = scan.truncated, uidValidity = observed)
+        val verdict = claims[mailbox]
+            ?.takeIf { answersInFull(it, observed, scan.truncated) }
+            ?.let { probeClaims(it.uids - scan.matched) }
+        if (scan.messages.isNotEmpty() || scan.truncated || verdict != null) {
+            hits += ImapFolderHits(mailbox, scan.messages, incomplete = scan.truncated, uidValidity = observed, verdict = verdict)
         }
     }
     return hits
 }
 
-/** One folder's scan: what it kept, and whether it stopped looking with candidates left over. */
-private class FolderScan(val messages: List<ImapMessage>, val truncated: Boolean)
+/** One folder's scan: what it kept, whether it stopped short, and the UIDs its `SEARCH` listed. */
+private class FolderScan(val messages: List<ImapMessage>, val truncated: Boolean, val matched: Set<Long> = emptySet())
 
 /** Search the already SELECTed folder and fetch up to [limit] matching envelopes, newest first. */
 private fun ImapSession.searchOneFolder(
@@ -126,7 +131,7 @@ private fun ImapSession.searchOneFolder(
     if (uids.isEmpty()) return FolderScan(emptyList(), truncated = false)
     // No local filter: the newest [limit] UIDs are exactly the answer, in one FETCH.
     if (!requireAttachment) {
-        return FolderScan(fetchUids(uids.take(limit)).sortedByDescending { it.uid }, truncated = false)
+        return FolderScan(fetchUids(uids.take(limit)).sortedByDescending { it.uid }, truncated = false, matched = uids.toSet())
     }
 
     val kept = mutableListOf<ImapMessage>()
@@ -138,5 +143,5 @@ private fun ImapSession.searchOneFolder(
     }
     // Stopping with candidates left and the cap unfilled means the scan cap cut the walk short:
     // the folder may hold matches nobody looked at, so the answer is not a total.
-    return FolderScan(kept.take(limit), truncated = examined < uids.size && kept.size < limit)
+    return FolderScan(kept.take(limit), truncated = examined < uids.size && kept.size < limit, matched = uids.toSet())
 }

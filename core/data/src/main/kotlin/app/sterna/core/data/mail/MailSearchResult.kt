@@ -2,12 +2,13 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.jmap.model.Email
 
-/** What a search answered. [complete] is false when it stopped before seeing everything, a full
- *  page, a scan cap, a failed account, and the screen then says "at least N", never a total. */
+/** What a search answered. [complete] is false when it stopped short (full page, scan cap, failed account): "at
+ *  least N", never a total. [purged]: rows proved gone and dropped from the index, so from the screen too. */
 data class MailSearchResult(
     val emails: List<Email>,
     val complete: Boolean = true,
     val excerpts: Map<Pair<String?, String>, String> = emptyMap(),
+    val purged: Set<EmailKey> = emptySet(),
 )
 
 /** Merge the per-account answers of a unified search into one capped list: fair by account, then
@@ -37,5 +38,6 @@ internal fun mergeAccountSearches(perAccount: List<MailSearchResult>, limit: Int
         excerpts = perAccount.flatMap { it.excerpts.entries }
             .filter { it.key in picked }
             .associate { it.key to it.value },
+        purged = perAccount.flatMapTo(LinkedHashSet()) { it.purged },
     )
 }

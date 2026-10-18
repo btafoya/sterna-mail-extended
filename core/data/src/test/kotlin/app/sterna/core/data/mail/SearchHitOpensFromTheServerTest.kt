@@ -77,7 +77,7 @@ class SearchHitOpensFromTheServerTest {
         // declaration of the fetch and it still compiles, the SELECT would then name "4242" and
         // the FETCH the folder, so the command lines the server received are what is compared.
         folderHolding(uid = UID).use { server ->
-            val entity = runBlocking { service().fetchById(credentials(server), ID) }
+            val entity = (runBlocking { service().fetchById(credentials(server), ID) } as? ImapLookup.Found)?.entity
                 ?: error("the folder holds UID $UID; the fetch must bring its envelope back")
             assertEquals(
                 "the commands are a SELECT of THIS folder and a UID FETCH of THIS uid — nothing " +
@@ -106,7 +106,7 @@ class SearchHitOpensFromTheServerTest {
         // connection, let alone a SELECT of a folder called "local-draft".
         folderHolding(uid = UID).use { server ->
             val entity = runBlocking { service().fetchById(credentials(server), "local-draft:9f1c") }
-            assertNull("nothing to fetch for an id the server knows nothing about", entity)
+            assertEquals("nothing to fetch, and nothing proven, for an id the server knows nothing about", ImapLookup.Unproven, entity)
             assertEquals("no socket was opened", 0, server.connections.get())
             assertEquals(
                 "and nothing was sent asking. Commands were: ${server.issued()}",
@@ -127,7 +127,7 @@ class SearchHitOpensFromTheServerTest {
             val entity = runBlocking {
                 service().fetchById(credentials(server), "imap:acc2:$FOLDER:$UID")
             }
-            assertNull("$ACCOUNT's connection must not answer for acc2's id", entity)
+            assertEquals("$ACCOUNT's connection must not answer for acc2's id", ImapLookup.Unproven, entity)
             assertEquals(
                 "and the refusal costs nothing: no socket, hence no LOGIN either — which " +
                     "`issued()` could not have told us, it filters LOGIN out",
@@ -151,7 +151,55 @@ class SearchHitOpensFromTheServerTest {
                 else -> "$tag OK done\r\n"
             }
         }.use { server ->
-            assertNull(runBlocking { service().fetchById(credentials(server), ID) })
+            assertEquals(ImapLookup.Unproven, runBlocking { service().fetchById(credentials(server), ID) })
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an absent uid under the numbering the id was read under proves the message gone`() {
+        val numbering = RememberedNumbering().apply { numbers["$ACCOUNT/$FOLDER"] = 9L }
+        emptyFolder(selected(uidValidity = 9)).use { server ->
+            val lookup = runBlocking { service(numbering).fetchById(credentials(server), ID) }
+            assertEquals(
+                "SELECT stated the recorded numbering and UID FETCH answered nothing. Commands were: " +
+                    "${server.issued()}",
+                ImapLookup.Gone,
+                lookup,
+            )
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an absent uid in a folder with no recorded numbering proves nothing`() {
+        emptyFolder(selected(uidValidity = 9)).use { server ->
+            assertEquals(
+                ImapLookup.Unproven,
+                runBlocking { service(RememberedNumbering()).fetchById(credentials(server), ID) },
+            )
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an absent uid on a server stating no numbering proves nothing`() {
+        val numbering = RememberedNumbering().apply { numbers["$ACCOUNT/$FOLDER"] = 9L }
+        emptyFolder({ tag -> "* 12 EXISTS\r\n$tag OK [READ-WRITE] selected\r\n" }).use { server ->
+            assertEquals(
+                ImapLookup.Unproven,
+                runBlocking { service(numbering).fetchById(credentials(server), ID) },
+            )
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `a folder the server refuses to select raises instead of proving anything`() {
+        val numbering = RememberedNumbering().apply { numbers["$ACCOUNT/$FOLDER"] = 9L }
+        emptyFolder({ tag -> "$tag NO [NONEXISTENT] no such mailbox\r\n" }).use { server ->
+            val outcome = runCatching { runBlocking { service(numbering).fetchById(credentials(server), ID) } }
+            assertTrue("a refused SELECT must raise, got $outcome", outcome.isFailure)
+            assertEquals(
+                "and no UID FETCH follows it. Commands were: ${server.issued()}",
+                emptyList<String>(), server.issued("UID FETCH"),
+            )
         }
     }
 
@@ -159,8 +207,8 @@ class SearchHitOpensFromTheServerTest {
 
     @Test(timeout = 30_000)
     fun `a folder the server has renumbered refuses the fetch instead of answering a message`() {
-        // The guard of #99, which is exactly why this fetch goes through `fetchByUid` and its
-        // `onMailbox` rather than a bare session + SELECT. A UID belongs to a numbering: under a
+        // The guard of #99, which is exactly why `fetchById` goes through `onMailbox` rather
+        // than a bare session + SELECT. A UID belongs to a numbering: under a
         // new UIDVALIDITY the same number names a different message, and handing it to the reader
         // shows one person's mail under another's header.
         //
@@ -238,22 +286,43 @@ class SearchHitOpensFromTheServerTest {
     }
 
     @Test fun theEnvelopeOfAMessageTheCacheLacksComesFromTheServer() {
+        // What `imapEnvelope` does with them is executed in [OpeningAGoneMessageForgetsItSqlTest].
         assertEquals(
-            "the fetch is for THIS account and THIS id, and it is mapped to an Email — a literal " +
-                "or a neighbouring id here opens somebody else's message",
-            listOf("imap.fetchById(credentials, emailId)?.toEmail()"),
+            "the fetch is for THIS account and THIS id — a literal or a neighbouring id here " +
+                "opens, or forgets, somebody else's message",
+            listOf(
+                "val envelope = imapEnvelope(credentials.id, emailId, cached, { imap.fetchById(credentials, emailId) }, ::forgetGoneImapMessage)",
+            ),
             codeLinesNaming(openBody(), "fetchById("),
         )
     }
 
-    @Test fun theServerIsAskedWhenTheCacheHasNothingAndOnlyThen() {
-        // The condition, which the three assertions above cannot see: they pin the call, the
-        // cache read and the absence of the old message, and every one of them survives
+    @Test fun theOpenForgetsOnlyThroughTheEnvelopeDecision() {
+        val body = openBody()
         assertEquals(
-            "the server is the fallback for a cache MISS, never the first stop nor the answer to " +
-                "a hit",
-            listOf("val fetched = if (cached != null) null else try {"),
-            codeLinesNaming(openBody(), "val fetched ="),
+            "the purge appears once in openEmailImap, as the reference handed to imapEnvelope; a " +
+                "direct call elsewhere, the empty-source branch included, purges on an answer " +
+                "imapEnvelope never judged",
+            listOf(
+                "val envelope = imapEnvelope(credentials.id, emailId, cached, { imap.fetchById(credentials, emailId) }, ::forgetGoneImapMessage)",
+            ),
+            codeLinesNaming(body, "forgetGoneImapMessage"),
+        )
+        assertEquals(
+            "one occurrence in the code of the open, that line included: ${codeLines(body)}",
+            1,
+            Regex("forgetGoneImapMessage").findAll(codeLines(body).joinToString("\n")).count(),
+        )
+    }
+
+    @Test fun theOpenForgetsAGoneMessageUnderTheAccountAndTheIdItIsHanded() {
+        assertEquals(
+            "the index row and the cached body, both keyed by account and id (#31)",
+            listOf(
+                "emailFtsDao.deleteById(accountId, emailId)",
+                "emailBodyDao.deleteById(accountId, emailId)",
+            ),
+            codeLines(DaoQuerySource.mailFunctionBody("MailRepository", "forgetGoneImapMessage")),
         )
     }
 
@@ -270,6 +339,15 @@ class SearchHitOpensFromTheServerTest {
     }
 
     // ---- the harness -----------------------------------------------------------------------------
+
+    /** A server whose SELECT answers [select] and whose every UID FETCH answers no message. */
+    private fun emptyFolder(select: (String) -> String) = ScriptedImapServer { tag, line ->
+        when {
+            line.startsWith("LOGIN") -> "$tag OK logged in\r\n"
+            line.startsWith("SELECT") -> select(tag)
+            else -> "$tag OK done\r\n"
+        }
+    }
 
     /** A server whose [folder] holds exactly [uid], under UIDVALIDITY 9. */
     private fun folderHolding(uid: Long) = ScriptedImapServer { tag, line ->

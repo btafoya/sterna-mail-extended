@@ -1,5 +1,6 @@
 package app.sterna.ui.inbox
 
+import app.sterna.core.data.mail.EmailKey
 import app.sterna.core.data.mail.MailSearchResult
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.SearchQuery
@@ -137,6 +138,36 @@ class BarSearchTest {
         runCurrent()
         assertEquals(listOf("local"), ids())
         assertTrue(state.value.loading)
+    }
+
+    // ---- #255: a row the server proved gone leaves the screen with the index ----
+
+    @Test fun `a row the server purged from the index leaves the results, and the count with it`() = runTest {
+        val ghost = email("imap:acc:INBOX:5", at = "2026-09-01T10:00:00Z")
+        val live = email("imap:acc:INBOX:8", at = "2026-09-02T10:00:00Z")
+        val bar = bar(
+            local = { listOf(ghost, live) },
+            server = { MailSearchResult(listOf(live), purged = setOf(EmailKey("acc", ghost.id))) },
+        )
+        bar.toggle(SearchToggle.FLAGGED)
+        runCurrent()
+        assertEquals("the index answers first, ghost included", listOf(ghost.id, live.id), ids())
+
+        advanceUntilIdle()
+        assertEquals(listOf(live.id), ids())
+        assertEquals(1, state.value.results!!.size)
+    }
+
+    @Test fun `a purge names its account, the same id under another account stays`() = runTest {
+        val mine = Email(id = "imap:x:INBOX:5", accountId = "acc", receivedAt = "2026-09-01T10:00:00Z")
+        val theirs = Email(id = "imap:x:INBOX:5", accountId = "other", receivedAt = "2026-09-01T10:00:00Z")
+        val bar = bar(
+            local = { listOf(mine, theirs) },
+            server = { MailSearchResult(emptyList(), purged = setOf(EmailKey("acc", mine.id))) },
+        )
+        bar.toggle(SearchToggle.FLAGGED)
+        advanceUntilIdle()
+        assertEquals(listOf("other"), state.value.results!!.map { it.accountId })
     }
 
     // ---- M1: an answer is written only under the criteria it was asked for ----

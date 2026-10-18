@@ -209,6 +209,11 @@ class MailboxEvictionsTest {
         override suspend fun roleForId(accountId: String, id: String): String? = error("unused")
         override suspend fun adjustCounts(accountId: String, id: String, totalDelta: Int, unreadDelta: Int): Unit =
             error("unused")
+        override suspend fun cachedFolderIds(accountId: String): List<String> = error("unused")
+        override suspend fun indexedFolderIds(accountId: String): List<String> = error("unused")
+        override suspend fun deleteFolderMail(accountId: String, mailboxId: String): Unit = error("unused")
+        override suspend fun deleteFolderIndex(accountId: String, mailboxId: String): Unit = error("unused")
+        override suspend fun deleteFolderBodies(accountId: String, idPrefix: String): Unit = error("unused")
     }
 
     private companion object {

@@ -4,8 +4,12 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
+import app.sterna.core.data.mail.LegacyIndexSweep
+import app.sterna.core.data.mail.UidValidity
+import app.sterna.core.data.mail.isWholeImapListing
 import app.sterna.core.data.mail.keepingUnstatedUnread
 import app.sterna.core.data.mail.mailboxEvictions
+import app.sterna.core.data.mail.vanishedImapFolders
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -96,6 +100,28 @@ interface MailboxDao {
     @Query("DELETE FROM mailboxes WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun deleteByIds(accountId: String, ids: List<String>)
 
+    @Query("SELECT DISTINCT mailboxId FROM emails WHERE accountId = :accountId")
+    suspend fun cachedFolderIds(accountId: String): List<String>
+
+    @Query("SELECT DISTINCT mailboxId FROM email_fts WHERE accountId = :accountId")
+    suspend fun indexedFolderIds(accountId: String): List<String>
+
+    @Query("DELETE FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId")
+    suspend fun deleteFolderMail(accountId: String, mailboxId: String)
+
+    @Query("DELETE FROM email_fts WHERE accountId = :accountId AND mailboxId = :mailboxId")
+    suspend fun deleteFolderIndex(accountId: String, mailboxId: String)
+
+    @Query(BODY_CACHE_ID_PREFIX_SQL)
+    suspend fun deleteFolderBodies(accountId: String, idPrefix: String)
+
+    @Transaction
+    suspend fun dropFolderContents(accountId: String, mailboxId: String) {
+        deleteFolderMail(accountId, mailboxId)
+        deleteFolderIndex(accountId, mailboxId)
+        deleteFolderBodies(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
+    }
+
     /** Replaces one account's folder rows; purges by ID in batches, not `id not in (:keepIds)` (#142); upsert before
      *  purge. */
     @Transaction
@@ -111,6 +137,10 @@ interface MailboxDao {
     suspend fun replaceAllKeepingUnread(accountId: String, mailboxes: List<MailboxEntity>, unreadStated: Set<String>) {
         val cached = unreadForAccount(accountId).associate { it.id to it.unreadEmails }
         replaceAll(accountId, keepingUnstatedUnread(mailboxes, unreadStated, cached))
+        val listed = mailboxes.map { it.id }
+        val legacy = if (isWholeImapListing(listed) && LegacyIndexSweep.claim(accountId)) indexedFolderIds(accountId) else emptyList()
+        val held = cached.keys + cachedFolderIds(accountId) + legacy
+        vanishedImapFolders(held, listed).forEach { dropFolderContents(accountId, it) }
     }
 }
 

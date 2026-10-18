@@ -55,6 +55,7 @@ object DataFactory {
         val pendingExpunges = MailboxPendingExpungeStore(database.pendingExpungeDao())
         val uidValidity = MailboxUidValidityStore(
             database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),
+            database.emailFtsDao(),
             pendingExpunges,
         )
         // One tree, handed to both readers: the repository that stages a draft's bytes there and

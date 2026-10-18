@@ -40,6 +40,29 @@ interface EmailFtsDao {
     @Query("DELETE FROM email_fts WHERE accountId = :accountId AND emailId IN (:ids)")
     suspend fun deleteByIds(accountId: String, ids: List<String>)
 
+    @Query("DELETE FROM email_fts WHERE accountId = :accountId AND emailId = :emailId")
+    suspend fun deleteById(accountId: String, emailId: String)
+
+    @Query("DELETE FROM email_fts WHERE accountId = :accountId AND mailboxId = :mailboxId")
+    suspend fun deleteForMailbox(accountId: String, mailboxId: String)
+
+    @Query(
+        "SELECT emailId FROM email_fts WHERE accountId = :accountId AND mailboxId IN (:mailboxIds) " +
+            "AND (:unreadOnly = 0 OR email_fts.seen = 0) " +
+            "AND (:flaggedOnly = 0 OR email_fts.flagged = 1) " +
+            "AND NOT EXISTS (SELECT 1 FROM emails " +
+            "WHERE emails.id = email_fts.emailId AND emails.accountId = email_fts.accountId)",
+    )
+    suspend fun uncachedMatching(
+        accountId: String,
+        mailboxIds: List<String>,
+        unreadOnly: Boolean,
+        flaggedOnly: Boolean,
+    ): List<String>
+
+    @Query("UPDATE email_fts SET seen = :seen, flagged = :flagged WHERE accountId = :accountId AND emailId = :emailId")
+    suspend fun setFlags(accountId: String, emailId: String, seen: Boolean, flagged: Boolean)
+
     @Insert
     suspend fun insert(rows: List<EmailFtsEntity>)
 

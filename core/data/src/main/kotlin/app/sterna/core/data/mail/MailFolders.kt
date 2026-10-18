@@ -91,6 +91,7 @@ class MailFolders(
      *  has children), plus their cached messages and watch flags. Children match on Unicode paths (#101). */
     suspend fun deleteFolder(credentials: AccountCredentials, mailboxId: String): List<String> {
         val targets: List<String>
+        val acknowledged: List<String>
         if (credentials.protocol == MailProtocol.IMAP) {
             val folders = imap.listImapFolders(credentials)
             // The folder's own delimiter from LIST: a guess breaks on names containing '/' or '.'.
@@ -99,7 +100,7 @@ class MailFolders(
                 .filter { it == mailboxId || it.startsWith(mailboxId + delim) }
                 .sortedByDescending { it.length }
                 .ifEmpty { listOf(mailboxId) } // already gone server-side: still clean up locally
-            targets.forEach { runCatching { imap.deleteFolder(credentials, it) } }
+            acknowledged = targets.filter { runCatching { imap.deleteFolder(credentials, it) }.isSuccess }
         } else {
             val ctx = host.jmapSession(credentials)
             val childrenOf = client.getMailboxes(ctx.session, ctx.accountId, ctx.auth).groupBy { it.parentId }
@@ -111,11 +112,14 @@ class MailFolders(
             visit(mailboxId)
             targets = ordered
             targets.forEach { client.deleteMailbox(ctx.session, ctx.accountId, it, ctx.auth) }
+            acknowledged = emptyList()
         }
         targets.forEach {
             accountStore.setFolderWatched(credentials.id, it, watched = false)
             emailDao.replaceMailbox(credentials.id, it, emptyList())
         }
+        // A refused delete leaves the folder and its messages on the server, so its index stays.
+        acknowledged.forEach { mailboxDao.dropFolderContents(credentials.id, it) }
         // A hide key left on a destroyed path makes a folder later created at that path be born
         // hidden, which nothing on screen can explain.
         accountStore.forgetHiddenFolders(credentials.id, targets)

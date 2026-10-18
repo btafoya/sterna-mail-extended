@@ -498,7 +498,7 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
          * reported as proved gone, destroying the row of a message still in the folder. Every untagged
          * `SEARCH` line is read, a server being free to split its result.
          */
-    private fun uidsStillInSource(set: String): Set<Long> =
+    internal fun uidsStillInSource(set: String): Set<Long> =
         command("UID SEARCH UID $set").untagged
             .filter { it.getOrNull(1) == "SEARCH" }
             .flatMap { line -> line.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }

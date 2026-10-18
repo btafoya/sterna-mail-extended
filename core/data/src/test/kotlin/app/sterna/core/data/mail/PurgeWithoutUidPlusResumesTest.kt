@@ -99,7 +99,7 @@ class PurgeWithoutUidPlusResumesTest {
         runBlocking {
             pending.remember(ACCOUNT, TRASH, NUMBERING, listOf(1L, 2L))
             pending.remember(ACCOUNT, ARCHIVE, NUMBERING, listOf(5L))
-            MailboxUidValidityStore(permissive(), permissive(), permissive(), pending)
+            MailboxUidValidityStore(permissive(), permissive(), permissive(), permissive(), pending)
                 .invalidate(ACCOUNT, TRASH, RENUMBERED)
         }
 

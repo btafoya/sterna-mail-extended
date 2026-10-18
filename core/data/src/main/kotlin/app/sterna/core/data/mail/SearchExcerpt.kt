@@ -31,8 +31,10 @@ internal fun excerptsOf(emails: List<Email>, snippetPreviews: Map<String, String
         searchExcerpt(snippetPreviews[email.id])?.let { (email.accountId to email.id) to it }
     }.toMap()
 
-/** Stamps [accountId] on the emails and on the excerpts' keys together, or the excerpts are orphaned. */
+/** Stamps [accountId] on the emails, the excerpts' keys and the purged keys together, or the last
+ *  two no longer meet the rows they belong to. */
 internal fun MailSearchResult.ownedBy(accountId: String): MailSearchResult = copy(
     emails = emails.map { it.copy(accountId = accountId) },
     excerpts = excerpts.mapKeys { (key, _) -> accountId to key.second },
+    purged = purged.mapTo(LinkedHashSet()) { EmailKey(accountId, it.emailId) },
 )
