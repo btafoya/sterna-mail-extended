@@ -457,8 +457,18 @@
     <string name="settings_quiet_hours_subtitle">W tym przedziale czasu nowe wiadomości nadal przychodzą, ale bez dźwięku, wibracji i powiadomień wyskakujących.</string>
     <string name="settings_quiet_hours_start">Początek</string>
     <string name="settings_quiet_hours_end">Koniec</string>
-    <string name="notif_group_count">%1$d nowych wiadomości · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d nowych wiadomości</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d nowa wiadomość · %2$s</item>
+        <item quantity="few">%1$d nowe wiadomości · %2$s</item>
+        <item quantity="many">%1$d nowych wiadomości · %2$s</item>
+        <item quantity="other">%1$d nowych wiadomości · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d nowa wiadomość</item>
+        <item quantity="few">%1$d nowe wiadomości</item>
+        <item quantity="many">%1$d nowych wiadomości</item>
+        <item quantity="other">%1$d nowych wiadomości</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Autoresponder urlopowy</string>

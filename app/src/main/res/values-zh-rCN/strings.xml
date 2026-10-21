@@ -623,8 +623,12 @@
     <string name="settings_quiet_hours_subtitle">在此时间段内，新邮件仍会到达，但没有声音、振动或横幅提醒。</string>
     <string name="settings_quiet_hours_start">开始</string>
     <string name="settings_quiet_hours_end">结束</string>
-    <string name="notif_group_count">%1$d 封新邮件 · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d 封新邮件</string>
+    <plurals name="notif_group_count">
+        <item quantity="other">%1$d 封新邮件 · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="other">%1$d 封新邮件</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">休假自动回复</string>

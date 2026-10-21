@@ -60,40 +60,93 @@ class GroupSummaryObeysTheContentSettingWiringTest {
             codeLinesNaming(body, "setBigContentTitle"),
         )
         assertEquals(
-            "…and the two strings, each formatted by getString like the other. Concatenating the " +
+            "…and the two titles, each formatted by getQuantityString like the other, the count " +
+                "given twice: once to pick the plural form, once to be printed. Concatenating the " +
                 "count in Kotlin would put the number on the wrong side of the sentence in four of " +
-                "the eleven languages",
+                "the eleven languages, and a plain getString reads \"2 новых сообщений\" in Russian " +
+                "and \"2 nowych wiadomości\" in Polish, where two to four take another form than five",
             listOf(
                 "val title = if (account == null) {",
-                "context.getString(R.string.notif_group_count_no_account, count)",
+                "context.resources.getQuantityString(R.plurals.notif_group_count_no_account, count, count)",
                 "} else {",
-                "context.getString(R.string.notif_group_count, count, account)",
+                "context.resources.getQuantityString(R.plurals.notif_group_count, count, count, account)",
                 "}",
             ),
             codeLinesNaming(body, "").subList(3, 8),
         )
     }
 
-    @Test fun `every language that counts a group counts one without an account`() {
+    /**
+     * Checks the shape of the two titles, not their grammar: that each file declares both plurals,
+     * with the quantities its `search_result_count` already declares, and the placeholders a
+     * caller passes. Whether a form reads right in its language is left to a reader of it.
+     */
+    @Test fun `every language declares both summary titles as plurals with the arguments they are given`() {
         val files = File(root, RES_PATH).listFiles().orEmpty()
             .map { File(it, "strings.xml") }
-            .filter { it.isFile && "name=\"notif_group_count\"" in it.readText() }
+            .filter { it.isFile && "name=\"search_result_count\"" in it.readText() }
         assertEquals("the default and its ten translations", 11, files.size)
         files.forEach { file ->
-            val line = file.readLines().map { it.trim() }
-                .filter { "name=\"notif_group_count_no_account\"" in it }
-            assertEquals("${file.parentFile.name}: the count-only headline is missing", 1, line.size)
-            assertTrue(
-                "${file.parentFile.name}: it must carry the count and nothing else — a %2\$s here " +
-                    "throws IllegalFormatException on a summary posted with one argument: <${line.first()}>",
-                "%1\$d" in line.first() && "%2\$s" !in line.first(),
+            val lang = file.parentFile.name
+            val text = file.readText()
+            val reference = pluralItems(text, "search_result_count")
+                ?: error("$lang: no <plurals name=\"search_result_count\">")
+            val withAccount = pluralItems(text, "notif_group_count")
+            val noAccount = pluralItems(text, "notif_group_count_no_account")
+            assertTrue("$lang: notif_group_count is not a <plurals>", withAccount != null)
+            assertTrue("$lang: notif_group_count_no_account is not a <plurals>", noAccount != null)
+            assertEquals(
+                "$lang: notif_group_count must declare the quantities this language counts with, " +
+                    "the ones search_result_count declares; a missing one falls back on `other`",
+                reference.keys,
+                withAccount!!.keys,
             )
-            assertTrue(
-                "${file.parentFile.name}: left in English it reaches ten readers of eleven in a " +
-                    "language they did not choose: <${line.first()}>",
-                file.parentFile.name == "values" || "new messages" !in line.first(),
+            assertEquals(
+                "$lang: notif_group_count_no_account must declare the same quantities",
+                reference.keys,
+                noAccount!!.keys,
             )
+            (withAccount.entries + noAccount.entries).forEach { (quantity, item) ->
+                assertTrue("$lang/$quantity: the count is missing: <$item>", "%1\$d" in item)
+                assertTrue(
+                    "$lang/$quantity: left in English it reaches ten readers of eleven in a " +
+                        "language they did not choose: <$item>",
+                    lang == "values" || "new message" !in item,
+                )
+            }
+            // TranslationParityTest compares format arguments on <string> only: for these two
+            // plurals, this exact set is the only check that a translation asks for no argument
+            // the caller does not pass.
+            withAccount.forEach { (quantity, item) ->
+                assertEquals(
+                    "$lang/$quantity: the count and the account, nothing else: <$item>",
+                    setOf("%1\$d", "%2\$s"),
+                    placeholdersIn(item),
+                )
+            }
+            noAccount.forEach { (quantity, item) ->
+                assertEquals(
+                    "$lang/$quantity: it must carry the count and nothing else — a %2\$s here " +
+                        "throws IllegalFormatException on a summary posted with one argument: <$item>",
+                    setOf("%1\$d"),
+                    placeholdersIn(item),
+                )
+            }
         }
+    }
+
+    private fun placeholdersIn(item: String): Set<String> =
+        Regex("%\\d+\\$[a-zA-Z]").findAll(item).map { it.value }.toSet()
+
+    /** quantity → text of the items of `<plurals name="[name]">` in [xml], or null if there is none. */
+    private fun pluralItems(xml: String, name: String): Map<String, String>? {
+        val block = Regex(
+            "<plurals\\s+name=\"${Regex.escape(name)}\"[^>]*>(.*?)</plurals>",
+            RegexOption.DOT_MATCHES_ALL,
+        ).find(xml) ?: return null
+        return Regex("<item\\s+quantity=\"([a-z]+)\"[^>]*>(.*?)</item>", RegexOption.DOT_MATCHES_ALL)
+            .findAll(block.groupValues[1])
+            .associate { it.groupValues[1] to it.groupValues[2] }
     }
 
     @Test fun `the diff pass hands the summary the setting it read and the drawer's label`() {

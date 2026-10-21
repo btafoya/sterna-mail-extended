@@ -457,8 +457,18 @@
     <string name="settings_quiet_hours_subtitle">В этот период новые письма по-прежнему приходят, но без звука, вибрации и всплывающих уведомлений.</string>
     <string name="settings_quiet_hours_start">Начало</string>
     <string name="settings_quiet_hours_end">Конец</string>
-    <string name="notif_group_count">%1$d новых сообщений · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d новых сообщений</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d новое сообщение · %2$s</item>
+        <item quantity="few">%1$d новых сообщения · %2$s</item>
+        <item quantity="many">%1$d новых сообщений · %2$s</item>
+        <item quantity="other">%1$d новых сообщения · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d новое сообщение</item>
+        <item quantity="few">%1$d новых сообщения</item>
+        <item quantity="many">%1$d новых сообщений</item>
+        <item quantity="other">%1$d новых сообщения</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Автоответчик</string>

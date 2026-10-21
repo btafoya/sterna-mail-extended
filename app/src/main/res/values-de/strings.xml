@@ -453,8 +453,14 @@
     <string name="settings_quiet_hours_subtitle">Während dieses Zeitraums kommen neue E-Mails weiterhin an, jedoch ohne Ton, Vibration oder Hinweis.</string>
     <string name="settings_quiet_hours_start">Beginn</string>
     <string name="settings_quiet_hours_end">Ende</string>
-    <string name="notif_group_count">%1$d neue Nachrichten · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d neue Nachrichten</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d neue Nachricht · %2$s</item>
+        <item quantity="other">%1$d neue Nachrichten · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d neue Nachricht</item>
+        <item quantity="other">%1$d neue Nachrichten</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Abwesenheitsnotiz</string>

@@ -623,8 +623,14 @@
     <string name="settings_quiet_hours_subtitle">Ebben az időszakban az új levelek megérkeznek, de hang, rezgés és felugró értesítés nélkül.</string>
     <string name="settings_quiet_hours_start">Kezdete</string>
     <string name="settings_quiet_hours_end">Vége</string>
-    <string name="notif_group_count">%1$d új üzenet · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d új üzenet</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d új üzenet · %2$s</item>
+        <item quantity="other">%1$d új üzenet · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d új üzenet</item>
+        <item quantity="other">%1$d új üzenet</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Távolléti válasz</string>

@@ -455,9 +455,9 @@ object Notifications {
         // name left to show, and its login is not one (#193).
         val account = accountLabel?.let { MailNotificationText.summaryAccountFor(content, it) }
         val title = if (account == null) {
-            context.getString(R.string.notif_group_count_no_account, count)
+            context.resources.getQuantityString(R.plurals.notif_group_count_no_account, count, count)
         } else {
-            context.getString(R.string.notif_group_count, count, account)
+            context.resources.getQuantityString(R.plurals.notif_group_count, count, count, account)
         }
         val style = NotificationCompat.InboxStyle().setBigContentTitle(title)
         lines.take(6).forEach { style.addLine(it) }

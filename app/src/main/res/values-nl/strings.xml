@@ -453,8 +453,14 @@
     <string name="settings_quiet_hours_subtitle">Tijdens dit venster komt nieuwe e-mail nog steeds binnen, maar zonder geluid, trilling of pop-upmelding.</string>
     <string name="settings_quiet_hours_start">Begin</string>
     <string name="settings_quiet_hours_end">Einde</string>
-    <string name="notif_group_count">%1$d nieuwe berichten · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d nieuwe berichten</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d nieuw bericht · %2$s</item>
+        <item quantity="other">%1$d nieuwe berichten · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d nieuw bericht</item>
+        <item quantity="other">%1$d nieuwe berichten</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Vakantiebeantwoorder</string>

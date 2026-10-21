@@ -455,8 +455,16 @@
     <string name="settings_quiet_hours_subtitle">Durante questo intervallo la nuova posta arriva comunque, ma senza suono, vibrazione o avviso in primo piano.</string>
     <string name="settings_quiet_hours_start">Inizio</string>
     <string name="settings_quiet_hours_end">Fine</string>
-    <string name="notif_group_count">%1$d nuovi messaggi · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d nuovi messaggi</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d nuovo messaggio · %2$s</item>
+        <item quantity="many">%1$d di nuovi messaggi · %2$s</item>
+        <item quantity="other">%1$d nuovi messaggi · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d nuovo messaggio</item>
+        <item quantity="many">%1$d di nuovi messaggi</item>
+        <item quantity="other">%1$d nuovi messaggi</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Risponditore automatico</string>

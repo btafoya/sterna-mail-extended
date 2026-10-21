@@ -455,8 +455,16 @@
     <string name="settings_quiet_hours_subtitle">Durante este intervalo, el correo nuevo sigue llegando pero sin sonido, vibración ni aviso emergente.</string>
     <string name="settings_quiet_hours_start">Inicio</string>
     <string name="settings_quiet_hours_end">Fin</string>
-    <string name="notif_group_count">%1$d mensajes nuevos · %2$s</string>
-    <string name="notif_group_count_no_account">%1$d mensajes nuevos</string>
+    <plurals name="notif_group_count">
+        <item quantity="one">%1$d mensaje nuevo · %2$s</item>
+        <item quantity="many">%1$d de mensajes nuevos · %2$s</item>
+        <item quantity="other">%1$d mensajes nuevos · %2$s</item>
+    </plurals>
+    <plurals name="notif_group_count_no_account">
+        <item quantity="one">%1$d mensaje nuevo</item>
+        <item quantity="many">%1$d de mensajes nuevos</item>
+        <item quantity="other">%1$d mensajes nuevos</item>
+    </plurals>
     <string name="notif_group_line">%1$s — %2$s</string>
     <string name="notif_account_folder">%1$s · %2$s</string>
     <string name="settings_vacation_screen_title">Respuesta de vacaciones</string>
