@@ -1630,9 +1630,9 @@ class InboxViewModel(
         patchThreadMembersSeen(setOf(email.emailKey()), targetSeen)
         viewModelScope.launch {
             val credentials = credentialsFor(email) ?: return@launch
-            runCatching { repo.setRead(credentials, email.id, targetSeen) }
+            val write = runCatching { repo.setRead(credentials, email.id, targetSeen) }
                 .onFailure { reportActionFailed("setRead (swipe)", it) }
-            if (targetSeen) dismissReadNotifications(listOf(email.emailKey()))
+            dismissReadNotifications(keysToDismiss(targetSeen, listOf(email.emailKey() to write)))
         }
     }
 
@@ -1863,12 +1863,14 @@ class InboxViewModel(
             val members = threadMessages(rep)
             val targetSeen = members.any { !it.isSeen }
             patchThreadMembersSeen(members.mapTo(mutableSetOf()) { it.emailKey() }, targetSeen)
+            val memberWrites = mutableListOf<Pair<EmailKey, Result<Unit>>>()
             members.forEach { m ->
                 val credentials = credentialsFor(m) ?: return@forEach
                 runCatching { repo.setRead(credentials, m.id, targetSeen) }
                     .onFailure { reportActionFailed("setRead (thread)", it) }
+                    .also { memberWrites += m.emailKey() to it }
             }
-            if (targetSeen) dismissReadNotifications(members.map { it.emailKey() })
+            dismissReadNotifications(keysToDismiss(targetSeen, memberWrites))
         }
     }
 
@@ -3222,13 +3224,15 @@ class InboxViewModel(
             // A key no row could be found for was never written: it counts as a failed attempt, or a
             // selection nothing resolved for lands on "nothing failed" and says nothing.
             var failed = resolved.unresolved.size
+            val written = mutableListOf<Pair<EmailKey, Result<Unit>>>()
             emails.forEach { email ->
                 val credentials = credentialsFor(email)
                 if (credentials == null) { failed++; return@forEach }
                 runCatching { repo.setRead(credentials, email.id, targetSeen) }
                     .onFailure { failed++; android.util.Log.w("SternaInbox", "setRead (selection) failed for ${email.id}", it) }
+                    .also { written += email.emailKey() to it }
             }
-            if (targetSeen) dismissReadNotifications(emails.map { it.emailKey() })
+            dismissReadNotifications(keysToDismiss(targetSeen, written))
             // Reflect the new state immediately so the toggle icon flips without re-selecting.
             _selectionAllRead.value = targetSeen
             // Partial and total are not the same news, counted over the whole selection, unresolved

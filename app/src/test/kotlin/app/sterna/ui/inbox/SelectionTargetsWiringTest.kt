@@ -119,10 +119,44 @@ class SelectionTargetsWiringTest {
     @Test fun `marking read takes the notifications of those messages with it`() {
         val body = body(INBOX_VIEW_MODEL, "toggleSelectedRead")
         assertEquals(
-            "marking read must take the notifications of the very messages acted on with it. " +
-                "Body was:\n$body",
-            listOf("if (targetSeen) dismissReadNotifications(emails.map { it.emailKey() })"),
+            "marking read must take down the banners of the messages whose write returned, and " +
+                "those alone. Body was:\n$body",
+            listOf("dismissReadNotifications(keysToDismiss(targetSeen, written))"),
             codeLinesNaming(body, "dismissReadNotifications("),
+        )
+        assertEquals(
+            "every write the loop makes must be collected with its own key. Body was:\n$body",
+            listOf(".also { written += email.emailKey() to it }"),
+            codeLinesNaming(body, "written +="),
+        )
+    }
+
+    @Test fun `a swipe takes the banner down only when its write returned`() {
+        val body = body(INBOX_VIEW_MODEL, "toggleRead")
+        assertEquals(
+            "toggleRead() must hand keysToDismiss the result of its own write. Body was:\n$body",
+            listOf("dismissReadNotifications(keysToDismiss(targetSeen, listOf(email.emailKey() to write)))"),
+            codeLinesNaming(body, "dismissReadNotifications("),
+        )
+        assertEquals(
+            "the result handed on must be the write's, not a constant. Body was:\n$body",
+            listOf("val write = runCatching { repo.setRead(credentials, email.id, targetSeen) }"),
+            codeLinesNaming(body, "repo.setRead("),
+        )
+    }
+
+    @Test fun `a thread takes down only the banners of the members whose write returned`() {
+        val body = body(INBOX_VIEW_MODEL, "toggleReadThread")
+        assertEquals(
+            "toggleReadThread() must take down the banners of the written members alone, not of " +
+                "every member. Body was:\n$body",
+            listOf("dismissReadNotifications(keysToDismiss(targetSeen, memberWrites))"),
+            codeLinesNaming(body, "dismissReadNotifications("),
+        )
+        assertEquals(
+            "every member's write must be collected with that member's key. Body was:\n$body",
+            listOf(".also { memberWrites += m.emailKey() to it }"),
+            codeLinesNaming(body, "memberWrites +="),
         )
     }
 
