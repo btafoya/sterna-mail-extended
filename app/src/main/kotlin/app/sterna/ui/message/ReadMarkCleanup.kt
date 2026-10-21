@@ -36,9 +36,8 @@ enum class ReadMarkCleanup {
 
 /**
  * The decision above, taken on the [write] of the read mark: `setRead` returns or it throws, and
- * nothing finer is on offer because `EmailDao.setSeen` returns `Unit`. Room hands back the count
- * of rows a `@Query` UPDATE touched as soon as one is declared to return `Int`, so this is a
- * choice and not a limit.
+ * the count of rows `EmailDao.setSeen` changed stays inside the repository, which spends it on the
+ * unread counters and does not hand it back.
  */
 fun readMarkCleanup(write: Result<Unit>): ReadMarkCleanup = when (write.exceptionOrNull()) {
     null -> ReadMarkCleanup.DISMISS

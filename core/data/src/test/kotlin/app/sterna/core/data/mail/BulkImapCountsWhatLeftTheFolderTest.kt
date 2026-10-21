@@ -105,14 +105,19 @@ class BulkImapCountsWhatLeftTheFolderTest {
                 cached.remove("${args[0] as String}/${args[1] as String}")
                 Unit
             }
-            // The three a \Seen store reads and writes. A row a ticket holds is not in the cache,
-            // so `seenOf` answers null and the folder's unread is left alone by that write.
-            "seenOf" -> cached["${args[0] as String}/${args[1] as String}"]?.seen
+            // The two a \Seen store reads and writes. A row a ticket holds is not in the cache,
+            // so `setSeen` changes nothing and the folder's unread is left alone by that write.
             "mailboxOf" -> cached["${args[0] as String}/${args[1] as String}"]?.mailboxId
             "setSeen" -> {
                 val key = "${args[0] as String}/${args[1] as String}"
-                cached[key]?.let { cached[key] = it.copy(seen = args[2] as Boolean) }
-                Unit
+                val seen = args[2] as Boolean
+                val before = cached[key]
+                if (before == null || before.seen == seen) {
+                    0
+                } else {
+                    cached[key] = before.copy(seen = seen)
+                    1
+                }
             }
             else -> error("EmailDao.${method.name} was called by a path that must not touch it.")
         }

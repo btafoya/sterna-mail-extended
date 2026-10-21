@@ -233,8 +233,8 @@ interface EmailDao {
         deleteRowsByIds(accountId, ids)
     }
 
-    @Query("UPDATE emails SET seen = :seen WHERE accountId = :accountId AND id = :id")
-    suspend fun setSeen(accountId: String, id: String, seen: Boolean)
+    @Query("UPDATE emails SET seen = :seen WHERE accountId = :accountId AND id = :id AND seen != :seen")
+    suspend fun setSeen(accountId: String, id: String, seen: Boolean): Int
 
     @Query("SELECT id FROM emails WHERE accountId = :accountId AND id IN (:ids) AND seen = 1")
     suspend fun readAmong(accountId: String, ids: List<String>): List<String>

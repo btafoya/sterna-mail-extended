@@ -314,10 +314,15 @@ class SwipeSurvivesProcessDeathTest {
             }
             "setSeen" -> {
                 val key = "${args[0]}/${args[1]}"
-                cached[key]?.let { cached[key] = it.copy(seen = args[2] as Boolean) }
-                Unit
+                val seen = args[2] as Boolean
+                val before = cached[key]
+                if (before == null || before.seen == seen) {
+                    0
+                } else {
+                    cached[key] = before.copy(seen = seen)
+                    1
+                }
             }
-            "seenOf" -> cached["${args[0]}/${args[1]}"]?.seen
             "mailboxOf" -> cached["${args[0]}/${args[1]}"]?.mailboxId
             "deleteById" -> {
                 cached.remove("${args[0]}/${args[1]}")

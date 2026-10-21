@@ -2727,13 +2727,11 @@ class MailRepository(
 
     suspend fun setRead(credentials: AccountCredentials, emailId: String, seen: Boolean) {
         markRecentlyMutated(credentials.id, emailId)
-        // Capture before the change, so the folder counter moves only on a real transition.
-        val wasSeen = emailDao.seenOf(credentials.id, emailId)
         val mailboxId = emailDao.mailboxOf(credentials.id, emailId)
         if (credentials.protocol == MailProtocol.IMAP) {
             imapTarget(emailId)?.let { (mb, uid) -> imap.setFlag(credentials, mb, uid, "\\Seen", seen) }
-            emailDao.setSeen(credentials.id, emailId, seen)
-            adjustFolderUnreadOnRead(credentials.id, mailboxId, wasSeen, seen)
+            val flipped = emailDao.setSeen(credentials.id, emailId, seen)
+            if (flipped > 0) adjustFolderUnreadOnRead(credentials.id, mailboxId, seen)
             return
         }
         val ctx = jmapSession(credentials)
@@ -2745,8 +2743,8 @@ class MailRepository(
             pruneServerGone(credentials.id, listOf(emailId))
             return
         }
-        emailDao.setSeen(credentials.id, emailId, seen)
-        adjustFolderUnreadOnRead(credentials.id, mailboxId, wasSeen, seen)
+        val changed = emailDao.setSeen(credentials.id, emailId, seen)
+        if (changed > 0) adjustFolderUnreadOnRead(credentials.id, mailboxId, seen)
         advanceEmailState(newState, credentials.id, mailboxId)
     }
 
@@ -2761,7 +2759,7 @@ class MailRepository(
         val ctx = jmapSession(credentials)
         // The chunk is the server's own limit, so [JmapClient.move] never has to re-split it.
         emailIds.chunked(ctx.session.setBatchSize()).forEach { chunk ->
-            // Captured before the write so only real transitions nudge the counters (#46). Chunked again
+            // Read for each row's folder only: its seen state may be stale by the answer. Chunked again
             // on purpose: the network limit above must not push this SELECT past SQLite's 999 bindings.
             val rows = byIdsChunked(chunk) { slice -> emailDao.emailsByIds(credentials.id, slice) }
                 .associateBy { it.id }
@@ -2769,8 +2767,11 @@ class MailRepository(
             val gone = chunk.filter { result.failed[it] == SET_ERROR_NOT_FOUND }
             if (gone.isNotEmpty()) pruneServerGone(credentials.id, gone)
             val done = chunk.filter { it in result.done }
-            done.forEach { markRecentlyMutated(credentials.id, it); emailDao.setSeen(credentials.id, it, seen) }
-            done.mapNotNull { rows[it] }.filter { it.seen != seen }
+            val flippedIds = done.filter { id ->
+                markRecentlyMutated(credentials.id, id)
+                emailDao.setSeen(credentials.id, id, seen) > 0
+            }
+            flippedIds.mapNotNull { rows[it] }
                 .groupBy { it.mailboxId }
                 .forEach { (mailboxId, group) ->
                     val delta = if (seen) -group.size else group.size
@@ -2781,9 +2782,10 @@ class MailRepository(
         }
     }
 
-    /** Keep the drawer's cached folder unread counter fresh; only moves on a real change (#46). */
-    private suspend fun adjustFolderUnreadOnRead(accountId: String, mailboxId: String?, wasSeen: Boolean?, seen: Boolean) {
-        if (mailboxId == null || wasSeen == null || wasSeen == seen) return
+    /** `setRead` calls this only once a conditional `EmailDao.setSeen` changed the row (`setReadAll` keeps the
+     *  same rule inline), so two racing marks count once (#46); `delete`'s mark-read-on-delete calls it unguarded. */
+    private suspend fun adjustFolderUnreadOnRead(accountId: String, mailboxId: String?, seen: Boolean) {
+        if (mailboxId == null) return
         val delta = if (seen) -1 else 1
         accountStore.adjustInboxUnread(accountId, mailboxId, delta)
         mailboxDao.adjustCounts(accountId, mailboxId, totalDelta = 0, unreadDelta = delta)
@@ -3906,7 +3908,7 @@ class MailRepository(
         recentLocalMoves.mark(credentials.id, emailId)
         emailDao.deleteById(credentials.id, emailId)
         // A flight took the source's unread at the finger; a cached row still owes it.
-        if (seenByMove && !moving.evicted) adjustFolderUnreadOnRead(credentials.id, mb, wasSeen = false, seen = true)
+        if (seenByMove && !moving.evicted) adjustFolderUnreadOnRead(credentials.id, mb, seen = true)
         adjustCountsForRemoval(listOfNotNull(row), trash, sourceAlreadyLeft = moving.evicted)
         advanceEmailState(newState, credentials.id, mb)
         return trash

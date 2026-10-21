@@ -1793,8 +1793,8 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     }
 
     companion object {
-        /** Read marks in flight, one per (account, message), shared by every instance: `anchorMarked` closes
-         *  only the one a rotation throws away, and a second mark takes the folder's unread count down twice. */
+        /** Read marks in flight from this reader, one per (account, message), shared by every instance: it saves
+         *  a rotated copy a second round trip and a second dismiss. The unread count is the repository's to keep. */
         private val markingRead = ConcurrentHashMap.newKeySet<Pair<String, String>>()
     }
 }
