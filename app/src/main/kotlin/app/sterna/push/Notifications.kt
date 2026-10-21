@@ -342,13 +342,16 @@ object Notifications {
             }
             return
         }
-        val lines = children.map { sbn ->
-            val sender = sbn.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
-                ?: context.getString(R.string.notif_new_message)
-            val subject = sbn.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-                ?: context.getString(R.string.message_no_subject)
-            context.getString(R.string.notif_group_line, sender, subject)
-        }
+        val lines = MailNotificationText.summaryLinesFor(
+            content,
+            children.map { sbn ->
+                val sender = sbn.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+                    ?: context.getString(R.string.notif_new_message)
+                val subject = sbn.notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                    ?: context.getString(R.string.message_no_subject)
+                context.getString(R.string.notif_group_line, sender, subject)
+            },
+        )
         notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)
     }
 

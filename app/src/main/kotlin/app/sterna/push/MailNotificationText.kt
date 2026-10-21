@@ -103,6 +103,15 @@ object MailNotificationText {
         NotificationContent.NONE -> null
     }
 
+    /** Decided on the setting, not the banners: one posted before a switch to NONE keeps its subject. */
+    fun summaryLinesFor(content: NotificationContent, lines: List<String>): List<String> = when (content) {
+        NotificationContent.BODY_PREVIEW,
+        NotificationContent.SENDER_AND_SUBJECT,
+        NotificationContent.SENDER_ONLY,
+        -> lines
+        NotificationContent.NONE -> emptyList()
+    }
+
     /** One row of the latest-mail widget. */
     data class WidgetRow(val primary: String, val secondary: String?, val namesSender: Boolean)
 

@@ -203,6 +203,44 @@ class MailSubTextTest {
         )
     }
 
+    // -- the group summary's expanded lines ------------------------------------------------------
+
+    @Test fun `the summary keeps its lines wherever the setting reveals anything`() {
+        val lines = listOf("Alice — Lunch", "Bob — Invoice")
+        telling.forEach { content ->
+            assertEquals("$content", lines, MailNotificationText.summaryLinesFor(content, lines))
+        }
+    }
+
+    @Test fun `the summary prints no line under no sender or subject`() {
+        assertEquals(
+            "one line per message, even \"New message — (no subject)\", says more than that new " +
+                "mail arrived; and a banner posted under an earlier setting still carries its " +
+                "subject, so the decision is the setting's, never the banner's",
+            emptyList<String>(),
+            MailNotificationText.summaryLinesFor(NotificationContent.NONE, listOf("Alice — Lunch")),
+        )
+    }
+
+    @Test fun `what the summary's lines may show, position by position`() {
+        val lines = listOf("Alice — Lunch")
+        val expected = mapOf(
+            NotificationContent.BODY_PREVIEW to lines,
+            NotificationContent.SENDER_AND_SUBJECT to lines,
+            NotificationContent.SENDER_ONLY to lines,
+            NotificationContent.NONE to emptyList(),
+        )
+        assertEquals(
+            "a position was added to the setting without deciding what the summary's lines may show there",
+            NotificationContent.entries.toSet(),
+            expected.keys,
+        )
+        assertEquals(
+            expected,
+            NotificationContent.entries.associateWith { MailNotificationText.summaryLinesFor(it, lines) },
+        )
+    }
+
     @Test fun `the account name is the drawer's, falling back to the address when left blank`() {
         val named = StoredAccount(id = "a", server = "s", username = "me@example.test", accountName = PERSO)
         val unnamed = StoredAccount(id = "b", server = "s", username = "me@example.test", accountName = " ")

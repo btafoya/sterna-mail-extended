@@ -8,12 +8,14 @@ import java.io.File
 /**
  * Codeberg #84 for the group summary: "No sender or subject" promises just that new mail arrived,
  * and the summary above the banners was still printing the account label three times: headline,
- * collapsed line, and the big title of its InboxStyle.
+ * collapsed line, and the big title of its InboxStyle. The fourth surface is its expanded lines,
+ * one per banner, which under that setting each read "New message" followed by "(no subject)".
  *
  * Source lint, the last resort: posting a summary needs a NotificationManager and a resource
- * lookup, neither of which exists in a JVM test. The decision it wires up, what the setting lets
- * the summary name, is executed in [MailSubTextTest]; this file only pins that the decision is
- * what reaches the builder, and that every path re-posting a summary hands the setting over.
+ * lookup, neither of which exists in a JVM test. The two decisions it wires up, what the setting
+ * lets the summary name and which lines it may print, are executed in [MailSubTextTest]; this file
+ * only pins that the decisions are what reach the builder, and that every path re-posting a
+ * summary hands the setting over.
  *
  * It has since grown a second charge on `maybeMarkRead`, the same instrument for the same reason:
  * that the banner of a message just read is cleared only when the write of the read mark returned.
@@ -370,6 +372,37 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 "every other mailbox of that account",
             emptyList<String>(),
             codeLinesNaming(body, "it.username"),
+        )
+    }
+
+    @Test fun `the summary's expanded lines come from the decision, fed the setting`() {
+        val body = bodyOf(NOTIFICATIONS, "updateGroupSummary")
+        assertEquals(
+            "the lines are built inside the decision's call and handed it the setting: under " +
+                "\"No sender or subject\" the banners carry no text, and a line built from them " +
+                "anyway reads \"New message — (no subject)\" once per message, under mail that " +
+                "has a subject. Pinning the call without `content,` would let a constant in",
+            listOf("val lines = MailNotificationText.summaryLinesFor(", "content,"),
+            callLines(body, "MailNotificationText.summaryLinesFor(").take(2),
+        )
+        assertEquals(
+            "…and `lines` is named exactly twice: the decision's answer, and what the summary " +
+                "posts. A second `val lines` or a raw `children.map` handed to `notifyGroupSummary` " +
+                "goes around the decision",
+            listOf(
+                "val lines = MailNotificationText.summaryLinesFor(",
+                "notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)",
+            ),
+            codeLinesNaming(body, "lines"),
+        )
+        assertEquals(
+            "…and the setting reaches the body's two consumers, nothing else: the decision on the " +
+                "lines and the summary's own headline",
+            listOf(
+                "content,",
+                "notifyGroupSummary(context, accountId, accountLabel, content, live.size, lines, silent)",
+            ),
+            codeLinesNaming(body, "content"),
         )
     }
 
