@@ -268,15 +268,15 @@ class LiveBannerSurvivesItsSummaryWiringTest {
                 "read the shade BEFORE its cancel and subtract the message it is dismissing. " +
                 "`liveChildIdsAfter` strips both id shapes of `emailId`, so the pre-read is " +
                 "exactly what remains. Reading after the cancel replays the very race being " +
-                "fixed, inside the fix",
+                "fixed, inside the fix. The setting is read on a leash: unbounded, a slow cold " +
+                "read holds the broadcast past its budget and the summary keeps its old count",
             listOf(
                 "{",
                 "val active = Notifications.activeChildIds(context, accountId)",
                 "NotificationManagerCompat.from(context).cancel(notifId)",
                 "if (credentials != null) {",
                 "val container = (context.applicationContext as SternaApplication).container",
-                "val content = runCatching { container.settingsRepository.notificationContent.first() }",
-                ".getOrDefault(NotificationContent.NONE)",
+                "val content = readContentWithin(container.settingsRepository.notificationContent, CONTENT_BUDGET_MS)",
                 "Notifications.updateGroupSummary(",
                 "context, accountId, container.accountStore.account(accountId)?.label(), content,",
                 "silent = true,",

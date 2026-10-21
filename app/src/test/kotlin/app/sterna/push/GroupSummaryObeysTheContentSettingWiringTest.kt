@@ -360,12 +360,11 @@ class GroupSummaryObeysTheContentSettingWiringTest {
                 "the path with nothing on screen to compare against: without the setting here the " +
                 "account's name comes back the instant a banner is acted on",
             listOf(
-                "val content = runCatching { container.settingsRepository.notificationContent.first() }",
-                ".getOrDefault(NotificationContent.NONE)",
+                "val content = readContentWithin(container.settingsRepository.notificationContent, CONTENT_BUDGET_MS)",
                 "Notifications.updateGroupSummary(",
                 "context, accountId, container.accountStore.account(accountId)?.label(), content,",
             ),
-            codeLinesNaming(body, "").subList(5, 9),
+            codeLinesNaming(body, "").subList(5, 8),
         )
         assertEquals(
             "…and the login is gone from this call: it named the group by an address shared with " +

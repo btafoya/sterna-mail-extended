@@ -183,8 +183,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             // Re-posting the summary owes the setting the same reading, and the same guard, as the
             // banner it stands over (#84); the account is named as its banners name it (#193).
             val container = (context.applicationContext as SternaApplication).container
-            val content = runCatching { container.settingsRepository.notificationContent.first() }
-                .getOrDefault(NotificationContent.NONE)
+            val content = readContentWithin(container.settingsRepository.notificationContent, CONTENT_BUDGET_MS)
             Notifications.updateGroupSummary(
                 context, accountId, container.accountStore.account(accountId)?.label(), content,
                 silent = true,
@@ -206,5 +205,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         /** The leash on the threading fetch, well under goAsync's budget, deliberately. */
         private const val FETCH_BUDGET_MS = 5_000L
+        internal const val CONTENT_BUDGET_MS = 2_000L
     }
 }
