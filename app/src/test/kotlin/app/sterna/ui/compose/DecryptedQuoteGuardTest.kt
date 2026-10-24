@@ -180,7 +180,7 @@ class DecryptedQuoteGuardTest {
         assertFalse(guard.held.value)
     }
 
-    @Test fun `once remembered it is never lowered`() {
+    @Test fun `once remembered nothing but lower() lowers it`() {
         val guard = DecryptedQuoteGuard()
         guard.offer(decrypted)
         guard.landed()
@@ -188,6 +188,90 @@ class DecryptedQuoteGuardTest {
         guard.landed()
         guard.restore(false)
         assertTrue(guard.held.value)
+        guard.lower()
+        assertFalse("the user's confirmation left the quote guarded", guard.held.value)
+    }
+
+    @Test fun `once lowered the same quote landing again does not raise it`() {
+        val guard = DecryptedQuoteGuard()
+        guard.offer(decrypted)
+        guard.landed()
+        guard.lower()
+        assertFalse("a second landing of the quote raised the fact over the user's answer", guard.landed())
+        assertFalse(guard.held.value)
+    }
+
+    @Test fun `an Undo of a send that left guarded raises it again after a lowering`() {
+        val guard = DecryptedQuoteGuard()
+        guard.offer(decrypted)
+        guard.landed()
+        guard.lower()
+        guard.restore(true)
+        assertTrue(guard.held.value)
+    }
+
+    // --- the question ----------------------------------------------------------------------------
+
+    private fun heldGuard() = DecryptedQuoteGuard().apply { offer(decrypted); landed() }
+
+    @Test fun `confirming lowers the guard and hands back the gesture asked`() {
+        QuoteInClearGesture.entries.forEach { gesture ->
+            val guard = heldGuard()
+            val question = QuoteInClearQuestion(guard)
+            question.ask(gesture)
+            assertEquals(gesture, question.pending.value)
+            assertEquals(gesture, question.confirm(refusal))
+            assertFalse("$gesture: the confirmation did not lower the guard", guard.held.value)
+            assertNull("$gesture: the question stayed up after its answer", question.pending.value)
+        }
+    }
+
+    @Test fun `going back leaves the guard held`() {
+        val guard = heldGuard()
+        val question = QuoteInClearQuestion(guard)
+        question.ask(QuoteInClearGesture.SEND)
+        question.dismiss()
+        assertNull(question.pending.value)
+        assertTrue(guard.held.value)
+    }
+
+    @Test fun `a confirmation with nothing asked lowers nothing and resumes nothing`() {
+        val guard = heldGuard()
+        assertNull(QuoteInClearQuestion(guard).confirm(refusal))
+        assertTrue(guard.held.value)
+    }
+
+    @Test fun `the question withdraws itself once nothing refuses the body, the guard kept`() {
+        val guard = heldGuard()
+        val question = QuoteInClearQuestion(guard)
+        question.ask(QuoteInClearGesture.SCHEDULE)
+        question.refusalIs(refusal)
+        assertEquals("the question left while the body was still refused", QuoteInClearGesture.SCHEDULE, question.pending.value)
+        question.refusalIs(null)
+        assertNull("the question stayed up over a lock that turned encrypting", question.pending.value)
+        assertTrue("withdrawing the question lowered the guard", guard.held.value)
+    }
+
+    @Test fun `a confirmation once nothing refuses the body lowers nothing and resumes nothing`() {
+        val guard = heldGuard()
+        val question = QuoteInClearQuestion(guard)
+        question.ask(QuoteInClearGesture.DRAFT)
+        assertNull("a gesture was resumed that no longer needed the answer", question.confirm(null))
+        assertNull(question.pending.value)
+        assertTrue("an answer to a question no longer due lowered the guard", guard.held.value)
+    }
+
+    @Test fun `a refused body asks, and only an accepted one goes on`() {
+        QuoteInClearGesture.entries.forEach { gesture ->
+            val asked = mutableListOf<QuoteInClearGesture>()
+            var proceeded = 0
+            askBeforeQuoteInClear(refusal, gesture, { asked += it }, { proceeded++ })
+            assertEquals(listOf(gesture), asked)
+            assertEquals("$gesture went on without asking", 0, proceeded)
+            askBeforeQuoteInClear(null, gesture, { asked += it }, { proceeded++ })
+            assertEquals("$gesture asked of a body nothing refuses", listOf(gesture), asked)
+            assertEquals(1, proceeded)
+        }
     }
 
     @Test fun `an undone send comes back as it left`() {
@@ -294,9 +378,11 @@ class DecryptedQuoteGuardTest {
     @Test fun `the composer feeds each decision the fact and the mode in force`() {
         val vm = code(VIEW_MODEL)
         assertEquals(
-            "the refusal is asked somewhere else than the send, the draft and the schedule, or of something " +
-                "other than the fact and the mode: the send must ask the mode it captured, never a second read",
+            "the refusal is asked somewhere else than the question, the send, the draft and the schedule, or of " +
+                "something other than the fact and the mode: the send must ask the mode it captured, never a second read",
             listOf(
+                QuoteInClearWiringTest.CONFIRM,
+                QuoteInClearWiringTest.WITHDRAW,
                 "decryptedQuoteRefusal(decryptedQuote.held.value, mode)?.let { error(getApplication<Application>().getString(it)) }",
                 "val refusal = decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value) ?: scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true",
                 "decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value)?.let {",
@@ -375,11 +461,14 @@ class DecryptedQuoteGuardTest {
             screen.filter { it.startsWith("val quotesDecrypted") },
         )
         assertEquals(
-            "the refusal is no longer the leave dialog's body and the composer's standing line",
+            "the refusal is no longer the leave dialog's body, the composer's standing line and the three gestures' question",
             listOf(
                 "val quoteRefusal = decryptedQuoteRefusal(quotesDecrypted, pgpMode)",
+                QuoteInClearWiringTest.SEND_ASKS,
                 "val mayKeepDraft = draftSaveAllowed(pgpMode) && quoteRefusal == null",
                 "quoteRefusal ?: when (wording) {",
+                QuoteInClearWiringTest.DRAFT_TAP,
+                QuoteInClearWiringTest.SCHEDULE_TAP,
                 "quoteRefusal?.let { refusal ->",
                 "stringResource(refusal),",
             ),

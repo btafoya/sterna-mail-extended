@@ -974,7 +974,9 @@
     <string name="compose_pgp_subject_note">A tárgy nincs titkosítva.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ez az üzenet nem lesz titkosítva: nincs nyilvános kulcs a következőhöz: %1$s.</string>
     <string name="compose_pgp_no_draft">A titkosított üzenetek nem menthetők piszkozatként, és nem ütemezhetők.</string>
-    <string name="compose_decrypted_quote_needs_encryption">Ez a válasz titkosított üzenetet idéz, ezért csak titkosítva küldhető el.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Ez a válasz titkosított üzenetet idéz: titkosítás nélkül csak megerősítés után küldhető el vagy menthető.</string>
+    <string name="compose_quote_in_clear_message">Ez a válasz egy titkosított üzenetet idéz. Folytatja titkosítás nélkül? Az idézet ekkor titkosítatlanul megy el, és úgy marad meg, mint bármely más válasz.</string>
+    <string name="compose_quote_in_clear_confirm">Folytatás titkosítás nélkül</string>
     <string name="compose_pgp_no_schedule">Az aláírt vagy titkosított üzenetek nem ütemezhetők: a későbbi küldés OpenPGP nélkül történik.</string>
     <string name="compose_schedule_needs_recipient">Előbb adjon meg egy címzettet.</string>
     <string name="compose_schedule_invalid_address">Az egyik cím érvénytelen. Előbb javítsa ki.</string>

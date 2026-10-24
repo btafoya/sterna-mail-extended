@@ -151,7 +151,8 @@ Running your own server, with a free certificate or one you issued yourself? See
   own storage until the cache is cleared, and one you save goes to the folder
   you pick and stays there.
   Printing a message, or saving it as a PDF, hands its decrypted text to the
-  system print service. See the [encryption guide](ENCRYPTION.md) to get started.
+  system print service. A reply quoting decrypted text that you confirm sending
+  or saving unencrypted is stored like any other reply. See the [encryption guide](ENCRYPTION.md) to get started.
 - **S/MIME**: the signature of a received message is checked when you open it,
   on both JMAP and IMAP. A message encrypted for your RSA certificate is
   decrypted with that certificate, installed in Android's settings and picked

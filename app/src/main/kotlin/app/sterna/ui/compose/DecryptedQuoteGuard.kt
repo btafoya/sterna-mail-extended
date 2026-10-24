@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Whether this composer's body ever took a quote of decrypted text. A fact of the composer, not of
- * the text: nothing can tell how much of the clear an edit left behind, so it is never lowered.
+ * the text: nothing can tell how much of the clear an edit left behind, so no edit lowers it. Only
+ * the user does, through [lower], by confirming that the quote may leave in clear.
  */
 internal class DecryptedQuoteGuard {
     private var offered = false
@@ -38,11 +39,74 @@ internal class DecryptedQuoteGuard {
     /**
      * A message handed back to a composer with its body, an undone send, keeps what it was. The
      * scheduled send's record carries the fact as well, though no mode schedules such a body: an
-     * Undo must never hand the quote back to a composer unguarded.
+     * Undo must never hand a quote that left guarded back to a composer unguarded.
      */
     fun restore(held: Boolean) {
         if (held) _held.value = true
     }
+
+    /**
+     * The user confirmed that the quote may leave in clear. `offered` drops with the fact: a later
+     * `ComposeViewModel.onQuoteInBody` for the same quote would otherwise have [landed] raise it
+     * again and close the lock over the user's answer.
+     */
+    fun lower() {
+        offered = false
+        _held.value = false
+    }
+}
+
+/** The gesture held back by the question about a decrypted quote, resumed once it is confirmed. */
+enum class QuoteInClearGesture { SEND, DRAFT, SCHEDULE }
+
+/**
+ * The question asked before a body quoting decrypted text leaves in clear. Kept by the view model
+ * like the composer's other dialog flags: it survives a rotation and dies with the process.
+ */
+internal class QuoteInClearQuestion(private val guard: DecryptedQuoteGuard) {
+    private val _pending = MutableStateFlow<QuoteInClearGesture?>(null)
+    val pending: StateFlow<QuoteInClearGesture?> = _pending.asStateFlow()
+
+    fun ask(gesture: QuoteInClearGesture) {
+        _pending.value = gesture
+    }
+
+    fun dismiss() {
+        _pending.value = null
+    }
+
+    /**
+     * Lowers the guard before handing back the gesture to resume, or null when nothing was asked.
+     * Under no [refusal] any more, nothing is lowered and nothing resumed: the gesture would no
+     * longer need the answer, or would meet a refusal the question never named.
+     */
+    fun confirm(refusal: Int?): QuoteInClearGesture? {
+        val gesture = _pending.value ?: return null
+        _pending.value = null
+        if (refusal == null) return null
+        guard.lower()
+        return gesture
+    }
+
+    /** Withdraws the question, guard kept, once [refusal] is gone: a lock that turned encrypting answered it. */
+    fun refusalIs(refusal: Int?) {
+        if (refusal == null) _pending.value = null
+    }
+}
+
+/**
+ * Asks [gesture]'s question while the body is refused by [decryptedQuoteRefusal], else goes on. The
+ * view model's three refusals stay behind it, for a gesture that reaches them without asking. A
+ * refusal the answer could not lift is said before the question, or the guard is lowered for a
+ * gesture refused anyway: `ComposeViewModel.scheduleRefusedOrSay` for the schedule.
+ */
+internal fun askBeforeQuoteInClear(
+    refusal: Int?,
+    gesture: QuoteInClearGesture,
+    ask: (QuoteInClearGesture) -> Unit,
+    proceed: () -> Unit,
+) {
+    if (refusal != null) ask(gesture) else proceed()
 }
 
 /**

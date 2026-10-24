@@ -982,7 +982,9 @@
     <string name="compose_pgp_subject_note">The subject is not encrypted.</string>
     <string name="compose_pgp_not_encrypted_no_key">This message won\'t be encrypted: no public key for %1$s.</string>
     <string name="compose_pgp_no_draft">Encrypted messages can\'t be saved as drafts or scheduled.</string>
-    <string name="compose_decrypted_quote_needs_encryption">This reply quotes an encrypted message, so it can only be sent encrypted.</string>
+    <string name="compose_decrypted_quote_needs_encryption">This reply quotes an encrypted message: it will only be sent or saved unencrypted once you confirm.</string>
+    <string name="compose_quote_in_clear_message">This reply quotes a message that was encrypted. Continue without encryption? The quote then leaves unencrypted and is kept like any other reply.</string>
+    <string name="compose_quote_in_clear_confirm">Continue unencrypted</string>
     <string name="compose_pgp_no_schedule">Signed or encrypted messages can\'t be scheduled: sending later happens without OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Add a recipient first.</string>
     <string name="compose_schedule_invalid_address">One of the addresses isn\'t valid. Correct it first.</string>

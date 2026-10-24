@@ -801,7 +801,9 @@
     <string name="compose_pgp_subject_note">O assunto não é criptografado.</string>
     <string name="compose_pgp_not_encrypted_no_key">Esta mensagem não será cifrada: sem chave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Mensagens criptografadas não podem ser salvas como rascunho nem agendadas.</string>
-    <string name="compose_decrypted_quote_needs_encryption">Esta resposta cita uma mensagem criptografada, por isso só pode ser enviada criptografada.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Esta resposta cita uma mensagem criptografada: só será enviada ou guardada sem criptografia depois da sua confirmação.</string>
+    <string name="compose_quote_in_clear_message">Esta resposta cita uma mensagem que estava criptografada. Continuar sem criptografia? A citação será então enviada sem criptografia e guardada como qualquer outra resposta.</string>
+    <string name="compose_quote_in_clear_confirm">Continuar sem criptografia</string>
     <string name="compose_pgp_no_schedule">Mensagens assinadas ou criptografadas não podem ser agendadas: o envio posterior é feito sem OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Adicione primeiro um destinatário.</string>
     <string name="compose_schedule_invalid_address">Um dos endereços não é válido. Corrija-o primeiro.</string>

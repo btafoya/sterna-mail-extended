@@ -189,7 +189,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
 - ✅ OpenPGP through an external OpenPGP app: decrypt, verify, sign and encrypt
   (PGP/MIME) on both protocols. Decrypted content, OpenPGP or S/MIME alike, is
-  never written to disk, except an attachment you open or save. Subjects are not
+  never written to disk, except an attachment you open or save, or a reply you
+  confirm sending unencrypted. Subjects are not
   encrypted. Guide:
   [ENCRYPTION.md](ENCRYPTION.md).
 - ✅ S/MIME on received messages, on both protocols: signature check against the

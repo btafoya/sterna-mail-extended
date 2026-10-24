@@ -244,6 +244,7 @@ fun ComposeScreen(
     val showDiscard by viewModel.pendingDiscard.collectAsStateWithLifecycle()
     val showForgotAttachment by viewModel.pendingForgotAttachment.collectAsStateWithLifecycle()
     val showManyRecipients by viewModel.pendingManyRecipients.collectAsStateWithLifecycle()
+    val quoteInClear by viewModel.pendingQuoteInClear.collectAsStateWithLifecycle()
     // The "pick date and time" pair (#161): the calendar, then the clock, and the day chosen between
     // the two. All three are the ViewModel's for the reason above, and the day especially: a
     // rotation between the two dialogs would lose it and bring the clock back over nothing.
@@ -683,12 +684,47 @@ fun ComposeScreen(
     val proceedAfterAttachment = {
         if (recipientCount >= MANY_RECIPIENTS) viewModel.askManyRecipients() else sendNow()
     }
-    val attemptSend = {
+    val attemptSendPastQuote = {
         if (attachments.isEmpty() && mentionsAttachment("${subject.text}\n${body.text}")) {
             viewModel.askForgotAttachment()
         } else {
             proceedAfterAttachment()
         }
+    }
+    val attemptSend = { askBeforeQuoteInClear(quoteRefusal, QuoteInClearGesture.SEND, viewModel::askQuoteInClear, attemptSendPastQuote) }
+    val saveDraftNow = { viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) }
+
+    // Here and not in the toolbar's Box: the question about a decrypted quote, drawn at this level,
+    // opens the presets once it is confirmed.
+    var scheduleMenu by remember { mutableStateOf(false) }
+    // The instant the preset list is drawn for, stamped when the presets open, not
+    // at the ⋮, or the time spent reading the menu is added to the presets' expiry.
+    // State, not a call in the composition: the wall clock is not snapshot state,
+    // and re-stamping is what redraws the menu after a refused tap.
+    var menuOpenedAt by remember { mutableLongStateOf(0L) }
+    val openSchedulePresets = { if (viewModel.mayScheduleOrSay(to, cc, bcc)) { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } }
+
+    // The gesture resumed is asked past the quote: `quoteRefusal` is still this composition's.
+    if (quoteInClear != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissQuoteInClear() },
+            text = { Text(stringResource(R.string.compose_quote_in_clear_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    when (viewModel.confirmQuoteInClear()) {
+                        QuoteInClearGesture.SEND -> attemptSendPastQuote()
+                        QuoteInClearGesture.DRAFT -> saveDraftNow()
+                        QuoteInClearGesture.SCHEDULE -> openSchedulePresets()
+                        null -> Unit
+                    }
+                }) { Text(stringResource(R.string.compose_quote_in_clear_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissQuoteInClear() }) {
+                    Text(stringResource(R.string.compose_forgot_attachment_back))
+                }
+            },
+        )
     }
 
     if (showForgotAttachment) {
@@ -1050,12 +1086,6 @@ fun ComposeScreen(
                     // a large font scale it was clipped in the middle of a word. Save, "send later"
                     Box {
                         var moreMenu by remember { mutableStateOf(false) }
-                        var scheduleMenu by remember { mutableStateOf(false) }
-                        // The instant the preset list is drawn for, stamped when the presets open, not
-                        // at the ⋮, or the time spent reading the menu is added to the presets' expiry.
-                        // State, not a call in the composition: the wall clock is not snapshot state,
-                        // and re-stamping is what redraws the menu after a refused tap.
-                        var menuOpenedAt by remember { mutableLongStateOf(0L) }
                         IconButton(onClick = { moreMenu = true }, enabled = !sending) {
                             Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_more))
                         }
@@ -1069,7 +1099,7 @@ fun ComposeScreen(
                             if (draftSaveAllowed(pgpMode)) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.compose_save_draft)) },
-                                    onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },
+                                    onClick = { moreMenu = false; askBeforeQuoteInClear(quoteRefusal, QuoteInClearGesture.DRAFT, viewModel::askQuoteInClear, saveDraftNow) },
                                     enabled = !sending && canSaveDraft,
                                 )
                             }
@@ -1077,7 +1107,7 @@ fun ComposeScreen(
                             // menu and opens the presets beside it, no submenu nested inside an overflow.
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.compose_schedule_send)) },
-                                onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },
+                                onClick = { moreMenu = false; if (!viewModel.scheduleRefusedOrSay(to, cc, bcc)) askBeforeQuoteInClear(quoteRefusal, QuoteInClearGesture.SCHEDULE, viewModel::askQuoteInClear, openSchedulePresets) },
                                 enabled = !sending,
                             )
                             // Deleting the draft (#127). Outside the draftSaveAllowed block: a delete

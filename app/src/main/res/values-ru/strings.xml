@@ -807,7 +807,9 @@
     <string name="compose_pgp_subject_note">Тема письма не шифруется.</string>
     <string name="compose_pgp_not_encrypted_no_key">Это письмо не будет зашифровано: нет открытого ключа для %1$s.</string>
     <string name="compose_pgp_no_draft">Зашифрованные письма нельзя сохранить как черновик или запланировать.</string>
-    <string name="compose_decrypted_quote_needs_encryption">В этом ответе цитируется зашифрованное письмо, поэтому его можно отправить только зашифрованным.</string>
+    <string name="compose_decrypted_quote_needs_encryption">В этом ответе цитируется зашифрованное письмо: без шифрования он будет отправлен или сохранён только после вашего подтверждения.</string>
+    <string name="compose_quote_in_clear_message">В этом ответе цитируется письмо, которое было зашифровано. Продолжить без шифрования? Цитата уйдёт незашифрованной и будет храниться как любой другой ответ.</string>
+    <string name="compose_quote_in_clear_confirm">Продолжить без шифрования</string>
     <string name="compose_pgp_no_schedule">Подписанные или зашифрованные письма нельзя запланировать: отложенная отправка идёт без OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Сначала добавьте получателя.</string>
     <string name="compose_schedule_invalid_address">Один из адресов недействителен. Сначала исправьте его.</string>

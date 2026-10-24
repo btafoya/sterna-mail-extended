@@ -807,7 +807,9 @@
     <string name="compose_pgp_subject_note">Temat nie jest szyfrowany.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ta wiadomość nie zostanie zaszyfrowana: brak klucza publicznego dla %1$s.</string>
     <string name="compose_pgp_no_draft">Zaszyfrowanych wiadomości nie można zapisać jako wersji roboczej ani zaplanować.</string>
-    <string name="compose_decrypted_quote_needs_encryption">Ta odpowiedź cytuje zaszyfrowaną wiadomość, więc można ją wysłać tylko zaszyfrowaną.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Ta odpowiedź cytuje zaszyfrowaną wiadomość: bez szyfrowania zostanie wysłana lub zapisana dopiero po potwierdzeniu.</string>
+    <string name="compose_quote_in_clear_message">Ta odpowiedź cytuje wiadomość, która była zaszyfrowana. Kontynuować bez szyfrowania? Cytat zostanie wtedy wysłany bez szyfrowania i zachowany jak każda inna odpowiedź.</string>
+    <string name="compose_quote_in_clear_confirm">Kontynuuj bez szyfrowania</string>
     <string name="compose_pgp_no_schedule">Wiadomości podpisanych ani zaszyfrowanych nie można zaplanować: wysyłka później odbywa się bez OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Najpierw dodaj odbiorcę.</string>
     <string name="compose_schedule_invalid_address">Jeden z adresów jest nieprawidłowy. Najpierw go popraw.</string>

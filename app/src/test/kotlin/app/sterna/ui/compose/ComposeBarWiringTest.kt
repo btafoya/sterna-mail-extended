@@ -109,7 +109,7 @@ class ComposeBarWiringTest {
         )
         assertEquals(
             "the 'Schedule send' entry's tap must be exactly:\n    $SCHEDULE_TAP\n⛔ " +
-                "`menuOpenedAt` is stamped HERE, when the PRESETS open — never when the ⋮ opens. " +
+                "`menuOpenedAt` is stamped by `openSchedulePresets`, when the PRESETS open — never when the ⋮ opens. " +
                 "Stamped at the ⋮, the whole time spent reading the overflow is added to the " +
                 "presets' expiry: an entry drawn for 6 PM and tapped at 6:05 reaches " +
                 "`ScheduledSends.enqueue` as a past instant, which coerces the delay to zero — " +
@@ -311,11 +311,8 @@ class ComposeBarWiringTest {
             "enabled = !sending,",
         )
 
-        private const val SAVE_TAP =
-            "onClick = { moreMenu = false; viewModel.saveDraft(to, cc, bcc, subject.text, rich, requestReceipt) },"
-        private const val SCHEDULE_TAP =
-            "onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { " +
-                "menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },"
+        private const val SAVE_TAP = QuoteInClearWiringTest.DRAFT_TAP
+        private const val SCHEDULE_TAP = QuoteInClearWiringTest.SCHEDULE_TAP
         private const val DELETE_TAP = "onClick = { moreMenu = false; viewModel.askDraftDelete() },"
 
         private const val EXPANDED_MORE = "expanded = moreMenu,"

@@ -43,7 +43,9 @@ Two limits worth knowing up front:
   writes it, decrypted, into the folder you pick — outside the app, where
   clearing the cache does not reach it. Printing or saving a decrypted message as
   PDF hands its plain text to the system print service. All three happen only on
-  your request.
+  your request. A reply that quotes the decrypted text is the fourth case: if
+  you confirm sending or saving it without encryption, the quote is stored like
+  any other reply (draft, outbox, Sent).
 
 ## What you need: two apps
 

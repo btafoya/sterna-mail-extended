@@ -801,7 +801,9 @@
     <string name="compose_pgp_subject_note">El asunto no se cifra.</string>
     <string name="compose_pgp_not_encrypted_no_key">Este mensaje no se cifrará: no hay clave pública para %1$s.</string>
     <string name="compose_pgp_no_draft">Los mensajes cifrados no se pueden guardar como borrador ni programar.</string>
-    <string name="compose_decrypted_quote_needs_encryption">Esta respuesta cita un mensaje cifrado, por lo que solo puede enviarse cifrada.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Esta respuesta cita un mensaje cifrado: solo se enviará o guardará sin cifrar cuando lo confirmes.</string>
+    <string name="compose_quote_in_clear_message">Esta respuesta cita un mensaje que estaba cifrado. ¿Continuar sin cifrado? La cita saldrá entonces sin cifrar y se guardará como cualquier otra respuesta.</string>
+    <string name="compose_quote_in_clear_confirm">Continuar sin cifrar</string>
     <string name="compose_pgp_no_schedule">Los mensajes firmados o cifrados no se pueden programar: el envío diferido se hace sin OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Añade primero un destinatario.</string>
     <string name="compose_schedule_invalid_address">Una de las direcciones no es válida. Corrígela primero.</string>

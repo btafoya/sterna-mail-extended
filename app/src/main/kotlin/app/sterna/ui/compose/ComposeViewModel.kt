@@ -490,6 +490,20 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
 
     val bodyMemory = ComposerBodyMemory { decryptedQuote.held.value }
 
+    private val quoteInClear = QuoteInClearQuestion(decryptedQuote)
+
+    val pendingQuoteInClear: StateFlow<QuoteInClearGesture?> = quoteInClear.pending
+
+    fun askQuoteInClear(gesture: QuoteInClearGesture) = quoteInClear.ask(gesture)
+
+    fun dismissQuoteInClear() = quoteInClear.dismiss()
+
+    fun confirmQuoteInClear(): QuoteInClearGesture? = quoteInClear.confirm(decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value))
+
+    init {
+        viewModelScope.launch { combine(decryptedQuote.held, _pgpMode) { held, mode -> decryptedQuoteRefusal(held, mode) }.collect { quoteInClear.refusalIs(it) } }
+    }
+
     private fun encryptsByDefault(account: StoredAccount?): Boolean =
         encryptByDefaultFor(account?.pgpEncryptByDefault == true, decryptedQuote.held.value)
 
@@ -1919,6 +1933,12 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         val refusal = decryptedQuoteRefusal(decryptedQuote.held.value, _pgpMode.value) ?: scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return true
         _notices.tryEmit(refusal)
         return false
+    }
+
+    fun scheduleRefusedOrSay(to: String, cc: String, bcc: String): Boolean {
+        val refusal = scheduleRefusal(to, cc, bcc, _pgpMode.value) ?: return false
+        _notices.tryEmit(refusal)
+        return true
     }
 
     /**

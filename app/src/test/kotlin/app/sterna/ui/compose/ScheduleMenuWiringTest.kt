@@ -186,7 +186,7 @@ class ScheduleMenuWiringTest {
         assertEquals(
             "the entry stays lit without a recipient and under OpenPGP, so a tap can say why it is " +
                 "refused; greyed, it says nothing",
-            listOf(SCHEDULE_ENTRY_TEXT, STAMP_ON_OPEN, "enabled = !sending,", ")"),
+            listOf(SCHEDULE_ENTRY_TEXT, QuoteInClearWiringTest.SCHEDULE_TAP, "enabled = !sending,", ")"),
             all.subList(entry, entry + 4),
         )
         val block = all.indexOf("if (draftSaveAllowed(pgpMode)) {")
@@ -345,9 +345,7 @@ class ScheduleMenuWiringTest {
             "viewModel.scheduleSend(to, cc, bcc, subject.text, rich, sendAt, requestReceipt)"
         private const val ELSE = "} else {"
         private const val STAMP_STATE = "var menuOpenedAt by remember { mutableLongStateOf(0L) }"
-        private const val STAMP_ON_OPEN =
-            "onClick = { moreMenu = false; if (viewModel.mayScheduleOrSay(to, cc, bcc)) { " +
-                "menuOpenedAt = System.currentTimeMillis(); scheduleMenu = true } },"
+        private const val STAMP_ON_OPEN = QuoteInClearWiringTest.OPEN_PRESETS
         private const val LIST_FROM_STAMP =
             "schedulePresets(context, menuOpenedAt, lastScheduleMinutes).forEach { (preset, label, drawnAt) ->"
         private const val PRESETS_SIGNATURE =

@@ -971,7 +971,9 @@
     <string name="compose_pgp_subject_note">主题不会被加密。</string>
     <string name="compose_pgp_not_encrypted_no_key">此邮件不会加密：没有 %1$s 的公钥。</string>
     <string name="compose_pgp_no_draft">加密邮件无法保存为草稿或定时发送。</string>
-    <string name="compose_decrypted_quote_needs_encryption">此回复引用了一封加密邮件，因此只能加密发送。</string>
+    <string name="compose_decrypted_quote_needs_encryption">此回复引用了一封加密邮件：只有在您确认后，才会以未加密形式发送或保存。</string>
+    <string name="compose_quote_in_clear_message">此回复引用了一封原本加密的邮件。要不加密继续吗？引用内容将以未加密形式发出，并像其他回复一样保存。</string>
+    <string name="compose_quote_in_clear_confirm">不加密继续</string>
     <string name="compose_pgp_no_schedule">已签名或加密的邮件无法定时发送：定时发送不经过 OpenPGP。</string>
     <string name="compose_schedule_needs_recipient">请先添加收件人。</string>
     <string name="compose_schedule_invalid_address">有一个地址无效，请先更正。</string>

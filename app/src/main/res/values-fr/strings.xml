@@ -801,7 +801,9 @@
     <string name="compose_pgp_subject_note">L\'objet n\'est pas chiffré.</string>
     <string name="compose_pgp_not_encrypted_no_key">Ce message ne sera pas chiffré : pas de clé publique pour %1$s.</string>
     <string name="compose_pgp_no_draft">Les messages chiffrés ne peuvent pas être enregistrés en brouillon ni programmés.</string>
-    <string name="compose_decrypted_quote_needs_encryption">Cette réponse cite un message chiffré : elle ne peut partir que chiffrée.</string>
+    <string name="compose_decrypted_quote_needs_encryption">Cette réponse cite un message chiffré : elle ne part ou ne se garde en clair qu\'après votre confirmation.</string>
+    <string name="compose_quote_in_clear_message">Cette réponse cite un message qui était chiffré. Continuer sans chiffrement ? La citation part alors en clair et se garde comme toute réponse.</string>
+    <string name="compose_quote_in_clear_confirm">Continuer en clair</string>
     <string name="compose_pgp_no_schedule">Les messages signés ou chiffrés ne peuvent pas être programmés : l\'envoi différé se fait sans OpenPGP.</string>
     <string name="compose_schedule_needs_recipient">Ajoutez d\'abord un destinataire.</string>
     <string name="compose_schedule_invalid_address">L\'une des adresses n\'est pas valide. Corrigez-la d\'abord.</string>
