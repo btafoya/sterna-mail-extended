@@ -1,0 +1,7 @@
+Une réponse citant un message déchiffré peut partir, s'enregistrer ou se programmer en clair, après confirmation.
+
+Un aperçu ouvrant sur du MIME brut (séparateur, puis en-têtes) montre le début du message.
+
+IMAP : les suivis disparus du serveur quittent « Suivis » dès que l'app le sait ; un dossier supprimé sur le serveur ne laisse plus de courrier dans la recherche.
+
+Notifications : un marquage lu raté depuis la liste garde la notification ; pluriel juste en russe et en polonais.

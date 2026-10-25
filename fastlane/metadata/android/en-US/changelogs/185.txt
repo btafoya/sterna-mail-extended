@@ -1,0 +1,7 @@
+A reply quoting a decrypted message can now be sent, saved or scheduled unencrypted, after you confirm.
+
+Previews that opened on raw MIME (a boundary line, then part headers) show the message's first lines.
+
+IMAP: starred messages gone from the server leave Starred once the app learns it, and a folder deleted on the server leaves no mail in search.
+
+Notifications: a failed read mark from the list keeps the notification; Russian and Polish summaries use the right plural.
