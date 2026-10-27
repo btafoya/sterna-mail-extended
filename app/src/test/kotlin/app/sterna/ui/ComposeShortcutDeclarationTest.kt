@@ -1,8 +1,11 @@
 package app.sterna.ui
 
 import app.sterna.ComposeShortcutActivity
+import app.sterna.MainActivity
+import app.sterna.UnreadShortcutActivity
 import app.sterna.widget.DeclarationSource
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.w3c.dom.Element
@@ -17,8 +20,8 @@ import javax.xml.parsers.DocumentBuilderFactory
  */
 class ComposeShortcutDeclarationTest {
 
-    @Test fun `production declares one compose shortcut aimed at its own package`() {
-        assertEquals(listOf(expected("app.sterna")), shortcuts("app/src/main/res/xml/shortcuts.xml"))
+    @Test fun `production declares the compose then the unread shortcut, aimed at its own package`() {
+        assertEquals(expected("app.sterna"), shortcuts("app/src/main/res/xml/shortcuts.xml"))
     }
 
     /**
@@ -26,7 +29,7 @@ class ComposeShortcutDeclarationTest {
      * beside production: a test-app shortcut naming `app.sterna` would open the real mailbox.
      */
     @Test fun `the test app's twin is identical but for its own package`() {
-        assertEquals(listOf(expected("app.sterna.test")), shortcuts("app/src/testApp/res/xml/shortcuts.xml"))
+        assertEquals(expected("app.sterna.test"), shortcuts("app/src/testApp/res/xml/shortcuts.xml"))
     }
 
     @Test fun `the shortcuts are declared on the launcher activity and nowhere else`() {
@@ -49,9 +52,13 @@ class ComposeShortcutDeclarationTest {
      * it: sharing the app's affinity, which is what leaving `taskAffinity` out means, lets the
      * system wipe the app's task and a composer open in it.
      */
-    @Test fun `the relay lives in its own task, unexported, and answers no intent`() {
+    @Test fun `each relay lives in its own task, unexported, and answers no intent`() {
+        RELAYS.forEach(::assertRelayDeclaration)
+    }
+
+    private fun assertRelayDeclaration(name: String) {
         val relay = elements(parse(MAIN_MANIFEST), "activity")
-            .single { it.android("name").removePrefix("app.sterna") == ".ComposeShortcutActivity" }
+            .single { it.android("name").removePrefix("app.sterna") == ".$name" }
         assertTrue("the relay must declare its own android:taskAffinity", relay.hasAttributeNS(ANDROID, "taskAffinity"))
         val application = relay.parentNode as Element
         val appAffinities = if (application.hasAttributeNS(ANDROID, "taskAffinity")) {
@@ -64,6 +71,7 @@ class ComposeShortcutDeclarationTest {
             relay.android("taskAffinity") !in appAffinities,
         )
         assertEquals(
+            name,
             mapOf(
                 "exported" to "false",
                 "excludeFromRecents" to "true",
@@ -72,12 +80,14 @@ class ComposeShortcutDeclarationTest {
             ),
             listOf("exported", "excludeFromRecents", "noHistory", "theme").associateWith { relay.android(it) },
         )
-        assertEquals(0, elements(relay, "intent-filter").size)
+        assertEquals("$name answers no intent", 0, elements(relay, "intent-filter").size)
     }
 
-    @Test fun `the relay hands over with NEW_TASK and never CLEAR_TASK`() {
-        assertEquals(FLAG_NEW_TASK, ComposeShortcutActivity.LAUNCH_FLAGS)
-        assertEquals(0, ComposeShortcutActivity.LAUNCH_FLAGS and FLAG_CLEAR_TASK)
+    @Test fun `each relay hands over with NEW_TASK and never CLEAR_TASK`() {
+        for (flags in listOf(ComposeShortcutActivity.LAUNCH_FLAGS, UnreadShortcutActivity.LAUNCH_FLAGS)) {
+            assertEquals(FLAG_NEW_TASK, flags)
+            assertEquals(0, flags and FLAG_CLEAR_TASK)
+        }
     }
 
     /**
@@ -85,15 +95,26 @@ class ComposeShortcutDeclarationTest {
      * else: every flag the source names, and no read of the received intent, whose flags are the
      * CLEAR_TASK being shed.
      */
-    @Test fun `the relay sends exactly LAUNCH_FLAGS and never forwards what it received`() {
-        val code = DeclarationSource.kotlinLines(
-            DeclarationSource.file("app/src/main/kotlin/app/sterna/ComposeShortcutActivity.kt"),
-        )
+    @Test fun `each relay sends exactly LAUNCH_FLAGS and never forwards what it received`() {
+        for (name in RELAYS) {
+            val code = relaySource(name)
+            assertEquals(
+                name,
+                listOf(".setFlags(LAUNCH_FLAGS),", "const val LAUNCH_FLAGS = Intent.FLAG_ACTIVITY_NEW_TASK"),
+                code.filter { "flag" in it.lowercase() },
+            )
+            assertEquals(name, emptyList<String>(), code.filter { Regex("""\bintent\b""").containsMatchIn(it) })
+        }
+    }
+
+    /** The widget's order opens All inboxes; this one must open the drawer's Unread view, and a
+     *  shared key would make one shortcut, or the widget, open the other's view. */
+    @Test fun `the unread relay sends the unread order and only that one`() {
+        assertNotEquals(MainActivity.EXTRA_OPEN_UNIFIED, MainActivity.EXTRA_OPEN_UNREAD)
         assertEquals(
-            listOf(".setFlags(LAUNCH_FLAGS),", "const val LAUNCH_FLAGS = Intent.FLAG_ACTIVITY_NEW_TASK"),
-            code.filter { "flag" in it.lowercase() },
+            listOf(".putExtra(MainActivity.EXTRA_OPEN_UNREAD, true)"),
+            relaySource("UnreadShortcutActivity").filter { "extra" in it.lowercase() },
         )
-        assertEquals(emptyList<String>(), code.filter { Regex("""\bintent\b""").containsMatchIn(it) })
     }
 
     /** The test app's manifest is merged into the main one under -PtestApp. An activity it
@@ -104,7 +125,7 @@ class ComposeShortcutDeclarationTest {
 
     /** Android asks for shortcut labels of at most 25 characters, and falls back to English for a
      *  missing translation without a word. */
-    @Test fun `both labels exist in every language and fit the launcher`() {
+    @Test fun `every label exists in every language and fits the launcher`() {
         val res = file("app/src/main/res")
         val locales = res.listFiles { f -> f.isDirectory && File(f, "strings.xml").isFile }!!
             .sortedBy { it.name }
@@ -124,7 +145,43 @@ class ComposeShortcutDeclarationTest {
         assertEquals("the eleven shipped languages", 11, locales.size)
     }
 
-    private fun expected(pkg: String) = mapOf(
+    /** The shortcut is a way into the drawer's Unread view, so it says that view's word. */
+    @Test fun `the unread shortcut's short label is the drawer's own word in every language`() {
+        val res = file("app/src/main/res")
+        val differing = res.listFiles { f -> f.isDirectory && File(f, "strings.xml").isFile }!!
+            .sortedBy { it.name }
+            .mapNotNull { dir ->
+                val strings = elements(parse(File(dir, "strings.xml")), "string")
+                    .associate { it.getAttribute("name") to it.textContent }
+                val drawer = strings["inbox_unread_view"]
+                val shortcut = strings["shortcut_unread_short"]
+                if (drawer != null && drawer == shortcut) null else "${dir.name}: \"$shortcut\" vs \"$drawer\""
+            }
+        assertEquals(emptyList<String>(), differing)
+    }
+
+    private fun relaySource(name: String) = DeclarationSource.kotlinLines(
+        DeclarationSource.file("app/src/main/kotlin/app/sterna/$name.kt"),
+    )
+
+    private fun expected(pkg: String) = listOf(compose(pkg), unread(pkg))
+
+    private fun unread(pkg: String) = mapOf(
+        "shortcutId" to "unread",
+        "enabled" to "true",
+        "icon" to "@drawable/ic_shortcut_unread",
+        "shortcutShortLabel" to "@string/shortcut_unread_short",
+        "shortcutLongLabel" to "@string/shortcut_unread_long",
+        "intents" to listOf(
+            mapOf(
+                "action" to "android.intent.action.MAIN",
+                "targetPackage" to pkg,
+                "targetClass" to "app.sterna.UnreadShortcutActivity",
+            ),
+        ),
+    )
+
+    private fun compose(pkg: String) = mapOf(
         "shortcutId" to "compose",
         "enabled" to "true",
         "icon" to "@drawable/ic_shortcut_compose",
@@ -184,7 +241,8 @@ class ComposeShortcutDeclarationTest {
         /** The platform's documented values for FLAG_ACTIVITY_NEW_TASK and FLAG_ACTIVITY_CLEAR_TASK. */
         const val FLAG_NEW_TASK = 0x10000000
         const val FLAG_CLEAR_TASK = 0x00008000
-        val LABELS = listOf("shortcut_compose_short", "shortcut_compose_long")
+        val LABELS = listOf("shortcut_compose_short", "shortcut_compose_long", "shortcut_unread_short", "shortcut_unread_long")
+        val RELAYS = listOf("ComposeShortcutActivity", "UnreadShortcutActivity")
 
         val ROOT: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }

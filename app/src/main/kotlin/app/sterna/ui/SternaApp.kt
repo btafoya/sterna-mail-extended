@@ -165,6 +165,8 @@ fun SternaApp(
     onEmailOpenConsumed: () -> Unit = {},
     pendingUnifiedOpen: Boolean = false,
     onUnifiedOpenConsumed: () -> Unit = {},
+    pendingUnreadOpen: Boolean = false,
+    onUnreadOpenConsumed: () -> Unit = {},
     viewModel: RootViewModel = viewModel(),
 ) {
     RequestNotificationPermission()
@@ -212,6 +214,8 @@ fun SternaApp(
                     onEmailOpenConsumed = onEmailOpenConsumed,
                     pendingUnifiedOpen = pendingUnifiedOpen,
                     onUnifiedOpenConsumed = onUnifiedOpenConsumed,
+                    pendingUnreadOpen = pendingUnreadOpen,
+                    onUnreadOpenConsumed = onUnreadOpenConsumed,
                 )
             }
         }
@@ -246,6 +250,8 @@ private fun MainNavHost(
     onEmailOpenConsumed: () -> Unit = {},
     pendingUnifiedOpen: Boolean = false,
     onUnifiedOpenConsumed: () -> Unit = {},
+    pendingUnreadOpen: Boolean = false,
+    onUnreadOpenConsumed: () -> Unit = {},
 ) {
     val nav = rememberNavController()
     // The window width decides the split (#103), never the orientation; the permanent drawer reads
@@ -334,7 +340,7 @@ private fun MainNavHost(
         pendingFreshReading = false
         list.startFreshReading()
     }
-    // A tapped home-screen widget puts the list on the unified inbox (#112).
+    // A tapped home-screen widget (#112) or "Unread" shortcut (#266) puts the list on its view.
     //
     // Through selectUnified(), the drawer's own call: it also collapses expanded threads,
     // re-derives the unified scopes, rewrites the header meta and refreshes, where "just move the
@@ -344,6 +350,20 @@ private fun MainNavHost(
     // imperatively, so on a cold start an effect that returned would return for good. remember,
     // never rememberSaveable, a held `true` surviving a rotation would re-navigate over whatever
     // the user is reading. While held this is the only copy.
+    //
+    // Moving the list moves a destination below whatever is on screen, so the reader is unwound
+    // too, and only the reader. The whole stack is handed over: popBackStack("inbox") drops
+    // everything above the list, taking search results or a live draft with it.
+    // [WidgetTapNavigation] owns that verdict.
+    fun unwindReaderToList() {
+        val stack = nav.currentBackStack.value.map { it.destination.route }
+        if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {
+            // unguarded: a one-shot order, already consumed by its effect. navigateOnce's
+            // de-duplication would drop it on a mid-transition tap rather than protect
+            // anything. Same reason as the mailto: and notification effects above.
+            nav.popBackStack("inbox", inclusive = false)
+        }
+    }
     var heldUnifiedOpen by remember { mutableStateOf(false) }
     LaunchedEffect(pendingUnifiedOpen, heldUnifiedOpen, listViewModel) {
         when (WidgetTapRelay.step(pendingUnifiedOpen, heldUnifiedOpen, listViewModel != null)) {
@@ -357,17 +377,24 @@ private fun MainNavHost(
                 heldUnifiedOpen = false
                 val list = listViewModel ?: return@LaunchedEffect
                 list.selectUnified()
-                // selectUnified() moves the list, a destination below whatever is on screen, so the
-                // reader is unwound too, and only the reader. The whole stack is handed over:
-                // popBackStack("inbox") drops everything above the list, taking search results or a
-                // live draft with it. [WidgetTapNavigation] owns that verdict.
-                val stack = nav.currentBackStack.value.map { it.destination.route }
-                if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {
-                    // unguarded: a one-shot order, already consumed above. navigateOnce's
-                    // de-duplication would drop it on a mid-transition tap rather than protect
-                    // anything. Same reason as the mailto: and notification effects above.
-                    nav.popBackStack("inbox", inclusive = false)
-                }
+                unwindReaderToList()
+            }
+        }
+    }
+    var heldUnreadOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingUnreadOpen, heldUnreadOpen, listViewModel) {
+        when (WidgetTapRelay.step(pendingUnreadOpen, heldUnreadOpen, listViewModel != null)) {
+            WidgetTapStep.Ignore -> return@LaunchedEffect
+            WidgetTapStep.Hold -> {
+                onUnreadOpenConsumed()
+                heldUnreadOpen = true
+            }
+            WidgetTapStep.Deliver -> {
+                onUnreadOpenConsumed()
+                heldUnreadOpen = false
+                val list = listViewModel ?: return@LaunchedEffect
+                list.selectUnreadFromShortcut()
+                unwindReaderToList()
             }
         }
     }

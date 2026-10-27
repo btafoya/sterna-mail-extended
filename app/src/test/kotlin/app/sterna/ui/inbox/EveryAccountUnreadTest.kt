@@ -99,6 +99,22 @@ class EveryAccountUnreadTest {
         )
     }
 
+    @Test
+    fun `the icon's shortcut opens every account's unread mail from a folder too`() {
+        assertEquals(
+            "An ordinary start lands on one account's inbox: from there the 'Unread' shortcut must " +
+                "still open every account's unread mail when there are several (#266).",
+            Sel.Unread(allAccounts = true),
+            unreadSelectionForShortcut(unifiedViewExists = true),
+        )
+        assertEquals(Sel.Unread(allAccounts = false), unreadSelectionReplacing(Sel.Folder("2"), unifiedViewExists = true))
+    }
+
+    @Test
+    fun `with a single account the shortcut opens that account's unread mail`() {
+        assertEquals(Sel.Unread(allAccounts = false), unreadSelectionForShortcut(unifiedViewExists = false))
+    }
+
     // -- what the list pages (M2, M3) ------------------------------------------------------------
 
     @Test

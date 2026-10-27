@@ -2,7 +2,8 @@
 <!-- targetPackage is a literal because shortcuts.xml takes no ${applicationId} placeholder. The
      test app installs beside production, so its twin in src/testApp/res/xml, which wins over main
      under -PtestApp, must name app.sterna.test or its shortcut would open production.
-     targetClass is the relay `ComposeShortcutActivity`, never MainActivity. -->
+     targetClass is a relay, `ComposeShortcutActivity` or `UnreadShortcutActivity`, never
+     MainActivity. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:shortcutId="compose"
@@ -15,5 +16,16 @@
             android:data="mailto:"
             android:targetPackage="app.sterna"
             android:targetClass="app.sterna.ComposeShortcutActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="unread"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_unread"
+        android:shortcutShortLabel="@string/shortcut_unread_short"
+        android:shortcutLongLabel="@string/shortcut_unread_long">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="app.sterna"
+            android:targetClass="app.sterna.UnreadShortcutActivity" />
     </shortcut>
 </shortcuts>

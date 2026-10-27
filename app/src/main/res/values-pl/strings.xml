@@ -1282,4 +1282,6 @@
     <string name="folders_special_option_role">%1$s (obecnie %2$s)</string>
     <string name="shortcut_compose_short">Napisz</string>
     <string name="shortcut_compose_long">Nowa wiadomość</string>
+    <string name="shortcut_unread_short">Nieprzeczytane</string>
+    <string name="shortcut_unread_long">Nieprzeczytane wiadomości</string>
 </resources>

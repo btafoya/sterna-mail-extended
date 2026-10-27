@@ -1516,6 +1516,16 @@ class InboxViewModel(
         refreshUnlessFresh()
     }
 
+    fun selectUnreadFromShortcut() {
+        val next = unreadSelectionForShortcut(AllInboxesView.existsFor(store.accounts()))
+        if (selection.value == next) return
+        collapseThreads()
+        paneOnViewChanged()
+        selection.value = next
+        meta.value = unreadViewMeta(next, store.accountLabel(), store.inboxMailboxName(), store.unreadCount(), store.totalUnreadCount())
+        refreshUnlessFresh()
+    }
+
     fun select(mailbox: Mailbox) {
         select(mailbox, emptyPane = true)
     }

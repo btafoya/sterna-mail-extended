@@ -1250,4 +1250,6 @@
     <string name="folders_special_option_role">%1$s (derzeit %2$s)</string>
     <string name="shortcut_compose_short">Verfassen</string>
     <string name="shortcut_compose_long">Neue Nachricht</string>
+    <string name="shortcut_unread_short">Ungelesen</string>
+    <string name="shortcut_unread_long">Ungelesene Nachrichten</string>
 </resources>

@@ -1296,4 +1296,6 @@
     <string name="folders_special_option_role">%1$s (jelenleg: %2$s)</string>
     <string name="shortcut_compose_short">Írás</string>
     <string name="shortcut_compose_long">Új üzenet</string>
+    <string name="shortcut_unread_short">Olvasatlan</string>
+    <string name="shortcut_unread_long">Olvasatlan üzenetek</string>
 </resources>

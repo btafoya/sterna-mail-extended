@@ -66,6 +66,18 @@ class RefreshFreshnessWiringLintTest {
             declarationBody("fun selectUnread()"),
         )
         assertEquals(
+            "selectUnreadFromShortcut() must reconcile through the guard like selectUnread(), on the " +
+                "view unreadSelectionForShortcut picks from the accounts alone, never from the view it " +
+                "replaces (#266). Compared whole. Body was:",
+            "fun selectUnreadFromShortcut() { " +
+                "val next = unreadSelectionForShortcut(AllInboxesView.existsFor(store.accounts())) " +
+                "if (selection.value == next) return collapseThreads() " +
+                "paneOnViewChanged() selection.value = next " +
+                "meta.value = unreadViewMeta(next, store.accountLabel(), store.inboxMailboxName(), store.unreadCount(), store.totalUnreadCount()) " +
+                "refreshUnlessFresh() }",
+            declarationBody("fun selectUnreadFromShortcut()"),
+        )
+        assertEquals(
             "select(mailbox) must reconcile through the guard: tapping a folder, going back and " +
                 "tapping it again is the gesture that fired a full reconcile every time. Compared " +
                 "whole. Body was:",
@@ -185,19 +197,20 @@ class RefreshFreshnessWiringLintTest {
     }
 
     @Test
-    fun `the guard has exactly six doorsteps, and one door`() {
+    fun `the guard has exactly seven doorsteps, and one door`() {
         val text = codeText(INBOX_VIEW_MODEL)
         val hits = Regex("""\brefreshUnlessFresh\b""").findAll(text).toList()
         assertEquals(
-            "refreshUnlessFresh must appear exactly 7 times in InboxViewModel.kt: its own " +
-                "declaration, plus the SIX reconciles that accompany a change of view — init, " +
-                "onAccountChanged, selectUnified, selectUnread, select(mailbox), showInbox. Every " +
+            "refreshUnlessFresh must appear exactly 8 times in InboxViewModel.kt: its own " +
+                "declaration, plus the SEVEN reconciles that accompany a change of view — init, " +
+                "onAccountChanged, selectUnified, selectUnread, selectUnreadFromShortcut, " +
+                "select(mailbox), showInbox. Every " +
                 "other refresh() in this file answers a gesture (pull, Retry) or reconciles the " +
                 "list after a write (move, delete, mark read, Undo), and skipping one of those " +
-                "leaves the screen showing a state the server no longer holds. A seventh doorstep " +
+                "leaves the screen showing a state the server no longer holds. An eighth doorstep " +
                 "is one copy-paste away and nothing else in the suite would see it. Found " +
                 "${hits.size}.",
-            7, hits.size,
+            8, hits.size,
         )
     }
 
@@ -232,7 +245,7 @@ class RefreshFreshnessWiringLintTest {
     fun `clearing the stale error drops the error and nothing else`() {
         val body = declarationBody("private fun clearRefreshError()")
         assertEquals(
-            "clearRefreshError() is now on the path of all SIX view-switch doors, not just " +
+            "clearRefreshError() is now on the path of all SEVEN view-switch doors, not just " +
                 "onReconnected(), so its body carries the fix and is pinned here. Two guards, both " +
                 "load-bearing: it copies `error = null` and touches NOTHING else — a copy that also " +
                 "reset `refreshing` would relight #63, where the tern and the centred ring are " +

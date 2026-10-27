@@ -1286,4 +1286,6 @@
     <string name="folders_special_option_role">%1$s（当前为 %2$s）</string>
     <string name="shortcut_compose_short">写邮件</string>
     <string name="shortcut_compose_long">新邮件</string>
+    <string name="shortcut_unread_short">未读</string>
+    <string name="shortcut_unread_long">未读邮件</string>
 </resources>

@@ -70,6 +70,7 @@ class UnreadWidgetTapWiringLintTest {
                 "pendingMailto.value = parseMailto(intent) ?: parseShare(intent)",
                 "pendingEmailOpen.value = parseEmailOpen(intent)",
                 "pendingUnifiedOpen.value = parseUnifiedOpen(intent)",
+                "pendingUnreadOpen.value = parseUnreadOpen(intent)",
                 "consumeOAuthRedirect()",
                 // The composer's resume slots, swept here for the same reason the three parses sit
                 // here: with no saved state nothing can consume any of them, so a file left over is
@@ -125,6 +126,7 @@ class UnreadWidgetTapWiringLintTest {
                 "(parseMailto(intent) ?: parseShare(intent))?.let { pendingMailto.value = it }",
                 "parseEmailOpen(intent)?.let { pendingEmailOpen.value = it }",
                 "if (parseUnifiedOpen(intent)) pendingUnifiedOpen.value = true",
+                "if (parseUnreadOpen(intent)) pendingUnreadOpen.value = true",
                 "consumeOAuthRedirect()",
             ),
             functionBody(MAIN_ACTIVITY, "override fun onNewIntent(intent: Intent)"),
@@ -160,15 +162,23 @@ class UnreadWidgetTapWiringLintTest {
                 "heldUnifiedOpen = false",
                 "val list = listViewModel ?: return@LaunchedEffect",
                 "list.selectUnified()",
-                "val stack = nav.currentBackStack.value.map { it.destination.route }",
-                "if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {",
-                "nav.popBackStack(\"inbox\", inclusive = false)",
-                "}",
+                "unwindReaderToList()",
                 "}",
                 "}",
                 "}",
             ),
             blockContaining(STERNA_APP, "list.selectUnified()", "LaunchedEffect(pendingUnifiedOpen, heldUnifiedOpen, listViewModel) {"),
+        )
+        assertEquals(
+            "the unwind both orders share must ask WidgetTapNavigation with the whole stack.",
+            listOf(
+                "fun unwindReaderToList() {",
+                "val stack = nav.currentBackStack.value.map { it.destination.route }",
+                "if (WidgetTapNavigation.from(stack) == WidgetTapReturn.BackToList) {",
+                "nav.popBackStack(\"inbox\", inclusive = false)",
+                "}",
+            ),
+            functionBody(STERNA_APP, "fun unwindReaderToList()"),
         )
         assertEquals(
             "the held order must be remember, NEVER rememberSaveable: surviving a rotation, a " +
@@ -202,6 +212,81 @@ class UnreadWidgetTapWiringLintTest {
                 "literal `false` here, or another payload's state, kills the widget's tap outright.",
             listOf("pendingUnifiedOpen = pendingUnifiedOpen.value,"),
             codeLines(MAIN_ACTIVITY).filter { it.startsWith("pendingUnifiedOpen = ") },
+        )
+    }
+
+    @Test fun `the unread shortcut's order takes the widget's path to selectUnreadFromShortcut`() {
+        assertEquals(
+            listOf(
+                "private fun stripUnreadOpenPayload() {",
+                "val i = intent ?: return",
+                "i.removeExtra(EXTRA_OPEN_UNREAD)",
+            ),
+            functionBody(MAIN_ACTIVITY, "private fun stripUnreadOpenPayload()"),
+        )
+        assertEquals(
+            listOf("private fun parseUnreadOpen(intent: Intent?): Boolean =", "intent?.getBooleanExtra(EXTRA_OPEN_UNREAD, false) == true"),
+            codeLines(MAIN_ACTIVITY).let { lines ->
+                val at = lines.indexOfFirst { it.startsWith("private fun parseUnreadOpen(") }
+                if (at < 0) emptyList() else lines.subList(at, at + 2)
+            },
+        )
+        assertEquals(
+            listOf(
+                "onUnreadOpenConsumed = {",
+                "pendingUnreadOpen.value = false",
+                "stripUnreadOpenPayload()",
+                "},",
+            ),
+            blockContaining(MAIN_ACTIVITY, "onUnreadOpenConsumed = {", "onUnreadOpenConsumed = {"),
+        )
+        assertEquals(
+            listOf("pendingUnreadOpen = pendingUnreadOpen.value,"),
+            codeLines(MAIN_ACTIVITY).filter { it.startsWith("pendingUnreadOpen = ") },
+        )
+        assertEquals(
+            "SternaApp must hand the order down to MainNavHost, or it is never delivered.",
+            listOf("pendingUnreadOpen = pendingUnreadOpen,", "onUnreadOpenConsumed = onUnreadOpenConsumed,"),
+            codeLines(STERNA_APP).filter { it.startsWith("pendingUnreadOpen = ") || it.startsWith("onUnreadOpenConsumed = ") },
+        )
+        assertEquals(
+            listOf(
+                "LaunchedEffect(pendingUnreadOpen, heldUnreadOpen, listViewModel) {",
+                "when (WidgetTapRelay.step(pendingUnreadOpen, heldUnreadOpen, listViewModel != null)) {",
+                "WidgetTapStep.Ignore -> return@LaunchedEffect",
+                "WidgetTapStep.Hold -> {",
+                "onUnreadOpenConsumed()",
+                "heldUnreadOpen = true",
+                "}",
+                "WidgetTapStep.Deliver -> {",
+                "onUnreadOpenConsumed()",
+                "heldUnreadOpen = false",
+                "val list = listViewModel ?: return@LaunchedEffect",
+                "list.selectUnreadFromShortcut()",
+                "unwindReaderToList()",
+                "}",
+                "}",
+                "}",
+            ),
+            blockContaining(STERNA_APP, "LaunchedEffect(pendingUnreadOpen, heldUnreadOpen, listViewModel) {", "LaunchedEffect(pendingUnreadOpen, heldUnreadOpen, listViewModel) {"),
+        )
+        assertEquals(
+            "the drawer's entry keeps selectUnread(): its reach follows the view it replaces, the " +
+                "shortcut's does not (#266).",
+            listOf("list.selectUnreadFromShortcut()"),
+            codeLines(STERNA_APP).filter { it.contains("selectUnread") },
+        )
+        assertEquals(
+            "raw lines, for the reason given in the widget's rule above: remember, never " +
+                "rememberSaveable, in MainNavHost's own body under no condition.",
+            listOf(
+                "    var heldUnreadOpen by remember { mutableStateOf(false) }",
+                "    LaunchedEffect(pendingUnreadOpen, heldUnreadOpen, listViewModel) {",
+            ),
+            STERNA_APP.readLines().filter {
+                it.trimStart().startsWith("var heldUnreadOpen") ||
+                    it.trimStart().startsWith("LaunchedEffect(pendingUnreadOpen,")
+            },
         )
     }
 

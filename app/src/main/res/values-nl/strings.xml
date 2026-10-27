@@ -1253,4 +1253,6 @@
     <string name="folders_special_option_role">%1$s (nu %2$s)</string>
     <string name="shortcut_compose_short">Opstellen</string>
     <string name="shortcut_compose_long">Nieuw bericht</string>
+    <string name="shortcut_unread_short">Ongelezen</string>
+    <string name="shortcut_unread_long">Ongelezen berichten</string>
 </resources>

@@ -35,6 +35,14 @@ internal fun unreadSelectionReplacing(replaced: Sel, unifiedViewExists: Boolean)
     is Sel.Folder -> Sel.Unread(allAccounts = false)
 }
 
+/**
+ * The unread view the icon's "Unread" shortcut opens: every account's whenever [unifiedViewExists],
+ * whatever view the app was on. Not [unreadSelectionReplacing], which answers one account's from
+ * the inbox an ordinary start lands on.
+ */
+internal fun unreadSelectionForShortcut(unifiedViewExists: Boolean): Sel.Unread =
+    Sel.Unread(allAccounts = unifiedViewExists)
+
 internal fun unreadScopesFor(
     sel: Sel,
     accountScopes: List<Pair<String, String>>,

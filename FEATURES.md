@@ -123,7 +123,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   from a From picker.
 - ✅ Read-receipt requests and responses, both off by default, never sent without a
   tap.
-- ✅ A "New message" shortcut on a long press of the app icon.
+- ✅ "New message" and "Unread" shortcuts on a long press of the app icon.
 
 ## Accounts & setup
 

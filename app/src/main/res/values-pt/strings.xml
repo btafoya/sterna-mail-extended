@@ -1265,4 +1265,6 @@
     <string name="folders_special_option_role">%1$s (atualmente %2$s)</string>
     <string name="shortcut_compose_short">Escrever</string>
     <string name="shortcut_compose_long">Nova mensagem</string>
+    <string name="shortcut_unread_short">Não lidas</string>
+    <string name="shortcut_unread_long">Mensagens não lidas</string>
 </resources>

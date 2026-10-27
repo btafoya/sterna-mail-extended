@@ -1285,4 +1285,6 @@
     <string name="folders_special_option_role">%1$s (сейчас %2$s)</string>
     <string name="shortcut_compose_short">Написать</string>
     <string name="shortcut_compose_long">Новое письмо</string>
+    <string name="shortcut_unread_short">Непрочитанные</string>
+    <string name="shortcut_unread_long">Непрочитанные письма</string>
 </resources>

@@ -105,6 +105,15 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.NoDisplay" />
 
+        <!-- The "Unread" shortcut's target, declared like the one above for the same reason. -->
+        <activity
+            android:name=".UnreadShortcutActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <!-- specialUse (not dataSync): Android 15+ budgets dataSync FGS and then blocks
              background restarts, which silently killed push on newer devices (#11). The
              persistent user-initiated email-push connection is the canonical specialUse

@@ -1267,4 +1267,6 @@
     <string name="folders_special_option_role">%1$s (actuellement %2$s)</string>
     <string name="shortcut_compose_short">Écrire</string>
     <string name="shortcut_compose_long">Nouveau message</string>
+    <string name="shortcut_unread_short">Non lus</string>
+    <string name="shortcut_unread_long">Messages non lus</string>
 </resources>

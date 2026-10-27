@@ -53,6 +53,8 @@ class MainActivity : AppCompatActivity() {
      *  discipline as the two above: an order carried out once, not a state the activity is in. */
     private val pendingUnifiedOpen = androidx.compose.runtime.mutableStateOf(false)
 
+    private val pendingUnreadOpen = androidx.compose.runtime.mutableStateOf(false)
+
     private val volumeTextSizeRelay = VolumeTextSizeRelay()
 
     private var volumeTextSize = VOLUME_TEXT_SIZE_DEFAULT
@@ -67,6 +69,7 @@ class MainActivity : AppCompatActivity() {
             pendingMailto.value = parseMailto(intent) ?: parseShare(intent)
             pendingEmailOpen.value = parseEmailOpen(intent)
             pendingUnifiedOpen.value = parseUnifiedOpen(intent)
+            pendingUnreadOpen.value = parseUnreadOpen(intent)
             consumeOAuthRedirect()
             // Sweep the orphaned composer resumes. With no saved state there is no
             // `rememberSaveable` left that could consume any slot, so every file still sitting
@@ -124,6 +127,11 @@ class MainActivity : AppCompatActivity() {
                             pendingUnifiedOpen.value = false
                             stripUnifiedOpenPayload()
                         },
+                        pendingUnreadOpen = pendingUnreadOpen.value,
+                        onUnreadOpenConsumed = {
+                            pendingUnreadOpen.value = false
+                            stripUnreadOpenPayload()
+                        },
                     )
                 }
             }
@@ -152,6 +160,7 @@ class MainActivity : AppCompatActivity() {
         // cell is tapped. Set only when the extra is there, like the two above, a bare assignment
         // would clear a request that arrived a moment ago and has not been consumed.
         if (parseUnifiedOpen(intent)) pendingUnifiedOpen.value = true
+        if (parseUnreadOpen(intent)) pendingUnreadOpen.value = true
         consumeOAuthRedirect()
     }
 
@@ -189,6 +198,14 @@ class MainActivity : AppCompatActivity() {
     /** Does this intent carry a home-screen widget tap? (#112) */
     private fun parseUnifiedOpen(intent: Intent?): Boolean =
         intent?.getBooleanExtra(EXTRA_OPEN_UNIFIED, false) == true
+
+    private fun stripUnreadOpenPayload() {
+        val i = intent ?: return
+        i.removeExtra(EXTRA_OPEN_UNREAD)
+    }
+
+    private fun parseUnreadOpen(intent: Intent?): Boolean =
+        intent?.getBooleanExtra(EXTRA_OPEN_UNREAD, false) == true
 
     private fun stripMailtoPayload() {
         val i = intent ?: return
@@ -281,6 +298,8 @@ class MainActivity : AppCompatActivity() {
          * Open the cross-account unified inbox, set by the home-screen widget (#112), and only
          */
         const val EXTRA_OPEN_UNIFIED = "app.sterna.OPEN_UNIFIED"
+
+        const val EXTRA_OPEN_UNREAD = "app.sterna.OPEN_UNREAD"
     }
 }
 
