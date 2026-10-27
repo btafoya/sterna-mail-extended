@@ -1,6 +1,7 @@
 package app.sterna.ui.compose
 
 import android.Manifest
+import android.graphics.Rect
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -127,8 +128,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -1242,7 +1245,24 @@ fun ComposeScreen(
             // From, switch sending account / identity (only when there's a choice).
             if (fromOptions.size > 1) {
                 var fromMenu by remember { mutableStateOf(false) }
-                Box {
+                var fromVisibleFrameHeightPx by remember { mutableStateOf(0) }
+                var fromAnchorBottomPx by remember { mutableStateOf(0) }
+                // Measured from the composer's view and the anchor: inside the menu's content they
+                // would measure the popup's own window.
+                val fromView = LocalView.current
+                val fromFrame = remember { Rect() }
+                val fromMenuCap = fromMenuMaxHeight(
+                    visibleFrameHeightPx = fromVisibleFrameHeightPx,
+                    anchorBottomPx = fromAnchorBottomPx,
+                    density = LocalDensity.current,
+                )
+                Box(
+                    Modifier.onGloballyPositioned {
+                        fromAnchorBottomPx = (it.positionInWindow().y + it.size.height).roundToInt()
+                        fromView.getWindowVisibleDisplayFrame(fromFrame)
+                        fromVisibleFrameHeightPx = fromFrame.height()
+                    },
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1264,7 +1284,12 @@ fun ComposeScreen(
                             Icon(Icons.Filled.ExpandMore, contentDescription = stringResource(R.string.compose_choose_sender))
                         }
                     }
-                    DropdownMenu(expanded = fromMenu, onDismissRequest = { fromMenu = false }, shape = MaterialTheme.shapes.medium) {
+                    DropdownMenu(
+                        expanded = fromMenu,
+                        onDismissRequest = { fromMenu = false },
+                        modifier = Modifier.heightIn(max = fromMenuCap),
+                        shape = MaterialTheme.shapes.medium,
+                    ) {
                         fromOptions.forEach { option ->
                             DropdownMenuItem(
                                 text = { Text(option.identity.display()) },
