@@ -7,4 +7,14 @@
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_tern_anim</item>
         <item name="android:windowSplashScreenAnimationDuration">600</item>
     </style>
+
+    <!-- The splash when "Material You colours" is on, chosen by `setSplashScreenTheme` in
+         MainActivity. The system persists that choice by style name across app updates: renaming
+         this style or `Theme.Sterna.Splash` silently drops the choice users already have. With the
+         setting off, MainActivity passes `Resources.ID_NULL` instead of naming the fixed style, so
+         the default falls back to the manifest's theme and rests on no persisted name. -->
+    <style name="Theme.Sterna.Splash.Dynamic" parent="Theme.Sterna.Splash">
+        <item name="android:windowSplashScreenBackground">@color/sterna_splash_dynamic_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_tern_dynamic_anim</item>
+    </style>
 </resources>

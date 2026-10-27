@@ -1,8 +1,10 @@
 package app.sterna
 
 import android.content.Intent
+import android.content.res.Resources
 import android.net.MailTo
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.WindowManager
@@ -35,6 +37,7 @@ import app.sterna.ui.components.LocalListMonogram
 import app.sterna.ui.components.LocalPreviewLines
 import app.sterna.ui.components.LocalUnreadTint
 import app.sterna.ui.theme.SternaTheme
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -71,6 +74,15 @@ class MainActivity : AppCompatActivity() {
         }
         val settings = application.container.settingsRepository
         lifecycleScope.launch { settings.volumeTextSize.collect { volumeTextSize = it } }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            lifecycleScope.launch {
+                settings.dynamicColor.distinctUntilChanged().collect { enabled ->
+                    splashScreen.setSplashScreenTheme(
+                        if (enabled) R.style.Theme_Sterna_Splash_Dynamic else Resources.ID_NULL,
+                    )
+                }
+            }
+        }
         setContent {
             val themeMode by settings.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val dynamicColor by settings.dynamicColor.collectAsState(initial = false)
