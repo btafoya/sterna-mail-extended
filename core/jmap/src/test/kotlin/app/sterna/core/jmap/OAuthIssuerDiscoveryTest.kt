@@ -59,12 +59,14 @@ class OAuthIssuerDiscoveryTest {
         authorization: String? = "$ISSUER/authorize",
         token: String? = "$ISSUER/token",
         device: String? = null,
+        registration: String? = null,
     ): MockResponse {
         val fields = listOfNotNull(
             issuer?.let { "\"issuer\":\"$it\"" },
             authorization?.let { "\"authorization_endpoint\":\"$it\"" },
             token?.let { "\"token_endpoint\":\"$it\"" },
             device?.let { "\"device_authorization_endpoint\":\"$it\"" },
+            registration?.let { "\"registration_endpoint\":\"$it\"" },
             "\"jwks_uri\":\"$ISSUER/jwks\"",
             "\"response_types_supported\":[\"code\"]",
         )
@@ -149,6 +151,17 @@ class OAuthIssuerDiscoveryTest {
         assertTrue(metadata?.supportsCodeFlow == true)
         assertTrue(metadata?.supportsDeviceFlow == true)
         assertFalse(metadata?.endpointsOffDomain == true)
+    }
+
+    /** The client id is typed on this path: an issuer's own registration endpoint is not used. */
+    @Test fun aRegistrationEndpointOnTheTypedHostIsDropped() = runBlocking {
+        server.enqueue(document(registration = "$ISSUER/register"))
+
+        val metadata = client.discoverAtIssuer(ISSUER)
+
+        assertNotNull("the document is usable otherwise", metadata)
+        assertNull(metadata?.registrationEndpoint)
+        assertFalse(metadata?.asksRegistration == true)
     }
 
     @Test fun endpointsOnASubdomainOfTheTypedHostAreKept() = runBlocking {

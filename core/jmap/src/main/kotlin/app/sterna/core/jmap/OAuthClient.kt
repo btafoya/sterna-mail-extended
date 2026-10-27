@@ -10,8 +10,10 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -25,6 +27,7 @@ data class OAuthMetadata(
     @SerialName("authorization_endpoint") val authorizationEndpoint: String? = null,
     @SerialName("token_endpoint") val tokenEndpoint: String = "",
     @SerialName("device_authorization_endpoint") val deviceAuthorizationEndpoint: String? = null,
+    @SerialName("registration_endpoint") val registrationEndpoint: String? = null,
         /**
          * Set by [OAuthClient.discoverMetadata] when a named endpoint was blanked for its host, the
          * document sent the sign-in to somewhere we will not carry tokens. Never read off the wire.
@@ -38,6 +41,9 @@ data class OAuthMetadata(
     /** True when this server supports the Authorization Code Grant (RFC 6749 §4.1). */
     val supportsCodeFlow: Boolean
         get() = !authorizationEndpoint.isNullOrBlank() && tokenEndpoint.isNotBlank()
+
+    val asksRegistration: Boolean
+        get() = !registrationEndpoint.isNullOrBlank()
 }
 
 /** Response to a device-authorization request (RFC 8628 §3.2). */
@@ -63,6 +69,19 @@ data class OAuthTokens(
     /** The scopes actually granted (may differ from those requested). */
     @SerialName("scope") val scope: String? = null,
 )
+
+@Serializable
+internal data class ClientRegistration(
+    @SerialName("redirect_uris") val redirectUris: List<String>,
+    @SerialName("grant_types") val grantTypes: List<String>,
+    @SerialName("response_types") val responseTypes: List<String>,
+    @SerialName("token_endpoint_auth_method") val tokenEndpointAuthMethod: String,
+    val scope: String,
+    @SerialName("client_name") val clientName: String,
+)
+
+@Serializable
+internal data class RegisteredClient(@SerialName("client_id") val clientId: String = "")
 
 /** A parsed OAuth error response (RFC 6749 §5.2). [aadstsCode] is the first AADSTS code
  *  found in [description], when present (Microsoft), e.g. "AADSTS650051". */
@@ -199,9 +218,7 @@ private fun percentEncode(value: String): String {
 
 private const val HEX = "0123456789ABCDEF"
 
-    /**
-     * The client the four OAuth POSTs use, built here, and not the shared JMAP one.
-     */
+    /** The client every OAuth POST uses, built here, and not the shared JMAP one. */
 internal fun defaultOAuthHttpClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(20, TimeUnit.SECONDS)
     .readTimeout(30, TimeUnit.SECONDS)
@@ -247,16 +264,14 @@ private fun underOwner(host: String, owner: String): Boolean {
 class OAuthClient internal constructor(
     /** Metadata discovery only: follows 3xx, on purpose. See [defaultOAuthHttpClient]. */
     private val discoveryHttpClient: OkHttpClient,
-    /** The four POSTs that carry a secret. One field, so none of them can be forgotten. */
+    /** Every OAuth POST, the four that carry a secret and the registration. One field, so none can be forgotten. */
     private val tokenHttpClient: OkHttpClient,
     private val json: Json,
 ) {
     /** Public constructor for app code, shared client for discovery, dedicated one for the POSTs. */
     constructor() : this(JmapClient.defaultHttpClient(), defaultOAuthHttpClient(), JmapClient.DefaultJson)
 
-        /**
-         * Fetch the server's OAuth metadata, or null if it advertises none.
-         */
+        /** Fetch the server's OAuth metadata, or null if it advertises none. */
     suspend fun discoverMetadata(host: String, addressDomain: String): OAuthMetadata? = withContext(Dispatchers.IO) {
         val metadataUrl = Jmap.oauthMetadataUrlFor(host)
         val request = Request.Builder()
@@ -284,6 +299,8 @@ class OAuthClient internal constructor(
             authorizationEndpoint = found.authorizationEndpoint?.takeIf { allowed(it) },
             tokenEndpoint = found.tokenEndpoint.takeIf { allowed(it) }.orEmpty(),
             deviceAuthorizationEndpoint = found.deviceAuthorizationEndpoint?.takeIf { allowed(it) },
+            // Left out of `endpointsOffDomain`: registration carries no token, a foreign one is only dropped.
+            registrationEndpoint = found.registrationEndpoint?.takeIf { allowed(it) },
             endpointsOffDomain = elsewhere(found.tokenEndpoint) ||
                 elsewhere(found.authorizationEndpoint) ||
                 elsewhere(found.deviceAuthorizationEndpoint),
@@ -333,6 +350,42 @@ class OAuthClient internal constructor(
                 )
             }
             decodeGuarded(body, "device authorization", DeviceAuthorization.serializer())
+        }
+    }
+
+    /** Register Sterna as a public client (RFC 7591 §3.1) and return the `client_id` it was issued. */
+    suspend fun registerClient(
+        metadata: OAuthMetadata,
+        redirectUri: String,
+        scope: String,
+    ): String = withContext(Dispatchers.IO) {
+        // Not only at discovery: an OAuthMetadata can be built by hand, and this payload carries the redirect.
+        val endpoint = metadata.registrationEndpoint?.toHttpUrlOrNull()
+            ?: throw JmapException("Server has no usable client registration endpoint")
+        if (!endpoint.isHttps) throw JmapException("The client registration endpoint must be https")
+        val registration = ClientRegistration(
+            redirectUris = listOf(redirectUri),
+            grantTypes = listOf("authorization_code", "refresh_token"),
+            responseTypes = listOf("code"),
+            tokenEndpointAuthMethod = "none",
+            scope = scope,
+            clientName = "Sterna",
+        )
+        val payload = json.encodeToString(ClientRegistration.serializer(), registration)
+            .toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder().url(endpoint).post(payload).header("Accept", "application/json").build()
+        tokenHttpClient.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw JmapException(
+                    "Client registration failed: HTTP ${response.code}",
+                    httpCode = response.code,
+                    oauthError = parseError(body)?.error,
+                )
+            }
+            decodeGuarded(body, "client registration", RegisteredClient.serializer()).clientId
+                .takeIf { it.isNotBlank() }
+                ?: throw JmapException("The client registration response carries no client id")
         }
     }
 
@@ -425,7 +478,12 @@ class OAuthClient internal constructor(
         tokenHttpClient.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw JmapException("Token refresh failed: HTTP ${response.code}", httpCode = response.code)
+                // RFC 6749 §5.2 refuses with 400/401; a 5xx `error` is a proxy's, not "add the account again".
+                throw JmapException(
+                    "Token refresh failed: HTTP ${response.code}",
+                    httpCode = response.code,
+                    oauthError = if (response.code in 400..499) parseError(body)?.error else null,
+                )
             }
             decodeGuarded(body, "token", OAuthTokens.serializer())
         }
@@ -452,5 +510,6 @@ class OAuthClient internal constructor(
 
     private companion object {
         private val AADSTS_REGEX = Regex("AADSTS\\d+")
+        private val JSON_MEDIA_TYPE = "application/json".toMediaType()
     }
 }

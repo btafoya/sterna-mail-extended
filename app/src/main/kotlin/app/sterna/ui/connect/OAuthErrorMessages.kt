@@ -64,9 +64,10 @@ enum class OAuthGrant {
     NONE,
 }
 
-/** Which grant to drive against [metadata]. The device flow wins whenever a server offers both: it
- *  never leaves the app, so no browser, no redirect, no coming back into a dead process. */
+/** Which grant to drive against [metadata]. The device flow wins, it never leaves the app, except
+ *  at a server asking for registration: a registered client is refused the device flow (Stalwart). */
 fun chooseOAuthGrant(metadata: OAuthMetadata): OAuthGrant = when {
+    metadata.asksRegistration && metadata.supportsCodeFlow -> OAuthGrant.AUTHORIZATION_CODE
     metadata.supportsDeviceFlow -> OAuthGrant.DEVICE_CODE
     metadata.supportsCodeFlow -> OAuthGrant.AUTHORIZATION_CODE
     else -> OAuthGrant.NONE

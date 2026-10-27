@@ -1138,6 +1138,7 @@
     <string name="offline_banner">Jesteś offline</string>
     <string name="sync_error_banner">Synchronizacja nie powiodła się: %1$s</string>
     <string name="sync_error_timed_out">nic nie wróciło na czas</string>
+    <string name="sync_error_oauth_refused">odmowa logowania, dodaj konto ponownie</string>
     <string name="settings_conversation_section">Konwersacje</string>
     <string name="settings_conversation_title">Widok konwersacji</string>
     <string name="settings_conversation_subtitle">Grupuj wiadomości z tego samego wątku w jeden wiersz, z licznikiem. Na koncie JMAP wątki pochodzą z serwera; na koncie IMAP są odtwarzane z nagłówków wiadomości.</string>

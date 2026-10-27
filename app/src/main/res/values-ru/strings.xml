@@ -1140,6 +1140,7 @@
     <string name="offline_banner">Вы не в сети</string>
     <string name="sync_error_banner">Не удалось синхронизировать: %1$s</string>
     <string name="sync_error_timed_out">ничего не вернулось вовремя</string>
+    <string name="sync_error_oauth_refused">вход отклонён, добавьте аккаунт заново</string>
     <string name="settings_conversation_section">Беседы</string>
     <string name="settings_conversation_title">Просмотр беседы</string>
     <string name="settings_conversation_subtitle">Объединять сообщения одной цепочки в одну строку с указанием количества. В учётной записи JMAP цепочки приходят с сервера; в учётной записи IMAP они восстанавливаются из заголовков писем.</string>

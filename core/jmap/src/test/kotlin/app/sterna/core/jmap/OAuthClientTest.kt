@@ -1,6 +1,10 @@
 package app.sterna.core.jmap
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -723,6 +727,44 @@ class OAuthClientTest {
         assertFalse("the error carried the response body: $text", text.contains("error_description"))
     }
 
+    @Test fun refresh_carriesTheOAuthErrorButNotTheDescription() {
+        server.enqueue(
+            MockResponse().setResponseCode(401).setBody(
+                """{"error":"invalid_client","error_description":"SECRET-DESCRIPTION: client sterna unknown"}""",
+            ),
+        )
+
+        val outcome = runCatching {
+            runBlocking { client.refresh(server.url("/auth/token").toString(), "RT", "sterna") }
+        }
+
+        val failure = outcome.exceptionOrNull()
+        assertTrue("expected a JmapException, got $outcome", failure is JmapException)
+        failure as JmapException
+        assertEquals("invalid_client", failure.oauthError)
+        assertEquals(401, failure.httpCode)
+        assertEquals("Token refresh failed: HTTP 401", failure.message)
+        val text = generateSequence<Throwable>(failure) { it.cause }
+            .joinToString(" ") { "${it.javaClass} ${it.message}" }
+        assertFalse("the error carried the response body: $text", text.contains("SECRET-DESCRIPTION"))
+        assertFalse("the error carried the response body: $text", text.contains("error_description"))
+    }
+
+    @Test fun refresh_readsNoOAuthErrorFromAServerFailure() {
+        server.enqueue(
+            MockResponse().setResponseCode(503).setBody("""{"error":"temporarily_unavailable"}"""),
+        )
+
+        val failure = runCatching {
+            runBlocking { client.refresh(server.url("/auth/token").toString(), "RT", "sterna") }
+        }.exceptionOrNull()
+
+        assertTrue("expected a JmapException, got $failure", failure is JmapException)
+        failure as JmapException
+        assertEquals(503, failure.httpCode)
+        assertNull("a 5xx is an outage, not a refused sign-in", failure.oauthError)
+    }
+
     @Test fun supportsCodeFlow_needsBothEndpoints() {
         val both = OAuthMetadata(
             authorizationEndpoint = "https://idp.example.com/authorize",
@@ -1190,8 +1232,192 @@ class OAuthClientTest {
         assertTrue("and a third party WAS named", metadata?.endpointsOffDomain == true)
     }
 
+
+    private val registering: OAuthClient by lazy {
+        val routed = defaultOAuthHttpClient().newBuilder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                if (request.url.isHttps && request.url.host == REGISTRATION_HOST) {
+                    val local = request.url.newBuilder()
+                        .scheme("http")
+                        .host(server.hostName)
+                        .port(server.port)
+                        .build()
+                    chain.proceed(request.newBuilder().url(local).build())
+                } else {
+                    chain.proceed(request)
+                }
+            }
+            .build()
+        OAuthClient(JmapClient.defaultHttpClient(), routed, JmapClient.DefaultJson)
+    }
+
+    private fun registrationAt(endpoint: String?) = OAuthMetadata(
+        issuer = "https://$REGISTRATION_HOST",
+        authorizationEndpoint = "https://$REGISTRATION_HOST/authorize",
+        tokenEndpoint = "https://$REGISTRATION_HOST/token",
+        registrationEndpoint = endpoint,
+    )
+
+    @Test fun registerClient_postsTheExactRegistrationAndReturnsTheIssuedId() = runBlocking {
+        server.enqueue(
+            MockResponse().setResponseCode(201).setHeader("Content-Type", "application/json")
+                .setBody("""{"client_id":"swc1.abc","client_id_issued_at":1761500000}"""),
+        )
+
+        val id = registering.registerClient(
+            registrationAt("https://$REGISTRATION_HOST/auth/register"),
+            "app.sterna:/oauth",
+            "urn:ietf:params:oauth:scope:mail offline_access",
+        )
+
+        assertEquals("swc1.abc", id)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/auth/register", request.path)
+        assertTrue(
+            "Content-Type was ${request.getHeader("Content-Type")}",
+            request.getHeader("Content-Type").orEmpty().startsWith("application/json"),
+        )
+        val sent = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+        assertEquals(
+            setOf(
+                "redirect_uris", "grant_types", "response_types",
+                "token_endpoint_auth_method", "scope", "client_name",
+            ),
+            sent.keys,
+        )
+        assertEquals(JsonArray(listOf(JsonPrimitive("app.sterna:/oauth"))), sent["redirect_uris"])
+        assertEquals(
+            JsonArray(listOf(JsonPrimitive("authorization_code"), JsonPrimitive("refresh_token"))),
+            sent["grant_types"],
+        )
+        assertEquals(JsonArray(listOf(JsonPrimitive("code"))), sent["response_types"])
+        assertEquals(JsonPrimitive("none"), sent["token_endpoint_auth_method"])
+        assertEquals(JsonPrimitive("urn:ietf:params:oauth:scope:mail offline_access"), sent["scope"])
+        assertEquals(JsonPrimitive("Sterna"), sent["client_name"])
+    }
+
+    @Test fun registerClient_refusesAnAnswerWithoutAClientId() {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"client_id":""}"""))
+
+        val outcome = runCatching {
+            runBlocking { registering.registerClient(registrationAt("https://$REGISTRATION_HOST/r"), "app.sterna:/oauth", "s") }
+        }
+
+        assertTrue("expected a JmapException, got $outcome", outcome.exceptionOrNull() is JmapException)
+    }
+
+    @Test fun registerClient_carriesTheOAuthErrorButNotTheDescription() {
+        server.enqueue(
+            MockResponse().setResponseCode(400)
+                .setBody("""{"error":"invalid_redirect_uri","error_description":"SECRET"}"""),
+        )
+
+        val outcome = runCatching {
+            runBlocking { registering.registerClient(registrationAt("https://$REGISTRATION_HOST/r"), "app.sterna:/oauth", "s") }
+        }
+
+        val failure = outcome.exceptionOrNull()
+        assertTrue("expected a JmapException, got $outcome", failure is JmapException)
+        failure as JmapException
+        assertEquals("invalid_redirect_uri", failure.oauthError)
+        assertEquals(400, failure.httpCode)
+        val text = generateSequence<Throwable>(failure) { it.cause }
+            .joinToString(" ") { "${it.javaClass} ${it.message}" }
+        assertFalse("the error carried the server's text: $text", text.contains("SECRET"))
+    }
+
+    @Test fun registerClient_doesNotFollowARedirect() {
+        val second = startSecondServer()
+        try {
+            second.enqueue(MockResponse().setResponseCode(201).setBody("""{"client_id":"swc1.evil"}"""))
+            server.enqueue(
+                MockResponse().setResponseCode(307).setHeader("Location", second.url("/steal").toString()),
+            )
+
+            val outcome = runCatching {
+                runBlocking { registering.registerClient(registrationAt("https://$REGISTRATION_HOST/r"), "app.sterna:/oauth", "s") }
+            }
+
+            assertEquals("the registration must not be replayed", 0, second.requestCount)
+            val failure = outcome.exceptionOrNull()
+            assertTrue("expected the 307 to surface as a JmapException, got $outcome", failure is JmapException)
+            assertEquals(307, (failure as JmapException).httpCode)
+        } finally {
+            second.shutdown()
+        }
+    }
+
+    @Test fun registerClient_refusesACleartextEndpointBeforeAnyRequestLeaves() {
+        server.enqueue(MockResponse().setResponseCode(201).setBody("""{"client_id":"swc1.abc"}"""))
+        val cleartext = server.url("/r").toString()
+
+        val outcome = runCatching {
+            runBlocking { client.registerClient(registrationAt(cleartext), "app.sterna:/oauth", "s") }
+        }
+
+        val failure = outcome.exceptionOrNull()
+        assertTrue("expected a JmapException, got $outcome", failure is JmapException)
+        assertEquals("the redirect must not have been posted in cleartext", 0, server.requestCount)
+        val text = generateSequence<Throwable>(failure) { it.cause }
+            .joinToString(" ") { "${it.javaClass} ${it.message}" }
+        assertFalse("the error carried the address: $text", text.contains(server.hostName))
+    }
+
+    @Test fun registerClient_refusesAMissingOrUnreadableEndpointBeforeAnyRequestLeaves() {
+        listOf(null, "", "not a url", "ftp://$REGISTRATION_HOST/r").forEach { endpoint ->
+            val outcome = runCatching {
+                runBlocking { registering.registerClient(registrationAt(endpoint), "app.sterna:/oauth", "s") }
+            }
+            assertTrue(
+                "expected a JmapException for $endpoint, got $outcome",
+                outcome.exceptionOrNull() is JmapException,
+            )
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun discoverMetadata_keepsARegistrationEndpointOnTheHost() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com",
+                   "authorization_endpoint":"https://mail.example.com/authorize",
+                   "token_endpoint":"https://mail.example.com/token",
+                   "registration_endpoint":"https://mail.example.com/register"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertEquals("https://mail.example.com/register", metadata?.registrationEndpoint)
+        assertTrue(metadata?.asksRegistration == true)
+        assertFalse(metadata?.endpointsOffDomain == true)
+    }
+
+    @Test fun discoverMetadata_dropsAForeignRegistrationEndpointWithoutRaisingTheFact() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"issuer":"https://mail.example.com",
+                   "authorization_endpoint":"https://mail.example.com/authorize",
+                   "token_endpoint":"https://mail.example.com/token",
+                   "registration_endpoint":"https://ailleurs.example/register"}""",
+            ),
+        )
+
+        val metadata = client.discoverMetadata(server.url("/").toString(), "example.com")
+
+        assertNotNull(metadata)
+        assertNull("the foreign registration endpoint must go", metadata?.registrationEndpoint)
+        assertFalse(metadata?.asksRegistration == true)
+        assertEquals("https://mail.example.com/token", metadata?.tokenEndpoint)
+        assertFalse("the tokens stay on the host", metadata?.endpointsOffDomain == true)
+    }
+
     private companion object {
         /** `example.com` everywhere: `NoPrivateHostInTreeTest` refuses any private host. */
         const val AUTHORIZE = "https://idp.example.com/authorize"
+
+        const val REGISTRATION_HOST = "mail.example.com"
     }
 }

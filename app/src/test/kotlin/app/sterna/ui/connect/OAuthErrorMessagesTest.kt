@@ -272,6 +272,18 @@ class OAuthErrorMessagesTest {
         )
     }
 
+    @Test fun `a server that speaks both grants and asks for registration drives the code grant`() {
+        val registering = meta("mail.example.org", deviceFlow = true, codeFlow = true)
+            .copy(registrationEndpoint = "https://mail.example.org/register")
+        assertEquals(OAuthGrant.AUTHORIZATION_CODE, chooseOAuthGrant(registering))
+    }
+
+    @Test fun `a registering server without the code grant keeps the device flow`() {
+        val registering = meta("mail.example.org", deviceFlow = true, codeFlow = false)
+            .copy(registrationEndpoint = "https://mail.example.org/register")
+        assertEquals(OAuthGrant.DEVICE_CODE, chooseOAuthGrant(registering))
+    }
+
     @Test fun `a server with only a device endpoint drives the device flow`() {
         assertEquals(OAuthGrant.DEVICE_CODE, chooseOAuthGrant(meta("mail.example.org", deviceFlow = true)))
     }

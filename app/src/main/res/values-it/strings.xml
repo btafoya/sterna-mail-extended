@@ -1117,6 +1117,7 @@
     <string name="offline_banner">Sei offline</string>
     <string name="sync_error_banner">Sincronizzazione non riuscita: %1$s</string>
     <string name="sync_error_timed_out">non è tornato nulla in tempo</string>
+    <string name="sync_error_oauth_refused">accesso rifiutato, riaggiungi l\'account</string>
     <string name="settings_conversation_section">Conversazioni</string>
     <string name="settings_conversation_title">Vista conversazione</string>
     <string name="settings_conversation_subtitle">Raggruppa i messaggi della stessa conversazione in un\'unica riga, con un conteggio. In un account JMAP le conversazioni vengono dal server; in un account IMAP vengono ricostruite dalle intestazioni dei messaggi.</string>

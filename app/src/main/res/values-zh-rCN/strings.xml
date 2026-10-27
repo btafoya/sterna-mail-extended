@@ -273,6 +273,7 @@
          offline. ⛔ No duration either: it would be wrong the day the constant moves. Reads in
          the middle of a sentence, hence the lowercase start. -->
     <string name="sync_error_timed_out">未及时返回任何内容</string>
+    <string name="sync_error_oauth_refused">登录被拒绝，请重新添加账户</string>
     <string name="inbox_compose">写邮件</string>
     <string name="inbox_no_results">无结果</string>
     <string name="inbox_load_more_failed">无法加载更多</string>

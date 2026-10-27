@@ -407,15 +407,36 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 return@launch
             }
             val (host, found) = chosen
-            // Which grant is chooseOAuthGrant's call, and it prefers the device flow. The code grant
-            // hands over to the app-scoped driver, since the sign-in comes back through MainActivity.
-            if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {
+            // The route is oauthRouteFor's call. The code grant hands over to the app-scoped driver,
+            // whose start() sends nothing: a registration runs here, at each sign-in, no id kept.
+            val route = try {
+                oauthRouteFor(found) {
+                    container.mailRepository.accounts.registerOAuthClient(found, container.oauthCodeSignIn.redirectUri)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (t: Throwable) {
+                val spec = oauthFailureSpec(
+                    error = (t as? JmapException)?.oauthError.orEmpty(),
+                    description = "",
+                    aadstsCode = null,
+                    fallbackRes = R.string.connect_oauth_failed,
+                )
+                _state.value = ConnectState.Error(
+                    if (spec.arg == null) string(spec.resId) else string(spec.resId, spec.arg),
+                )
+                return@launch
+            }
+            if (route is OAuthRoute.Code) {
+                val client = route.client
                 // By name: `email` and `accountName` are adjacent Strings and a swap compiles.
                 container.oauthCodeSignIn.start(
                     host = host,
                     metadata = found,
                     email = emailTrim,
                     accountName = accountName,
+                    clientId = client.clientId,
+                    scope = client.scope,
                 )
                 return@launch
             }

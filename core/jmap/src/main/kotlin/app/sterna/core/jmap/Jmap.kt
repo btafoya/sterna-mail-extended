@@ -24,13 +24,15 @@ object Jmap {
     /** Well-known path for OAuth 2.0 authorization-server metadata (RFC 8414). */
     const val OAUTH_METADATA_PATH = "/.well-known/oauth-authorization-server"
 
-        /** OAuth client id Sterna identifies as. Stalwart accepts an arbitrary id (no
-         *  pre-registration); servers requiring dynamic registration can adopt it too. */
+        /** OAuth client id Sterna identifies as, at a server that asks for no client registration. */
     const val OAUTH_CLIENT_ID = "sterna"
 
     /** Scopes requested for the device flow: JMAP access + a refresh token. */
     const val OAUTH_SCOPE =
         "$CORE_CAPABILITY $MAIL_CAPABILITY $SUBMISSION_CAPABILITY offline_access"
+
+        /** Stalwart's only names for a registered client (RFC 7591): [OAUTH_SCOPE]'s URNs get `invalid_scope`. */
+    const val OAUTH_REGISTERED_SCOPE = "urn:ietf:params:oauth:scope:mail offline_access"
 
         /** Build a JMAP Session URL from user input. Accepts a bare host, a base URL or a full
          *  well-known URL, and normalises to "https://host/.well-known/jmap". A pasted session URL

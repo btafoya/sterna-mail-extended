@@ -76,22 +76,55 @@ class OAuthCodeWiringTest {
     }
 
     /**
-     * The device flow stays the default, and the search is the shared one. A server offering
-     * both grants must not be sent through a browser: that is the production path today.
+     * The route is oauthRouteFor's, and the search is the shared one. Only oauthRouteFor's lambda
+     * registers, and only the code branch hands over, with the id and scope that route decided.
      */
     @Test fun `the screen hands over only on the authorization code grant`() {
         val body = functionBody(VIEW_MODEL, "connectOAuth")
         val lines = body.lines().map { it.trim() }
-        listOf(PROBES, HANDS_OVER, "host = host,", "metadata = found,", "email = emailTrim,", "accountName = accountName,")
-            .forEach { required ->
-                assertTrue(
-                    "connectOAuth must carry exactly this whole line:\n  $required\n⚠ The anchors " +
-                        "are the point: `!= OAuthGrant.NONE` compiles and sends every device-flow " +
-                        "server to a browser; `start(host, found, accountName, emailTrim)` " +
-                        "compiles and stores the account label as its address. Body was:\n$body",
-                    lines.contains(required),
-                )
-            }
+        listOf(PROBES, HANDS_OVER).forEach { required ->
+            assertTrue(
+                "connectOAuth must carry exactly this whole line:\n  $required\n⚠ The anchor " +
+                    "is the point: a route re-derived here instead of oauthRouteFor's compiles " +
+                    "and sends a device-flow server to a browser. Body was:\n$body",
+                lines.contains(required),
+            )
+        }
+        val span = codeBranch(body)
+        val branch = lines.slice(span)
+        STARTS.forEach { required ->
+            assertTrue(
+                "the AUTHORIZATION_CODE branch of connectOAuth must carry exactly this whole " +
+                    "line:\n  $required\n`start(host, found, accountName, emailTrim)` compiles " +
+                    "and stores the account label as its address; a start left to its defaults " +
+                    "compiles and sends `sterna` to a server that refuses it. Branch was:\n" +
+                    branch.joinToString("\n"),
+                branch.contains(required),
+            )
+        }
+        val outside = lines.filterIndexed { i, line -> i !in span && STARTS_CODE.containsMatchIn(line) }
+        assertEquals(
+            "only the OAuthRoute.Code branch of connectOAuth may hand over to " +
+                "oauthCodeSignIn.start. Found outside it:\n" + outside.joinToString("\n"),
+            emptyList<String>(), outside,
+        )
+        val routed = lines.indexOf(ROUTES)
+        assertTrue(
+            "connectOAuth must ask oauthRouteFor, as this whole line:\n  $ROUTES\nBody was:\n$body",
+            routed >= 0,
+        )
+        assertEquals(
+            "the registration must be oauthRouteFor's lambda, on the line right after it, with " +
+                "the driver's redirect: a registration with another redirect is refused at the " +
+                "exchange, and one outside the lambda escapes the 401/403 fallback. Body was:\n$body",
+            REGISTERS, lines.getOrNull(routed + 1),
+        )
+        val registers = lines.filter { REGISTERS_OR_CHOOSES.containsMatchIn(it) }
+        assertEquals(
+            "connectOAuth may register once, inside oauthRouteFor, and choose no grant or client " +
+                "itself. Found:\n" + registers.joinToString("\n"),
+            listOf(ROUTES, REGISTERS), registers,
+        )
     }
 
     /**
@@ -145,6 +178,18 @@ class OAuthCodeWiringTest {
 
     // -- reading the files -------------------------------------------------------------------------
 
+    private fun codeBranch(body: String): IntRange {
+        val lines = body.lines()
+        val start = lines.indexOfFirst { it.trim() == HANDS_OVER }
+        check(start >= 0) { "connectOAuth has no `$HANDS_OVER` line: the branch would read empty." }
+        var depth = 0
+        for (i in start until lines.size) {
+            depth += lines[i].count { it == '{' } - lines[i].count { it == '}' }
+            if (depth <= 0) return start..i
+        }
+        return start until lines.size
+    }
+
     /** The body of a named function, as text. Braces counted raw, as the other source lints do. */
     private fun functionBody(file: File, name: String): String {
         val lines = file.readText().lines()
@@ -186,7 +231,25 @@ class OAuthCodeWiringTest {
 
         val REFRESHED_SENTENCE = Regex("""\bR\.string\.connect_account_refreshed\b""")
 
-        const val HANDS_OVER = "if (chooseOAuthGrant(found) == OAuthGrant.AUTHORIZATION_CODE) {"
+        const val HANDS_OVER = "if (route is OAuthRoute.Code) {"
+
+        const val ROUTES = "oauthRouteFor(found) {"
+
+        const val REGISTERS =
+            "container.mailRepository.accounts.registerOAuthClient(found, container.oauthCodeSignIn.redirectUri)"
+        val STARTS = listOf(
+            "val client = route.client",
+            "container.oauthCodeSignIn.start(",
+            "host = host,",
+            "metadata = found,",
+            "email = emailTrim,",
+            "accountName = accountName,",
+            "clientId = client.clientId,",
+            "scope = client.scope,",
+        )
+        val STARTS_CODE = Regex("""\boauthCodeSignIn\.start\(""")
+        val REGISTERS_OR_CHOOSES =
+            Regex("""\bregisterOAuthClient\(|\bcodeGrantClientFor\(|\bchooseOAuthGrant\(|\boauthRouteFor\(""")
         /**
          * The search is now the fallback arm: the address step already asked, under its budget,
          * and `reusableOAuth` hands its answer over rather than probing a second time (pinned in

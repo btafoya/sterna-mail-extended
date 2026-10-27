@@ -136,9 +136,11 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ IMAP presets for Gmail, Yahoo, iCloud, Fastmail, Proton Bridge, Yandex,
   Mail.ru, QQ Mail, 163 Mail, 126 Mail, Yeah Mail and Sina Mail, with the
   app-password reminder most of them need.
-- ✅ OAuth2, device flow (RFC 8628) where the server offers one, authorization code
-  with PKCE otherwise. The refresh token is encrypted and renewed (the short-lived
-  access token is not), and no password is handled.
+- ✅ OAuth2: authorization code with PKCE through the browser where the server
+  asks clients to register (Sterna then registers itself at each sign-in) or has
+  no device endpoint, device flow (RFC 8628) otherwise. The refresh token is
+  encrypted and renewed (the short-lived access token is not), and no password
+  is handled.
 - ✅ Outlook and Microsoft, over OAuth2 with XOAUTH2 on IMAP and SMTP. Personal
   accounts work; work and school accounts need their administrator's consent.
 - ✅ ⭐ Several JMAP accounts under one login (RFC 8620 §1.6.2). A delegated or

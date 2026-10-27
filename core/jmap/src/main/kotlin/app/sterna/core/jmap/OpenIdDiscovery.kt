@@ -81,6 +81,8 @@ internal fun guardedOpenIdConfiguration(found: OAuthMetadata, typedIssuer: Strin
         authorizationEndpoint = found.authorizationEndpoint?.takeIf { allowed(it) },
         tokenEndpoint = found.tokenEndpoint.takeIf { allowed(it) }.orEmpty(),
         deviceAuthorizationEndpoint = device?.takeIf { allowed(it) },
+        // The client id is the one typed in: nothing registers on this path, whatever is published.
+        registrationEndpoint = null,
         endpointsOffDomain = !device.isNullOrBlank() &&
             oauthEndpointNamesAnotherHost(device, typedHost, ""),
     ).takeIf { it.supportsCodeFlow }

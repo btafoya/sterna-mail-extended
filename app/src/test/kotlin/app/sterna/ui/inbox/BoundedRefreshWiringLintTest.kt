@@ -59,16 +59,36 @@ class BoundedRefreshWiringLintTest {
     fun `the failed arm stops the spinner, shows the cause, and reports the failure`() {
         val arm = whenArm("is RefreshOutcome.Failed")
         assertEquals(
-            "The arm taken when the work threw must be exactly what the old catch(Throwable) did: " +
-                "refreshing = false, the cause's own message (or its class name) in 'error', and the " +
-                "cause handed to connectivity.reportFailure. 'error = null' there is one word and " +
-                "makes every failure mute again, which is #65 undone; dropping the reportFailure call " +
-                "blinds the connectivity probe. Arm was:\n$arm",
+            "The arm taken when the work threw must set refreshing = false, put in 'error' what " +
+                "syncErrorText makes of the cause (the add-again sentence for an OAuth refusal, #271, " +
+                "the cause's own message otherwise; SyncErrorTextTest runs that rule), and hand the " +
+                "cause to connectivity.reportFailure. 'error = null' there is one word and makes every " +
+                "failure mute again, which is #65 undone; dropping the reportFailure call blinds the " +
+                "connectivity probe. Arm was:\n$arm",
             "is RefreshOutcome.Failed -> { " +
                 "val cause = outcome.cause " +
-                "status.value = Status(refreshing = false, error = cause.message ?: cause.javaClass.simpleName) " +
+                "status.value = Status(refreshing = false, error = " +
+                "syncErrorText(cause, getApplication<Application>().getString(R.string.sync_error_oauth_refused))) " +
                 "connectivity.reportFailure(cause) }",
             arm,
+        )
+    }
+
+    @Test
+    fun `a refresh that threw outside the bound words its error through syncErrorText too`() {
+        val body = declarationBody("fun refresh()")
+        val at = body.indexOf("catch (t: Throwable)")
+        check(at >= 0) { "refresh() no longer catches Throwable; this rule must follow it. Body:\n$body" }
+        val handler = balancedFrom(body, at)
+        assertEquals(
+            "The catch(Throwable) of refresh() must word its banner exactly like the Failed arm, so " +
+                "an OAuth refusal reaching the banner by this road also says to add the account " +
+                "again (#271), and still report the failure. Handler was:\n$handler",
+            "catch (t: Throwable) { " +
+                "status.value = Status(refreshing = false, error = " +
+                "syncErrorText(t, getApplication<Application>().getString(R.string.sync_error_oauth_refused))) " +
+                "connectivity.reportFailure(t) }",
+            handler,
         )
     }
 

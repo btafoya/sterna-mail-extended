@@ -271,6 +271,7 @@
          offline. ⛔ No duration either: it would be wrong the day the constant moves. Reads in
          the middle of a sentence, hence the lowercase start. -->
     <string name="sync_error_timed_out">semmi sem érkezett vissza időben</string>
+    <string name="sync_error_oauth_refused">belépés elutasítva, adja hozzá újra a fiókot</string>
     <string name="inbox_compose">Írás</string>
     <string name="inbox_no_results">Nincs találat</string>
     <string name="inbox_load_more_failed">Nem sikerült többet betölteni</string>

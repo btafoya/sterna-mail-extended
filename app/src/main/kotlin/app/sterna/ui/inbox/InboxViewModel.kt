@@ -1384,7 +1384,7 @@ class InboxViewModel(
                     }
                     is RefreshOutcome.Failed -> {
                         val cause = outcome.cause
-                        status.value = Status(refreshing = false, error = cause.message ?: cause.javaClass.simpleName)
+                        status.value = Status(refreshing = false, error = syncErrorText(cause, getApplication<Application>().getString(R.string.sync_error_oauth_refused)))
                         connectivity.reportFailure(cause)
                     }
                     RefreshOutcome.AbandonedAtBudget -> {
@@ -1398,7 +1398,7 @@ class InboxViewModel(
             } catch (c: CancellationException) {
                 throw c // a superseding refresh cancelled us, don't stomp its status
             } catch (t: Throwable) {
-                status.value = Status(refreshing = false, error = t.message ?: t.javaClass.simpleName)
+                status.value = Status(refreshing = false, error = syncErrorText(t, getApplication<Application>().getString(R.string.sync_error_oauth_refused)))
                 connectivity.reportFailure(t)
             }
         }

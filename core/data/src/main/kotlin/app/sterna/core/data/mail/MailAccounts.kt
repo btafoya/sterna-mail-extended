@@ -190,6 +190,10 @@ class MailAccounts(
     suspend fun startDeviceAuthorization(metadata: OAuthMetadata): DeviceAuthorization =
         oauthClient.startDeviceAuthorization(metadata, Jmap.OAUTH_CLIENT_ID, Jmap.OAUTH_SCOPE)
 
+    /** A client id freshly registered at [metadata] for the code grant coming back on [redirectUri]. */
+    suspend fun registerOAuthClient(metadata: OAuthMetadata, redirectUri: String): String =
+        oauthClient.registerClient(metadata, redirectUri, Jmap.OAUTH_REGISTERED_SCOPE)
+
     /** Poll the token endpoint once for a pending device authorization. */
     suspend fun pollDeviceToken(metadata: OAuthMetadata, deviceCode: String): DeviceTokenResult =
         oauthClient.pollDeviceToken(metadata, deviceCode, Jmap.OAUTH_CLIENT_ID)

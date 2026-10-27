@@ -1117,6 +1117,7 @@
     <string name="offline_banner">Estás sin conexión</string>
     <string name="sync_error_banner">Error de sincronización: %1$s</string>
     <string name="sync_error_timed_out">no llegó nada a tiempo</string>
+    <string name="sync_error_oauth_refused">acceso rechazado, vuelve a añadir la cuenta</string>
     <string name="settings_conversation_section">Conversaciones</string>
     <string name="settings_conversation_title">Vista de conversación</string>
     <string name="settings_conversation_subtitle">Agrupa los mensajes de un mismo hilo en una sola fila, con un contador. En una cuenta JMAP los hilos vienen del servidor; en una cuenta IMAP se reconstruyen a partir de las cabeceras de los mensajes.</string>
