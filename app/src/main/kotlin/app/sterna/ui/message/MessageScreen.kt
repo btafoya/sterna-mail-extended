@@ -144,6 +144,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.key
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -2035,19 +2043,50 @@ private fun MessageHeader(
     var showParticipants by remember(msg.id) { mutableStateOf(false) }
     val signatureSheet = LocalSignatureSheet.current
     val signatureOpenFor by signatureSheet.openFor.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxWidth()) {
+    val subjectSelectionGuard = remember(msg.id) { SubjectSelectionGuard() }
+    var subjectSelectionEpoch by remember(msg.id) { mutableIntStateOf(0) }
+    // Read from pointer and placement callbacks only, so writing them recomposes nothing.
+    val headerAt = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val subjectAt = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { headerAt.value = it }
+            // Initial pass and nothing consumed: the sender row still gets the same touch and opens
+            // its panel, with the selection already gone.
+            .pointerInput(subjectSelectionGuard) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val header = headerAt.value
+                    val subject = subjectAt.value
+                    val onSubject = header != null && subject != null && header.isAttached && subject.isAttached &&
+                        header.localBoundingBoxOf(subject, clipBounds = false).contains(down.position)
+                    if (subjectSelectionGuard.touched(onSubject)) subjectSelectionEpoch++
+                }
+            },
+    ) {
         // The full subject, wrapping. The toolbar can only show a truncated single line (it shares its
-        // width with the action icons), so the complete text lives here (#44).
-        Text(
-            text = msg.header.subject?.takeIf { it.isNotBlank() }
-                ?: stringResource(R.string.message_no_subject),
-            style = MaterialTheme.typography.titleLarge,
-            fontSize = 20.sp,
-            fontWeight = if (unread) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 14.dp),
-        )
+        // width with the action icons), so the complete text lives here (#44). Selectable alone, not the
+        // Column: a container reaching the sender Row would take its tap.
+        key(subjectSelectionEpoch) {
+            SelectionContainer {
+                Text(
+                    text = msg.header.subject?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.message_no_subject),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontSize = 20.sp,
+                    fontWeight = if (unread) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier
+                        // First, so the bounds tested against a touch include the padding.
+                        .onGloballyPositioned {
+                            subjectAt.value = it
+                            if (subjectSelectionGuard.placed(it.positionInRoot().y)) subjectSelectionEpoch++
+                        }
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 14.dp),
+                )
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
