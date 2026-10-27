@@ -236,6 +236,48 @@ internal val BLOCKQUOTE_TAG = Regex("(?i)<blockquote\\b[^>]*>|</blockquote\\s*>"
  */
 internal fun deepenQuote(line: String): String = if (line.startsWith(">")) ">$line" else "> $line"
 
+private fun isQuotedLine(line: String): Boolean = line.startsWith(">")
+
+internal fun hasQuotedText(body: String): Boolean = body.lineSequence().any(::isQuotedLine)
+
+private fun isQuoteAttribution(line: String): Boolean {
+    val tail = line.trimEnd()
+    return tail.isNotEmpty() && (tail.endsWith(':') || tail.endsWith('：'))
+}
+
+internal fun removeQuotedText(body: String): String? {
+    val lines = body.split("\n")
+    val quoted = BooleanArray(lines.size) { isQuotedLine(lines[it]) }
+    if (quoted.none { it }) return null
+    val cut = quoted.copyOf()
+    for (at in lines.indices) {
+        if (at > 0 && quoted[at] && !quoted[at - 1] && isQuoteAttribution(lines[at - 1])) cut[at - 1] = true
+    }
+    val out = mutableListOf<String>()
+    var i = 0
+    while (i < lines.size) {
+        if (!cut[i]) {
+            out += lines[i]
+            i++
+            continue
+        }
+        val before = mutableListOf<String>()
+        while (out.isNotEmpty() && out.last().isBlank()) before.add(0, out.removeAt(out.lastIndex))
+        val after = mutableListOf<String>()
+        while (i < lines.size && (cut[i] || lines[i].isBlank())) {
+            if (!cut[i]) after += lines[i]
+            i++
+        }
+        val atEnd = i == lines.size
+        when {
+            atEnd -> Unit
+            out.isEmpty() -> out += before
+            else -> (before + after).firstOrNull()?.let { out += it }
+        }
+    }
+    return out.joinToString("\n")
+}
+
 /** [text] up to (excluding) the first line that is exactly "-- " or "--" and follows a non-blank one. */
 internal fun cutAtSignatureDelimiter(text: String): String {
     val lines = text.split("\n")

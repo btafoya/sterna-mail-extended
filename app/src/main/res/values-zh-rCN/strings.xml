@@ -13,6 +13,7 @@
     <string name="compose_schedule_send">定时发送</string>
     <string name="compose_delete_draft">删除草稿</string>
     <string name="compose_request_receipt">请求已读回执</string>
+    <string name="compose_remove_quote">移除引用文字</string>
     <string name="compose_send">发送</string>
     <string name="compose_from">发件人</string>
     <string name="compose_choose_sender">选择发件人</string>

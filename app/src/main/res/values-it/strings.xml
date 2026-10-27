@@ -13,6 +13,7 @@
     <string name="compose_schedule_send">Programma invio</string>
     <string name="compose_delete_draft">Elimina bozza</string>
     <string name="compose_request_receipt">Richiedi una conferma di lettura</string>
+    <string name="compose_remove_quote">Rimuovi il testo citato</string>
     <string name="compose_send">Invia</string>
     <string name="compose_from">Da</string>
     <string name="compose_choose_sender">Scegli mittente</string>

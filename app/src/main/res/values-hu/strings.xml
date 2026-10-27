@@ -13,6 +13,7 @@
     <string name="compose_schedule_send">Küldés ütemezése</string>
     <string name="compose_delete_draft">Piszkozat törlése</string>
     <string name="compose_request_receipt">Olvasási visszaigazolás kérése</string>
+    <string name="compose_remove_quote">Idézett szöveg eltávolítása</string>
     <string name="compose_send">Küldés</string>
     <string name="compose_from">Feladó</string>
     <string name="compose_choose_sender">Feladó kiválasztása</string>

@@ -1133,6 +1133,28 @@ fun ComposeScreen(
                                 trailingIcon = { Checkbox(checked = requestReceipt, onCheckedChange = null) },
                                 onClick = { moreMenu = false; requestReceipt = !requestReceipt },
                             )
+                            if (hasQuotedText(body.text)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.compose_remove_quote)) },
+                                    onClick = {
+                                        moreMenu = false
+                                        // `initialBody` and the baselines stay where they are: a removed
+                                        // quote is an edit, so the composer must count as modified and
+                                        // ask before it is left, unlike the sender change which recalibrates
+                                        // them on purpose. The decrypted-quote guard is not lowered either.
+                                        rewriteRichBody(RichBody(body.text, ranges, blocks, links), body.selection.start, ::removeQuotedText)?.let { rewritten ->
+                                            body = TextFieldValue(
+                                                rewritten.text,
+                                                TextRange(body.selection.start.coerceAtMost(rewritten.text.length)),
+                                            )
+                                            ranges = rewritten.ranges
+                                            blocks = rewritten.blocks
+                                            links = rewritten.links
+                                        }
+                                    },
+                                    enabled = !sending,
+                                )
+                            }
                         }
                         // The presets, anchored to this same Box as the overflow: the two menus are
                         // siblings, never one inside the other.

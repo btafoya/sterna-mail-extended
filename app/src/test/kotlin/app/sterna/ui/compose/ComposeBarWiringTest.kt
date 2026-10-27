@@ -60,12 +60,14 @@ class ComposeBarWiringTest {
 
     // -- 3. what the overflow now offers, and under which conditions -------------------------------
 
-    @Test fun `the overflow offers the four entries in the order it draws them`() {
+    @Test fun `the overflow offers the five entries in the order it draws them`() {
         assertEquals(
-            "the ⋮ menu must carry exactly these four entries, in this order: save, schedule, " +
-                "delete, then the read receipt. The three that came down from the bar sit ABOVE " +
-                "the receipt — the receipt is a tick box one reads, the other three are actions, " +
-                "and an action that lands under a checkbox reads as part of it. A missing entry " +
+            "the ⋮ menu must carry exactly these five entries, in this order: save, schedule, " +
+                "delete, the read receipt, then the quote removal. The three that came down from " +
+                "the bar sit ABOVE the receipt — the receipt is a tick box one reads, the other " +
+                "three are actions, and an action that lands under a checkbox reads as part of it. " +
+                "The quote removal edits the body, it is no message action, and closes the list " +
+                "(#269). A missing entry " +
                 "here is a gesture the composer no longer offers at all, the bar having lost its " +
                 "icon.",
             ENTRIES,
@@ -75,12 +77,13 @@ class ComposeBarWiringTest {
 
     @Test fun `each entry kept the condition its icon had`() {
         assertEquals(
-            "the ⋮ menu must gate its entries on exactly these two conditions, in this order and " +
+            "the ⋮ menu must gate its entries on exactly these three conditions, in this order and " +
                 "whole. ⛔ The delete is a SECOND, separate block, outside `draftSaveAllowed`: " +
                 "deleting persists nothing, so it has no reason to disappear when the padlock " +
                 "closes — folded into the save block it vanishes on an encrypted message, taking " +
                 "the only way out of a phone-kept draft with it (#95). And `draftDeleteOffered` " +
-                "must keep its four live arguments; [DraftDeleteOfferedTest] runs that decision.",
+                "must keep its four live arguments; [DraftDeleteOfferedTest] runs that decision. " +
+                "The quote removal shows only on a body that still carries a quote (#269).",
             CONDITIONS,
             overflowMenu().filter { it.startsWith("if (") },
         )
@@ -88,7 +91,7 @@ class ComposeBarWiringTest {
 
     @Test fun `each entry kept the enabled rule its icon had`() {
         assertEquals(
-            "the three entries that came down from the bar must keep their `enabled` rules, " +
+            "the three entries that came down from the bar, and the quote removal, must keep their `enabled` rules, " +
                 "whole and in order. The schedule's is `!sending` alone: lit without a recipient and " +
                 "under OpenPGP, its tap says why it is refused (ScheduleMenuWiringTest pins the " +
                 "refusal). Dropping `!sending` acts on a message already in flight (INV-6).",
@@ -298,15 +301,18 @@ class ComposeBarWiringTest {
             SCHEDULE_TEXT,
             DELETE_TEXT,
             "text = { Text(stringResource(R.string.compose_request_receipt)) },",
+            "text = { Text(stringResource(R.string.compose_remove_quote)) },",
         )
 
         private val CONDITIONS = listOf(
             "if (draftSaveAllowed(pgpMode)) {",
             "if (draftDeleteOffered(restore, draftId, editingDraft != null, editingLocalDraftId != null)) {",
+            "if (hasQuotedText(body.text)) {",
         )
 
         private val ENABLED = listOf(
             "enabled = !sending && canSaveDraft,",
+            "enabled = !sending,",
             "enabled = !sending,",
             "enabled = !sending,",
         )
