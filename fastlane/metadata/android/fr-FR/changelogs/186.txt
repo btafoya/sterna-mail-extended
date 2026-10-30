@@ -1,0 +1,7 @@
+Les étiquettes JMAP s'affichent sur les messages et se posent ou s'ôtent depuis le message ouvert.
+
+Un bandeau prévient quand votre serveur, si Sterna le reconnaît, a jugé l'authentification de l'expéditeur en échec.
+
+Stalwart 1.0 : connexion OAuth par le navigateur, et le push ne perd plus la connexion.
+
+Liste : adresse après le nom quand elle tient. Rédaction : « Retirer la citation ». Objet copiable, raccourci « Non lus », écran de démarrage Material You, texte de droite à gauche.

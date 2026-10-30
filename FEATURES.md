@@ -88,7 +88,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   that covers them all.
 - ✅ On an account with several addresses, the chip of a list row names the address
   a message arrived on, when its To or Cc says which. Where rows name their
-  account, the address takes the place of the account's name.
+  account, the address takes the place of the account's name. In the view of one
+  account, an address the top bar already shows is left off the chip.
 - ✅ Mail by sender: gather one address's mail, see how much there is, delete it in
   one go, and optionally add a server-side rule for the future.
 - ✅ Move a message to another account's folder. This is a copy confirmed on the
@@ -187,9 +188,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Optional confirmation before an external link opens, showing where it goes.
 - ✅ App lock, biometric, falling back to the screen PIN, pattern or password.
 - ✅ The composer asks the keyboard not to learn what is typed into it.
-- ✅ A strip in the open message when your own mail server reported the sender's
-  authentication as failed (DMARC, DKIM or SPF). Nothing is shown when it passed
-  or was not checked.
+- ✅ A strip in the open message when your own mail server, if Sterna recognises
+  its name, reported the sender's authentication as failed (DMARC, DKIM or SPF).
+  No strip does not mean the sender was verified.
 - ✅ No telemetry, stated and detailed in [PRIVACY.md](PRIVACY.md).
 
 ## Encryption

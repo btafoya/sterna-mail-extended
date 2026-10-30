@@ -1,0 +1,7 @@
+JMAP labels show on messages and can be set or cleared from the open message.
+
+A strip warns when your server, if Sterna recognises it, reported the sender's authentication as failed.
+
+Stalwart 1.0: OAuth sign-in through the browser, and push no longer loses the sign-in.
+
+List: sender's address after the name when it fits. Composer: "Remove quoted text". Copyable subject, "Unread" app shortcut, Material You launch screen, right-to-left text fixes.
