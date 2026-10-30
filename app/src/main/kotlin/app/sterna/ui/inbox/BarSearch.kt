@@ -18,6 +18,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 internal data class SearchUi(
@@ -39,6 +43,15 @@ internal data class SearchUi(
     /** The words typed in the bar, the only part the history keeps. */
     val query: String get() = criteria.text
 }
+
+/**
+ * The text the search bar's field shows, read off [state] alone. A `TextField` holding a `String`
+ * that gets its value back a frame late reverts to the previous text and leaves the cursor behind
+ * (#277): no step here may suspend, read the database or wait on another flow.
+ */
+internal fun fieldTextOf(state: StateFlow<SearchUi>, scope: CoroutineScope): StateFlow<String> =
+    state.map { it.query }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), state.value.query)
 
 /** Pause after the last change of the criteria before the (unioned-in) server search fires. */
 internal const val SERVER_SEARCH_DEBOUNCE_MS = 350L

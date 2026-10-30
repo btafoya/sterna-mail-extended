@@ -865,6 +865,8 @@ class InboxViewModel(
             .map { shown -> search.copy(results = results.map { it.withShownReplyMarks(shown) }) }
     }
 
+    val searchFieldText: StateFlow<String> = fieldTextOf(searchState, viewModelScope)
+
     private val barResults = object : ShownResults {
         override val rows: List<Email>? get() = searchState.value.results
         override fun drop(keys: Set<EmailKey>) {

@@ -276,6 +276,7 @@ fun InboxScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val searchSuggestions by viewModel.searchSuggestions.collectAsStateWithLifecycle()
+    val fieldText by viewModel.searchFieldText.collectAsStateWithLifecycle()
     val listRows = viewModel.pagedListRows.collectAsLazyPagingItems()
     val swipe by viewModel.swipeConfig.collectAsStateWithLifecycle()
     val selectionActive by viewModel.selectionActive.collectAsStateWithLifecycle()
@@ -765,7 +766,7 @@ fun InboxScreen(
                             // The input stays single-line (a filled TextField can't grow past the
                             // app bar's height without clipping); the hint is a separate Text behind it.
                             Box(Modifier.fillMaxWidth()) {
-                                if (ui.searchQuery.isEmpty()) {
+                                if (fieldText.isEmpty()) {
                                     Text(
                                         stringResource(R.string.inbox_search),
                                         style = MaterialTheme.typography.bodyLarge,
@@ -778,7 +779,7 @@ fun InboxScreen(
                                     )
                                 }
                                 TextField(
-                                    value = ui.searchQuery,
+                                    value = fieldText,
                                     onValueChange = viewModel::typeSearchQuery,
                                     singleLine = true,
                                     // Live search-as-you-type, so the Search key is the one
@@ -797,7 +798,7 @@ fun InboxScreen(
                             }
                         },
                         actions = {
-                            if (ui.searchQuery.isNotEmpty()) {
+                            if (fieldText.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setSearchQuery("") }) {
                                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.inbox_clear))
                                 }
