@@ -1594,7 +1594,9 @@ fun ComposeScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        inner()
+                        // A `Box` drops its children's min width: bare, the field shrinks to its text and
+                        // `TopStart` pins it to the right edge under an RTL layout, whatever the text's own direction.
+                        Box(Modifier.fillMaxWidth(), propagateMinConstraints = true) { inner() }
                     }
                 },
             )
