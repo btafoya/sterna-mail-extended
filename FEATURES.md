@@ -42,6 +42,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Mark read or unread, star, archive, delete, with an Undo snackbar.
 - ✅ Configurable swipe actions; long-press for multi-select and bulk actions.
 - ✅ Sort by date, subject, sender, unread-first or starred-first; mark all read.
+- ✅ The sender's address shows in grey after their name when the name, the address and
+  the date all fit on the line; otherwise it is left out, never cut short. No setting.
 - ✅ Pull to refresh.
 - ✅ Folder drawer, to open any mailbox of the account.
 - ✅ With two accounts or more, tapping the list's title opens a menu to switch to

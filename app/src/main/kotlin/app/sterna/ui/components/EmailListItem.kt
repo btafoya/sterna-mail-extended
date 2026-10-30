@@ -192,6 +192,7 @@ fun EmailListItem(
 ) {
     val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
+    val senderAddress = listAddressBesideName(email.from.firstOrNull(), rowShowsRecipients = showRecipients)
     val nameLine = if (recipient != null) {
         stringResource(R.string.list_to_recipients, email.to.joinToString { it.display() })
     } else {
@@ -293,15 +294,24 @@ fun EmailListItem(
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = nameLine,
-                    style = MaterialTheme.typography.titleMedium,
-                    // Unread is shown by weight (bold) rather than a status dot.
-                    fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                if (senderAddress != null) {
+                    SenderWithAddress(
+                        name = nameLine,
+                        address = senderAddress,
+                        nameWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Text(
+                        text = nameLine,
+                        style = MaterialTheme.typography.titleMedium,
+                        // Unread is shown by weight (bold) rather than a status dot.
+                        fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 // A trashed draft shows its recipient like a sent mail (#69), so mark it "(Draft)"
                 // wherever it surfaces to keep the two apart.
                 if (showDraftBadge) {
