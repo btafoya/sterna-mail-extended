@@ -79,7 +79,7 @@ class OriginalSenderWiringTest {
         )
         assertEquals(
             "…show it on the email it returns",
-            listOf("val shown = email.copy(originalSender = origin.header)"),
+            listOf("val shown = email.copy(originalSender = origin.header, authenticationFailures = origin.authenticationFailures)"),
             body.filter { "originalSender = origin" in it },
         )
         assertEquals(
@@ -111,8 +111,11 @@ class OriginalSenderWiringTest {
         )
         assertEquals(
             "…and each body is persisted carrying what that read found",
-            listOf("val withOrigin = email.copy(originalSender = origins[email.id])"),
-            body.filter { "origins[" in it },
+            listOf(
+                "val origin = origins[email.id]",
+                "val withOrigin = email.copy(originalSender = origin?.header, authenticationFailures = origin?.authenticationFailures)",
+            ),
+            body.filter { "origins[" in it || it.startsWith("val withOrigin") },
         )
     }
 

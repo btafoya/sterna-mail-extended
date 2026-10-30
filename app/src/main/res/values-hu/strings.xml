@@ -397,6 +397,7 @@
     <string name="message_read_receipt_sending">Válasz elhelyezése a Postázandó mappában…</string>
     <string name="message_read_receipt_queued">A Postázandó mappában: %1$s</string>
     <string name="message_read_receipt_failed">Semmi sem került a Postázandó mappába, így semmi sem lesz elküldve.</string>
+    <string name="message_sender_unverified">A feladó nincs ellenőrizve: %1$s sikertelen</string>
     <!-- Reader overflow: view the message's raw headers (issue #60) -->
     <string name="message_view_headers">Fejlécek megtekintése</string>
     <string name="message_print">Nyomtatás</string>

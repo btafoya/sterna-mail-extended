@@ -521,9 +521,11 @@ class RemoteImagesTest {
         assertEquals(
             "the unsubscribe strip must stay the LAST strip in the header — that placement is " +
                 "deliberate and tested (it must never push a crypto verdict or a meeting " +
-                "invitation below the fold), so the images strip goes BEFORE it",
-            "UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)",
-            calls.last(),
+                "invitation below the fold), so the images strip goes BEFORE it. Only the " +
+                "unverified-sender warning (#276) follows it; `ReadReceiptStrip(` spans lines and " +
+                "is not matched here",
+            listOf("UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)", "SenderUnverifiedStrip(methods, onViewHeaders)"),
+            calls.takeLast(2),
         )
         assertTrue(
             "the images strip must come before the unsubscribe one — order was: $calls",

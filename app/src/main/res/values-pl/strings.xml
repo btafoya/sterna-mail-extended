@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Umieszczanie odpowiedzi w skrzynce nadawczej…</string>
     <string name="message_read_receipt_queued">W skrzynce nadawczej: %1$s</string>
     <string name="message_read_receipt_failed">Nic nie trafiło do skrzynki nadawczej, nic nie zostanie wysłane.</string>
+    <string name="message_sender_unverified">Nadawca niezweryfikowany: niepowodzenie %1$s</string>
     <string name="message_view_headers">Pokaż nagłówki</string>
     <string name="message_export_eml">Zapisz jako .eml</string>
     <string name="message_export_saved">Zapisano jako %1$s</string>

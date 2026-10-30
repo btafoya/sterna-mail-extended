@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Antwoord wordt in postvak uit gezet…</string>
     <string name="message_read_receipt_queued">In postvak uit: %1$s</string>
     <string name="message_read_receipt_failed">Er is niets in postvak uit gezet, er wordt niets verstuurd.</string>
+    <string name="message_sender_unverified">Afzender niet geverifieerd: %1$s mislukt</string>
     <string name="message_view_headers">Headers weergeven</string>
     <string name="message_export_eml">Opslaan als .eml</string>
     <string name="message_export_saved">Opgeslagen als %1$s</string>

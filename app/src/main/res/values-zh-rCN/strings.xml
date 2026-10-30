@@ -398,6 +398,7 @@
     <string name="message_read_receipt_sending">正在将答复放入发件箱…</string>
     <string name="message_read_receipt_queued">已在发件箱中：%1$s</string>
     <string name="message_read_receipt_failed">没有向发件箱放入任何内容，因此不会发送。</string>
+    <string name="message_sender_unverified">发件人未通过验证：%1$s 失败</string>
     <!-- Reader overflow: view the message's raw headers (issue #60) -->
     <string name="message_view_headers">查看邮件头</string>
     <string name="message_print">打印</string>

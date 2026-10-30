@@ -39,6 +39,19 @@ class BodyCacheUpgradeTest {
         assertEquals(177, BODY_CACHE_PURGE_VERSION_4)
     }
 
+    @Test fun `the fifth threshold is the release that needs it, by number`() {
+        assertEquals(186, BODY_CACHE_PURGE_VERSION_5)
+    }
+
+    @Test fun `a 185 install purges on arriving at the sender-verdict release`() {
+        assertEquals(
+            "a 185 install must purge on arrival, or mail already cached never says its sender failed the checks",
+            186,
+            bodyCachePurgeVersion(purgedForVersion = 185, currentVersion = 186),
+        )
+        assertNull(bodyCachePurgeVersion(purgedForVersion = 186, currentVersion = 187))
+    }
+
     @Test fun `arriving at the threshold purges, and records the version it purged for`() {
         assertEquals(
             BODY_CACHE_PURGE_VERSION,

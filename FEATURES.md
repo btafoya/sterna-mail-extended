@@ -187,6 +187,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Optional confirmation before an external link opens, showing where it goes.
 - ✅ App lock, biometric, falling back to the screen PIN, pattern or password.
 - ✅ The composer asks the keyboard not to learn what is typed into it.
+- ✅ A strip in the open message when your own mail server reported the sender's
+  authentication as failed (DMARC, DKIM or SPF). Nothing is shown when it passed
+  or was not checked.
 - ✅ No telemetry, stated and detailed in [PRIVACY.md](PRIVACY.md).
 
 ## Encryption

@@ -301,6 +301,11 @@ enum class UnsubscribeStripBody {
     val acts: Boolean get() = this == ACTION || this == FAILED
 }
 
+fun senderUnverifiedMethods(failures: List<String>?): String? =
+    SENDER_CHECKS.filter { it.lowercase() in failures.orEmpty() }.joinToString(", ").takeIf { it.isNotEmpty() }
+
+private val SENDER_CHECKS = listOf("DMARC", "DKIM", "SPF")
+
 /** See [UnsubscribeStripBody]. */
 fun unsubscribeStripBody(state: UnsubscribeState): UnsubscribeStripBody = when (state) {
     UnsubscribeState.Idle -> UnsubscribeStripBody.ACTION
@@ -983,6 +988,9 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
     private val _unsubscribeConfirm = MutableStateFlow<PendingUnsubscribe?>(null)
     val unsubscribeConfirm = _unsubscribeConfirm.asStateFlow()
 
+    private val _senderUnverified = MutableStateFlow<String?>(null)
+    val senderUnverified = _senderUnverified.asStateFlow()
+
     /** Ask before acting; a no-op when the message offers nothing, or when it is already done. */
     fun askUnsubscribe() {
         val options = _unsubscribe.value ?: return
@@ -1232,6 +1240,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         _readReceiptOffer.value = null
         _readReceiptState.value = ReadReceiptState.Idle
         readReceiptAnswer = ReadReceiptAnswer.PENDING
+        _senderUnverified.value = null
         // Re-point the move picker at the account this page's message belongs to, before any
         // of its state is read (the folders come from the cache, so no network is involved).
         _ownerAccountId.value = credentials()?.id
@@ -1320,6 +1329,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 // Stamp the owning account: the fetched body never carries one, and downstream
                 // actions route by it.
                 val anchor = opened.email.copy(accountId = opened.email.accountId ?: accountId)
+                _senderUnverified.value = senderUnverifiedMethods(anchor.authenticationFailures)
                 _state.value = MessageState.Loaded(anchorDisplay(anchor))
                 // Show the opened message immediately. The thread fetch below is a separate network
                 // round-trip and must not gate the body the user came to read.
@@ -1388,6 +1398,7 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
                 // banner that outlives its message is one that never goes away.
                 _readReceiptOffer.value = null
                 _readReceiptState.value = ReadReceiptState.Idle
+                _senderUnverified.value = null
                 // The screen gets a sentence naming no cause, and for MessageUnavailableException it
                 // replaces the technical text (#159), so unless the throwable is logged here, the
                 // reason this message would not open exists nowhere.

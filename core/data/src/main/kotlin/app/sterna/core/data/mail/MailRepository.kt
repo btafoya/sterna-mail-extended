@@ -448,6 +448,33 @@ internal fun originalSenderHeaderOf(headers: List<Pair<String, String>>): String
         ?.let { MimeParser.decodedHeaderValue(it.second) }
         ?.takeIf { it.isNotBlank() }
 
+/** One best-effort read of a message's header fields (#160, #276): what it found, and whether it
+ *  happened. [authenticationFailures] is null exactly when it did not. */
+internal class OriginRead(val header: String?, val authenticationFailures: List<String>?, val succeeded: Boolean)
+
+/** [headers] null is a read that failed: its verdict is unknown, never empty, or the cached body
+ *  would say "nothing to report" for the life of the install. */
+internal fun originReadOf(headers: List<Pair<String, String>>?, trustedNames: Set<String>): OriginRead =
+    if (headers == null) {
+        OriginRead(header = null, authenticationFailures = null, succeeded = false)
+    } else {
+        OriginRead(originalSenderHeaderOf(headers), AuthenticationResults.failuresOf(headers, trustedNames), succeeded = true)
+    }
+
+/** The `authserv-id`s this account believes: its own servers and its address domain. On JMAP both
+ *  the typed host and the API host, since a `.well-known` lookup may land on another machine. */
+internal fun authservNamesFor(credentials: AccountCredentials, apiUrl: String?): Set<String> {
+    val hosts = if (credentials.protocol == MailProtocol.IMAP) {
+        listOf(credentials.imap?.host)
+    } else {
+        listOf(hostOf(Jmap.sessionUrlFor(credentials.server)), apiUrl?.let(::hostOf))
+    }
+    val domain = credentials.username.substringAfterLast('@', missingDelimiterValue = "")
+    return (hosts + domain).mapNotNull { name -> name?.trim()?.lowercase()?.removeSuffix(".")?.takeIf { it.isNotEmpty() } }.toSet()
+}
+
+private fun hostOf(url: String): String? = runCatching { java.net.URI(url).host }.getOrNull()
+
 /** Whether an opened message's body may be written to the body cache. On JMAP a null origin means
  *  both "carries none" and "the read did not happen", and caching the second says "no origin" for
  *  ever; IMAP always caches, the header was read off the source already in hand. */
@@ -2155,11 +2182,6 @@ class MailRepository(
         return email
     }
 
-    /**
-     * The outcome of one best-effort origin read (#160): [header] is what was found, [succeeded] the read.
-     */
-    private class OriginRead(val header: String?, val succeeded: Boolean)
-
     /** Best effort, and called from [openMessage] so a failed read is visible where the decision to
      *  cache is taken. Not `headers` in `EMAIL_BODY_PROPERTIES`: one refused property fails the get. */
     private suspend fun originReadFor(
@@ -2168,7 +2190,7 @@ class MailRepository(
         email: Email,
     ): OriginRead {
         if (credentials.protocol == MailProtocol.IMAP) {
-            return OriginRead(email.originalSender, succeeded = true)
+            return OriginRead(email.originalSender, email.authenticationFailures, succeeded = true)
         }
         return try {
             val ctx = jmapSession(credentials)
@@ -2176,12 +2198,12 @@ class MailRepository(
                 .map { it.name to it.value }
             // Autocrypt rides on the read already happening: no second round trip.
             importAutocryptKey(headers, email.from.firstOrNull()?.email, { email.receivedAt })
-            OriginRead(header = originalSenderHeaderOf(headers), succeeded = true)
+            originReadOf(headers, authservNamesFor(credentials, ctx.session.apiUrl))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             logWarn("MailRepository", "origin header of $emailId unreadable", failure)
-            OriginRead(header = null, succeeded = false)
+            originReadOf(headers = null, trustedNames = emptySet())
         }
     }
 
@@ -2224,13 +2246,14 @@ class MailRepository(
     /**
      * The same read for many messages, keyed by id: one grouped `Email/get`, best effort, cancellation
      */
-    private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, String?>? = try {
+    private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, OriginRead>? = try {
+        val trusted = authservNamesFor(ctx.credentials, ctx.session.apiUrl)
         val byId = client.getEmailsHeaders(ctx.session, ctx.accountId, emails.map { it.id }, ctx.auth)
         for (email in emails) {
             val headers = byId[email.id] ?: continue
             importAutocryptKey(headers.map { it.name to it.value }, email.from.firstOrNull()?.email, { email.receivedAt })
         }
-        byId.mapValues { (_, headers) -> originalSenderHeaderOf(headers.map { it.name to it.value }) }
+        byId.mapValues { (_, headers) -> originReadOf(headers.map { it.name to it.value }, trusted) }
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failure: Throwable) {
@@ -2282,6 +2305,7 @@ class MailRepository(
             // Read through `rawHeaders` rather than `headerOf`: that one is a Map where the last
             // occurrence wins, which for a relay header names the outermost alias, not the hop.
             originalSender = originalSenderHeaderOf(headers),
+            authenticationFailures = AuthenticationResults.failuresOf(headers, authservNamesFor(credentials, apiUrl = null)),
         )
     }
 
@@ -2331,7 +2355,7 @@ class MailRepository(
         // Who a forwarding service says really wrote this (#160), read here and not in `openEmail`:
         // only this caller shows the line, and only it can act on a failed read, by not caching.
         val origin = originReadFor(credentials, emailId, email)
-        val shown = email.copy(originalSender = origin.header)
+        val shown = email.copy(originalSender = origin.header, authenticationFailures = origin.authenticationFailures)
         val inline = fetchInlineImages(credentials, shown, emailId)
         // The cache write is CONDITIONAL: a body cached after a failed read would say "no origin"
         // for the life of the install, since this cache is served before any network call.
@@ -2551,7 +2575,8 @@ class MailRepository(
     /** What `openMessage` shows of ordinary mail, minus the cache write: a signed message is asked
      *  again at each open, and a failed image fetch must not turn into a status card. */
     private suspend fun unverifiedBody(credentials: AccountCredentials, emailId: String, email: Email): MessageBody {
-        val shown = email.copy(originalSender = originReadFor(credentials, emailId, email).header)
+        val origin = originReadFor(credentials, emailId, email)
+        val shown = email.copy(originalSender = origin.header, authenticationFailures = origin.authenticationFailures)
         val inline = try {
             fetchInlineImages(credentials, shown, emailId)
         } catch (cancelled: CancellationException) {
@@ -2723,7 +2748,8 @@ class MailRepository(
             // whose origin read failed is not persisted, or those bodies would say "no origin" for good.
             val origins = originalSendersOf(ctx, emails) ?: return
             for (email in emails) {
-                val withOrigin = email.copy(originalSender = origins[email.id])
+                val origin = origins[email.id]
+                val withOrigin = email.copy(originalSender = origin?.header, authenticationFailures = origin?.authenticationFailures)
                 persistBody(credentials.id, email.id, withOrigin, emptyMap())
             }
         }

@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Colocando a resposta na caixa de saída…</string>
     <string name="message_read_receipt_queued">Na caixa de saída: %1$s</string>
     <string name="message_read_receipt_failed">Nada foi colocado na caixa de saída, nada será enviado.</string>
+    <string name="message_sender_unverified">Remetente não verificado: falha em %1$s</string>
     <string name="message_view_headers">Ver cabeçalhos</string>
     <string name="message_export_eml">Guardar como .eml</string>
     <string name="message_export_saved">Guardado como %1$s</string>

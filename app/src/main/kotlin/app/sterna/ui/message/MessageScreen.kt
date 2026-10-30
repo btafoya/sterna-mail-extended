@@ -1487,6 +1487,7 @@ private fun MessageContent(
     // message that was unread and the sender asked, see `offeredReadReceipt`.
     val readReceiptOffer by viewModel.readReceiptOffer.collectAsStateWithLifecycle()
     val readReceiptState by viewModel.readReceiptState.collectAsStateWithLifecycle()
+    val senderUnverified by viewModel.senderUnverified.collectAsStateWithLifecycle()
     // OpenKeychain's passphrase/key dialogs round-trip through this launcher.
     val pgpLauncher = rememberPgpInteractionLauncher { data ->
         if (data != null) viewModel.decrypt(data) else viewModel.cancelDecrypt()
@@ -1705,6 +1706,8 @@ private fun MessageContent(
                 // mail to a stranger, the second sends nothing and takes the question away.
                 onSendReadReceipt = viewModel::sendReadReceipt,
                 onDeclineReadReceipt = viewModel::declineReadReceipt,
+                senderUnverified = senderUnverified,
+                onViewHeaders = viewModel::viewHeaders,
                 attachmentThumbnails = attachmentThumbnails,
             )
         }
@@ -1762,6 +1765,8 @@ private fun ConversationBody(
     readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
     onSendReadReceipt: () -> Unit = {},
     onDeclineReadReceipt: () -> Unit = {},
+    senderUnverified: String? = null,
+    onViewHeaders: () -> Unit = {},
     attachmentThumbnails: Map<String, ImageBitmap> = emptyMap(),
 ) {
     val msg = messages.firstOrNull() ?: return
@@ -1974,6 +1979,8 @@ private fun ConversationBody(
                 // type, one of which queues mail to a stranger.
                 onSendReadReceipt = onSendReadReceipt,
                 onDeclineReadReceipt = onDeclineReadReceipt,
+                senderUnverified = senderUnverified,
+                onViewHeaders = onViewHeaders,
                 saveAllProgress = saveAllProgress,
                 onSaveAllAttachments = onSaveAllAttachments,
                 attachmentThumbnails = attachmentThumbnails,
@@ -2064,6 +2071,8 @@ private fun MessageHeader(
     readReceiptState: ReadReceiptState = ReadReceiptState.Idle,
     onSendReadReceipt: () -> Unit = {},
     onDeclineReadReceipt: () -> Unit = {},
+    senderUnverified: String? = null,
+    onViewHeaders: () -> Unit = {},
     saveAllProgress: SaveAllProgress? = null,
     onSaveAllAttachments: (ownerId: String) -> Unit = {},
     attachmentThumbnails: Map<String, ImageBitmap> = emptyMap(),
@@ -2292,6 +2301,10 @@ private fun MessageHeader(
                 onSendReadReceipt = onSendReadReceipt,
                 onDeclineReadReceipt = onDeclineReadReceipt,
             )
+        }
+        senderUnverified?.let { methods ->
+            HorizontalDivider()
+            SenderUnverifiedStrip(methods, onViewHeaders)
         }
         HorizontalDivider()
     }
@@ -3138,6 +3151,32 @@ private fun ReadReceiptStrip(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+/** The account's own server failed a check on the sender (#276). Last of the strips: a warning never
+ *  pushes an action down. The text wraps, never at less than the button's height: the failed methods
+ *  are the message. The header's height keys the document; it holds once the strip is drawn, its text
+ *  never being rewritten before the next message. Opened normally, the strip is decided before the
+ *  body is published; a prefetched page shows the body first and sees the strip arrive under it. */
+@Composable
+private fun SenderUnverifiedStrip(methods: String, onViewHeaders: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = ButtonDefaults.MinHeight)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.message_sender_unverified, methods),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+        )
+        TextButton(onClick = onViewHeaders) {
+            Text(stringResource(R.string.message_view_headers), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

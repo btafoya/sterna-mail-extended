@@ -119,6 +119,7 @@ data class Email(
          * Who a forwarding service says really wrote this message, already decoded and filtered, read
          */
     val originalSender: String? = null,
+    val authenticationFailures: List<String>? = null,
 ) {
     /** Whether the message has been read ($seen keyword). */
     val isSeen: Boolean get() = keywords["\$seen"] == true

@@ -121,7 +121,7 @@ class SessionSeamIsNamedTest {
                 "private var cachedSession: JmapAccountSession? = null",
                 "override fun cachedJmapSession(): JmapAccountSession? = cachedSession",
                 "cachedSession = JmapAccountSession(",
-                "private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, String?>? = try {",
+                "private suspend fun originalSendersOf(ctx: JmapAccountSession, emails: List<Email>): Map<String, OriginRead>? = try {",
                 "private suspend fun jmapMoveAll(ctx: JmapAccountSession, emailIds: List<String>, target: String): BulkResult {",
                 "private suspend fun jmapDestroyAll(ctx: JmapAccountSession, emailIds: List<String>): BulkResult {",
                 "ctx: JmapAccountSession,",

@@ -344,10 +344,11 @@ class ReadReceiptStripTest {
         )
         val strips = header.filter { STRIP_CALL.containsMatchIn(it) }
         assertEquals(
-            "the read-receipt strip is the LAST strip in the header: it must never push the " +
-                "crypto verdict or a meeting invitation below the fold. Strips found: $strips",
-            "ReadReceiptStrip(",
-            strips.last(),
+            "the read-receipt strip is the last ACTION strip in the header, followed only by the " +
+                "unverified-sender warning (#276): it must never push the crypto verdict or a " +
+                "meeting invitation below the fold. Strips found: $strips",
+            listOf("ReadReceiptStrip(", "SenderUnverifiedStrip(methods, onViewHeaders)"),
+            strips.takeLast(2),
         )
     }
 

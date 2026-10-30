@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Antwort wird in den Postausgang gelegt…</string>
     <string name="message_read_receipt_queued">Im Postausgang: %1$s</string>
     <string name="message_read_receipt_failed">Es wurde nichts in den Postausgang gelegt, es wird nichts gesendet.</string>
+    <string name="message_sender_unverified">Absender nicht verifiziert: %1$s fehlgeschlagen</string>
     <string name="message_view_headers">Kopfzeilen anzeigen</string>
     <string name="message_export_eml">Als .eml speichern</string>
     <string name="message_export_saved">Gespeichert als %1$s</string>

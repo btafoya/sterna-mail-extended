@@ -2,10 +2,8 @@ package app.sterna.core.data.mail
 
 import android.content.Context
 
-/**
- * The versions whose arrival needs the cached bodies gone: 168 for the unsubscribe headers, 170 and
- * 172 for later changes of the cached shape, 177 for IMAP sections shifted by a MIME preamble.
- */
+/** The versions whose arrival needs the cached bodies gone: 168 for the unsubscribe headers, 170 and
+ *  172 for the cached shape, 177 for a MIME preamble, 186 for `Email.authenticationFailures`. */
 const val BODY_CACHE_PURGE_VERSION = 168
 
 const val BODY_CACHE_PURGE_VERSION_2 = 170
@@ -14,6 +12,9 @@ const val BODY_CACHE_PURGE_VERSION_3 = 172
 
 const val BODY_CACHE_PURGE_VERSION_4 = 177
 
+/** A body cached without the sender verdict would leave it unknown for good. */
+const val BODY_CACHE_PURGE_VERSION_5 = 186
+
 /** Crossing any of them purges once. Nothing here is derived from the current build number. */
 private val BODY_CACHE_PURGE_VERSIONS =
     listOf(
@@ -21,6 +22,7 @@ private val BODY_CACHE_PURGE_VERSIONS =
         BODY_CACHE_PURGE_VERSION_2,
         BODY_CACHE_PURGE_VERSION_3,
         BODY_CACHE_PURGE_VERSION_4,
+        BODY_CACHE_PURGE_VERSION_5,
     )
 
 /**

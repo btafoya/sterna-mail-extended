@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Risposta messa nella posta in uscita…</string>
     <string name="message_read_receipt_queued">Nella posta in uscita: %1$s</string>
     <string name="message_read_receipt_failed">Non è stato messo nulla nella posta in uscita, non verrà inviato nulla.</string>
+    <string name="message_sender_unverified">Mittente non verificato: esito negativo per %1$s</string>
     <string name="message_view_headers">Mostra intestazioni</string>
     <string name="message_export_eml">Salva come .eml</string>
     <string name="message_export_saved">Salvato come %1$s</string>

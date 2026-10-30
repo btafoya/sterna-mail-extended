@@ -250,6 +250,7 @@
     <string name="message_read_receipt_sending">Poniendo la respuesta en la bandeja de salida…</string>
     <string name="message_read_receipt_queued">En la bandeja de salida: %1$s</string>
     <string name="message_read_receipt_failed">No se ha puesto nada en la bandeja de salida, no se enviará nada.</string>
+    <string name="message_sender_unverified">Remitente no verificado: fallo de %1$s</string>
     <string name="message_view_headers">Ver encabezados</string>
     <string name="message_export_eml">Guardar como .eml</string>
     <string name="message_export_saved">Guardado como %1$s</string>
