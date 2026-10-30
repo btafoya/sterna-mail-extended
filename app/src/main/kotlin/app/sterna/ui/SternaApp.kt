@@ -624,6 +624,7 @@ private fun MainNavHost(
                     },
                     signatureSheet = inboxViewModel.signatureSheet,
                     moveSheet = inboxViewModel.moveSheet,
+                    labelSheet = inboxViewModel.labelSheet,
                     pickInstant = inboxViewModel.pickInstant,
                 )
             }

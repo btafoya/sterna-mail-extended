@@ -9,9 +9,9 @@ class SyncStateStore(context: Context) : SyncCursorStore {
     private val prefs = context.getSharedPreferences("sync_states", Context.MODE_PRIVATE)
 
     init {
-        // Each version drops every cursor once. v2: a collapsed-query queryState, whose queryChanges
-        // can omit thread members. v3: rows cached before `answered`/`forwarded`, which read 0.
-        if (prefs.getInt(VERSION_KEY, 1) < CURSOR_VERSION) clear()
+        // Each version drops every cursor once. v2: collapsed-query queryStates, which can omit thread
+        // members. v3, v4: rows cached before `answered`/`forwarded`, then `labelsJson`, read unset.
+        if (cursorsOutdated(prefs.getInt(VERSION_KEY, 1))) clear()
     }
 
     override fun save(key: String, queryState: String, emailState: String) {
@@ -38,4 +38,6 @@ class SyncStateStore(context: Context) : SyncCursorStore {
 
 /** Store schema marker; sync keys are "<localAccountId><mailboxId>", which can't collide. */
 private const val VERSION_KEY = "cursor_version"
-private const val CURSOR_VERSION = 3
+private const val CURSOR_VERSION = 4
+
+internal fun cursorsOutdated(stored: Int): Boolean = stored < CURSOR_VERSION

@@ -25,6 +25,7 @@ import app.sterna.core.data.db.AccountMailboxUnread
 import app.sterna.core.data.db.CachedPreview
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
+import app.sterna.core.data.db.EmailLabels
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailBodyEntity
 import app.sterna.core.data.db.LocalDraftDao
@@ -166,13 +167,16 @@ internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean 
 internal fun reconcileCachedFlags(cached: MessageBody, row: ReadAndStar?): MessageBody {
     if (row == null) return cached
     val email = cached.email
+    val labels = EmailLabels.decode(row.labelsJson)
     if (
         email.isSeen == row.seen && email.isFlagged == row.flagged &&
-        email.isAnswered == row.answered && email.isForwarded == row.forwarded
+        email.isAnswered == row.answered && email.isForwarded == row.forwarded &&
+        EmailLabels.of(email.keywords) == labels
     ) {
         return cached
     }
-    val keywords = email.keywords + ("\$seen" to row.seen)
+    val keywords = email.keywords.filterKeys { !it.startsWith(EmailLabels.PREFIX) } +
+        ("\$seen" to row.seen) + labels.map { EmailLabels.PREFIX + it to true }
     return cached.copy(
         email = email.copy(
             keywords = keywords
@@ -2819,6 +2823,31 @@ class MailRepository(
         emailDao.setFlagged(credentials.id, emailId, flagged)
         advanceEmailState(newState, credentials.id, mb)
     }
+
+    suspend fun setLabel(credentials: AccountCredentials, emailId: String, id: String, set: Boolean) {
+        check(credentials.protocol == MailProtocol.JMAP) { "Labels are a JMAP keyword" }
+        markRecentlyMutated(credentials.id, emailId)
+        val ctx = jmapSession(credentials)
+        val mb = emailDao.mailboxOf(credentials.id, emailId)
+        val newState = try {
+            client.setKeyword(ctx.session, ctx.accountId, emailId, EmailLabels.PREFIX + id, set, ctx.auth)
+        } catch (e: JmapException) {
+            if (e.errorType != SET_ERROR_NOT_FOUND) throw e
+            pruneServerGone(credentials.id, listOf(emailId))
+            return
+        }
+        // After the ack only: the reader's take-back reads this row, and a label written ahead of a refusal would stay held here and not on the server.
+        emailDao.labelsJsonOf(credentials.id, emailId)?.let { raw ->
+            emailDao.setLabels(credentials.id, emailId, EmailLabels.encode(EmailLabels.with(EmailLabels.decode(raw), id, set)))
+        }
+        advanceEmailState(newState, credentials.id, mb)
+    }
+
+    suspend fun cachedLabel(accountId: String, emailId: String, id: String): Boolean? =
+        emailDao.labelsJsonOf(accountId, emailId)?.let { id in EmailLabels.decode(it) }
+
+    fun observeAccountLabels(accountId: String): Flow<List<String>> =
+        emailDao.labelsOfAccount(accountId).map { EmailLabels.union(it) }
 
     private fun imapTarget(emailId: String): Pair<String, Long>? = ImapMailService.targetOf(emailId)
 

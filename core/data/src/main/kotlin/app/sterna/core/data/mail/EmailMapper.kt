@@ -4,6 +4,7 @@ import app.sterna.core.data.db.ConversationRow
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailListRow
 import app.sterna.core.data.db.EmailFtsEntity
+import app.sterna.core.data.db.EmailLabels
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.FtsHit
 import app.sterna.core.data.text.previewForDisplay
@@ -82,6 +83,7 @@ internal fun Email.toEntity(accountId: String, mailboxId: String): EmailEntity {
         // loses. Two separate columns: a blind copy is blind, and is never folded into the Cc.
         ccJson = EmailRecipients.encode(cc),
         bccJson = EmailRecipients.encode(bcc),
+        labelsJson = EmailLabels.encode(EmailLabels.of(keywords)),
     )
 }
 
@@ -113,6 +115,7 @@ internal fun EmailEntity.toEmail(): Email = Email(
         if (flagged) put("\$flagged", true)
         if (answered) put("\$answered", true)
         if (forwarded) put("\$forwarded", true)
+        EmailLabels.decode(labelsJson).forEach { put(EmailLabels.PREFIX + it, true) }
         if (draftKey(accountId, id) in recentDrafts) put("\$draft", true)
     },
 )

@@ -74,14 +74,14 @@ class SyncCursorDropWiringTest {
     }
 
     @Test fun `the store's schema marker and version are the ones already on disk`() {
-        // One character changed in either and the constructor's `if (… < CURSOR_VERSION) clear()`
+        // One character changed in either and the constructor's `if (cursorsOutdated(…)) clear()`
         // fires on the next start: every account's cursors fall at once, every folder does a full
         // re-query, and nothing anywhere says why. Bumping it is a legitimate migration (folder
-        // queries uncollapsed, then the replied and forwarded marks), but a deliberate edit.
+        // queries uncollapsed, the replied and forwarded marks, then the labels), but a deliberate edit.
         val lines = DaoQuerySource.mailSource("SyncStateStore").lines().map { it.trim() }
         listOf(
             """private const val VERSION_KEY = "cursor_version"""",
-            "private const val CURSOR_VERSION = 3",
+            "private const val CURSOR_VERSION = 4",
             """private val prefs = context.getSharedPreferences("sync_states", Context.MODE_PRIVATE)""",
         ).forEach {
             assertTrue(
@@ -91,6 +91,17 @@ class SyncCursorDropWiringTest {
                 it in lines,
             )
         }
+    }
+
+    @Test fun `the store drops its outdated cursors at construction, reading an unversioned store as 1`() {
+        val lines = DaoQuerySource.mailSource("SyncStateStore").lines().map { it.trim() }
+        assertTrue(
+            "SyncStateStore no longer runs `if (cursorsOutdated(prefs.getInt(VERSION_KEY, 1))) clear()` " +
+                "at construction. Without the clear(), cursorsOutdated decides and nothing acts on it: " +
+                "rows cached before a schema change stay unfilled. A default other than 1 reads a store " +
+                "that never wrote its marker as current, and keeps its cursors forever.",
+            "if (cursorsOutdated(prefs.getInt(VERSION_KEY, 1))) clear()" in lines,
+        )
     }
 
     // -- the branch the drop aims at ----------------------------------------------------------------

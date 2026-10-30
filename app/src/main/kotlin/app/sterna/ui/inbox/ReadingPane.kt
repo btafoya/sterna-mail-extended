@@ -68,6 +68,7 @@ fun ReadingPane(
             onComposeTo = onComposeTo,
             signatureSheet = inboxViewModel.signatureSheet,
             moveSheet = inboxViewModel.moveSheet,
+            labelSheet = inboxViewModel.labelSheet,
             pickInstant = inboxViewModel.pickInstant,
             paneMode = true,
             onPageSettled = inboxViewModel::followPage,

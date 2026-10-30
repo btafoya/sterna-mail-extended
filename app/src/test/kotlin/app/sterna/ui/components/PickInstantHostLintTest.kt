@@ -55,7 +55,7 @@ class PickInstantHostLintTest {
             "MessageScreen must take the holder WITHOUT a default and provide it. Lines found:",
             listOf(
                 "pickInstant: PickInstantOpen,",
-                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {",
+                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalLabelSheet provides labelSheet, LocalPickInstant provides pickInstant) {",
             ),
             lines.filter { it.startsWith("pickInstant: ") || "LocalPickInstant provides" in it },
         )

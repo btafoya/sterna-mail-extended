@@ -24,7 +24,7 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
 const val READ_AND_STAR_READ_SQL: String =
-    "SELECT seen, flagged, answered, forwarded FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1"
+    "SELECT seen, flagged, answered, forwarded, labelsJson FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1"
 
 const val READ_AND_STAR_WRITE_SQL: String =
     "UPDATE emails SET seen = :seen, flagged = :flagged, answered = :answered, forwarded = :forwarded " +
@@ -244,6 +244,15 @@ interface EmailDao {
 
     @Query("UPDATE emails SET flagged = :flagged WHERE accountId = :accountId AND id = :id")
     suspend fun setFlagged(accountId: String, id: String, flagged: Boolean)
+
+    @Query("SELECT labelsJson FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1")
+    suspend fun labelsJsonOf(accountId: String, id: String): String?
+
+    @Query("UPDATE emails SET labelsJson = :labelsJson WHERE accountId = :accountId AND id = :id")
+    suspend fun setLabels(accountId: String, id: String, labelsJson: String)
+
+    @Query("SELECT DISTINCT labelsJson FROM emails WHERE accountId = :accountId AND labelsJson != '[]'")
+    fun labelsOfAccount(accountId: String): Flow<List<String>>
 
     @Query(READ_AND_STAR_WRITE_SQL)
     suspend fun setReadAndStar(
@@ -496,6 +505,7 @@ data class ReadAndStar(
     val flagged: Boolean,
     val answered: Boolean,
     val forwarded: Boolean,
+    val labelsJson: String = "[]",
 )
 
 /** Projection for [EmailDao.keysForSelection]: the account-qualified key of one selectable row. */

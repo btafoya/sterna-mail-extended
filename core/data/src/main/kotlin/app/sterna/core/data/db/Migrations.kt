@@ -447,3 +447,9 @@ val MIGRATION_36_37 = object : Migration(36, 37) {
         }
     }
 }
+
+val MIGRATION_37_38 = object : Migration(37, 38) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `emails` ADD COLUMN `labelsJson` TEXT NOT NULL DEFAULT '[]'")
+    }
+}

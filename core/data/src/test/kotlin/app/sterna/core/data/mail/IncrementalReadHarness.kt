@@ -41,6 +41,7 @@ internal class JdbcMailCache : Closeable {
                     "sortKey INTEGER NOT NULL, recipientsJson TEXT, replyToJson TEXT, ccJson TEXT, " +
                     "bccJson TEXT, uidValidity INTEGER, catchUp INTEGER NOT NULL DEFAULT 0, " +
                     "answered INTEGER NOT NULL DEFAULT 0, forwarded INTEGER NOT NULL DEFAULT 0, " +
+                    "labelsJson TEXT NOT NULL DEFAULT '[]', " +
                     "PRIMARY KEY(accountId, id))",
             )
             st.executeUpdate(MAILBOX_UIDVALIDITY_CREATE_SQL)
@@ -96,10 +97,10 @@ internal class JdbcMailCache : Closeable {
         update(
             "$verb INTO emails(id, accountId, mailboxId, threadId, subject, preview, receivedAt, " +
                 "fromName, fromEmail, seen, flagged, hasAttachment, sortKey, recipientsJson, replyToJson, " +
-                "ccJson, bccJson, uidValidity, catchUp, answered, forwarded) VALUES(:id, :accountId, :mailboxId, " +
+                "ccJson, bccJson, uidValidity, catchUp, answered, forwarded, labelsJson) VALUES(:id, :accountId, :mailboxId, " +
                 ":threadId, :subject, :preview, :receivedAt, :fromName, :fromEmail, :seen, :flagged, " +
                 ":hasAttachment, :sortKey, :recipientsJson, :replyToJson, :ccJson, :bccJson, :uidValidity, " +
-                ":catchUp, :answered, :forwarded)",
+                ":catchUp, :answered, :forwarded, :labelsJson)",
             mapOf(
                 "id" to row.id, "accountId" to row.accountId, "mailboxId" to row.mailboxId,
                 "threadId" to row.threadId, "subject" to row.subject, "preview" to row.preview,
@@ -108,7 +109,7 @@ internal class JdbcMailCache : Closeable {
                 "sortKey" to row.sortKey, "recipientsJson" to row.recipientsJson,
                 "replyToJson" to row.replyToJson, "ccJson" to row.ccJson, "bccJson" to row.bccJson,
                 "uidValidity" to row.uidValidity, "catchUp" to row.catchUp,
-                "answered" to row.answered, "forwarded" to row.forwarded,
+                "answered" to row.answered, "forwarded" to row.forwarded, "labelsJson" to row.labelsJson,
             ),
         )
     }
@@ -186,6 +187,7 @@ internal class JdbcMailCache : Closeable {
                 flagged = it.getBoolean("flagged"),
                 answered = it.getBoolean("answered"),
                 forwarded = it.getBoolean("forwarded"),
+                labelsJson = it.getString("labelsJson"),
             )
         }.singleOrNull()
 

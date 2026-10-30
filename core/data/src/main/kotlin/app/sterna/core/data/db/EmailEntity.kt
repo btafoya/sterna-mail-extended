@@ -42,4 +42,5 @@ data class EmailEntity(
     val catchUp: Int = 0,
     val answered: Boolean = false,
     val forwarded: Boolean = false,
+    val labelsJson: String = "[]",
 )

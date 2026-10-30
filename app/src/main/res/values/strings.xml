@@ -316,6 +316,10 @@
     <string name="a11y_has_attachment">Has attachment</string>
     <string name="a11y_answered">Replied</string>
     <string name="a11y_forwarded">Forwarded</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="one">%1$d more label</item>
+        <item quantity="other">%1$d more labels</item>
+    </plurals>
     <string name="draft_label">Draft</string>
     <string name="local_draft_not_uploaded">Not uploaded</string>
     <string name="a11y_conversation_pill">Conversation, %1$d messages</string>
@@ -355,6 +359,11 @@
     <string name="message_mark_unread">Mark unread</string>
     <string name="message_delete">Delete</string>
     <string name="message_more">More</string>
+    <string name="message_labels">Labels…</string>
+    <string name="message_labels_title">Labels</string>
+    <string name="message_label_new">New label</string>
+    <string name="message_label_add">Add</string>
+    <string name="message_label_refused" formatted="false">Up to 200 characters, no accents, quotes, brackets or % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">Message %1$d of %2$d</string>
     <string name="message_previous">Previous message</string>

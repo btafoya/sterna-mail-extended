@@ -310,6 +310,9 @@
     <string name="a11y_has_attachment">包含附件</string>
     <string name="a11y_answered">已回复</string>
     <string name="a11y_forwarded">已转发</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="other">另有 %1$d 个标签</item>
+    </plurals>
     <string name="draft_label">草稿</string>
     <string name="local_draft_not_uploaded">未上传</string>
     <string name="a11y_conversation_pill">会话，共 %1$d 封邮件</string>
@@ -349,6 +352,11 @@
     <string name="message_mark_unread">标为未读</string>
     <string name="message_delete">删除</string>
     <string name="message_more">更多</string>
+    <string name="message_labels">标签…</string>
+    <string name="message_labels_title">标签</string>
+    <string name="message_label_new">新标签</string>
+    <string name="message_label_add">添加</string>
+    <string name="message_label_refused" formatted="false">最多 200 个字符，不含重音字母、引号、括号及 % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">第 %1$d 封，共 %2$d 封</string>
     <string name="message_previous">上一封</string>

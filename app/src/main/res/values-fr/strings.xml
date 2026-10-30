@@ -205,6 +205,11 @@
     <string name="message_mark_unread">Marquer comme non lu</string>
     <string name="message_delete">Supprimer</string>
     <string name="message_more">Plus</string>
+    <string name="message_labels">Étiquettes…</string>
+    <string name="message_labels_title">Étiquettes</string>
+    <string name="message_label_new">Nouvelle étiquette</string>
+    <string name="message_label_add">Ajouter</string>
+    <string name="message_label_refused" formatted="false">200 caractères au plus, sans accents, guillemets, parenthèses ni % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">Message %1$d sur %2$d</string>
     <string name="message_previous">Message précédent</string>
@@ -1187,6 +1192,10 @@
     <string name="a11y_has_attachment">Contient une pièce jointe</string>
     <string name="a11y_answered">Répondu</string>
     <string name="a11y_forwarded">Transféré</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="one">%1$d autre étiquette</item>
+        <item quantity="other">%1$d autres étiquettes</item>
+    </plurals>
     <string name="draft_label">Brouillon</string>
     <string name="local_draft_not_uploaded">Non téléversé</string>
     <string name="a11y_conversation_pill">Conversation, %1$d messages</string>

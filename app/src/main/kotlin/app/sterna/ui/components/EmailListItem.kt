@@ -336,8 +336,9 @@ fun EmailListItem(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(2f, fill = false),
                 )
+                RowLabelChips(labels = labelsOf(email.keywords), fill = chipBackground)
                 // Conversation pill, only when 2+ of the thread's messages are in this view.
                 // Gated on both [threadExpandable] and [threadCount] > 1: without the count guard
                 // a thread whose other messages sit in Trash would show a bogus "(1)" pill (#75).

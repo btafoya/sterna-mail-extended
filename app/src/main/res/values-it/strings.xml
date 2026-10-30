@@ -205,6 +205,11 @@
     <string name="message_mark_unread">Segna come da leggere</string>
     <string name="message_delete">Elimina</string>
     <string name="message_more">Altro</string>
+    <string name="message_labels">Etichette…</string>
+    <string name="message_labels_title">Etichette</string>
+    <string name="message_label_new">Nuova etichetta</string>
+    <string name="message_label_add">Aggiungi</string>
+    <string name="message_label_refused" formatted="false">Al massimo 200 caratteri, senza accenti, virgolette, parentesi o % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">Messaggio %1$d di %2$d</string>
     <string name="message_previous">Messaggio precedente</string>
@@ -1181,6 +1186,10 @@
     <string name="a11y_has_attachment">Contiene un allegato</string>
     <string name="a11y_answered">Risposto</string>
     <string name="a11y_forwarded">Inoltrato</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="one">%1$d altra etichetta</item>
+        <item quantity="other">altre %1$d etichette</item>
+    </plurals>
     <string name="draft_label">Bozza</string>
     <string name="local_draft_not_uploaded">Non caricato</string>
     <string name="a11y_conversation_pill">Conversazione, %1$d messaggi</string>

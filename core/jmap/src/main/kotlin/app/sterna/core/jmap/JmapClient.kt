@@ -1122,8 +1122,7 @@ class JmapClient internal constructor(
         }
     }
 
-    /** Set or clear a keyword (e.g. "${'$'}seen", "${'$'}flagged") on an email. */
-    /** Returns the new `Email/set` state so the caller can advance its sync cursor. */
+    /** Set or clear a keyword (e.g. "${'$'}seen") on an email; returns the new `Email/set` state for the sync cursor. */
     suspend fun setKeyword(
         session: JmapSession,
         accountId: String,
@@ -1136,7 +1135,8 @@ class JmapClient internal constructor(
             put("accountId", accountId)
             putJsonObject("update") {
                 putJsonObject(emailId) {
-                    if (value) put("keywords/$keyword", true) else put("keywords/$keyword", JsonNull)
+                    val path = "keywords/${jsonPointerToken(keyword)}"
+                    if (value) put(path, true) else put(path, JsonNull)
                 }
             }
         }
@@ -1147,6 +1147,9 @@ class JmapClient internal constructor(
         result.failed[emailId]?.let { throw JmapException("Server rejected the keyword change ($it)", errorType = it) }
         return result.newState
     }
+
+    // RFC 6901: `~` first, or the `~1` written for a `/` would be read back as `~` and `1`.
+    private fun jsonPointerToken(raw: String): String = raw.replace("~", "~0").replace("/", "~1")
 
     /** Convenience for the \$seen keyword. Returns the new `Email/set` state. */
     suspend fun setSeen(session: JmapSession, accountId: String, emailId: String, seen: Boolean, auth: JmapAuth): String? =

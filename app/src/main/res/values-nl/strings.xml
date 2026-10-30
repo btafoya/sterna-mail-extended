@@ -205,6 +205,11 @@
     <string name="message_mark_unread">Als ongelezen markeren</string>
     <string name="message_delete">Verwijderen</string>
     <string name="message_more">Meer</string>
+    <string name="message_labels">Labels…</string>
+    <string name="message_labels_title">Labels</string>
+    <string name="message_label_new">Nieuw label</string>
+    <string name="message_label_add">Toevoegen</string>
+    <string name="message_label_refused" formatted="false">Maximaal 200 tekens, zonder accenten, aanhalingstekens, haakjes of % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">Bericht %1$d van %2$d</string>
     <string name="message_previous">Vorig bericht</string>
@@ -1173,6 +1178,10 @@
     <string name="a11y_has_attachment">Heeft een bijlage</string>
     <string name="a11y_answered">Beantwoord</string>
     <string name="a11y_forwarded">Doorgestuurd</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="one">nog %1$d label</item>
+        <item quantity="other">nog %1$d labels</item>
+    </plurals>
     <string name="draft_label">Concept</string>
     <string name="local_draft_not_uploaded">Niet geüpload</string>
     <string name="a11y_conversation_pill">Gesprek, %1$d berichten</string>

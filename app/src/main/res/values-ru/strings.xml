@@ -205,6 +205,11 @@
     <string name="message_mark_unread">Отметить непрочитанным</string>
     <string name="message_delete">Удалить</string>
     <string name="message_more">Ещё</string>
+    <string name="message_labels">Метки…</string>
+    <string name="message_labels_title">Метки</string>
+    <string name="message_label_new">Новая метка</string>
+    <string name="message_label_add">Добавить</string>
+    <string name="message_label_refused" formatted="false">Не более 200 символов, только латиница, без кавычек, скобок и % * \\</string>
     <string name="message_position">%1$d / %2$d</string>
     <string name="message_position_spoken">Письмо %1$d из %2$d</string>
     <string name="message_previous">Предыдущее письмо</string>
@@ -1205,6 +1210,12 @@
     <string name="a11y_has_attachment">Есть вложение</string>
     <string name="a11y_answered">Отвечено</string>
     <string name="a11y_forwarded">Переслано</string>
+    <plurals name="a11y_more_labels">
+        <item quantity="one">ещё %1$d метка</item>
+        <item quantity="few">ещё %1$d метки</item>
+        <item quantity="many">ещё %1$d меток</item>
+        <item quantity="other">ещё %1$d метки</item>
+    </plurals>
     <string name="draft_label">Черновик</string>
     <string name="local_draft_not_uploaded">Не загружено</string>
     <string name="a11y_conversation_pill">Переписка, сообщений: %1$d</string>

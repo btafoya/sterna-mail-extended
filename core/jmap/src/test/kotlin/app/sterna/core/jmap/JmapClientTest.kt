@@ -1376,6 +1376,38 @@ class JmapClientTest {
         }
     }
 
+    private fun keywordPatchSentFor(keyword: String, value: Boolean): Map<String, String> {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"methodResponses":[["Email/set",{"accountId":"acc1","newState":"s2","updated":{"e1":null}},"s0"]]}""",
+            ),
+        )
+        val session = JmapSession(apiUrl = server.url("/jmap/api/").toString())
+        runBlocking { client.setKeyword(session, "acc1", "e1", keyword, value, BasicAuth("u", "p")) }
+        val call = Json.parseToJsonElement(server.takeRequest().body.readUtf8())
+            .jsonObject.getValue("methodCalls").jsonArray[0].jsonArray
+        return call[1].jsonObject.getValue("update").jsonObject.getValue("e1").jsonObject
+            .mapValues { it.value.toString() }
+    }
+
+    @Test fun setKeyword_escapesASlashAsAJsonPointerToken() {
+        assertEquals(
+            mapOf("keywords/\$label:work~1clients" to "true"),
+            keywordPatchSentFor("\$label:work/clients", true),
+        )
+    }
+
+    @Test fun setKeyword_escapesATildeBeforeTheSlashSoTheTwoNeverMerge() {
+        assertEquals(
+            mapOf("keywords/\$label:a~0~1b~01" to "null"),
+            keywordPatchSentFor("\$label:a~/b~1", false),
+        )
+    }
+
+    @Test fun setKeyword_leavesAPlainKeywordAsItIs() {
+        assertEquals(mapOf("keywords/\$flagged" to "true"), keywordPatchSentFor("\$flagged", true))
+    }
+
     // ---- Email/get batching ----
     //
     // The Undo of a big bulk move re-fetches every id it moved back. maxObjectsInGet is 500 on the

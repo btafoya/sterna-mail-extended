@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.EmailLabels
 import app.sterna.core.data.db.ReadAndStar
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
@@ -30,8 +31,13 @@ class CachedBodySeenTest {
             inlineImages = mapOf("cid1" to "data:image/png;base64,AAAA"),
         )
 
-    private fun row(seen: Boolean, flagged: Boolean = false, answered: Boolean = false, forwarded: Boolean = false) =
-        ReadAndStar(seen = seen, flagged = flagged, answered = answered, forwarded = forwarded)
+    private fun row(
+        seen: Boolean,
+        flagged: Boolean = false,
+        answered: Boolean = false,
+        forwarded: Boolean = false,
+        labels: List<String> = emptyList(),
+    ) = ReadAndStar(seen = seen, flagged = flagged, answered = answered, forwarded = forwarded, labelsJson = EmailLabels.encode(labels))
 
     // --- 1. executed: the four states the reconciliation can be handed -------------------------
 
@@ -189,6 +195,44 @@ class CachedBodySeenTest {
             cached,
             reconcileCachedFlags(cached = cached, row = row(seen = true, flagged = true, answered = true, forwarded = true)),
         )
+    }
+
+    @Test fun `a label set since the body was cached shows once the row holds it`() {
+        val reconciled = reconcileCachedFlags(cached = body(seen = true), row = row(seen = true, labels = listOf("Read Later")))
+
+        assertEquals(
+            "the four flags agree, the label alone has moved: a short-circuit blind to the labels " +
+                "hands back the body of before the label",
+            mapOf("\$seen" to true, "\$label:Read Later" to true),
+            reconciled.email.keywords,
+        )
+    }
+
+    @Test fun `a label the row no longer holds is removed from the body, key and all`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = true, keywords = mapOf("\$label:red" to true, "\$label:work/clients" to true, "\$label:old" to false)),
+            row = row(seen = true, labels = listOf("work/clients")),
+        )
+
+        assertEquals(mapOf("\$seen" to true, "\$label:work/clients" to true), reconciled.email.keywords)
+    }
+
+    @Test fun `labels move together with the flags`() {
+        val reconciled = reconcileCachedFlags(
+            cached = body(seen = false, keywords = mapOf("\$label:red" to true)),
+            row = row(seen = true, flagged = true, labels = listOf("blue")),
+        )
+
+        assertEquals(
+            mapOf("\$seen" to true, "\$flagged" to true, "\$label:blue" to true),
+            reconciled.email.keywords,
+        )
+    }
+
+    @Test fun `a body agreeing with the row on its labels is handed back as it is`() {
+        val cached = body(seen = true, keywords = mapOf("\$label:red" to true, "\$label:Read Later" to true))
+
+        assertSame(cached, reconcileCachedFlags(cached = cached, row = row(seen = true, labels = listOf("red", "Read Later"))))
     }
 
     // --- executed: a row that cannot be read is unknown, and the message still opens ------------

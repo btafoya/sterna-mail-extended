@@ -162,7 +162,7 @@ class RepliedFlagsMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumns() {
-        assertEquals(37, SCHEMA_VERSION)
+        assertEquals(38, SCHEMA_VERSION)
         assertEquals(
             "the step is written and not handed to Room: every install opening v36 loses its cache, its outbox and its local drafts",
             SCHEMA_VERSION,
@@ -170,6 +170,8 @@ class RepliedFlagsMigrationSqlTest {
         )
         seedV35()
         registeredStep(35).migrate(supportDb())
+        // The step from v36 leaves `emails` alone; the one from v37 adds `labelsJson`.
+        registeredStep(37).migrate(supportDb())
         val fields = EmailEntity::class.java.declaredFields
             .filter { !java.lang.reflect.Modifier.isStatic(it.modifiers) && !it.isSynthetic }
         assertEquals(

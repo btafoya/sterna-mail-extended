@@ -55,7 +55,7 @@ class MoveSheetHostLintTest {
             "MessageScreen must take the holder as a parameter WITHOUT a default and provide it. Lines found:",
             listOf(
                 "moveSheet: MoveSheetOpen,",
-                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {",
+                "CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalLabelSheet provides labelSheet, LocalPickInstant provides pickInstant) {",
             ),
             lines.filter { it.startsWith("moveSheet: ") || "LocalMoveSheet provides" in it },
         )
@@ -90,6 +90,7 @@ class MoveSheetHostLintTest {
             "any other line in `startFreshReading`, such as an early return, can leave the move sheet open on a fresh reading. Body:",
             listOf(
                 "moveSheet.close()",
+                "labelSheet.close()",
                 "if (PickInstantOpen.readerLeft(pickInstant.target.value, activeKey = null)) pickInstant.close()",
                 "}",
             ),

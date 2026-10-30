@@ -126,7 +126,7 @@ class OriginalMarkMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntitiesNameTheColumns() {
-        assertEquals(37, SCHEMA_VERSION)
+        assertEquals(38, SCHEMA_VERSION)
         assertEquals(
             "the step is written and not handed to Room: every install opening v37 loses its outbox and its scheduled mail",
             SCHEMA_VERSION,

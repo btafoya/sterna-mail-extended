@@ -77,6 +77,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -137,6 +138,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -206,6 +208,8 @@ import app.sterna.ui.components.touchTargetOverflow
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.components.ReplyMarkIcons
+import app.sterna.ui.components.HeaderLabelChips
+import app.sterna.ui.components.labelsOf
 import app.sterna.ui.inbox.MoveFolderSheet
 import app.sterna.ui.isOutgoingFolder
 import app.sterna.ui.rememberLeaveOnce
@@ -247,6 +251,10 @@ private val LocalMoveSheet = staticCompositionLocalOf<MoveSheetOpen> {
     error("MoveSheetOpen is provided by MessageScreen")
 }
 
+private val LocalLabelSheet = staticCompositionLocalOf<LabelSheetOpen> {
+    error("LabelSheetOpen is provided by MessageScreen")
+}
+
 private val LocalPickInstant = staticCompositionLocalOf<PickInstantOpen> {
     error("PickInstantOpen is provided by MessageScreen")
 }
@@ -282,6 +290,7 @@ fun MessageScreen(
     onComposeTo: (address: String) -> Unit,
     signatureSheet: SignatureSheetOpen,
     moveSheet: MoveSheetOpen,
+    labelSheet: LabelSheetOpen,
     pickInstant: PickInstantOpen,
     /** Composed in the reading pane beside the list (#103): no back arrow, the system Back and
      *  the actions suffice, as on Gmail's tablet layout, and nothing else changes. */
@@ -295,7 +304,7 @@ fun MessageScreen(
         volumeTextSizeRelay?.enter()
         onDispose { volumeTextSizeRelay?.leave() }
     }
-    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalPickInstant provides pickInstant) {
+    CompositionLocalProvider(LocalSignatureSheet provides signatureSheet, LocalMoveSheet provides moveSheet, LocalLabelSheet provides labelSheet, LocalPickInstant provides pickInstant) {
         when {
             listSource != null -> {
                 val items = listSource.collectAsLazyPagingItems()
@@ -886,6 +895,11 @@ private fun MessageActions(
     val moveSheet = LocalMoveSheet.current
     val moveOpenFor by moveSheet.openFor.collectAsStateWithLifecycle()
     val movePicker = MoveSheetOpen.shows(moveOpenFor, active.emailId, active.accountId)
+    val labelSheet = LocalLabelSheet.current
+    val labelOpenFor by labelSheet.openFor.collectAsStateWithLifecycle()
+    val labelPicker = LabelSheetOpen.shows(labelOpenFor, active.emailId, active.accountId)
+    val accountIsJmap by viewModel.accountIsJmap.collectAsStateWithLifecycle()
+    val accountLabels by viewModel.accountLabels.collectAsStateWithLifecycle()
     // "Pick date and time" of a snooze: drawn for the settled message only, and dropped once
     // another one is settled, so the clock never snoozes a message it was not opened on.
     val pickInstant = LocalPickInstant.current
@@ -1043,6 +1057,13 @@ private fun MessageActions(
                     onClick = { menuOpen = false; moveSheet.open(active.emailId, active.accountId) },
                 )
             }
+            if (showLabelsEntry(accountIsJmap, accountLabels)) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.message_labels)) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
+                    onClick = { menuOpen = false; labelSheet.open(active.emailId, active.accountId) },
+                )
+            }
             // Spam-reporting acts on incoming mail; in Drafts and Sent the open message is the user's
             // own outgoing mail, so it is not offered there (#82).
             if (!isOutgoingFolder(folderRole)) {
@@ -1160,6 +1181,22 @@ private fun MessageActions(
                 )
             },
             onDismiss = moveSheet::close,
+        )
+    }
+    if (labelPicker && accountIsJmap) {
+        val labelName by labelSheet.name.collectAsStateWithLifecycle()
+        val listedLabels by labelSheet.listed.collectAsStateWithLifecycle()
+        val heldLabels = labelsOf(loaded.email.keywords)
+        val labelRows = sheetLabels(listedLabels, accountLabels, heldLabels)
+        SideEffect { labelSheet.keep(labelRows) }
+        LabelSheet(
+            labels = labelRows,
+            held = heldLabels,
+            name = labelName,
+            onNameChange = labelSheet::type,
+            onToggle = viewModel::setLabel,
+            onAdd = { id -> viewModel.setLabel(id, true); labelSheet.type("") },
+            onDismiss = labelSheet::close,
         )
     }
     if (PickInstantOpen.shows(pickTarget, pickKey)) {
@@ -2087,6 +2124,10 @@ private fun MessageHeader(
                 )
             }
         }
+        HeaderLabelChips(
+            labels = labelsOf(msg.header.keywords),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()

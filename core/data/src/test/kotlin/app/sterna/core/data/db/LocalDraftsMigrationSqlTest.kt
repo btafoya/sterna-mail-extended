@@ -460,6 +460,6 @@ class LocalDraftsMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v37 (`originalAccountId`, `originalEmailId`, `originalMark`)", 37, SCHEMA_VERSION)
+        assertEquals("the schema now declares v38 (`labelsJson`)", 38, SCHEMA_VERSION)
     }
 }

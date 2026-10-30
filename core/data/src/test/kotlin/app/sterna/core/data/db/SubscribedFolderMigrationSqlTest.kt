@@ -374,8 +374,8 @@ class SubscribedFolderMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v37: `originalAccountId`, `originalEmailId`, `originalMark`",
-            37,
+            "the schema declares v38: `labelsJson`",
+            38,
             SCHEMA_VERSION,
         )
     }

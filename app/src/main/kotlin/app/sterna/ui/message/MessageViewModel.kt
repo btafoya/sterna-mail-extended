@@ -59,6 +59,8 @@ import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailHeader
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.net.hasUsableNetwork
+import app.sterna.ui.components.labelsOf
+import app.sterna.ui.inbox.actionFailureMessage
 import app.sterna.ui.THUMBNAIL_DP
 import app.sterna.ui.attachmentKey
 import app.sterna.ui.decodeThumbnail
@@ -536,6 +538,14 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
      */
     val accountMailboxes: StateFlow<List<Mailbox>> = _ownerAccountId.flatMapLatest { id ->
         if (id == null) flowOf(emptyList()) else repo.observeMailboxes(id)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val accountIsJmap: StateFlow<Boolean> = _ownerAccountId
+        .map { id -> id != null && credentials()?.protocol == MailProtocol.JMAP }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val accountLabels: StateFlow<List<String>> = _ownerAccountId.flatMapLatest { id ->
+        if (id == null) flowOf(emptyList()) else repo.observeAccountLabels(id).catch { emit(emptyList()) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The listed account's folders, whole, the context the picker resolves a folder's parent path
@@ -1754,6 +1764,32 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         ReaderStarWrites.submit(appScope, credentials.id to current.id, flagged) { wanted ->
             runCatching { repo.setFlagged(credentials, current.id, wanted) }
         }
+    }
+
+    fun setLabel(id: String, held: Boolean) {
+        val current = (_state.value as? MessageState.Loaded)?.email ?: return
+        if ((id in labelsOf(current.keywords)) == held) return
+        val credentials = credentials() ?: return
+        showLabel(current.id, id, held)
+        ReaderLabelWrites.submit(appScope, Triple(credentials.id, current.id, id), held) { wanted ->
+            writeLabelOrRevert(
+                wanted,
+                write = { repo.setLabel(credentials, current.id, id, it) },
+                confirmed = { repo.cachedLabel(credentials.id, current.id, id) },
+                show = { shown -> showLabel(current.id, id, shown) },
+                report = { t ->
+                    val app = getApplication<Application>()
+                    _actionStatus.value = app.getString(actionFailureMessage(t, online = hasUsableNetwork(app)))
+                },
+            )
+        }
+    }
+
+    private fun showLabel(emailId: String, id: String, held: Boolean) {
+        (_state.value as? MessageState.Loaded)?.email?.takeIf { it.id == emailId }?.let {
+            _state.value = MessageState.Loaded(it.withLabel(id, held))
+        }
+        updateMessage(emailId) { it.copy(header = it.header.withLabel(id, held), body = it.body?.withLabel(id, held)) }
     }
 
     fun markUnread(onDone: () -> Unit) = act(onDone) { c, id -> repo.setRead(c, id, false) }
