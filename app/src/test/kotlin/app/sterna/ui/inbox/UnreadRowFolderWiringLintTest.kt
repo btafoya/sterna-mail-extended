@@ -146,6 +146,21 @@ class UnreadRowFolderWiringLintTest {
         )
     }
 
+    @Test
+    fun `the chip is told the address the top bar writes, the same value at both sites`() {
+        val lines = codeLines(INBOX_SCREEN).map { it.trim() }
+            .filter { Regex("""\b(banner|bannerAddress)\b""").containsMatchIn(it) }
+        assertEquals(
+            "(the rules are bannerAddress and originChipLabel, run by OriginChipLabelTest.) The list " +
+                "row and the children of an unfolded conversation hand originChipLabel one value, " +
+                "bannerAddress(ui), computed once: 'ui.accountName' compiles in its place and hides " +
+                "the chip in the unified inbox and in search too, where the bar names no address. " +
+                "Whole lines, sorted. Lines found were:\n${lines.joinToString("\n")}",
+            EXPECTED_BANNER_LINES.sorted(),
+            lines.sorted(),
+        )
+    }
+
     // -- reading the source ------------------------------------------------------------------------
 
     /**
@@ -211,7 +226,7 @@ class UnreadRowFolderWiringLintTest {
         /** The single chip slot, at each place it is filled: account, folder, the row's own arrival (#243). */
         private val EXPECTED_ORIGIN_LABEL_LINES = listOf(
             "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
-                "rowArrival(child, accounts, showRecipientsFor(child))),",
+                "rowArrival(child, accounts, showRecipientsFor(child)), banner),",
             ROW_ARRIVAL_ROW_SITE,
             "originLabel = originLabel,",
             "originLabel: String?,",
@@ -219,7 +234,16 @@ class UnreadRowFolderWiringLintTest {
 
         private const val ROW_ARRIVAL_ROW_SITE =
             "originLabel = originChipLabel(ownerAccount?.label(), rowFolder?.let { mailboxDisplayName(it.role, it.name) }, " +
-                "rowArrival(email, accounts, ownMessage)),"
+                "rowArrival(email, accounts, ownMessage), banner),"
+        private val EXPECTED_BANNER_LINES = listOf(
+            "val banner = bannerAddress(ui)",
+            ROW_ARRIVAL_ROW_SITE,
+            "banner = banner,",
+            "banner: String?,",
+            "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
+                "rowArrival(child, accounts, showRecipientsFor(child)), banner),",
+        )
+
         private const val ROW_ARRIVAL_DECLARATION =
             "internal fun rowArrival(email: Email, accounts: List<StoredAccount>, showRecipients: Boolean): String? {"
         private const val ROW_ARRIVAL_BODY =
@@ -233,7 +257,7 @@ class UnreadRowFolderWiringLintTest {
             ROW_ARRIVAL_DECLARATION,
             ROW_ARRIVAL_BODY,
             "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
-                "rowArrival(child, accounts, showRecipientsFor(child))),",
+                "rowArrival(child, accounts, showRecipientsFor(child)), banner),",
             ROW_ARRIVAL_ROW_SITE,
         )
 
@@ -260,7 +284,7 @@ class UnreadRowFolderWiringLintTest {
             "folderFor = { child -> unreadRowFolder(child, ui, folderTrusted = true, inViewCount = 1) },",
             "folderFor: (Email) -> Mailbox?,",
             "originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, " +
-                "rowArrival(child, accounts, showRecipientsFor(child))),",
+                "rowArrival(child, accounts, showRecipientsFor(child)), banner),",
         )
 
         /** The one fold into [MailUi], carrying the badge and the account that qualifies a folder. */

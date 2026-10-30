@@ -1018,6 +1018,7 @@ fun InboxScreen(
             // One row renderer, shared by the search list and the paged browse list. Takes the row
             // modifier so the caller can pass `animateItem()` from its own LazyItemScope.
             val searchWords = remember(ui.searchQuery) { searchTerms(ui.searchQuery) }
+            val banner = bannerAddress(ui)
             val emailRow: @Composable (InboxRow, Modifier, Boolean, Int, Boolean) -> Unit = { row, rowModifier, animateEntry, entryIndex, fromSearch ->
                 val email = row.email
                 val ownerAccount = if (rowsNameTheirAccount(ui)) accounts.firstOrNull { it.id == email.accountId } else null
@@ -1046,7 +1047,7 @@ fun InboxScreen(
                 val ownMessage = chipOwnMessage(fromSearch, isSelfAuthored(email.from, sendAsIdentities(email, accounts)), showRecipients)
                 SwipeableEmailRow(
                     email = email,
-                    originLabel = originChipLabel(ownerAccount?.label(), rowFolder?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(email, accounts, ownMessage)),
+                    originLabel = originChipLabel(ownerAccount?.label(), rowFolder?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(email, accounts, ownMessage), banner),
                     originColor = accountColorOf(ownerAccount?.color),
                     rightAction = swipe.right,
                     leftAction = swipe.left,
@@ -1150,6 +1151,7 @@ fun InboxScreen(
                         visible = isExpanded,
                         members = members,
                         namesAccount = rowsNameTheirAccount(ui),
+                        banner = banner,
                         accounts = accounts,
                         rightAction = swipe.right,
                         leftAction = swipe.left,
@@ -2672,6 +2674,8 @@ private fun ThreadChildren(
     visible: Boolean,
     members: List<Email>,
     namesAccount: Boolean,
+    /** The list row's [bannerAddress]: a child sits under the same top bar. */
+    banner: String?,
     accounts: List<app.sterna.core.data.account.StoredAccount>,
     rightAction: SwipeAction,
     leftAction: SwipeAction,
@@ -2724,7 +2728,7 @@ private fun ThreadChildren(
                         Spacer(Modifier.width(16.dp))
                         SwipeableEmailRow(
                             email = child,
-                            originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(child, accounts, showRecipientsFor(child))),
+                            originLabel = originChipLabel(ownerAccount?.label(), folderFor(child)?.let { mailboxDisplayName(it.role, it.name) }, rowArrival(child, accounts, showRecipientsFor(child)), banner),
                             originColor = accountColorOf(ownerAccount?.color),
                             rightAction = rightAction,
                             leftAction = leftAction,

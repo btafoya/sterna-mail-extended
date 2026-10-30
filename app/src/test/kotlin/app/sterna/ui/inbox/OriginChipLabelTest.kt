@@ -14,23 +14,70 @@ import org.junit.Test
 class OriginChipLabelTest {
 
     @Test fun `a folder of one account names the address alone, and nothing without one`() {
-        assertEquals(PRO, originChipLabel(accountLabel = null, folderLabel = null, arrival = PRO))
-        assertNull(originChipLabel(accountLabel = null, folderLabel = null, arrival = null))
+        assertEquals(PRO, originChipLabel(accountLabel = null, folderLabel = null, arrival = PRO, banner = null))
+        assertNull(originChipLabel(accountLabel = null, folderLabel = null, arrival = null, banner = null))
     }
 
     @Test fun `where rows name their account, the address takes the account's place`() {
-        assertEquals(PRO, originChipLabel(accountLabel = "Perso", folderLabel = null, arrival = PRO))
-        assertEquals("Perso", originChipLabel(accountLabel = "Perso", folderLabel = null, arrival = null))
+        assertEquals(PRO, originChipLabel(accountLabel = "Perso", folderLabel = null, arrival = PRO, banner = null))
+        assertEquals("Perso", originChipLabel(accountLabel = "Perso", folderLabel = null, arrival = null, banner = null))
     }
 
     @Test fun `in the unread view of one account the folder keeps its place, before the address`() {
-        assertEquals("Boîte de réception · $PRO", originChipLabel(accountLabel = null, folderLabel = "Boîte de réception", arrival = PRO))
-        assertEquals("Boîte de réception", originChipLabel(accountLabel = null, folderLabel = "Boîte de réception", arrival = null))
+        assertEquals("Boîte de réception · $PRO", originChipLabel(accountLabel = null, folderLabel = "Boîte de réception", arrival = PRO, banner = null))
+        assertEquals("Boîte de réception", originChipLabel(accountLabel = null, folderLabel = "Boîte de réception", arrival = null, banner = null))
     }
 
     @Test fun `the account still wins over the folder, with an address or without`() {
-        assertEquals(PRO, originChipLabel(accountLabel = "Perso", folderLabel = "Archive", arrival = PRO))
-        assertEquals("Perso", originChipLabel(accountLabel = "Perso", folderLabel = "Archive", arrival = null))
+        assertEquals(PRO, originChipLabel(accountLabel = "Perso", folderLabel = "Archive", arrival = PRO, banner = null))
+        assertEquals("Perso", originChipLabel(accountLabel = "Perso", folderLabel = "Archive", arrival = null, banner = null))
+    }
+
+    @Test fun `an arrival the top bar already writes counts as none`() {
+        assertNull(originChipLabel(accountLabel = null, folderLabel = null, arrival = PRO, banner = PRO))
+        assertEquals("Boîte de réception", originChipLabel(accountLabel = null, folderLabel = "Boîte de réception", arrival = PRO, banner = PRO))
+        assertEquals("Perso", originChipLabel(accountLabel = "Perso", folderLabel = null, arrival = PRO, banner = PRO))
+    }
+
+    @Test fun `the top bar's address is matched trimmed and whatever its case`() {
+        assertNull(originChipLabel(accountLabel = null, folderLabel = null, arrival = " Pro@Exemple.ORG", banner = "pro@exemple.org "))
+        assertNull(originChipLabel(accountLabel = null, folderLabel = null, arrival = PRO, banner = "  PRO@EXEMPLE.ORG"))
+    }
+
+    @Test fun `an alias other than the top bar's address still shows`() {
+        assertEquals(PRO, originChipLabel(accountLabel = null, folderLabel = null, arrival = PRO, banner = "moi@exemple.org"))
+        assertEquals("Archive · $PRO", originChipLabel(accountLabel = null, folderLabel = "Archive", arrival = PRO, banner = "moi@exemple.org"))
+    }
+
+    private fun bar(
+        accountName: String = PRO,
+        unified: Boolean = false,
+        unreadAllAccounts: Boolean = false,
+        searching: Boolean = false,
+    ) = MailUi(
+        accountName = accountName,
+        mailboxName = "m",
+        unreadCount = 0,
+        selectedMailboxId = "i",
+        unified = unified,
+        unreadAllAccounts = unreadAllAccounts,
+        searching = searching,
+        mailboxes = emptyList(),
+        refreshing = false,
+        error = null,
+    )
+
+    @Test fun `the top bar of one account writes its name`() {
+        assertEquals(PRO, bannerAddress(bar()))
+        assertEquals(" Pro@Exemple.org ", bannerAddress(bar(accountName = " Pro@Exemple.org ")))
+    }
+
+    @Test fun `no address is written in the unified inbox, the every-account unread view, search, or without a name`() {
+        assertNull(bannerAddress(bar(unified = true)))
+        assertNull(bannerAddress(bar(unreadAllAccounts = true)))
+        assertNull(bannerAddress(bar(searching = true)))
+        assertNull(bannerAddress(bar(accountName = "")))
+        assertNull(bannerAddress(bar(accountName = "   ")))
     }
 
     private fun identity(address: String) = StoredIdentity(id = address, name = "", email = address)
