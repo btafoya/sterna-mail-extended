@@ -402,10 +402,18 @@ open class ImapMailService(
         credentials: AccountCredentials,
         mailbox: String,
         message: ByteArray,
-        flags: String,
+        flags: ImapAppendFlags,
         internalDate: Long?,
     ): Long? {
-        return withSession(credentials, retryOnFailure = false) { it.append(mailbox, message, flags, internalDate) }
+        return withSession(credentials, retryOnFailure = false) { session ->
+            try {
+                session.append(mailbox, message, flags.joined(), internalDate)
+            } catch (failure: Exception) {
+                // Only a tagged NO/BAD stored nothing; after a cut or a `* BYE` a replay is a second copy.
+                if (!appendReplaysWithoutKeywords(failure, flags)) throw failure
+                session.append(mailbox, message, flags.system.joinToString(" "), internalDate)
+            }
+        }
     }
 
     /**

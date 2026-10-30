@@ -83,16 +83,24 @@ class MoveToAccountWiringTest {
         }
     }
 
-    @Test fun `the append on B is never replayed inside its session`() {
+    @Test fun `the append on B goes again only through appendReplaysWithoutKeywords, inside its session`() {
         // Same rule, same reason as appendDraft: a replay of an APPEND whose failure reached us
         // after the server stored the bytes is two copies on B, and then A's original is trashed
-        // on the strength of one of them. The failure is reported as Failed; nothing retries it.
+        // on the strength of one of them. Only a tagged refusal, which stored nothing, goes again.
         val body = DaoQuerySource.mailFunctionBody("ImapMailService", "appendBytes")
         assertEquals(
-            "appendBytes must be exactly one APPEND under retryOnFailure = false. Body was:\n$body",
+            "appendBytes must be one APPEND under retryOnFailure = false, and a second one only " +
+                "with the system flags and only when appendReplaysWithoutKeywords says so. Body was:\n$body",
             listOf(
                 "{",
-                "return withSession(credentials, retryOnFailure = false) { it.append(mailbox, message, flags, internalDate) }",
+                "return withSession(credentials, retryOnFailure = false) { session ->",
+                "try {",
+                "session.append(mailbox, message, flags.joined(), internalDate)",
+                "} catch (failure: Exception) {",
+                "if (!appendReplaysWithoutKeywords(failure, flags)) throw failure",
+                """session.append(mailbox, message, flags.system.joinToString(" "), internalDate)""",
+                "}",
+                "}",
                 "}",
             ),
             codeLines(body),

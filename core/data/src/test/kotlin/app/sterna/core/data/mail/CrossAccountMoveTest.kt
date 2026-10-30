@@ -1,11 +1,14 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.imap.ImapException
 import app.sterna.core.jmap.model.Email
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
@@ -154,22 +157,76 @@ class CrossAccountMoveTest {
 
     // ---- the three translations ----
 
-    @Test fun `IMAP flags are Seen Flagged Answered in that order and nothing else`() {
+    @Test fun `IMAP system flags are Seen Flagged Answered in that order and nothing else`() {
         assertEquals(
-            "\\Seen \\Flagged \\Answered",
+            ImapAppendFlags(listOf("\\Seen", "\\Flagged", "\\Answered"), emptyList()),
             imapFlagsOf(mapOf("\$draft" to true, "\$answered" to true, "\$flagged" to true, "\$seen" to true)),
         )
-        assertEquals("", imapFlagsOf(emptyMap()))
-        assertEquals("\\Flagged", imapFlagsOf(mapOf("\$seen" to false, "\$flagged" to true, "\$forwarded" to true)))
+        assertEquals("", imapFlagsOf(emptyMap()).joined())
+        assertEquals(
+            "\\Flagged",
+            imapFlagsOf(mapOf("\$seen" to false, "\$flagged" to true, "\$junk" to true, "\$phishing" to true)).joined(),
+        )
     }
 
-    @Test fun `JMAP keywords are the same three, true ones only`() {
+    @Test fun `IMAP carries Forwarded and the labels that are atoms, after the system flags`() {
+        val keywords = mapOf(
+            "\$label:red" to true, "\$forwarded" to true, "\$answered" to true, "\$flagged" to true,
+            "\$seen" to true, "\$draft" to true, "\$junk" to true, "\$label:x" to false,
+        )
+        assertEquals("\\Seen \\Flagged \\Answered \$Forwarded \$label:red", imapFlagsOf(keywords).joined())
+        assertEquals(
+            ImapAppendFlags(listOf("\\Seen"), listOf("\$Forwarded", "\$label:red", "\$label:work/clients")),
+            imapFlagsOf(mapOf("\$seen" to true, "\$label:work/clients" to true, "\$label:red" to true, "\$forwarded" to true)),
+        )
+    }
+
+    @Test fun `only a tagged NO or BAD with keywords on the list replays the APPEND without them`() {
+        val labelled = ImapAppendFlags(listOf("\\Seen"), listOf("\$label:red"))
+        val bare = ImapAppendFlags(listOf("\\Seen"), emptyList())
+        assertTrue(appendReplaysWithoutKeywords(ImapException("no", taggedStatus = "NO"), labelled))
+        assertTrue(appendReplaysWithoutKeywords(ImapException("bad", taggedStatus = "BAD"), labelled))
+        assertTrue(appendReplaysWithoutKeywords(ImapException("no", taggedStatus = "no"), labelled))
+        assertFalse(appendReplaysWithoutKeywords(ImapException("no", taggedStatus = "NO"), bare))
+        assertFalse(appendReplaysWithoutKeywords(ImapException("* BYE", taggedStatus = null), labelled))
+        assertFalse(appendReplaysWithoutKeywords(java.io.IOException("reset"), labelled))
+        assertFalse(appendReplaysWithoutKeywords(java.net.SocketTimeoutException("read"), labelled))
+        assertFalse(appendReplaysWithoutKeywords(CancellationException("left"), labelled))
+    }
+
+    @Test fun `a label that is not an IMAP atom stays off the APPEND`() {
+        assertEquals(
+            ImapAppendFlags(emptyList(), listOf("\$label:red")),
+            imapFlagsOf(mapOf("\$label:Read Later" to true, "\$label:red" to true)),
+        )
+        listOf("\$label:Read Later", "\$label:a(b", "\$label:a]b", "\$label:a\"b", "\$label:a\\b", "\$label:a%b",
+            "\$label:a*b", "\$label:a{b", "\$label:\u00e9t\u00e9", "\$label:a\tb", "").forEach {
+            assertFalse("`$it` is not an atom", isImapAtom(it))
+        }
+        listOf("\$label:red", "\$label:work/clients", "\$label:a-b_c.d").forEach {
+            assertTrue("`$it` is an atom", isImapAtom(it))
+        }
+    }
+
+    @Test fun `JMAP keywords are the three, Forwarded and the labels as they are, true ones only`() {
         assertEquals(
             setOf("\$seen", "\$flagged", "\$answered"),
             jmapKeywordsOf(mapOf("\$draft" to true, "\$answered" to true, "\$flagged" to true, "\$seen" to true)),
         )
         assertEquals(emptySet<String>(), jmapKeywordsOf(emptyMap()))
-        assertEquals(setOf("\$flagged"), jmapKeywordsOf(mapOf("\$seen" to false, "\$flagged" to true, "\$phishing" to true)))
+        assertEquals(
+            setOf("\$flagged"),
+            jmapKeywordsOf(mapOf("\$seen" to false, "\$flagged" to true, "\$phishing" to true, "\$junk" to true, "\$label:x" to false)),
+        )
+        assertEquals(
+            setOf("\$seen", "\$forwarded", "\$label:red", "\$label:work/clients", "\$label:Read Later"),
+            jmapKeywordsOf(
+                mapOf(
+                    "\$seen" to true, "\$forwarded" to true, "\$label:red" to true, "\$label:work/clients" to true,
+                    "\$label:Read Later" to true, "\$draft" to true, "\$notjunk" to true, "\$important" to true,
+                ),
+            ),
+        )
     }
 
     @Test fun `an RFC 3339 date becomes its epoch millis, and an unreadable one no date at all`() {

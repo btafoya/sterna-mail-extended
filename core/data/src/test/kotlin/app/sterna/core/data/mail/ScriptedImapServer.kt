@@ -14,8 +14,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * A scripted IMAP server on loopback, for `core/data`.
  */
 internal class ScriptedImapServer(
+    private val goAhead: (tag: String, line: String) -> String,
     private val responder: (tag: String, line: String) -> String,
 ) : Closeable {
+
+    constructor(responder: (tag: String, line: String) -> String) : this({ _, _ -> "+ go ahead\r\n" }, responder)
 
     private val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
 
@@ -56,10 +59,13 @@ internal class ScriptedImapServer(
             val tag = raw.substringBefore(' ')
             val line = raw.substringAfter(' ')
             commands.add(line)
-            LITERAL.find(line)?.let { match ->
-                writer.write("+ go ahead\r\n")
+            val literal = LITERAL.find(line)
+            if (literal != null) {
+                val reply = goAhead(tag, line)
+                writer.write(reply)
                 writer.flush()
-                literals.add(read(reader, match.groupValues[1].toInt()))
+                if (!reply.startsWith("+")) continue
+                literals.add(read(reader, literal.groupValues[1].toInt()))
                 reader.readLine()
             }
             val answer = responder(tag, line)

@@ -1,6 +1,8 @@
 package app.sterna.core.data.mail
 
+import app.sterna.core.data.db.EmailLabels
 import app.sterna.core.data.getOrElseUnlessCancelled
+import app.sterna.core.imap.ImapException
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.jmap.model.Email
 import kotlinx.coroutines.CancellationException
@@ -65,19 +67,41 @@ suspend fun crossAccountMove(steps: CrossAccountMoveSteps): CrossAccountMove {
 
 private fun reasonOf(t: Throwable): String = t.message ?: t.javaClass.simpleName
 
+/** An allow-list: never `$draft`, B would show a received message as a draft, nor a spam verdict,
+ *  B's own. A label that is not an IMAP atom would make the whole APPEND malformed. */
 private val CARRIED_FLAGS = listOf(
     "\$seen" to "\\Seen",
     "\$flagged" to "\\Flagged",
     "\$answered" to "\\Answered",
 )
 
-/** The IMAP flag list an APPEND on B takes for [keywords]: those of the three that are true, in
- *  that order. Not `$draft`, a `\Draft` flag would make B show a received message as a draft. */
-fun imapFlagsOf(keywords: Map<String, Boolean>): String =
-    CARRIED_FLAGS.filter { keywords[it.first] == true }.joinToString(" ") { it.second }
+private val CARRIED_KEYWORDS = listOf(ReplyMark.FORWARDED.jmapKeyword to ReplyMark.FORWARDED.imapFlag)
+
+data class ImapAppendFlags(val system: List<String>, val keywords: List<String>) {
+    fun joined(): String = (system + keywords).joinToString(" ")
+}
+
+fun appendReplaysWithoutKeywords(failure: Throwable, flags: ImapAppendFlags): Boolean {
+    if (flags.keywords.isEmpty()) return false
+    return (failure as? ImapException)?.taggedStatus?.uppercase(java.util.Locale.ROOT) in SERVER_REFUSALS
+}
+
+private val SERVER_REFUSALS = setOf("NO", "BAD")
+
+fun imapFlagsOf(keywords: Map<String, Boolean>): ImapAppendFlags = ImapAppendFlags(
+    system = CARRIED_FLAGS.filter { keywords[it.first] == true }.map { it.second },
+    keywords = CARRIED_KEYWORDS.filter { keywords[it.first] == true }.map { it.second } +
+        labelKeywordsOf(keywords).filter(::isImapAtom),
+)
 
 fun jmapKeywordsOf(keywords: Map<String, Boolean>): Set<String> =
-    CARRIED_FLAGS.map { it.first }.filter { keywords[it] == true }.toSet()
+    ((CARRIED_FLAGS + CARRIED_KEYWORDS).map { it.first }.filter { keywords[it] == true } + labelKeywordsOf(keywords)).toSet()
+
+private fun labelKeywordsOf(keywords: Map<String, Boolean>): List<String> =
+    keywords.filter { (key, held) -> held && key.startsWith(EmailLabels.PREFIX) }.keys.sorted()
+
+internal fun isImapAtom(word: String): Boolean =
+    word.isNotEmpty() && word.all { it in '\u0021'..'\u007e' && it !in "(){%*\"\\]" }
 
 /** The INTERNALDATE an APPEND on B takes for A's [receivedAt] (RFC 3339), as epoch millis. Never
  *  throws: an unreadable date is "no date", B stamps the moment of the copy, not a failed move. */
