@@ -1535,6 +1535,10 @@ fun ComposeScreen(
             }
           }
 
+            // From `body.text`, not the transformed text: the list markers drawn by the
+            // transformation must not decide the body's direction.
+            val bodyDirection = remember(body.text) { bodyTextDirection(body.text) }
+
             // The value handed to the field is flat, and it is `body` itself: plain text, its
             // own selection, its own composition. No span goes in there: Compose's editing buffer
             // cannot hold one (`EditingBuffer.toAnnotatedString()` is `AnnotatedString(toString())`)
@@ -1563,7 +1567,10 @@ fun ComposeScreen(
                 // The list markers and the inline styling are drawn here and nowhere else (#131): in
                 // the text layer, by the one transformation a field has, so not one marker character
                 visualTransformation = bodyTransformation(rich, MaterialTheme.colorScheme.primary),
-                textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onSurface),
+                textStyle = LocalTextStyle.current.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textDirection = bodyDirection,
+                ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 // Capitalisation only: no imeAction here on purpose, because the body is the only
                 // multi-line field of the screen and an action would take the newline's place (#26).
