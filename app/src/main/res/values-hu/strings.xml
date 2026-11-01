@@ -1296,6 +1296,7 @@
     <string name="folders_reorder_start">Átrendezés</string>
     <string name="folders_reorder_done">Kész</string>
     <string name="folders_reorder_hint">A szabványos mappák felül maradnak. Egy mappa a saját szülőmappájának mappái között mozgatható.</string>
+    <string name="folders_reorder_sort">Rendezés A-tól Z-ig</string>
     <string name="folders_reorder_up">%1$s mozgatása feljebb</string>
     <string name="folders_reorder_down">%1$s mozgatása lejjebb</string>
     <string name="folders_reorder_drag">Húzza az átrendezéshez</string>

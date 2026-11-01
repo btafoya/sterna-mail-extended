@@ -1250,6 +1250,7 @@
     <string name="folders_reorder_start">Anordnen</string>
     <string name="folders_reorder_done">Fertig</string>
     <string name="folders_reorder_hint">Standardordner bleiben oben. Ein Ordner wird nur innerhalb seines übergeordneten Ordners verschoben.</string>
+    <string name="folders_reorder_sort">Von A bis Z sortieren</string>
     <string name="folders_reorder_up">%1$s nach oben</string>
     <string name="folders_reorder_down">%1$s nach unten</string>
     <string name="folders_reorder_drag">Zum Neuordnen ziehen</string>

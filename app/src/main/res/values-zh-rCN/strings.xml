@@ -1285,6 +1285,7 @@
     <string name="folders_reorder_start">排序</string>
     <string name="folders_reorder_done">完成</string>
     <string name="folders_reorder_hint">标准文件夹始终在最前。文件夹只能在其上级文件夹内移动。</string>
+    <string name="folders_reorder_sort">按字母顺序排序</string>
     <string name="folders_reorder_up">上移 %1$s</string>
     <string name="folders_reorder_down">下移 %1$s</string>
     <string name="folders_reorder_drag">拖动以重新排序</string>

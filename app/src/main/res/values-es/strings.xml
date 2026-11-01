@@ -1261,6 +1261,7 @@
     <string name="folders_reorder_start">Reordenar</string>
     <string name="folders_reorder_done">Hecho</string>
     <string name="folders_reorder_hint">Las carpetas estándar quedan arriba. Una carpeta se mueve entre las de su carpeta superior.</string>
+    <string name="folders_reorder_sort">Ordenar de la A a la Z</string>
     <string name="folders_reorder_up">Subir %1$s</string>
     <string name="folders_reorder_down">Bajar %1$s</string>
     <string name="folders_reorder_drag">Arrastra para reordenar</string>

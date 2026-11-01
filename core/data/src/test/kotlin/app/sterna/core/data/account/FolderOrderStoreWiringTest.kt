@@ -3,6 +3,7 @@ package app.sterna.core.data.account
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -81,6 +82,34 @@ class FolderOrderStoreWiringTest {
         )
     }
 
+    @Test fun `a sort rewrites the fratries handed on that record alone, other parents kept`() {
+        val after = withFoldersSorted(
+            listOf(
+                account("a", listOf("Travail/Z", "zebra", "Travail/A", "alpha", "Gone")),
+                account("b", listOf("zebra", "alpha")),
+            ),
+            id = "a",
+            fratries = listOf(listOf("alpha", "Banque", "zebra")),
+        )
+        assertEquals(
+            "sorting the top level of account a did not write [alpha, Banque, zebra] there with " +
+                "Travail's children and the stale 'Gone' left in place, and b alone: the sort " +
+                "dropped another parent's ranks, or reached the namesake folders of another account.",
+            listOf(listOf("Travail/Z", "Travail/A", "Gone", "alpha", "Banque", "zebra"), listOf("zebra", "alpha")),
+            after.map { it.folderOrder },
+        )
+    }
+
+    @Test fun `a sort that changes nothing hands back the very list it was given`() {
+        val before = listOf(account("a", listOf("Gone", "alpha", "zebra")), account("b"))
+        assertSame(
+            "a sort of an order already A to Z answered a new list: the store is handed a copy " +
+                "to save for a tap that changed nothing.",
+            before,
+            withFoldersSorted(before, "a", listOf(listOf("alpha", "zebra"))),
+        )
+    }
+
     // ── read off the source ─────────────────────────────────────────────────────────────────────
 
     @Test fun `the move reads and writes under one lock, through the pure function`() {
@@ -95,6 +124,21 @@ class FolderOrderStoreWiringTest {
                 "}",
             ),
             block("fun moveFolder(", count = 3, before = 1),
+        )
+    }
+
+    @Test fun `the sort reads and writes under one lock, through the pure function`() {
+        assertEquals(
+            "AccountStore.sortFolders changed shape. It must hand withFoldersSorted the list it " +
+                "just read, under @Synchronized, and the fratries it was given: a finished order " +
+                "computed by the screen on an earlier read loses a move made just before the tap.",
+            listOf(
+                "@Synchronized",
+                "fun sortFolders(id: String, fratries: List<List<String>>) {",
+                "saveAccounts(withFoldersSorted(accounts(), id, fratries))",
+                "}",
+            ),
+            block("fun sortFolders(", count = 3, before = 1),
         )
     }
 

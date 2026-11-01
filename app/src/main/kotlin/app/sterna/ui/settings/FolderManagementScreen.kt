@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.showOnlySubscribedFoldersOf
 import app.sterna.ui.components.ReorderableColumn
 import app.sterna.ui.inbox.mailboxDisplayName
+import app.sterna.ui.inbox.mailboxLabel
 
 /**
  * The folders of one account, each with the two switches that govern it (#207, #16), under the five
@@ -76,6 +78,7 @@ internal fun FolderManagementScreen(
     var reordering by rememberSaveable(accountId) { mutableStateOf(false) }
     val rowsFor = { order: List<String> -> folderManagementRows(folders, showOnlySubscribedFoldersOf(account), account.hiddenFolders, account.watchedFolders, account.inboxId, order, reordering) }
     val rows = rowsFor(account.folderOrder)
+    val context = LocalContext.current
     BackHandler(enabled = reordering) { reordering = false }
     DetailScaffold(
         title = stringResource(R.string.folders_manage_title),
@@ -94,6 +97,12 @@ internal fun FolderManagementScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
+                TextButton(
+                    onClick = { viewModel.sortFolders(accountId, sortedFratries(folders, showOnlySubscribedFoldersOf(account), account.folderOrder, { mailboxLabel(context, it.role, it.name) })) },
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                ) {
+                    Text(stringResource(R.string.folders_reorder_sort))
+                }
                 ReorderableColumn(
                     items = rows,
                     key = { it.mailbox.id },

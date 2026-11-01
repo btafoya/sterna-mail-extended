@@ -108,3 +108,25 @@ internal fun withFolderDropped(
     accounts.map {
         if (it.id == id) it.copy(folderOrder = folderOrderAfterDrop(it.folderOrder, siblings, folderId, toIndex)) else it
     }
+
+/** The folder order once each of [fratries] is written in the order it is given, every other
+ *  parent's ids kept where they were. A fratrie is written whole, for the reason given on
+ *  [folderOrderAfterMove]. */
+fun folderOrderAfterSort(order: List<String>, fratries: List<List<String>>): List<String> {
+    val sorted = fratries.flatten().toSet()
+    return order.filterNot { it in sorted } + fratries.flatten()
+}
+
+/** [accounts] with [fratries] written into [id]'s folder order, or [accounts] itself when that
+ *  order already reads so. The caller hands fratries, never a finished order: the rest of the
+ *  order is the one the record holds in [accounts], for the reasons given on [withFolderMoved]. */
+internal fun withFoldersSorted(
+    accounts: List<StoredAccount>,
+    id: String,
+    fratries: List<List<String>>,
+): List<StoredAccount> {
+    val after = accounts.map {
+        if (it.id == id) it.copy(folderOrder = folderOrderAfterSort(it.folderOrder, fratries)) else it
+    }
+    return if (after == accounts) accounts else after
+}

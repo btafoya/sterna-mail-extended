@@ -1267,6 +1267,7 @@
     <string name="folders_reorder_start">Réorganiser</string>
     <string name="folders_reorder_done">Terminé</string>
     <string name="folders_reorder_hint">Les dossiers standard restent en tête. Un dossier se déplace parmi ceux de son dossier parent.</string>
+    <string name="folders_reorder_sort">Trier de A à Z</string>
     <string name="folders_reorder_up">Monter %1$s</string>
     <string name="folders_reorder_down">Descendre %1$s</string>
     <string name="folders_reorder_drag">Faire glisser pour réorganiser</string>

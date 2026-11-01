@@ -1284,6 +1284,7 @@
     <string name="folders_reorder_start">Zmień kolejność</string>
     <string name="folders_reorder_done">Gotowe</string>
     <string name="folders_reorder_hint">Foldery standardowe zostają na górze. Folder przesuwa się tylko w obrębie swojego folderu nadrzędnego.</string>
+    <string name="folders_reorder_sort">Sortuj od A do Z</string>
     <string name="folders_reorder_up">Przenieś %1$s w górę</string>
     <string name="folders_reorder_down">Przenieś %1$s w dół</string>
     <string name="folders_reorder_drag">Przeciągnij, aby zmienić kolejność</string>

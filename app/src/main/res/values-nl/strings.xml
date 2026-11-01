@@ -1253,6 +1253,7 @@
     <string name="folders_reorder_start">Herschikken</string>
     <string name="folders_reorder_done">Klaar</string>
     <string name="folders_reorder_hint">Standaardmappen blijven bovenaan. Een map verschuift alleen binnen haar bovenliggende map.</string>
+    <string name="folders_reorder_sort">Sorteren van A tot Z</string>
     <string name="folders_reorder_up">%1$s omhoog</string>
     <string name="folders_reorder_down">%1$s omlaag</string>
     <string name="folders_reorder_drag">Sleep om te herschikken</string>

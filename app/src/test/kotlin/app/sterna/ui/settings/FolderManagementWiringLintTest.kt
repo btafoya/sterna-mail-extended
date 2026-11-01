@@ -355,6 +355,57 @@ class FolderManagementWiringLintTest {
         )
     }
 
+    /**
+     * "Sort A to Z" (#279). What it writes is executed in [FolderSortTest]; what only this can see is
+     * that the reorder mode offers it under the hint, that the tap hands the store the fratries
+     * [sortedFratries] answers on the screen's own folders, setting, order and printed labels, for
+     * the account managed, and that the ViewModel passes them on untouched. Holes 1, 2 and 4 of
+     * `CONTRIBUTING.md` apply: `folders`, `account` and `context` are pinned by name only, nothing
+     * here sees an expression wrapped around the call, and the folder list the screen collects is
+     * never observed. Hole 3 in part: the run of lines pins the button between the hint and the
+     * column, so inside the reorder branch, but not that the branch is the reorder one.
+     */
+    @Test fun `the sort button sits under the hint and hands the store the sorted fratries`() {
+        assertEquals(
+            "the Sort A to Z button is gone, has left its place between the reorder hint and the " +
+                "column, or no longer hands sortedFratries the screen's own folders, setting, " +
+                "order and printed label. Sorted on the server name, a standard folder renamed " +
+                "by the app lands out of the order the user reads; a finished order built here " +
+                "would put the rule in a Composable no test can run.",
+            listOf(
+                "stringResource(R.string.folders_reorder_hint),",
+                "style = MaterialTheme.typography.bodySmall,",
+                "color = MaterialTheme.colorScheme.onSurfaceVariant,",
+                "modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),",
+                ")",
+                "TextButton(",
+                "onClick = { viewModel.sortFolders(accountId, sortedFratries(folders, showOnlySubscribedFoldersOf(account), " +
+                    "account.folderOrder, { mailboxLabel(context, it.role, it.name) })) },",
+                "modifier = Modifier.padding(horizontal = 4.dp),",
+                ") {",
+                "Text(stringResource(R.string.folders_reorder_sort))",
+                "}",
+                "ReorderableColumn(",
+            ),
+            block(SCREEN, "stringResource(R.string.folders_reorder_hint),", 12),
+        )
+        assertEquals(
+            "the label the sort reads must come from the screen's own Context, the one its rows " +
+                "are printed with.",
+            listOf("val context = LocalContext.current"),
+            block(SCREEN, "val context =", 1),
+        )
+        assertEquals(
+            "the sort no longer goes to AccountStore.sortFolders, the one write that reads the " +
+                "order under the store's lock, or no longer hands it the fratries it was given.",
+            listOf(
+                "fun sortFolders(id: String, fratries: List<List<String>>) {",
+                "store.sortFolders(id, fratries)",
+            ),
+            block(ACCOUNTS_VIEW_MODEL, "fun sortFolders(", 2),
+        )
+    }
+
     // ── instrument (copied from SubscribedFoldersSurfaceWiringTest) ──────────────────────────────
 
     /** [count] consecutive code lines from the one line starting with [prefix]. */

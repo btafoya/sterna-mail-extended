@@ -1287,6 +1287,7 @@
     <string name="folders_reorder_start">Упорядочить</string>
     <string name="folders_reorder_done">Готово</string>
     <string name="folders_reorder_hint">Стандартные папки остаются вверху. Папка перемещается только внутри своей родительской папки.</string>
+    <string name="folders_reorder_sort">Сортировать от А до Я</string>
     <string name="folders_reorder_up">Переместить %1$s вверх</string>
     <string name="folders_reorder_down">Переместить %1$s вниз</string>
     <string name="folders_reorder_drag">Перетащите, чтобы изменить порядок</string>

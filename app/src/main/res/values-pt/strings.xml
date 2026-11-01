@@ -1265,6 +1265,7 @@
     <string name="folders_reorder_start">Reordenar</string>
     <string name="folders_reorder_done">Concluído</string>
     <string name="folders_reorder_hint">As pastas padrão ficam no topo. Uma pasta move-se entre as da sua pasta superior.</string>
+    <string name="folders_reorder_sort">Ordenar de A a Z</string>
     <string name="folders_reorder_up">Subir %1$s</string>
     <string name="folders_reorder_down">Descer %1$s</string>
     <string name="folders_reorder_drag">Arraste para reordenar</string>

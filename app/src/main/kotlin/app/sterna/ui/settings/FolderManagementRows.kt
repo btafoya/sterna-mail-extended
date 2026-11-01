@@ -11,6 +11,7 @@ import app.sterna.ui.inbox.mailboxTree
 import app.sterna.ui.inbox.shownFolders
 import app.sterna.ui.inbox.siblingsInDrawerOrder
 import app.sterna.ui.inbox.visibleFolders
+import java.text.Collator
 
 /**
  * What the folder-management screen draws (#207), decided here so a JVM test can run it: nothing
@@ -103,6 +104,26 @@ internal fun folderMovesOf(mailbox: Mailbox, fratrie: List<String>): FolderMoves
     val at = fratrie.indexOf(mailbox.id)
     if (at < 0 || fratrie.size < 2) return null
     return FolderMoves(fratrie, mayMoveUp = at > 0, mayMoveDown = at < fratrie.lastIndex)
+}
+
+/**
+ * What "Sort A to Z" writes: every fratrie of the folders [folderManagementRows] lists, each sorted
+ * on its own by [label], the name the screen prints for the folder. The hidden folders are sorted
+ * too, where the reorder mode draws none: left out, they would keep their old rank and sit out of
+ * alphabetical order the day they are shown again. Equal labels keep the order they had.
+ */
+internal fun sortedFratries(
+    mailboxes: List<Mailbox>,
+    showOnlySubscribed: Boolean,
+    order: List<String>,
+    label: (Mailbox) -> String,
+    collator: Collator = Collator.getInstance(),
+): List<List<String>> {
+    val listed = visibleFolders(mailboxes, showOnlySubscribed)
+    val byId = listed.associateBy { it.id }
+    return reorderableFratries(listed, order).values.map { fratrie ->
+        fratrie.sortedWith { a, b -> collator.compare(label(byId.getValue(a)), label(byId.getValue(b))) }
+    }
 }
 
 /** A drag of the reorder mode, as the store writes it: [folderId] moved to [toIndex] in [siblings]. */

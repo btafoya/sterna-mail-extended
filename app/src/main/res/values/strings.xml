@@ -1309,6 +1309,7 @@
     <string name="folders_reorder_start">Reorder</string>
     <string name="folders_reorder_done">Done</string>
     <string name="folders_reorder_hint">Standard folders stay at the top. A folder moves among the folders of its own parent.</string>
+    <string name="folders_reorder_sort">Sort A to Z</string>
     <string name="folders_reorder_up">Move %1$s up</string>
     <string name="folders_reorder_down">Move %1$s down</string>
     <string name="folders_reorder_drag">Drag to reorder</string>

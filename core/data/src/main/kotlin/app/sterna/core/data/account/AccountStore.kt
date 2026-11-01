@@ -595,6 +595,11 @@ class AccountStore(context: Context) : AccountStorage {
     }
 
     @Synchronized
+    fun sortFolders(id: String, fratries: List<List<String>>) {
+        saveAccounts(withFoldersSorted(accounts(), id, fratries))
+    }
+
+    @Synchronized
     override fun replaceFolderOrder(id: String, oldId: String, newId: String, delimiter: String) {
         saveAccounts(withRenamedFolderOrder(accounts(), id, oldId, newId, delimiter))
     }
