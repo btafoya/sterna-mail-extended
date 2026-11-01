@@ -870,6 +870,7 @@
     <string name="connect_server_not_found">Dein Server konnte nicht automatisch gefunden werden. Gib ihn unten ein.</string>
     <string name="connect_bad_credentials">Falsche E-Mail-Adresse oder falsches Passwort.</string>
     <string name="connect_imap_refused">Der Server hat die Verbindung abgelehnt (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">Der Server hat die Anmeldung abgelehnt (%1$s). Versuche es erneut oder verwende ein App-Passwort.</string>
     <string name="connect_offline">Du bist offline. Ein Konto hinzuzufügen braucht eine Verbindung, versuche es erneut, sobald du zurück bist.</string>
     <string name="connect_provider_preset">Schnelleinrichtung</string>
     <string name="connect_provider_app_password_note">Einige Anbieter (Gmail, Yahoo, iCloud…) benötigen ein App-spezifisches Passwort, nicht Ihr normales.</string>
@@ -899,7 +900,7 @@
     <string name="connect_import_app_password_note">Einige Microsoft-Konten erlauben ein App-Passwort; viele Geschäfts- oder Schulkonten deaktivieren es.</string>
     <string name="connect_oauth_declined">Sie haben die Anmeldung abgelehnt. Versuchen Sie es erneut.</string>
     <string name="connect_oauth_admin_consent">Der Administrator Ihrer Organisation muss Sterna für die Microsoft-Anmeldung genehmigen, oder Sie können sich mit einem App-Passwort anmelden.</string>
-    <string name="connect_oauth_error_code">Microsoft hat die Anmeldung abgelehnt (%1$s). Versuchen Sie es erneut oder verwenden Sie ein App-Passwort.</string>
+    <string name="connect_oauth_error_code">Microsoft hat die Anmeldung abgelehnt (%1$s). Versuche es erneut oder verwende ein App-Passwort.</string>
     <string name="connect_oauth_flow_unsupported">Dieser Server bietet die OAuth-Anmeldung an, aber nicht in einer Form, die Sterna bereits nutzen kann. Verwenden Sie stattdessen E-Mail-Adresse und Passwort.</string>
     <string name="connect_oauth_elsewhere">Dieser Server übergibt die Anmeldung an eine andere Domain, und Sterna folgt ihm dorthin nicht. Verwenden Sie stattdessen E-Mail-Adresse und Passwort.</string>
     <string name="connect_oauth_error_reason">Der Server hat die Anmeldung abgelehnt (%1$s). Versuchen Sie es erneut oder verwenden Sie E-Mail-Adresse und Passwort.</string>

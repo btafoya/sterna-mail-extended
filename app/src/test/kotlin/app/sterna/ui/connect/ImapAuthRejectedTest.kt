@@ -16,7 +16,7 @@ class ImapAuthRejectedTest {
         assertTrue(imapAuthRejected("AUTHENTICATIONFAILED", "anything at all"))
     }
 
-    /** The symptom: server down during AUTHENTICATE is not a wrong password. */
+    /** `[UNAVAILABLE]` may be a password refused under 2FA or an unreachable user database. */
     @Test
     fun `UNAVAILABLE during AUTHENTICATE is not a credentials verdict`() {
         assertFalse(imapAuthRejected("UNAVAILABLE", "AUTHENTICATE … failed: busy"))
@@ -55,6 +55,38 @@ class ImapAuthRejectedTest {
     fun `without a code a non-auth failure is not blamed on the credentials`() {
         assertFalse(imapAuthRejected(null, "SELECT failed"))
     }
+
+    @Test
+    fun `UNAVAILABLE during AUTHENTICATE is a refused sign-in`() {
+        assertTrue(imapSignInRefused("UNAVAILABLE", "AUTHENTICATE … failed: busy"))
+    }
+
+    @Test
+    fun `UNAVAILABLE during LOGIN is a refused sign-in`() {
+        assertTrue(imapSignInRefused("UNAVAILABLE", "LOGIN … failed"))
+    }
+
+    @Test
+    fun `ALERT during LOGIN is a refused sign-in`() {
+        assertTrue(imapSignInRefused("ALERT", "LOGIN … failed: read this alert"))
+    }
+
+    @Test
+    fun `the credentials codes are not a refused sign-in`() {
+        for (code in listOf("AUTHENTICATIONFAILED", "AUTHORIZATIONFAILED", "EXPIRED")) {
+            assertFalse(code, imapSignInRefused(code, "LOGIN … failed: no"))
+        }
+    }
+
+    @Test
+    fun `UNAVAILABLE on a command other than the sign-in is not a refused sign-in`() {
+        assertFalse(imapSignInRefused("UNAVAILABLE", "SELECT INBOX failed: busy"))
+    }
+
+    @Test
+    fun `without a code a LOGIN failure is not a refused sign-in`() {
+        assertFalse(imapSignInRefused(null, "LOGIN … failed"))
+    }
 }
 
 /**
@@ -91,6 +123,18 @@ class ImapAuthRejectedWiringTest {
             "Pinned WITH its argument because swapping `code` for `t.message` puts the server's " +
                 "free text back on screen, and a server's free text has already leaked a bearer " +
                 "token once (8e942069).",
+        )
+    }
+
+    @Test
+    fun `the refused sign-in branch shows the code, never the response body`() {
+        assertPinnedLine(
+            "code != null && imapSignInRefused(code, t.message.orEmpty()) -> " +
+                "string(R.string.connect_imap_sign_in_refused, code)",
+            "Pinned WITH its arguments because handing the decision anything but `code` leaves the " +
+                "`imapSignInRefused` tests guarding a call the screen no longer makes, and swapping " +
+                "the shown `code` for `t.message` puts the server's free text back on screen " +
+                "(a bearer token leaked that way once, 8e942069).",
         )
     }
 

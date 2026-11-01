@@ -874,6 +874,7 @@
     <string name="connect_server_not_found">No se pudo encontrar tu servidor automáticamente. Introdúcelo abajo.</string>
     <string name="connect_bad_credentials">Correo o contraseña incorrectos.</string>
     <string name="connect_imap_refused">El servidor rechazó la conexión (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">El servidor rechazó el inicio de sesión (%1$s). Inténtalo de nuevo o usa una contraseña de aplicación.</string>
     <string name="connect_offline">Estás sin conexión. Añadir una cuenta requiere conexión, inténtalo de nuevo cuando vuelvas.</string>
     <string name="connect_provider_preset">Configuración rápida</string>
     <string name="connect_provider_app_password_note">Algunos proveedores (Gmail, Yahoo, iCloud…) necesitan una contraseña específica de la aplicación, no la habitual.</string>

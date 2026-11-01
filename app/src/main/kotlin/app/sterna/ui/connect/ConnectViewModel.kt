@@ -76,9 +76,9 @@ internal data class AddedAccount(val id: String, val created: Boolean)
 internal fun accountAddedToast(created: Boolean, @StringRes createdRes: Int?): Int? =
     if (created) createdRes else R.string.connect_account_refreshed
 
-/** Whether an IMAP sign-in failure means the server looked at the credentials and said no, the one
- *  reading that may say "wrong email or password". With a [responseCode] (RFC 5530) only the three
- *  credential codes blame the password; `[UNAVAILABLE]` during AUTHENTICATE is a server down. */
+/** Whether an IMAP sign-in failure means the server judged the credentials, the one reading that may
+ *  say "wrong email or password": with an RFC 5530 [responseCode], only the three credential codes.
+ *  `[UNAVAILABLE]` proves neither a wrong password nor a server down (2FA refusal, passdb unreachable). */
 internal fun imapAuthRejected(responseCode: String?, message: String): Boolean =
     if (responseCode != null) {
         responseCode in CREDENTIAL_RESPONSE_CODES
@@ -86,6 +86,12 @@ internal fun imapAuthRejected(responseCode: String?, message: String): Boolean =
         message.contains("LOGIN", ignoreCase = true) ||
             message.contains("AUTHENTICATE", ignoreCase = true)
     }
+
+internal fun imapSignInRefused(responseCode: String?, message: String): Boolean =
+    responseCode != null && responseCode !in CREDENTIAL_RESPONSE_CODES &&
+        message.substringBefore(' ').uppercase() in SIGN_IN_VERBS
+
+private val SIGN_IN_VERBS = setOf("LOGIN", "AUTHENTICATE")
 
 /** The RFC 5530 codes that mean "the credentials themselves were refused", and no other. */
 private val CREDENTIAL_RESPONSE_CODES = setOf("AUTHENTICATIONFAILED", "AUTHORIZATIONFAILED", "EXPIRED")
@@ -1018,6 +1024,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                                 string(R.string.connect_provider_app_password_note)
                         // The server named its failure: show the code, never the response body, since
                         // a server's free text has already leaked a bearer token once (8e942069).
+                        code != null && imapSignInRefused(code, t.message.orEmpty()) -> string(R.string.connect_imap_sign_in_refused, code)
                         code != null -> string(R.string.connect_imap_refused, code)
                         else -> t.message ?: t.javaClass.simpleName
                     },

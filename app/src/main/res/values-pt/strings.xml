@@ -874,6 +874,7 @@
     <string name="connect_server_not_found">Não foi possível encontrar o seu servidor automaticamente. Insira-o abaixo.</string>
     <string name="connect_bad_credentials">E-mail ou palavra-passe incorretos.</string>
     <string name="connect_imap_refused">O servidor recusou a ligação (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">O servidor recusou o início de sessão (%1$s). Tente novamente ou use uma palavra-passe de aplicação.</string>
     <string name="connect_offline">Está offline. Adicionar uma conta precisa de ligação, tente novamente assim que voltar.</string>
     <string name="connect_provider_preset">Configuração rápida</string>
     <string name="connect_provider_app_password_note">Alguns fornecedores (Gmail, Yahoo, iCloud…) exigem uma palavra-passe específica da aplicação, e não a sua palavra-passe normal.</string>

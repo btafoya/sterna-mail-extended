@@ -1080,6 +1080,7 @@
     <string name="connect_server_not_found">Nem sikerült automatikusan megtalálni a kiszolgálóját. Adja meg alább.</string>
     <string name="connect_bad_credentials">Hibás e-mail-cím vagy jelszó.</string>
     <string name="connect_imap_refused">A kiszolgáló elutasította a kapcsolatot (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">A kiszolgáló elutasította a bejelentkezést (%1$s). Próbálja újra, vagy használjon helyette alkalmazásjelszót.</string>
     <string name="connect_offline">Nincs kapcsolat. Fiók hozzáadásához kapcsolat szükséges, ezért próbálja újra, amikor ismét van.</string>
     <string name="connect_provider_preset">Gyors beállítás</string>
     <string name="connect_provider_app_password_note">Egyes szolgáltatók (Gmail, Yahoo, iCloud…) alkalmazásjelszót igényelnek, nem a szokásos jelszavát.</string>

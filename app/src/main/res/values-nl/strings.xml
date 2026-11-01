@@ -870,6 +870,7 @@
     <string name="connect_server_not_found">Kon je server niet automatisch vinden. Voer deze hieronder in.</string>
     <string name="connect_bad_credentials">Onjuist e-mailadres of wachtwoord.</string>
     <string name="connect_imap_refused">De server heeft de verbinding geweigerd (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">De server heeft de aanmelding geweigerd (%1$s). Probeer het opnieuw of gebruik een app-wachtwoord.</string>
     <string name="connect_offline">Je bent offline. Een account toevoegen heeft verbinding nodig, probeer het opnieuw zodra je weer verbonden bent.</string>
     <string name="connect_provider_preset">Snelle installatie</string>
     <string name="connect_provider_app_password_note">Sommige providers (Gmail, Yahoo, iCloud…) vereisen een app-specifiek wachtwoord, niet je normale wachtwoord.</string>

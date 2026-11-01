@@ -874,6 +874,7 @@
     <string name="connect_server_not_found">Impossible de trouver votre serveur automatiquement. Saisissez-le ci-dessous.</string>
     <string name="connect_bad_credentials">Adresse e-mail ou mot de passe incorrect.</string>
     <string name="connect_imap_refused">Le serveur a refusé la connexion (%1$s).</string>
+    <string name="connect_imap_sign_in_refused">Le serveur a refusé l\'ouverture de session (%1$s). Réessayez, ou utilisez un mot de passe d\'application.</string>
     <string name="connect_offline">Vous êtes hors ligne. Ajouter un compte demande une connexion, réessayez dès votre retour.</string>
     <string name="connect_provider_preset">Configuration rapide</string>
     <string name="connect_provider_app_password_note">Certains fournisseurs (Gmail, Yahoo, iCloud…) nécessitent un mot de passe d\'application, et non votre mot de passe habituel.</string>
