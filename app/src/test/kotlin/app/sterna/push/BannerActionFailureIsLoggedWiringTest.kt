@@ -45,4 +45,28 @@ class BannerActionFailureIsLoggedWiringTest {
             codeLines.filter { "const val TAG" in it },
         )
     }
+
+    /** The write itself now fails in [BannerWriteWorker]; the same line, under the same tag, is
+     *  what a bench greps for, plus one line when the banner is given back. */
+    @Test fun `a queued banner write that throws, or is given up on, says so in the same terms`() {
+        val worker = generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, "app/src/main/kotlin/app/sterna/push/BannerWriteWorker.kt") }
+            .firstOrNull { it.isFile }?.readLines().orEmpty()
+            .map { it.trim() }
+            .filterNot { it.isBlank() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
+        assertEquals(
+            "two log lines in the worker, and nothing in either that names the message, the " +
+                "account, or the exception's own message",
+            listOf(
+                """failed = { e -> Log.w(TAG, "Notification action ${'$'}{write.action} failed: ${'$'}{notificationActionFailureLabel(e)}") },""",
+                """Log.w(TAG, "Notification action ${'$'}{write.action} given up after ${'$'}BANNER_WRITE_ATTEMPTS attempts")""",
+            ),
+            worker.filter { "Log." in it },
+        )
+        assertEquals(
+            "under the receiver's tag, so one filter on the device log still finds every banner action",
+            listOf("""private const val TAG = "NotificationAction""""),
+            worker.filter { "const val TAG" in it },
+        )
+    }
 }

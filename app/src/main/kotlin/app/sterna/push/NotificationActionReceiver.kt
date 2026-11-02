@@ -47,44 +47,28 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     )
                     return@launch
                 }
-                // Delete can find there is nothing to do, and the banner must then survive it.
-                var mayDismiss = true
-                if (credentials != null) {
-                    when (action) {
-                        ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)
-                        ACTION_DELETE -> mayDismiss = deleteFromBanner(
-                            container.mailRepository, credentials, accountId, emailId,
-                        )
-                    }
-                    if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)
+                // Local only from here: the server write goes to BannerWriteWorker, so the banner
+                // falls without waiting on a cold session this broadcast may not outlive.
+                val write = BannerWrite.ofAction(action)
+                val deleteAct = if (credentials != null && write == BannerWrite.DELETE) {
+                    bannerDeleteActFromCache(container.mailRepository, accountId, emailId)
+                } else {
+                    null
                 }
+                carryOutBannerTap(
+                    bannerTap(write, signedIn = credentials != null, deleteAct),
+                    dismiss = { dismiss(appContext, accountId, credentials, emailId, notifId) },
+                    enqueue = { BannerWriteWorker.enqueue(appContext, accountId, emailId, it) },
+                )
             } catch (e: Throwable) {
-                // The banner stays for a retry.
+                // Thrown before the hand-over, the banner stays with nothing queued: the way to retry.
+                // A dismissal that threw still queues the write; a queueing that threw after the
+                // cancel leaves the banner down with nothing queued, and nothing retries it.
                 Log.w(TAG, "Notification action $action failed: ${notificationActionFailureLabel(e)}")
             } finally {
                 pending.finish()
             }
         }
-    }
-
-    /**
-     * The Delete button of a banner, and the question it never asked: would this delete MOVE
-     */
-    private suspend fun deleteFromBanner(
-        repo: MailRepository,
-        credentials: AccountCredentials,
-        accountId: String,
-        emailId: String,
-    ): Boolean {
-        val cached = runCatching { repo.cachedEmail(accountId, emailId) }.getOrNull()
-        val role = runCatching { repo.mailboxRole(accountId, cached?.mailboxId) }.getOrNull()
-        val hasTrash = runCatching { repo.hasCachedTrash(accountId) }.getOrDefault(true)
-        return deleteHoldingItsRow(
-            act = bannerDeleteAct(role, hasTrash),
-            begin = { repo.beginRemoval(accountId, emailId) },
-            delete = { repo.delete(credentials, emailId) },
-            end = { flight, restore -> repo.endRemoval(flight, restore) },
-        )
     }
 
     /** The Reply path, whose only asset is the text the user just typed. Cache first, exactly like

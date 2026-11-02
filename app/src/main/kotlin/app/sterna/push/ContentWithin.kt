@@ -10,8 +10,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * within [budgetMs]: a broadcast held past its `goAsync` budget gets the process killed.
  *
  * `NotificationActionReceiver.CONTENT_BUDGET_MS` is the leash the banner's own buttons use. Shorter,
- * and an ordinary cold start would re-post the summary without the account's name; longer, and the
- * server write that ran first has already spent part of the broadcast's budget.
+ * and an ordinary cold start would re-post the summary without the account's name; longer, and a
+ * tap that started a cold process, whose start-up already ate into a short `goAsync` window, spends
+ * the rest of it on one setting.
  */
 internal suspend fun readContentWithin(content: Flow<NotificationContent>, budgetMs: Long): NotificationContent =
     runCatching { withTimeoutOrNull(budgetMs) { content.first() } }.getOrNull() ?: NotificationContent.NONE

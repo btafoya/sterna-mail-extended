@@ -15,7 +15,7 @@ import java.io.IOException
 
 /**
  * The banner's Delete holds its row in flight (#252), executed on [deleteHoldingItsRow] with the
- * three calls recorded in the order they were made. The receiver itself runs in no JVM test, so
+ * three calls recorded in the order they were made. [BannerWriteWorker] runs in no JVM test, so
  * its hand-off to this function is pinned by source at the end, arguments included.
  */
 class BannerDeleteHoldsItsRowTest {
@@ -48,7 +48,7 @@ class BannerDeleteHoldsItsRowTest {
         val refused = IOException("no route to host")
         try {
             run(delete = { throw refused })
-            fail("the failure must reach onReceive, whose catch is what leaves the banner up")
+            fail("the failure must reach the worker, whose retries and give-up are what follow it")
         } catch (e: IOException) {
             assertSame(refused, e)
         }
@@ -93,23 +93,29 @@ class BannerDeleteHoldsItsRowTest {
         assertEquals(false, mayDismiss)
     }
 
-    @Test fun `the receiver hands its delete to the flight, with the repository's own begin and end`() {
-        val body = bodyOf(RECEIVER, "deleteFromBanner")
+    @Test fun `the worker hands its delete to the flight, with the repository's own begin and end`() {
+        val body = bodyOf(WORKER, "doWork")
         assertEquals(
-            "every line of this function naming the repository, in order and with no exception: " +
-                "the three cache reads, then the flight opened and closed through " +
-                "`beginRemoval`/`endRemoval` for the account and the message of the intent, and " +
-                "ONE `repo.delete`, inside the lambda. A `repo.delete` anywhere else, guarded " +
-                "or not, is a delete that goes out with no flight open",
+            "every line of the worker's run naming the repository, in order and with no exception: " +
+                "the delete's decision read again from the cache, the mark-read write, the " +
+                "flight opened and closed through `beginRemoval`/`endRemoval` for the account and " +
+                "the message queued, and ONE `repo.delete`, inside the lambda. A `repo.delete` " +
+                "anywhere else, guarded or not, is a delete that goes out with no flight open",
             listOf(
-                "val cached = runCatching { repo.cachedEmail(accountId, emailId) }.getOrNull()",
-                "val role = runCatching { repo.mailboxRole(accountId, cached?.mailboxId) }.getOrNull()",
-                "val hasTrash = runCatching { repo.hasCachedTrash(accountId) }.getOrDefault(true)",
+                "val repo = container.mailRepository",
+                "val reads = bannerDeleteReadsFromCache(repo, accountId, emailId)",
+                "BannerWrite.MARK_READ -> repo.setRead(credentials, emailId, true)",
                 "begin = { repo.beginRemoval(accountId, emailId) },",
                 "delete = { repo.delete(credentials, emailId) },",
                 "end = { flight, restore -> repo.endRemoval(flight, restore) },",
             ),
-            codeLinesNaming(body, "repo."),
+            codeLinesNaming(body, "repo").filter { Regex("""\brepo\b""").containsMatchIn(it) },
+        )
+        assertEquals(
+            "the flight is the worker's from end to end, in the one process that opened it: a " +
+                "flight's key lives in that process's memory, and no other may close it",
+            listOf("BannerWrite.DELETE -> deleteHoldingItsRow("),
+            codeLinesNaming(body, "deleteHoldingItsRow("),
         )
     }
 
@@ -136,14 +142,14 @@ class BannerDeleteHoldsItsRowTest {
     }
 
     companion object {
-        private const val RECEIVER_PATH = "app/src/main/kotlin/app/sterna/push/NotificationActionReceiver.kt"
+        private const val WORKER_PATH = "app/src/main/kotlin/app/sterna/push/BannerWriteWorker.kt"
 
         private val root: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
-                .firstOrNull { File(it, RECEIVER_PATH).isFile }
+                .firstOrNull { File(it, WORKER_PATH).isFile }
                 ?: error("cannot locate the repo root from ${File("").absolutePath}")
         }
 
-        private val RECEIVER: File by lazy { File(root, RECEIVER_PATH) }
+        private val WORKER: File by lazy { File(root, WORKER_PATH) }
     }
 }

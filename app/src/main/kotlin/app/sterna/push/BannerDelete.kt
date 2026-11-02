@@ -22,4 +22,10 @@ fun bannerDeleteAct(cachedRole: String?, hasCachedTrash: Boolean): BannerDeleteA
     else -> BannerDeleteAct.MoveToTrash
 }
 
+fun queuedDeleteUnwritten(cachedRole: String?, hasCachedTrash: Boolean): BannerUnwritten? = when {
+    bannerDeleteAct(cachedRole, hasCachedTrash) == BannerDeleteAct.MoveToTrash -> null
+    cachedRole == TRASH_ROLE -> BannerUnwritten.Drop
+    else -> BannerUnwritten.GiveBannerBack
+}
+
 private const val TRASH_ROLE = "trash"

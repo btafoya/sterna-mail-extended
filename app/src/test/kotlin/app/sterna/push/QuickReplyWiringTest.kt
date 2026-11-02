@@ -9,92 +9,82 @@ import java.io.File
  */
 class QuickReplyWiringTest {
 
-    @Test fun `mark read still dismisses, and delete only when it moved something`() {
+    @Test fun `mark read and delete take the banner down at once, and hand the write over`() {
         val body = bodyOf(RECEIVER, "onReceive")
         assertEquals(
-            "ONE cancellation on this path, and it is CONDITIONAL. An unconditional dismissal is " +
-                "the defect itself: Delete used to take the banner down after a move that moved " +
-                "nothing (the message was already in Trash — evicted from the cache and from the " +
-                "search index while the server kept it) or after a throw that had already " +
-                "unlisted the message from an Empty-trash order and marked it read",
-            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)"),
+            "ONE dismissal on this path, and it is handed to `carryOutBannerTap`, which runs it " +
+                "only on a decided hand-over (BannerWriteTest executes it). A dismissal written " +
+                "beside it is a Delete that moved nothing taking the banner down all the same (#171)",
+            listOf("dismiss = { dismiss(appContext, accountId, credentials, emailId, notifId) },"),
             codeLinesNaming(body, "dismiss("),
         )
         assertEquals(
-            "Reply must leave the common path BEFORE that dismissal — put it back in the `when` " +
+            "the write handed over is the one the intent's action names: a literal here makes " +
+                "both buttons the same write",
+            listOf(
+                "val action = intent.action ?: return",
+                "val write = BannerWrite.ofAction(action)",
+            ),
+            codeLinesNaming(bodyOf(RECEIVER, "onReceive"), "").filter { it.startsWith("val action") || it.startsWith("val write") },
+        )
+        assertEquals(
+            "Reply must leave the common path BEFORE that dismissal — put it back in the hand-over " +
                 "and the notification is taken down whatever happened to the text",
             listOf("if (action == ACTION_REPLY) {"),
             codeLinesNaming(body, "ACTION_REPLY"),
         )
         assertEquals(
-            "Mark as read does not change: its work is on the server's copy and is retryable " +
-                "from the list, so nothing is lost by dismissing on it",
-            listOf("ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)"),
-            codeLinesNaming(body, "ACTION_MARK_READ"),
+            "what happens to the banner is DECIDED, with the intent's write, whether there is " +
+                "anyone to act for, and the delete's own decision as arguments: a literal in any " +
+                "of the three is a rule that answers the same thing forever",
+            listOf("bannerTap(write, signedIn = credentials != null, deleteAct),"),
+            codeLinesNaming(body, "bannerTap("),
         )
         assertEquals(
-            "Delete goes through the decision instead of straight at the repository, and the " +
-                "decision is what says whether the banner may fall",
-            listOf("ACTION_DELETE -> mayDismiss = deleteFromBanner("),
-            codeLinesNaming(body, "deleteFromBanner("),
+            "the write is QUEUED, for the account and the message of the intent, and that is all " +
+                "this receiver does with the server. Done here instead, the cancel waits on a cold " +
+                "session again and the banner outlives the process that should have taken it down",
+            listOf("enqueue = { BannerWriteWorker.enqueue(appContext, accountId, emailId, it) },"),
+            codeLinesNaming(body, "enqueue"),
         )
         assertEquals(
-            "…and the flag that carries the answer, EVERY line of it. The pin above names the " +
-                "call and is blind by construction to a line added beside it: one `mayDismiss = " +
-                "true` after the `when` restores the unconditional dismissal, compiles, and reads " +
-                "as deliberate. Three lines, and there is no fourth — it is set once, assigned " +
-                "once by the decision, and read once",
-            listOf(
-                "var mayDismiss = true",
-                "ACTION_DELETE -> mayDismiss = deleteFromBanner(",
-                "if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)",
-            ),
-            codeLinesNaming(body, "mayDismiss"),
-        )
-        assertEquals(
-            "…and EVERY use of the repository in onReceive, enumerated whole: the reply hand-off, " +
-                "the mark-read call, and the arguments the banner's delete is handed. A pin that " +
-                "names only the calls is blind to a `container.mailRepository.delete(...)` added " +
-                "beside them, which is exactly the line this change removes",
+            "…and EVERY use of the repository in onReceive, enumerated whole: the reply hand-off " +
+                "and the delete's cache-only decision. A `setRead` or a `delete` added beside them " +
+                "is the server write back inside the broadcast window",
             listOf(
                 "appContext, container.mailRepository, container.settingsRepository,",
-                "ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)",
-                "container.mailRepository, credentials, accountId, emailId,",
+                "bannerDeleteActFromCache(container.mailRepository, accountId, emailId)",
             ),
             codeLinesNaming(body, "container.mailRepository"),
         )
     }
 
     /**
-     * The end where there is nobody to act for.
+     * The end where there is nobody to act for: the decision keeps the banner (BannerWriteTest),
+     * and what is pinned here is that the decision is told so.
      */
     @Test fun `with no credentials nothing runs, so nothing may claim it did`() {
-        val block = blockAfter(bodyOf(RECEIVER, "onReceive"), "if (credentials != null)")
+        val body = bodyOf(RECEIVER, "onReceive")
         assertEquals(
-            "the dismissal must be INSIDE the credentials block, whole. Outside it, a signed-out " +
-                "account gets a Delete and a Mark as read that reach no server, take the banner " +
-                "down anyway, and leave nothing behind that would do the work: the user is told " +
-                "the message was deleted and it never was",
-            listOf("if (mayDismiss) dismiss(appContext, accountId, credentials, emailId, notifId)"),
-            codeLinesNaming(block, "dismiss("),
-        )
-        assertEquals(
-            "…and it is the block that holds the two server actions, not some other `if` that " +
-                "happens to match: an extraction that grabbed the wrong braces would pass the pin " +
-                "above while the dismissal sat outside all the same",
+            "the decision hears whether credentials were found: a `signedIn = true` puts the " +
+                "banner of a signed-out account down for a write nothing will ever carry out",
             listOf(
-                "ACTION_MARK_READ -> container.mailRepository.setRead(credentials, emailId, true)",
-                "ACTION_DELETE -> mayDismiss = deleteFromBanner(",
+                "val credentials = container.accountStore.credentials(accountId)",
+                "container.accountStore, credentials, accountId, emailId, notifId, replyText,",
+                "val deleteAct = if (credentials != null && write == BannerWrite.DELETE) {",
+                "bannerTap(write, signedIn = credentials != null, deleteAct),",
+                "dismiss = { dismiss(appContext, accountId, credentials, emailId, notifId) },",
             ),
-            codeLinesNaming(block, "ACTION_"),
+            codeLinesNaming(body, "credentials"),
         )
     }
 
     /**
-     * The banner's Delete, whose whole job is to ask (locally) the question the screen asks over
+     * The banner's Delete asks (locally) the question the screen asks over the socket: would this
+     * MOVE anything. The receiver and the worker ask it through the same function.
      */
     @Test fun `the banner's delete asks the local caches, and only the local caches`() {
-        val body = bodyOf(RECEIVER, "deleteFromBanner")
+        val body = bodyOf(WORKER, "bannerDeleteReadsFromCache")
         assertEquals(
             "the message's own folder comes from the CACHE, scoped to the account (#31: an id is " +
                 "unique only inside its account)",
@@ -115,24 +105,31 @@ class QuickReplyWiringTest {
             codeLinesNaming(body, "hasCachedTrash("),
         )
         assertEquals(
-            "what happens next is DECIDED (BannerDeleteActTest executes it), with the two reads " +
-                "as arguments — a literal there is a rule that answers the same thing forever",
-            listOf("act = bannerDeleteAct(role, hasTrash),"),
-            codeLinesNaming(body, "bannerDeleteAct("),
-        )
-        assertEquals(
-            "and the ONE end of it: what this function returns is the banner's fate, and it is " +
-                "whatever the flight-holding delete answers (BannerDeleteHoldsItsRowTest executes " +
-                "it, `DoNothing` included). A second exit beside it is a banner that falls on a " +
-                "delete that moved nothing, or never comes down on one that worked",
-            listOf("return deleteHoldingItsRow("),
+            "the two reads are handed back as read, in their own places",
+            listOf("return BannerDeleteReads(role, hasTrash)"),
             codeLinesNaming(body, "return"),
         )
         assertEquals(
-            "no arm of the decision is carried out here: an arm written in this " +
-                "function is a delete that goes out with no flight open",
+            "what happens next is DECIDED (BannerDeleteActTest executes it), on those reads, and " +
+                "it is the one end of the receiver's question",
+            listOf(
+                "val reads = bannerDeleteReadsFromCache(repo, accountId, emailId)",
+                "return bannerDeleteAct(reads.role, reads.hasTrash)",
+            ),
+            codeLinesNaming(bodyOf(WORKER, "bannerDeleteActFromCache"), "").filter { it.startsWith("val ") || it.startsWith("return") },
+        )
+        assertEquals(
+            "the receiver reads that decision for the intent's account and message, and only " +
+                "for a Delete of an account it can act for",
+            listOf("bannerDeleteActFromCache(container.mailRepository, accountId, emailId)"),
+            codeLinesNaming(bodyOf(RECEIVER, "onReceive"), "bannerDeleteActFromCache("),
+        )
+        assertEquals(
+            "no arm of the decision is carried out in the receiver: the flight and the move are " +
+                "the worker's, and a delete written here goes out inside the broadcast window",
             emptyList<String>(),
-            codeLinesNaming(body, "BannerDeleteAct."),
+            listOf("BannerDeleteAct.", "deleteHoldingItsRow(", ".delete(", ".setRead(", "beginRemoval(")
+                .flatMap { codeLinesNaming(RECEIVER.readText(), it) },
         )
     }
 
@@ -498,30 +495,6 @@ class QuickReplyWiringTest {
             .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
             .filter { needle in it }
 
-    /**
-     * The braced block opened right after [header] in [body], braces included.
-     */
-    private fun blockAfter(body: String, header: String): String {
-        val start = body.indexOf(header)
-        require(start >= 0) {
-            "no `$header` left in this function — removed, or WIDENED into something else? The " +
-                "closing paren is part of the needle on purpose: `if (credentials != null && …)` " +
-                "is a different guard and must not pass as this one"
-        }
-        val open = body.indexOf('{', start + header.length)
-        require(open >= 0) { "`$header` opens no block" }
-        var depth = 0
-        var i = open
-        while (i < body.length) {
-            when (body[i]) {
-                '{' -> depth++
-                '}' -> if (--depth == 0) return body.substring(open, i + 1)
-            }
-            i++
-        }
-        error("Unbalanced braces after `$header`")
-    }
-
     /** The block body of `fun [name]` in [file], braces included. */
     private fun bodyOf(file: File, name: String): String {
         val source = file.readText()
@@ -546,6 +519,7 @@ class QuickReplyWiringTest {
         private const val QUICK_REPLY_PATH = "$PUSH_SOURCES/QuickReply.kt"
         private const val NOTIFICATIONS_PATH = "$PUSH_SOURCES/Notifications.kt"
         private const val SCHEDULED_PATH = "app/src/main/kotlin/app/sterna/send/ScheduledSendWorker.kt"
+        private const val WORKER_PATH = "$PUSH_SOURCES/BannerWriteWorker.kt"
         private const val COMPOSE_VM_PATH = "app/src/main/kotlin/app/sterna/ui/compose/ComposeViewModel.kt"
 
         private val root: File by lazy {
@@ -561,6 +535,7 @@ class QuickReplyWiringTest {
         private val QUICK_REPLY: File by lazy { File(root, QUICK_REPLY_PATH) }
         private val NOTIFICATIONS: File by lazy { File(root, NOTIFICATIONS_PATH) }
         private val SCHEDULED: File by lazy { File(root, SCHEDULED_PATH) }
+        private val WORKER: File by lazy { File(root, WORKER_PATH) }
         private val COMPOSE_VM: File by lazy { File(root, COMPOSE_VM_PATH) }
     }
 }
