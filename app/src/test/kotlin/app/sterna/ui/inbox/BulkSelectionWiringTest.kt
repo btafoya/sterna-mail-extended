@@ -495,7 +495,7 @@ class BulkSelectionWiringTest {
             listOf("val moving = plan.move.mapTo(mutableSetOf()) { it.emailKey() }", "keys = moving,"),
             codeLinesNaming(body, "plan.move.mapTo") + codeLinesNaming(body, "keys = moving"),
         )
-        // And the label it delegates stays CONDITIONAL. Dropping `.takeIf` leaves a mixed
+        // And the label it delegates stays conditional. Dropping `.takeIf` leaves a mixed
         // destroy+move delete showing a counted "3 messages deleted" on top of "Deleting
         // permanently…" on the one snackbar host, under an Undo that covers only the moved leg.
         // Whole line, never `in`: a substring rule would accept the takeIf being dropped.
