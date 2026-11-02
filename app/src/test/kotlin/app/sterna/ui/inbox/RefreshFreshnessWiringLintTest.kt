@@ -58,7 +58,7 @@ class RefreshFreshnessWiringLintTest {
             "selectUnread() must reconcile through the guard, on the view unreadSelectionReplacing " +
                 "picks from the one it replaces (#235), and return only when that view is already on " +
                 "screen. Compared whole. Body was:",
-            "fun selectUnread() { val next = unreadSelectionReplacing(selection.value, AllInboxesView.existsFor(store.accounts())) " +
+            "fun selectUnread() { unifiedOpenedBySetting = false val next = unreadSelectionReplacing(selection.value, AllInboxesView.existsFor(store.accounts())) " +
                 "if (selection.value == next) return collapseThreads() " +
                 "paneOnViewChanged() selection.value = next " +
                 "meta.value = unreadViewMeta(next, store.accountLabel(), store.inboxMailboxName(), store.unreadCount(), store.totalUnreadCount()) " +
@@ -69,7 +69,7 @@ class RefreshFreshnessWiringLintTest {
             "selectUnreadFromShortcut() must reconcile through the guard like selectUnread(), on the " +
                 "view unreadSelectionForShortcut picks from the accounts alone, never from the view it " +
                 "replaces (#266). Compared whole. Body was:",
-            "fun selectUnreadFromShortcut() { " +
+            "fun selectUnreadFromShortcut() { unifiedOpenedBySetting = false " +
                 "val next = unreadSelectionForShortcut(AllInboxesView.existsFor(store.accounts())) " +
                 "if (selection.value == next) return collapseThreads() " +
                 "paneOnViewChanged() selection.value = next " +

@@ -204,9 +204,9 @@ class EveryAccountUnreadTest {
     }
 
     @Test
-    fun `a notification tapped from every account's view keeps the list, as from All inboxes`() {
+    fun `a notification tapped from every account's view is routed as from All inboxes`() {
         assertTrue(unifiedViewByChoice(Sel.Unread(allAccounts = true), openedBySetting = false))
-        assertTrue(unifiedViewByChoice(Sel.Unread(allAccounts = true), openedBySetting = true))
+        assertFalse(unifiedViewByChoice(Sel.Unread(allAccounts = true), openedBySetting = true))
         assertFalse(unifiedViewByChoice(Sel.Unread(allAccounts = false), openedBySetting = false))
     }
 

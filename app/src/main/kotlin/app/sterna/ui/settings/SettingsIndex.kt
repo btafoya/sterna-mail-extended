@@ -85,7 +85,7 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
     SettingEntry("pure_black", APPEARANCE, R.string.settings_pure_black_title, R.string.settings_pure_black_subtitle),
     SettingEntry(
         "open_on", APPEARANCE, R.string.settings_open_on_title,
-        options = listOf(R.string.folder_inbox, R.string.inbox_all_inboxes, R.string.settings_open_on_last),
+        options = listOf(R.string.folder_inbox, R.string.inbox_all_inboxes, R.string.settings_open_on_last, R.string.inbox_unread_view),
     ),
     SettingEntry(
         "density", APPEARANCE, R.string.settings_density_title,

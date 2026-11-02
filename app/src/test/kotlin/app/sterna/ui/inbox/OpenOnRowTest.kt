@@ -18,8 +18,8 @@ class OpenOnRowTest {
      */
     @Test
     fun `all inboxes is offered only where the unified view exists`() {
-        assertEquals(listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED), openOnOptions(true))
-        assertEquals(listOf(OPEN_ON_LAST, OPEN_ON_INBOX), openOnOptions(false))
+        assertEquals(listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, OPEN_ON_UNREAD), openOnOptions(true))
+        assertEquals(listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNREAD), openOnOptions(false))
     }
 
     /** Every install that has never opened the setting, and the whole of 1.5.3. */
@@ -46,6 +46,8 @@ class OpenOnRowTest {
         assertEquals(OPEN_ON_INBOX, openOnShown(OPEN_ON_INBOX, true))
         assertEquals(OPEN_ON_INBOX, openOnShown(OPEN_ON_INBOX, false))
         assertEquals(OPEN_ON_UNIFIED, openOnShown(OPEN_ON_UNIFIED, true))
+        assertEquals(OPEN_ON_UNREAD, openOnShown(OPEN_ON_UNREAD, true))
+        assertEquals(OPEN_ON_UNREAD, openOnShown(OPEN_ON_UNREAD, false))
     }
 
     /**
@@ -75,7 +77,7 @@ class OpenOnRowTest {
 
     /**
      * The invariant that binds the row to the launch: the option shown names the view the app will
-     * open on. The three labels are given their meaning here, once, and [openOnSelection] is then
+     * open on. The four labels are given their meaning here, once, and [openOnSelection] is then
      * asked what it opens; the two rules live apart and may not be composed (a second call site of
      * [openOnSelection] is itself pinned elsewhere), so this is the only thing keeping them level.
      */
@@ -88,6 +90,7 @@ class OpenOnRowTest {
                 val announced = when (shown) {
                     OPEN_ON_LAST -> remembered
                     OPEN_ON_UNIFIED -> Sel.Unified
+                    OPEN_ON_UNREAD -> Sel.Unread(allAccounts = unifiedViewExists)
                     else -> null
                 }
                 assertEquals(
@@ -100,11 +103,12 @@ class OpenOnRowTest {
     }
 
     private companion object {
-        /** The three this build writes, plus the three shapes disk hands back that it never wrote. */
+        /** The four this build writes, plus the three shapes disk hands back that it never wrote. */
         val STORED_VALUES = listOf(
             OPEN_ON_LAST,
             OPEN_ON_INBOX,
             OPEN_ON_UNIFIED,
+            OPEN_ON_UNREAD,
             null,
             "",
             "first-unread",

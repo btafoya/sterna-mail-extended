@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import app.sterna.ui.components.AccountPalette
 import app.sterna.ui.inbox.OPEN_ON_INBOX
 import app.sterna.ui.inbox.OPEN_ON_UNIFIED
+import app.sterna.ui.inbox.OPEN_ON_UNREAD
 import app.sterna.ui.inbox.openOnOptions
 import app.sterna.ui.inbox.openOnShown
 import app.sterna.ui.search.ClearSearchHistoryDialog
@@ -603,6 +604,7 @@ private fun themeLabel(context: Context, mode: ThemeMode): String = when (mode) 
 private fun openOnLabel(context: Context, value: String): String = when (value) {
     OPEN_ON_INBOX -> context.getString(R.string.folder_inbox)
     OPEN_ON_UNIFIED -> context.getString(R.string.inbox_all_inboxes)
+    OPEN_ON_UNREAD -> context.getString(R.string.inbox_unread_view)
     else -> context.getString(R.string.settings_open_on_last)
 }
 

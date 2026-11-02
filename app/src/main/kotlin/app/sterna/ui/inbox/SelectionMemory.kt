@@ -47,6 +47,7 @@ internal fun restoreSelection(
 internal const val OPEN_ON_LAST = "last"
 internal const val OPEN_ON_INBOX = "inbox"
 internal const val OPEN_ON_UNIFIED = "unified"
+internal const val OPEN_ON_UNREAD = "unread"
 
 internal fun openOnSelection(
     openOnView: String?,
@@ -55,6 +56,7 @@ internal fun openOnSelection(
 ): Sel? = when (openOnView) {
     OPEN_ON_INBOX -> null
     OPEN_ON_UNIFIED -> if (unifiedViewExists) Sel.Unified else null
+    OPEN_ON_UNREAD -> unreadSelectionForShortcut(unifiedViewExists)
     else -> rememberedView
 }
 
@@ -63,11 +65,12 @@ internal fun openOnSelection(
  *  account left is read back as the view that opens. This pair may not call that rule
  *  (`OpenOnViewWiringLintTest` refuses a second call site); `OpenOnRowTest` holds them level. */
 internal fun openOnOptions(unifiedViewExists: Boolean): List<String> =
-    if (unifiedViewExists) listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED)
-    else listOf(OPEN_ON_LAST, OPEN_ON_INBOX)
+    if (unifiedViewExists) listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, OPEN_ON_UNREAD)
+    else listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNREAD)
 
 internal fun openOnShown(openOnView: String?, unifiedViewExists: Boolean): String = when {
     openOnView == OPEN_ON_INBOX -> OPEN_ON_INBOX
+    openOnView == OPEN_ON_UNREAD -> OPEN_ON_UNREAD
     openOnView != OPEN_ON_UNIFIED -> OPEN_ON_LAST
     unifiedViewExists -> OPEN_ON_UNIFIED
     else -> OPEN_ON_INBOX

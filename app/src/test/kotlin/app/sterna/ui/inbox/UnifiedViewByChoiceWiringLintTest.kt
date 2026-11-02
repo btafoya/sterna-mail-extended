@@ -64,14 +64,36 @@ class UnifiedViewByChoiceWiringLintTest {
         )
         assertEquals(
             "every assignment to unifiedOpenedBySetting, `this.`-prefixed or not, compared whole: " +
-                "its declaration and the one clearing in selectUnified(). Any other write hands a " +
-                "view back to the setting, or takes one from it, without a gesture of the reader.",
+                "its declaration and the clearing in selectUnified(), selectUnread() and " +
+                "selectUnreadFromShortcut(). Any other write hands a view back to the setting, or " +
+                "takes one from it, without a gesture of the reader.",
             listOf(
                 "private var unifiedOpenedBySetting = openOnOverridesMemory(store.openOnView())",
+                "unifiedOpenedBySetting = false",
+                "unifiedOpenedBySetting = false",
                 "unifiedOpenedBySetting = false",
             ),
             codeLines().filter { FLAG_ASSIGNMENT.containsMatchIn(it) },
         )
+    }
+
+    /** #282: under "open on" All inboxes the flag is still set when the reader taps "Unread" there,
+     *  and every account's unread view would then count as the setting's. Pinned before the early
+     *  return for the reason `selectUnified()` is. */
+    @Test
+    fun `opening the unread view by hand makes it the reader's own`() {
+        for (entry in listOf("fun selectUnread() {", "fun selectUnreadFromShortcut() {")) {
+            assertEquals(
+                "$entry must clear unifiedOpenedBySetting first, before its early return: the " +
+                    "drawer's and the shortcut's 'Unread' are the reader's taps, and the unread view " +
+                    "of every account they open must not be moved by a notification.",
+                listOf(entry, "unifiedOpenedBySetting = false"),
+                codeLines().let { lines ->
+                    val start = lines.indexOf(entry)
+                    if (start < 0) emptyList() else lines.subList(start, minOf(start + 2, lines.size))
+                },
+            )
+        }
     }
 
     private fun codeLines(): List<String> {

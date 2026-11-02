@@ -51,6 +51,21 @@ class UnifiedViewByChoiceTest {
         assertEquals(null to null, route(Sel.Unread(allAccounts = true), openedBySetting = false))
     }
 
+    /** #282: the setting's unread view of every account is the setting's "All inboxes", and the
+     *  notification wins over it the same way. */
+    @Test
+    fun `under the setting's unread view, the notification moves both the account and the list`() {
+        for (remembered in REMEMBERED) {
+            assertEquals("remembered=$remembered", ACCOUNT_B to ARCHIVE, launch(OPEN_ON_UNREAD, remembered))
+        }
+        assertFalse(unifiedViewByChoice(openOnSelection(OPEN_ON_UNREAD, Sel.Unified, true), openOnOverridesMemory(OPEN_ON_UNREAD)))
+    }
+
+    @Test
+    fun `under the view you left, a remembered unread view of every account still counts as chosen`() {
+        assertTrue(unifiedViewByChoice(openOnSelection(OPEN_ON_LAST, Sel.Unread(allAccounts = true), true), openOnOverridesMemory(OPEN_ON_LAST)))
+    }
+
     @Test
     fun `an All inboxes the reader went back to herself is not moved`() {
         assertEquals(null to null, route(Sel.Unified, openedBySetting = false))
@@ -102,6 +117,6 @@ class UnifiedViewByChoiceTest {
         const val INBOX = "inbox"
         const val ARCHIVE = "archive"
         val REMEMBERED = listOf(Sel.Folder(INBOX), Sel.Unified, Sel.Unread(allAccounts = false), Sel.Unread(allAccounts = true), null)
-        val STORED_VALUES = listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, null, "", "first-unread")
+        val STORED_VALUES = listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, OPEN_ON_UNREAD, null, "", "first-unread")
     }
 }

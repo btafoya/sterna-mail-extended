@@ -12,15 +12,15 @@ import org.junit.Test
 class OpenOnViewTest {
 
     /**
-     * These three strings sit in the preferences of every install that touches the setting.
+     * These four strings sit in the preferences of every install that touches the setting.
      * Renaming one reads back as a value this build does not know, and silently puts that reader
      * back on the default.
      */
     @Test
-    fun `the three stored values are these literals`() {
+    fun `the four stored values are these literals`() {
         assertEquals(
-            listOf("last", "inbox", "unified"),
-            listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED),
+            listOf("last", "inbox", "unified", "unread"),
+            listOf(OPEN_ON_LAST, OPEN_ON_INBOX, OPEN_ON_UNIFIED, OPEN_ON_UNREAD),
         )
     }
 
@@ -86,5 +86,15 @@ class OpenOnViewTest {
     fun `the all inboxes value falls back on the inbox where the app has no unified view`() {
         assertNull(openOnSelection(OPEN_ON_UNIFIED, Sel.Folder("5"), false))
         assertNull(openOnSelection(OPEN_ON_UNIFIED, Sel.Unified, false))
+    }
+
+    /** #282: every account's unread view where there are two accounts, the one account's otherwise,
+     *  the reach of the icon's "Unread" shortcut. */
+    @Test
+    fun `the unread value opens on the unread view, whatever was left`() {
+        for (remembered in listOf(Sel.Folder("5"), Sel.Unified, Sel.Unread(allAccounts = false), Sel.Unread(allAccounts = true), null)) {
+            assertEquals("remembered=$remembered", Sel.Unread(allAccounts = true), openOnSelection(OPEN_ON_UNREAD, remembered, true))
+            assertEquals("remembered=$remembered", Sel.Unread(allAccounts = false), openOnSelection(OPEN_ON_UNREAD, remembered, false))
+        }
     }
 }

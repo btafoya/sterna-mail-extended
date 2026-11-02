@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.map
 
 /*
  * The unread view of every account (#235): reached from "All inboxes" by the drawer's "Unread"
- * entry, and taken for "All inboxes" by the rest of the app wherever that view is asked about.
+ * entry, by the icon's shortcut, or at launch by "open on" (#282), and taken for "All inboxes" by
+ * the rest of the app wherever that view is asked about.
  */
 
 internal fun unreadOfEveryAccount(sel: Sel?): Boolean = sel is Sel.Unread && sel.allAccounts
@@ -36,9 +37,9 @@ internal fun unreadSelectionReplacing(replaced: Sel, unifiedViewExists: Boolean)
 }
 
 /**
- * The unread view the icon's "Unread" shortcut opens: every account's whenever [unifiedViewExists],
- * whatever view the app was on. Not [unreadSelectionReplacing], which answers one account's from
- * the inbox an ordinary start lands on.
+ * The unread view the icon's "Unread" shortcut opens, and "open on" Unread at launch: every
+ * account's whenever [unifiedViewExists], whatever view the app was on. Not
+ * [unreadSelectionReplacing], which answers one account's from the inbox an ordinary start lands on.
  */
 internal fun unreadSelectionForShortcut(unifiedViewExists: Boolean): Sel.Unread =
     Sel.Unread(allAccounts = unifiedViewExists)

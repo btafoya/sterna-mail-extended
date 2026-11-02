@@ -107,14 +107,15 @@ class OpenOnRowWiringLintTest {
     }
 
     /**
-     * Two of the three labels are the ones the drawer and the folder list already use. A twin
+     * Three of the four labels are the ones the drawer and the folder list already use. A twin
      * string would be a second translation of "Inbox" to keep level with the first, in ten
      * languages, and the day they disagree the row names a view by a name nothing else uses.
      */
-    @Test fun `the inbox and unified labels are borrowed, not copied`() {
+    @Test fun `the inbox, unified and unread labels are borrowed, not copied`() {
         assertEquals(
-            "openOnLabel() must map the two stored literals onto the existing labels " +
-                "R.string.folder_inbox and R.string.inbox_all_inboxes, and only the 'view you " +
+            "openOnLabel() must map the three stored literals onto the existing labels " +
+                "R.string.folder_inbox, R.string.inbox_all_inboxes and R.string.inbox_unread_view, " +
+                "and only the 'view you " +
                 "left' option owes a string of its own.",
             EXPECTED_LABEL,
             declarationOf("private fun openOnLabel"),
@@ -307,6 +308,7 @@ class OpenOnRowWiringLintTest {
             "private fun openOnLabel(context: Context, value: String): String = when (value) { " +
                 "OPEN_ON_INBOX -> context.getString(R.string.folder_inbox) " +
                 "OPEN_ON_UNIFIED -> context.getString(R.string.inbox_all_inboxes) " +
+                "OPEN_ON_UNREAD -> context.getString(R.string.inbox_unread_view) " +
                 "else -> context.getString(R.string.settings_open_on_last) }"
 
         const val SETTINGS_SCREEN_PATH = "app/src/main/kotlin/app/sterna/ui/settings/SettingsScreen.kt"

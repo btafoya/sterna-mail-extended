@@ -698,7 +698,7 @@ class InboxViewModel(
     private val selection = MutableStateFlow<Sel>(
         restoredSelection(store) ?: Sel.Folder(store.inboxMailboxId()),
     )
-    // Whose "All inboxes" is on screen, the setting's until the reader picks it: see [unifiedViewByChoice].
+    // The setting's "All inboxes" or every-account unread view until opened by hand: see [unifiedViewByChoice].
     private var unifiedOpenedBySetting = openOnOverridesMemory(store.openOnView())
     private val currentAccountId = MutableStateFlow(store.currentId())
     private val unifiedInboxScopes = MutableStateFlow(store.allInboxScopes())
@@ -1520,6 +1520,7 @@ class InboxViewModel(
      *  the unified inbox it holds the literal `UNIFIED_LABEL`, one account's subtitle there. The
      *  scope is not recomputed here, it is derived from the folder lists (#121). */
     fun selectUnread() {
+        unifiedOpenedBySetting = false
         val next = unreadSelectionReplacing(selection.value, AllInboxesView.existsFor(store.accounts()))
         if (selection.value == next) return
         collapseThreads()
@@ -1530,6 +1531,7 @@ class InboxViewModel(
     }
 
     fun selectUnreadFromShortcut() {
+        unifiedOpenedBySetting = false
         val next = unreadSelectionForShortcut(AllInboxesView.existsFor(store.accounts()))
         if (selection.value == next) return
         collapseThreads()
