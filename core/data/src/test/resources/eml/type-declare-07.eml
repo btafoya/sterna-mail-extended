@@ -1,0 +1,35 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: TYPE-DECLARE-07 types justes et type absent
+Date: Sun, 07 Sep 2026 09:05:00 +0000
+Message-ID: <type-declare-07@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B7"
+
+--B7
+Content-Type: text/plain; charset=utf-8
+
+Le temoin du contraire : un type declare JUSTE ne doit jamais etre recalcule,
+et une piece jointe SANS extension ne doit rien inventer.
+
+--B7
+Content-Type: application/pdf; name="facture.pdf"
+Content-Disposition: attachment; filename="facture.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4K
+ZW5kb2JqCnRyYWlsZXIKPDwvUm9vdCAxIDAgUj4+CiUlRU9GCg==
+
+--B7
+Content-Type: application/octet-stream; name="archive"
+Content-Disposition: attachment; filename="archive"
+
+sans extension, rien a deviner
+
+--B7
+Content-Type: text/plain; charset=utf-8; name="notes.PDF"
+Content-Disposition: attachment; filename="notes.PDF"
+
+Type declare juste (text/plain) mais extension trompeuse EN MAJUSCULES.
+
+--B7--

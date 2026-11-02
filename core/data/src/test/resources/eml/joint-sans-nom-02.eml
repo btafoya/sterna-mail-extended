@@ -1,0 +1,27 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: JOINT-SANS-NOM-02 porteur
+Date: Tue, 01 Sep 2026 20:01:00 +0000
+Message-ID: <joint-sans-nom-02@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B2"
+
+--B2
+Content-Type: text/plain; charset=utf-8
+
+Ce message porte un mail joint SANS nom ni disposition.
+
+--B2
+Content-Type: message/rfc822
+
+From: Interne Trois <interne.trois@example.org>
+To: Interne Quatre <interne.quatre@example.org>
+Subject: JOINT-INTERNE-02 sans nom
+Date: Mon, 31 Aug 2026 10:00:00 +0000
+Message-ID: <joint-interne-02@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Corps du message joint sans nom.
+
+--B2--

@@ -1,0 +1,40 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: JOINT-AVEC-PJ-05 porteur
+Date: Tue, 01 Sep 2026 20:04:00 +0000
+Message-ID: <joint-avec-pj-05@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B5"
+
+--B5
+Content-Type: text/plain; charset=utf-8
+
+Ce message porte un mail joint qui porte lui-meme une piece notes.txt.
+
+--B5
+Content-Type: message/rfc822; name="avec-pj.eml"
+Content-Disposition: attachment; filename="avec-pj.eml"
+
+From: Interne Sept <interne.sept@example.org>
+To: Interne Huit <interne.huit@example.org>
+Subject: JOINT-INTERNE-05 avec piece jointe
+Date: Mon, 31 Aug 2026 12:00:00 +0000
+Message-ID: <joint-interne-05@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B5I"
+
+--B5I
+Content-Type: text/plain; charset=utf-8
+
+Corps du message joint qui porte notes.txt.
+
+--B5I
+Content-Type: text/plain; name="notes.txt"
+Content-Disposition: attachment; filename="notes.txt"
+Content-Transfer-Encoding: base64
+
+Tm90ZXMgZHUgYmFuYyA6IGxpZ25lIHVuLgpMaWduZSBkZXV4Lgo=
+
+--B5I--
+
+--B5--

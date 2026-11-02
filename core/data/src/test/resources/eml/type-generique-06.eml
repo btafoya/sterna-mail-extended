@@ -1,0 +1,46 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: TYPE-GENERIQUE-06 pdf declare octet-stream
+Date: Sun, 07 Sep 2026 09:00:00 +0000
+Message-ID: <type-generique-06@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B6"
+
+--B6
+Content-Type: text/plain; charset=utf-8
+
+Trois pieces jointes, toutes declarees application/octet-stream, nommees
+rapport.pdf, photo.jpg, page.html et NOTES.PDF.
+
+--B6
+Content-Type: application/octet-stream; name="rapport.pdf"
+Content-Disposition: attachment; filename="rapport.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKJcOkw7zDtsOfCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4K
+ZW5kb2JqCjIgMCBvYmoKPDwvVHlwZS9QYWdlcy9LaWRzWzMgMCBSXS9Db3VudCAxPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgOTkgOTldPj4K
+ZW5kb2JqCnRyYWlsZXIKPDwvUm9vdCAxIDAgUj4+CiUlRU9GCg==
+
+--B6
+Content-Type: application/octet-stream; name="photo.jpg"
+Content-Disposition: attachment; filename="photo.jpg"
+Content-Transfer-Encoding: base64
+
+/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a
+HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAA
+AAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==
+
+--B6
+Content-Type: application/octet-stream; name="page.html"
+Content-Disposition: attachment; filename="page.html"
+
+<!doctype html><title>TYPE-GENERIQUE-06</title><p>page jointe</p>
+
+--B6
+Content-Type: application/octet-stream; name="NOTES.PDF"
+Content-Disposition: attachment; filename="NOTES.PDF"
+
+extension en MAJUSCULES : getMimeTypeFromExtension ne repond qu'en minuscules.
+
+--B6--

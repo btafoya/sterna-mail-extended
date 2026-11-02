@@ -145,11 +145,15 @@ class AuthenticationResultsWiringTest {
     @Test fun `the IMAP open poses the verdict off the headers of the source it holds`() {
         assertEquals(
             listOf(
-                "val headers = MimeParser.rawHeaders(raw)",
-                "authenticationFailures = AuthenticationResults.failuresOf(headers, authservNamesFor(credentials, apiUrl = null)),",
+                "val headers = MimeParser.rawHeaders(header)",
+                "return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))",
             ),
             codeLines(bodyOf("openEmailImap"))
-                .filter { it.startsWith("authenticationFailures") || it.startsWith("val headers =") },
+                .filter { it.startsWith("val headers =") || "openedImapEmail(" in it },
+        )
+        assertEquals(
+            listOf("authenticationFailures = AuthenticationResults.failuresOf(headers, authservNames),"),
+            codeLines(bodyOf("openedImapEmail")).filter { it.startsWith("authenticationFailures") },
         )
     }
 

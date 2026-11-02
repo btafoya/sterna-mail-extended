@@ -1,0 +1,28 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: JOINT-HTML-04 porteur
+Date: Tue, 01 Sep 2026 20:03:00 +0000
+Message-ID: <joint-html-04@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B4"
+
+--B4
+Content-Type: text/plain; charset=utf-8
+
+Ce message porte un mail joint dont le corps est HTML seul.
+
+--B4
+Content-Type: message/rfc822; name="html.eml"
+Content-Disposition: attachment; filename="html.eml"
+
+From: Interne Cinq <interne.cinq@example.org>
+To: Interne Six <interne.six@example.org>
+Subject: JOINT-INTERNE-04 html seul
+Date: Mon, 31 Aug 2026 11:00:00 +0000
+Message-ID: <joint-interne-04@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Alin&eacute;a <b>un</b></p><p>deux</p></body></html>
+
+--B4--

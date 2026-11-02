@@ -78,6 +78,7 @@ import app.sterna.core.imap.inlineArmorKind
 import app.sterna.core.imap.inlineDisplayText
 import app.sterna.core.imap.inlineVerifyBytes
 import app.sterna.core.imap.decodeMailboxPath
+import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.data.pgp.PgpDecrypted
@@ -491,6 +492,35 @@ internal fun receiptRequestedInSource(raw: String): Boolean? {
 /** The same for JMAP, from the property answer. */
 internal fun receiptRequestedInProperty(header: String?, serverRefusesProperty: Boolean): Boolean? =
     if (serverRefusesProperty) null else ReadReceiptHeader.recipients(header).isNotEmpty()
+
+/** [envelope] showing [body], with what the cache row lacks read off [header]: the threading headers
+ *  a reply needs (the row holds only the thread key), the unsubscribe pair, the receipt request. */
+internal fun openedImapEmail(
+    envelope: Email,
+    body: MimeBody,
+    header: String,
+    headers: List<Pair<String, String>>,
+    authservNames: Set<String>,
+): Email {
+    val unsubscribe = unsubscribeHeadersOf(header)
+    return envelope.withBody(body).copy(
+        messageId = headerIds(MimeParser.headerOf(header, "Message-ID")),
+        references = headerIds(MimeParser.headerOf(header, "References")),
+        listUnsubscribe = unsubscribe.first,
+        listUnsubscribePost = unsubscribe.second,
+        dispositionNotificationTo = readReceiptHeaderOf(header),
+        // Read through `rawHeaders` rather than `headerOf`: that one is a Map where the last
+        // occurrence wins, which for a relay header names the outermost alias, not the hop.
+        originalSender = originalSenderHeaderOf(headers),
+        authenticationFailures = AuthenticationResults.failuresOf(headers, authservNames),
+    )
+}
+
+private fun headerIds(value: String?): List<String> {
+    if (value.isNullOrBlank()) return emptyList()
+    val bracketed = Regex("<[^<>]+>").findAll(value).map { it.value }.toList()
+    return bracketed.ifEmpty { value.trim().split(Regex("\\s+")).map { "<$it>" } }
+}
 
 /** Whether the message source [raw] is an unknown rather than a message. A blank source is not "an
  *  empty draft": parsed it is a blank composer that looks usable, whose send destroys the server
@@ -2271,54 +2301,35 @@ class MailRepository(
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()?.toEmail()
         val envelope = imapEnvelope(credentials.id, emailId, cached, { imap.fetchById(credentials, emailId) }, ::forgetGoneImapMessage)
         val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
-        val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }
-        // Before the parse, because parsing "" succeeds: it yields a body the composer paints as a
-        // usable blank draft. Raising sets editingDraftLossyOnOpen, so `performSend` destroys nothing.
-        if (sourceCouldNotBeRead(raw)) {
+        val read = unavailableOnTimeout(emailId) { imap.fetchForDisplay(credentials, mailboxId, uid, ImapLane.FOREGROUND) }
+        val header = read.header
+        // Before the body is taken, because parsing "" succeeds: it yields a body the composer paints
+        // as a usable blank draft. Raising sets editingDraftLossyOnOpen, so `performSend` destroys nothing.
+        if (sourceCouldNotBeRead(header)) {
             throw MessageUnavailableException("Source of $emailId came back empty; the server did not give us the message.")
         }
-        val body = MimeParser.parseBody(raw)
+        val body = read.body
         if (body.tooLarge) {
             throw ContentTooLargeException(
-                "Message source is ${raw.length} characters, over the ${MimeParser.MAX_BODY_CHARS} parse limit.",
-                bytes = raw.length.toLong(),
+                "Message text is ${read.bodyChars} characters, over the ${MimeParser.MAX_BODY_CHARS} parse limit.",
+                bytes = read.bodyChars,
                 maxBytes = MimeParser.MAX_BODY_CHARS.toLong(),
             )
         }
         if (markRead && !envelope.isSeen) {
             runCatching { setRead(credentials, emailId, seen = true) }
         }
-        // The cache holds the thread key but not the threading headers; lift them from the source so
-        // a reply carries In-Reply-To/References. The unsubscribe headers ride along for free.
-        val unsubscribe = unsubscribeHeadersOf(raw)
-        val headers = MimeParser.rawHeaders(raw)
-        // Autocrypt (the receiving half): the correspondent's key, off the source already in hand.
-        // A key arrives only from a message whose whole source had to be fetched anyway. What keeps
-        // it off a message nothing touched is `MessagePaging.needsLoad`'s `settled` argument.
+        val headers = MimeParser.rawHeaders(header)
+        // Autocrypt (the receiving half): the correspondent's key, off the header already in hand.
+        // What keeps it off a message nothing touched is `MessagePaging.needsLoad`'s `settled` argument.
         importAutocryptKey(headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) })
-        return envelope.withBody(body).copy(
-            messageId = headerIds(MimeParser.headerOf(raw, "Message-ID")),
-            references = headerIds(MimeParser.headerOf(raw, "References")),
-            listUnsubscribe = unsubscribe.first,
-            listUnsubscribePost = unsubscribe.second,
-            dispositionNotificationTo = readReceiptHeaderOf(raw),
-            // Read through `rawHeaders` rather than `headerOf`: that one is a Map where the last
-            // occurrence wins, which for a relay header names the outermost alias, not the hop.
-            originalSender = originalSenderHeaderOf(headers),
-            authenticationFailures = AuthenticationResults.failuresOf(headers, authservNamesFor(credentials, apiUrl = null)),
-        )
+        return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))
     }
 
     /** No `emails` row to drop: [imapEnvelope] asks the server only on a cache miss. */
     private suspend fun forgetGoneImapMessage(accountId: String, emailId: String) {
         emailFtsDao.deleteById(accountId, emailId)
         emailBodyDao.deleteById(accountId, emailId)
-    }
-
-    private fun headerIds(value: String?): List<String> {
-        if (value.isNullOrBlank()) return emptyList()
-        val bracketed = Regex("<[^<>]+>").findAll(value).map { it.value }.toList()
-        return bracketed.ifEmpty { value.trim().split(Regex("\\s+")).map { "<$it>" } }
     }
 
     // ---- Body cache + prefetch -------------------------------------------------------------

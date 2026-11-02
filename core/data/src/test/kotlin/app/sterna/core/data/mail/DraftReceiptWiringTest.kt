@@ -26,10 +26,10 @@ class DraftReceiptWiringTest {
 
     @Test fun theImapOpenFillsTheSameFieldTheJmapPropertyFills() {
         assertEquals(
-            "openEmailImap must fill dispositionNotificationTo from the source it already holds, " +
+            "the IMAP open must fill dispositionNotificationTo from the header it already holds, " +
                 "or the reader sees the header on JMAP accounts only",
-            listOf("dispositionNotificationTo = readReceiptHeaderOf(raw),"),
-            codeLinesNaming(bodyOf("openEmailImap"), "dispositionNotificationTo"),
+            listOf("dispositionNotificationTo = readReceiptHeaderOf(header),"),
+            codeLinesNaming(bodyOf("openedImapEmail"), "dispositionNotificationTo"),
         )
     }
 

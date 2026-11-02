@@ -60,10 +60,10 @@ class AutocryptImportWiringTest {
         // two, and the rule that ignores such a message could then never see the second one.
         assertEquals(
             listOf(
-                "val headers = MimeParser.rawHeaders(raw)",
+                "val headers = MimeParser.rawHeaders(header)",
                 "importAutocryptKey(headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) })",
             ),
-            block(REPO_FILE, prefix = "val headers = MimeParser.rawHeaders(raw)", count = 2),
+            block(REPO_FILE, prefix = "val headers = MimeParser.rawHeaders(header)", count = 2),
         )
     }
 

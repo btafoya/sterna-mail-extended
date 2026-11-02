@@ -114,11 +114,12 @@ class RawSourceReadUnderNumberingTest {
                 "because their callers froze none. A new one on this list is a read nobody has " +
                 "decided the numbering of.",
             listOf(
-                "val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }",
                 "imap.fetchSource(credentials, mailboxId, uid, numbering)",
+                "val read = unavailableOnTimeout(emailId) { imap.fetchForDisplay(credentials, mailboxId, uid, ImapLane.FOREGROUND) }",
                 "val raw = imap.fetchSource(credentials, cached.mailboxId, uid)",
             ),
             codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "imap.fetchSource(") +
+                codeLinesNaming(DaoQuerySource.mailSource("MailRepository"), "imap.fetchForDisplay(") +
                 codeLinesNaming(DaoQuerySource.mailSource("MailDrafts"), "imap.fetchSource("),
         )
     }

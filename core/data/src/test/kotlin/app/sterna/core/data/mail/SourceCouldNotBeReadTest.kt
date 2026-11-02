@@ -89,20 +89,20 @@ class SourceRefusalWiringTest {
         assertEquals(
             "the argument is the SERVER's raw source — `body.text` would refuse legitimate " +
                 "drafts with an empty body and let an unreadable source through",
-            listOf("if (sourceCouldNotBeRead(raw)) {"),
+            listOf("if (sourceCouldNotBeRead(header)) {"),
             codeLinesNaming(bodyOf("openEmailImap"), "sourceCouldNotBeRead("),
         )
     }
 
     @Test fun theRefusalComesBeforeTheSourceIsParsed() {
         val lines = bodyOf("openEmailImap").lines().map { it.trim() }
-        val refusal = lines.indexOf("if (sourceCouldNotBeRead(raw)) {")
-        val parse = lines.indexOf("val body = MimeParser.parseBody(raw)")
+        val refusal = lines.indexOf("if (sourceCouldNotBeRead(header)) {")
+        val parse = lines.indexOf("val body = read.body")
         assertTrue("the refusal must be in openEmailImap at all", refusal >= 0)
-        assertTrue("the parse must still be in openEmailImap: $lines", parse >= 0)
+        assertTrue("the body must still be taken in openEmailImap: $lines", parse >= 0)
         assertTrue(
-            "the refusal must come BEFORE the parse (refusal at $refusal, parse at $parse): " +
-                "parsing first produces the very empty body the blank composer then shows",
+            "the refusal must come BEFORE the body is taken (refusal at $refusal, body at $parse): " +
+                "a source parsed from \"\" is the very empty body the blank composer then shows",
             refusal < parse,
         )
     }
@@ -112,7 +112,7 @@ class SourceRefusalWiringTest {
      */
     @Test fun theRefusalIsRaisedAsTheUnavailableMessageTheReadersAlreadyTranslate() {
         val lines = bodyOf("openEmailImap").lines().map { it.trim() }
-        val refusal = lines.indexOf("if (sourceCouldNotBeRead(raw)) {")
+        val refusal = lines.indexOf("if (sourceCouldNotBeRead(header)) {")
         assertTrue("the refusal must be in openEmailImap at all", refusal >= 0)
         assertTrue(
             "the guard's own throw must be MessageUnavailableException, not another kind: " +
@@ -127,8 +127,8 @@ class SourceRefusalWiringTest {
      */
     @Test fun theRefusalSitsInTheSameBlockAsTheParse() {
         val lines = bodyOf("openEmailImap").lines()
-        val guard = lines.first { it.trim() == "if (sourceCouldNotBeRead(raw)) {" }
-        val parse = lines.first { it.trim() == "val body = MimeParser.parseBody(raw)" }
+        val guard = lines.first { it.trim() == "if (sourceCouldNotBeRead(header)) {" }
+        val parse = lines.first { it.trim() == "val body = read.body" }
         assertEquals(
             "same indentation means same block: nesting the guard inside `if (markRead) { … }` " +
                 "would spare the COMPOSER path — fetchEmail passes markRead = false — and reopen " +
@@ -147,8 +147,12 @@ class SourceRefusalWiringTest {
         assertEquals(
             "the guard judges what the SERVER answered: any `.ifBlank { … }` or fallback on this " +
                 "line turns the unknown into a value before the refusal can see it",
-            listOf("val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }"),
-            codeLinesNaming(bodyOf("openEmailImap"), "imap.fetchSource("),
+            listOf(
+                "val read = unavailableOnTimeout(emailId) { imap.fetchForDisplay(credentials, mailboxId, uid, ImapLane.FOREGROUND) }",
+                "val header = read.header",
+            ),
+            codeLinesNaming(bodyOf("openEmailImap"), "imap.fetch").filter { "fetchById" !in it } +
+                codeLinesNaming(bodyOf("openEmailImap"), "read.header"),
         )
     }
 

@@ -68,7 +68,7 @@ data class CryptoEnvelope(
      */
 object MimeParser {
     /** Bound multipart nesting so a maliciously deep message can't blow the stack. */
-    private const val MAX_DEPTH = 24
+    internal const val MAX_DEPTH = 24
 
     /** Bound sibling parts in one multipart so a message with a flood of tiny parts
      *  can't drive quadratic copying / huge allocation. */
@@ -533,7 +533,7 @@ object MimeParser {
          * A part's body as text: undo the transfer-encoding, then read the resulting bytes with the
          * part's declared [charset].
          */
-    private fun decode(body: String, cte: String, charset: java.nio.charset.Charset): String = when (cte) {
+    internal fun decode(body: String, cte: String, charset: java.nio.charset.Charset): String = when (cte) {
         "base64" -> runCatching {
             String(Base64.getMimeDecoder().decode(body.filter { it != '\r' && it != '\n' }), charset)
         }.getOrDefault(body)

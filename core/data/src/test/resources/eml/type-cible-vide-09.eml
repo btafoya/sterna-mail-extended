@@ -1,0 +1,34 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: TYPE-CIBLE-VIDE-09 ics et apk declares octet-stream
+Date: Sun, 07 Sep 2026 09:00:00 +0000
+Message-ID: <type-cible-vide-09@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B9"
+
+--B9
+Content-Type: text/plain; charset=utf-8
+
+Deux pieces jointes declarees application/octet-stream, nommees agenda.ics
+(extension vers text/calendar) et mise-a-jour.apk (extension vers
+application/vnd.android.package-archive). Ecrite pour les gestes E2 et E3.
+
+--B9
+Content-Type: application/octet-stream; name="agenda.ics"
+Content-Disposition: attachment; filename="agenda.ics"
+Content-Transfer-Encoding: base64
+
+QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KUFJPRElEOi0vL1N0ZXJuYS8vYmFuYy8vRU4N
+CkJFR0lOOlZFVkVOVA0KVUlEOmNpYmxlLXZpZGUtMDlAZXhhbXBsZS5vcmcNCkRUU1RBTVA6MjAy
+NjA5MDdUMDkwMDAwWg0KRFRTVEFSVDoyMDI2MDkxMFQwOTAwMDBaDQpTVU1NQVJZOlBvaW50IGJh
+bmMNCkVORDpWRVZFTlQNCkVORDpWQ0FMRU5EQVINCg==
+
+--B9
+Content-Type: application/octet-stream; name="mise-a-jour.apk"
+Content-Disposition: attachment; filename="mise-a-jour.apk"
+Content-Transfer-Encoding: base64
+
+UEsDBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABiYW5jLWZpeHR1cmUt
+bm9uLWluc3RhbGxhYmxl
+
+--B9--

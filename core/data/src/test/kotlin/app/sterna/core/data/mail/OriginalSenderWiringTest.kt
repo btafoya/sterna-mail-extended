@@ -39,17 +39,21 @@ class OriginalSenderWiringTest {
      * The IMAP pose, whole. It rides on the source `openEmailImap` already fetched, and it reads
      */
     @Test fun `the IMAP open poses the origin header off the source it already holds`() {
-        // The `rawHeaders` call moved onto its own line when the Autocrypt import started reading
-        // the same list, so both lines are pinned: what feeds the reader has to stay `rawHeaders`,
-        // never `headerOf`, and `headers` has to be the list this very source produced.
+        // Three lines pinned: what feeds the reader has to stay `rawHeaders`, never `headerOf`,
+        // and `headers` has to be the list this very header produced, handed to the builder.
         assertEquals(
-            "openEmailImap must set originalSender from the raw source it already has. Found:",
+            "openEmailImap must read the header list off the header it already has, and hand it on. Found:",
             listOf(
-                "val headers = MimeParser.rawHeaders(raw)",
-                "originalSender = originalSenderHeaderOf(headers),",
+                "val headers = MimeParser.rawHeaders(header)",
+                "return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))",
             ),
             codeLines(bodyOf("openEmailImap"))
-                .filter { it.startsWith("originalSender") || it.startsWith("val headers =") },
+                .filter { it.startsWith("val headers =") || "openedImapEmail(" in it },
+        )
+        assertEquals(
+            "openedImapEmail must set originalSender from that list. Found:",
+            listOf("originalSender = originalSenderHeaderOf(headers),"),
+            codeLines(bodyOf("openedImapEmail")).filter { it.startsWith("originalSender") },
         )
     }
 

@@ -17,6 +17,7 @@ import app.sterna.core.imap.ImapIdleConnection
 import app.sterna.core.imap.ImapMailboxStatus
 import app.sterna.core.imap.ImapMessage
 import app.sterna.core.imap.ImapMoved
+import app.sterna.core.imap.ImapOpenRead
 import app.sterna.core.imap.ImapPurge
 import app.sterna.core.imap.ImapSearchCriteria
 import app.sterna.core.imap.ImapSession
@@ -31,6 +32,7 @@ import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
 import app.sterna.core.imap.fetchUidsPaged
+import app.sterna.core.imap.readForDisplay
 import app.sterna.core.imap.searchFolders
 import app.sterna.core.imap.unseenUids
 import app.sterna.core.data.settings.NotificationContent
@@ -844,6 +846,17 @@ open class ImapMailService(
     ): String =
         onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = ImapLane.FOREGROUND) { session, _ ->
             session.fetchSource(uid)
+        }
+
+    internal suspend fun fetchForDisplay(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        lane: ImapLane,
+        expectedUidValidity: Long? = null,
+    ): ImapOpenRead =
+        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = lane) { session, _ ->
+            session.readForDisplay(uid)
         }
 
     /**

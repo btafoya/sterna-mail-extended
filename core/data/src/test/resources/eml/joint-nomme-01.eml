@@ -1,0 +1,28 @@
+From: Sam Fixture <sam.fixture@example.org>
+To: banc@example.net
+Subject: JOINT-NOMME-01 porteur
+Date: Tue, 01 Sep 2026 20:00:00 +0000
+Message-ID: <joint-nomme-01@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B1"
+
+--B1
+Content-Type: text/plain; charset=utf-8
+
+Ce message porte un mail joint nommé rapport.eml.
+
+--B1
+Content-Type: message/rfc822; name="rapport.eml"
+Content-Disposition: attachment; filename="rapport.eml"
+
+From: Interne Un <interne.un@example.org>
+To: Interne Deux <interne.deux@example.org>
+Subject: JOINT-INTERNE-01 =?utf-8?q?R=C3=A9union_d=C3=A9cal=C3=A9e?=
+Date: Mon, 31 Aug 2026 09:30:00 +0000
+Message-ID: <joint-interne-01@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Corps du message joint : la réunion passe à jeudi 14 h.
+
+--B1--

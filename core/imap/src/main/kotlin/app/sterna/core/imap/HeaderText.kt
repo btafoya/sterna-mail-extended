@@ -105,13 +105,17 @@ private const val MAX_PARAM_SECTIONS = 64
      */
 internal fun mimeParamValue(headerValue: String, name: String): String? {
     if (headerValue.isBlank()) return null
+    return paramValueIn(headerParams(headerValue), name)
+}
+
+internal fun paramValueIn(params: List<Pair<String, String>>, name: String): String? {
     val wanted = name.lowercase()
     val plain = mutableListOf<String>()
     // section index -> (value, extended?)
     val sections = sortedMapOf<Int, Pair<String, Boolean>>()
     var extendedSingle: String? = null
 
-    for ((key, value) in headerParams(headerValue)) {
+    for ((key, value) in params) {
         val extended = key.endsWith("*")
         val base = if (extended) key.dropLast(1) else key
         when {
