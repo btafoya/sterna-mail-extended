@@ -104,6 +104,7 @@ class BannerWriteWorker(context: Context, params: WorkerParameters) : CoroutineW
             mailboxId = email.mailboxId,
             content = content,
             summarised = Notifications.summaryShownFor(live.size),
+            senderNames = container.senderNames.current(),
         )
         Notifications.updateGroupSummary(
             applicationContext, accountId, accountLabel, content,

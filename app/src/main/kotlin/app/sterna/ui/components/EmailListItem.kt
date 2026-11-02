@@ -190,9 +190,10 @@ fun EmailListItem(
     excerpt: String? = null,
     searchTerms: List<String> = emptyList(),
 ) {
-    val senderName = email.from.firstOrNull()?.display() ?: stringResource(R.string.message_unknown_sender)
+    val sender = withAddressBookName(email.from.firstOrNull(), LocalSenderNames.current)
+    val senderName = sender?.display() ?: stringResource(R.string.message_unknown_sender)
     val recipient = if (showRecipients) email.to.firstOrNull() else null
-    val senderAddress = listAddressBesideName(email.from.firstOrNull(), rowShowsRecipients = showRecipients)
+    val senderAddress = listAddressBesideName(sender, rowShowsRecipients = showRecipients)
     val nameLine = if (recipient != null) {
         stringResource(R.string.list_to_recipients, email.to.joinToString { it.display() })
     } else {

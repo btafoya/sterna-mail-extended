@@ -3,6 +3,9 @@ package app.sterna
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import app.sterna.contacts.AndroidContacts
+import app.sterna.contacts.SenderNames
+import app.sterna.contacts.watchContacts
 import app.sterna.core.data.DataFactory
 import app.sterna.core.data.account.AccountStore
 import app.sterna.core.data.account.MoveMemory
@@ -45,6 +48,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AppContainer(context: Context) {
     /** Content Uris shared into the app (ACTION_SEND), awaiting attachment by the next compose
@@ -103,6 +107,15 @@ class AppContainer(context: Context) {
      * back, that row being parked failed otherwise. A Job to join, never a `runBlocking` in
      *  `onCreate`: this touches Room, and blocking the main thread on a migration is an ANR. */
     val outboxRecovery: Job
+
+    val senderNames: SenderNames = context.applicationContext.let { appContext ->
+        SenderNames(
+            scope = appScope,
+            enabled = settingsRepository.contactSuggestions,
+            read = { withContext(Dispatchers.IO) { AndroidContacts.all(appContext) } },
+            watch = { onChange -> watchContacts(appContext, onChange) },
+        )
+    }
 
     /** Drives the Outlook OAuth device flow app-scoped, so it survives the browser round-trip. */
     val outlookSignIn: OutlookSignIn = OutlookSignIn(mailRepository, appScope, context.applicationContext)

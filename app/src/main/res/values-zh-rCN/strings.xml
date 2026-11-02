@@ -782,7 +782,7 @@
     <string name="settings_quoted_dates_utc_subtitle">回复的引用行、转发邮件头部以及你发送的每封邮件中的日期以 UTC 写入，而不是此设备的本地时间。</string>
     <string name="settings_recipient_suggestions_section">收件人建议</string>
     <string name="settings_suggest_contacts_title">从联系人中建议</string>
-    <string name="settings_suggest_contacts_subtitle">当您输入时，从此设备的联系人中自动补全收件人。Sterna Mail 仅在设备本地读取，绝不上传。关闭后，仍会建议您近期联系过的人。</string>
+    <string name="settings_suggest_contacts_subtitle">当您输入时，从此设备的联系人中自动补全收件人，并在列表和打开的邮件中显示您为发件人保存的名称。Sterna Mail 仅在设备本地读取，绝不上传。关闭后，仍会建议您近期联系过的人。</string>
     <string name="settings_search_history_section">搜索历史</string>
     <string name="settings_search_history_title">记住搜索</string>
     <string name="settings_search_history_subtitle">在此设备上保存您搜索的词语，并在下次搜索时提供建议。该列表本身绝不会离开此设备。</string>
@@ -1253,7 +1253,7 @@
     <string name="accounts_unreadable_title">无法读取您的账户</string>
     <string name="accounts_unreadable_body">Sterna Mail 无法读取此设备上保存的账户。没有任何内容被删除：它们仍然存在，也不会被覆盖。将 Sterna Mail 更新到最新版本或许能让它们重新出现。</string>
     <string name="compose_contacts_priming_title">从您的联系人中推荐？</string>
-    <string name="compose_contacts_priming_body">从此设备联系人中自动补全收件人。Sterna Mail 仅在设备本地读取，绝不上传。</string>
+    <string name="compose_contacts_priming_body">从此设备联系人中自动补全收件人，并在列表和打开的邮件中显示您为发件人保存的名称。Sterna Mail 仅在设备本地读取，绝不上传。</string>
     <string name="compose_contacts_priming_enable">启用</string>
     <string name="compose_contacts_priming_not_now">暂时不要</string>
     <string name="settings_mark_read_title">何时标为已读</string>

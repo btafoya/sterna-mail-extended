@@ -151,6 +151,7 @@ class PreviewReachesTheNotificationWiringTest {
                 "mailboxId,",
                 "content,",
                 "summarised,",
+                "senderNames,",
                 ")",
             ),
             callLines(bodyOf(NOTIFIER, "notifyDiff"), "Notifications.notifyNewMail("),
@@ -196,6 +197,7 @@ class PreviewReachesTheNotificationWiringTest {
                 "mailboxId: String?,",
                 "content: NotificationContent,",
                 "summarised: Boolean,",
+                "senderNames: Map<String, String>,",
             ),
             signature.lines().map { it.trim() }.filter { it.isNotEmpty() },
         )

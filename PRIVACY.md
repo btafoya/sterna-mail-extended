@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-10-09.
+Last updated: 2026-11-02.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -59,7 +59,7 @@ Sterna's own manifest declares seven permissions:
 | `POST_NOTIFICATIONS` | New-mail notifications. Optional. |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` | Keep push alive without Google. |
 | `RECEIVE_BOOT_COMPLETED` | Restore push after a reboot or update. |
-| `READ_CONTACTS` | Suggest recipients, locally. Optional, off by default. |
+| `READ_CONTACTS` | Suggest recipients and show the names you saved for senders, locally. Optional, off by default. |
 
 From the libraries Sterna is built with, the installed app carries three permissions more than that table: `USE_BIOMETRIC` and `USE_FINGERPRINT` for the optional app lock (Android does the check and only answers yes or no), and `WAKE_LOCK` so a background check can finish with the screen off. One more entry, ending in `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, is built from Sterna's own package name; it is signature-level, it guards Sterna's internal broadcasts, and no other app can hold it.
 

@@ -197,6 +197,8 @@ import androidx.compose.ui.layout.ContentScale
 import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.LocalSenderNames
+import app.sterna.ui.components.withAddressBookName
 import app.sterna.ui.compose.EditAsNewReader
 import app.sterna.ui.compose.SnoozePreset
 import app.sterna.ui.compose.mayEditAsNew
@@ -2078,6 +2080,7 @@ private fun MessageHeader(
     attachmentThumbnails: Map<String, ImageBitmap> = emptyMap(),
 ) {
     val sender = msg.header.from.firstOrNull()
+    val shownSender = withAddressBookName(sender, LocalSenderNames.current)
     // The user's own message (Sent/Drafts, or sent under one of the account's identities): the sender
     // is yourself, so the header line names the recipients instead (#59). Falls back to the sender
     // while no recipients are known.
@@ -2148,7 +2151,7 @@ private fun MessageHeader(
         ) {
             Monogram(
                 seed = (recipient ?: sender)?.email ?: "?",
-                label = (recipient ?: sender)?.display() ?: "?",
+                label = (recipient ?: shownSender)?.display() ?: "?",
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -2156,7 +2159,7 @@ private fun MessageHeader(
                     text = if (recipient != null) {
                         stringResource(R.string.list_to_recipients, recipients.joinToString { it.display() })
                     } else {
-                        sender?.display() ?: stringResource(R.string.message_unknown_sender)
+                        shownSender?.display() ?: stringResource(R.string.message_unknown_sender)
                     },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal,

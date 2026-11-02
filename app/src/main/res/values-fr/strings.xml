@@ -611,7 +611,7 @@
     <string name="settings_quoted_dates_utc_subtitle">La date de la ligne de citation d\'une réponse, de l\'en-tête d\'un message transféré et de chaque message envoyé est écrite en UTC plutôt qu\'à l\'heure locale de l\'appareil.</string>
     <string name="settings_recipient_suggestions_section">Suggestions de destinataires</string>
     <string name="settings_suggest_contacts_title">Suggérer depuis les contacts</string>
-    <string name="settings_suggest_contacts_subtitle">Compléter les destinataires depuis les contacts de cet appareil pendant la saisie. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais. Désactivé, il suggère quand même les personnes que vous avez contactées récemment.</string>
+    <string name="settings_suggest_contacts_subtitle">Compléter les destinataires depuis les contacts de cet appareil pendant la saisie, et afficher le nom enregistré pour un expéditeur dans la liste et le message ouvert. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais. Désactivé, il suggère quand même les personnes que vous avez contactées récemment.</string>
     <string name="settings_search_history_section">Historique de recherche</string>
     <string name="settings_search_history_title">Retenir les recherches</string>
     <string name="settings_search_history_subtitle">Garde sur cet appareil les mots que vous recherchez et les propose la fois suivante. La liste elle-même ne quitte jamais cet appareil.</string>
@@ -1241,7 +1241,7 @@
     <string name="accounts_unreadable_title">Vos comptes n\'ont pas pu être lus</string>
     <string name="accounts_unreadable_body">Sterna Mail n\'a pas pu lire les comptes enregistrés sur cet appareil. Rien n\'a été supprimé : ils sont toujours là et rien ne sera écrit par-dessus. Mettre à jour Sterna Mail vers la dernière version peut les retrouver.</string>
     <string name="compose_contacts_priming_title">Suggérer depuis vos contacts ?</string>
-    <string name="compose_contacts_priming_body">Compléter les destinataires depuis les contacts de cet appareil. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais.</string>
+    <string name="compose_contacts_priming_body">Compléter les destinataires depuis les contacts de cet appareil, et afficher le nom enregistré pour un expéditeur dans la liste et le message ouvert. Sterna Mail les lit uniquement sur l\'appareil et ne les envoie jamais.</string>
     <string name="compose_contacts_priming_enable">Activer</string>
     <string name="compose_contacts_priming_not_now">Pas maintenant</string>
     <string name="settings_mark_read_title">Marquer comme lu lors de</string>

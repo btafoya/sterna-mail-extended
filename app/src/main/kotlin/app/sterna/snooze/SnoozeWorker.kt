@@ -46,6 +46,7 @@ class SnoozeWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 // rebuilt behind it: it has to announce itself, or the reminder the user
                 // scheduled would arrive without a sound or a banner (Codeberg #56).
                 summarised = false,
+                senderNames = container.senderNames.current(),
             )
         }
         return Result.success()

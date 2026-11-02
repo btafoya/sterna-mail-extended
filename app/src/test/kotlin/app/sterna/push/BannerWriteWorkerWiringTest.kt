@@ -124,6 +124,7 @@ class BannerWriteWorkerWiringTest {
                 "mailboxId = email.mailboxId,",
                 "content = content,",
                 "summarised = Notifications.summaryShownFor(live.size),",
+                "senderNames = container.senderNames.current(),",
                 ")",
             ),
             callLines(body, "Notifications.notifyNewMail("),

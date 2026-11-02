@@ -166,6 +166,7 @@ object NewMailNotifier {
             val accountStore = (context.applicationContext as Application).container.accountStore
             val accountCount = accountStore.accounts().size
             val accountLabel = accountStore.account(credentials.id)?.label()
+            val senderNames = (context.applicationContext as Application).container.senderNames.current()
             // The openings are read here, in one pre-pass, before the first notification. A
             // round trip between two posts would put an exception mid-batch and skip the [seed]
             // below: the next pass would re-announce every message, and a re-announcement MOVES
@@ -207,6 +208,7 @@ object NewMailNotifier {
                         // argument is invisible to anything but a whole-line pin (the class of #84).
                         content,
                         summarised,
+                        senderNames,
                     )
                 },
             )

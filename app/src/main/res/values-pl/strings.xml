@@ -617,7 +617,7 @@
     <string name="settings_quoted_dates_utc_subtitle">Data w wierszu cytatu odpowiedzi, w nagłówku przekazywanej wiadomości i w każdej wysłanej wiadomości jest zapisywana w UTC zamiast w czasie lokalnym urządzenia.</string>
     <string name="settings_recipient_suggestions_section">Sugestie odbiorców</string>
     <string name="settings_suggest_contacts_title">Sugeruj z kontaktów</string>
-    <string name="settings_suggest_contacts_subtitle">Automatycznie uzupełniaj odbiorców z kontaktów tego urządzenia podczas pisania. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła. Po wyłączeniu nadal sugeruje osoby, do których ostatnio pisałeś.</string>
+    <string name="settings_suggest_contacts_subtitle">Automatycznie uzupełniaj odbiorców z kontaktów tego urządzenia podczas pisania i pokazuj nazwę zapisaną dla nadawcy na liście i w otwartej wiadomości. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła. Po wyłączeniu nadal sugeruje osoby, do których ostatnio pisałeś.</string>
     <string name="settings_search_history_section">Historia wyszukiwania</string>
     <string name="settings_search_history_title">Zapamiętuj wyszukiwania</string>
     <string name="settings_search_history_subtitle">Przechowuje na tym urządzeniu wyszukiwane słowa i podpowiada je następnym razem. Sama lista nigdy nie opuszcza urządzenia.</string>
@@ -1258,7 +1258,7 @@
     <string name="accounts_unreadable_title">Nie udało się odczytać Twoich kont</string>
     <string name="accounts_unreadable_body">Sterna Mail nie mogła odczytać kont zapisanych na tym urządzeniu. Nic nie zostało usunięte: nadal tam są i nic nie zostanie na nich nadpisane. Aktualizacja Sterna Mail do najnowszej wersji może je przywrócić.</string>
     <string name="compose_contacts_priming_title">Sugerować z Twoich kontaktów?</string>
-    <string name="compose_contacts_priming_body">Uzupełniaj odbiorców z kontaktów tego urządzenia. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła.</string>
+    <string name="compose_contacts_priming_body">Uzupełniaj odbiorców z kontaktów tego urządzenia i pokazuj nazwę zapisaną dla nadawcy na liście i w otwartej wiadomości. Sterna Mail odczytuje je tylko na urządzeniu i nigdy ich nie przesyła.</string>
     <string name="compose_contacts_priming_enable">Włącz</string>
     <string name="compose_contacts_priming_not_now">Nie teraz</string>
     <string name="settings_mark_read_title">Oznacz jako przeczytane przy</string>

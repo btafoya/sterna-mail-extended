@@ -617,7 +617,7 @@
     <string name="settings_quoted_dates_utc_subtitle">Дата в строке цитирования ответа, в заголовке пересланного письма и в каждом отправленном письме записывается в UTC, а не в местном времени устройства.</string>
     <string name="settings_recipient_suggestions_section">Подсказки получателей</string>
     <string name="settings_suggest_contacts_title">Подсказывать из контактов</string>
-    <string name="settings_suggest_contacts_subtitle">Автодополнять получателей из контактов этого устройства при вводе. Sterna Mail читает их только на устройстве и никогда не отправляет. Если выключено, всё равно подсказывает тех, кому вы недавно писали.</string>
+    <string name="settings_suggest_contacts_subtitle">Автодополнять получателей из контактов этого устройства при вводе и показывать имя, сохранённое для отправителя, в списке и в открытом письме. Sterna Mail читает их только на устройстве и никогда не отправляет. Если выключено, всё равно подсказывает тех, кому вы недавно писали.</string>
     <string name="settings_search_history_section">История поиска</string>
     <string name="settings_search_history_title">Запоминать запросы</string>
     <string name="settings_search_history_subtitle">Хранит слова, которые вы ищете, на этом устройстве и предлагает их в следующий раз. Сам список никогда не покидает устройство.</string>
@@ -1261,7 +1261,7 @@
     <string name="accounts_unreadable_title">Не удалось прочитать ваши учётные записи</string>
     <string name="accounts_unreadable_body">Sterna Mail не смогла прочитать учётные записи, сохранённые на этом устройстве. Ничего не удалено: они на месте, и поверх них ничего не будет записано. Обновление Sterna Mail до последней версии может вернуть их.</string>
     <string name="compose_contacts_priming_title">Подсказывать из ваших контактов?</string>
-    <string name="compose_contacts_priming_body">Автодополнять получателей из контактов этого устройства. Sterna Mail читает их только на устройстве и никогда не отправляет.</string>
+    <string name="compose_contacts_priming_body">Автодополнять получателей из контактов этого устройства и показывать имя, сохранённое для отправителя, в списке и в открытом письме. Sterna Mail читает их только на устройстве и никогда не отправляет.</string>
     <string name="compose_contacts_priming_enable">Включить</string>
     <string name="compose_contacts_priming_not_now">Не сейчас</string>
     <string name="settings_mark_read_title">Отмечать прочитанным при</string>

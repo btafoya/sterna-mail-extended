@@ -797,7 +797,7 @@
     <string name="settings_quoted_dates_utc_subtitle">The date in a reply\'s quote line, in a forwarded message\'s header and on every message you send is written in UTC instead of this device\'s local time.</string>
     <string name="settings_recipient_suggestions_section">Recipient suggestions</string>
     <string name="settings_suggest_contacts_title">Suggest from contacts</string>
-    <string name="settings_suggest_contacts_subtitle">Autocomplete recipients from this device\'s contacts while you type. Sterna Mail reads them on-device only, never uploads them. When off, it still suggests people you\'ve recently emailed.</string>
+    <string name="settings_suggest_contacts_subtitle">Autocomplete recipients from this device\'s contacts while you type, and show the name you saved for a sender in the list and the open message. Sterna Mail reads them on-device only, never uploads them. When off, it still suggests people you\'ve recently emailed.</string>
     <string name="settings_search_history_section">Search history</string>
     <string name="settings_search_history_title">Remember searches</string>
     <string name="settings_search_history_subtitle">Keeps the words you search for on this device and suggests them next time. The list itself never leaves the device.</string>
@@ -1277,7 +1277,7 @@
     <string name="accounts_unreadable_title">Your accounts could not be read</string>
     <string name="accounts_unreadable_body">Sterna Mail could not read the accounts saved on this device. Nothing has been deleted: they are still there, and nothing will be written over them. Updating Sterna Mail to the latest version may bring them back.</string>
     <string name="compose_contacts_priming_title">Suggest from your contacts?</string>
-    <string name="compose_contacts_priming_body">Autocomplete recipients from this device\'s contacts. Sterna Mail reads them on-device only, never uploads them.</string>
+    <string name="compose_contacts_priming_body">Autocomplete recipients from this device\'s contacts, and show the name you saved for a sender in the list and the open message. Sterna Mail reads them on-device only, never uploads them.</string>
     <string name="compose_contacts_priming_enable">Enable</string>
     <string name="compose_contacts_priming_not_now">Not now</string>
     <string name="settings_mark_read_title">Mark as read when</string>

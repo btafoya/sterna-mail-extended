@@ -1,6 +1,7 @@
 package app.sterna.ui.components
 
 import app.sterna.core.jmap.model.EmailAddress
+import app.sterna.ui.compose.recipientNameKey
 
 /**
  * The address a list row may show after the sender's name: only for a sender who has both a name
@@ -21,3 +22,15 @@ internal fun listAddressBesideName(sender: EmailAddress?, rowShowsRecipients: Bo
  */
 internal fun senderLineShowsAddress(availablePx: Int, nameWidthPx: Int, addressWidthPx: Int, gapPx: Int): Boolean =
     nameWidthPx.toLong() + gapPx + addressWidthPx <= availablePx
+
+/**
+ * The sender as the user saved them in the phone's contacts (#280): the book's name over the
+ * `From:` name, the address kept as sent. Not in the book, the very same object. Everything the
+ * row or header derives from a sender reads this result, so [listAddressBesideName] judges the
+ * name actually shown.
+ */
+internal fun withAddressBookName(sender: EmailAddress?, names: Map<String, String>): EmailAddress? {
+    if (sender == null || names.isEmpty()) return sender
+    val saved = names[recipientNameKey(sender.email)] ?: return sender
+    return sender.copy(name = saved)
+}

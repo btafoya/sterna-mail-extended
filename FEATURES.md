@@ -122,6 +122,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Recipient autocomplete from cached addresses, the sending account's server
   address book (read-only, on JMAP servers that publish one) and opt-in device
   contacts, as removable chips, with address validation.
+- ✅ With device contacts turned on, a sender you saved in your contacts shows under
+  that name in the message list and the open message.
 - ✅ Several sending identities per account, each with its own signature, chosen
   from a From picker.
 - ✅ Read-receipt requests and responses, both off by default, never sent without a

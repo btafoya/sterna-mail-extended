@@ -16,6 +16,7 @@ import app.sterna.R
 import app.sterna.container
 import app.sterna.core.data.settings.NotificationContent
 import app.sterna.core.jmap.model.Email
+import app.sterna.ui.components.withAddressBookName
 
 enum class MailNotificationAction { REPLY, MARK_READ, DELETE }
 
@@ -56,6 +57,10 @@ object Notifications {
         NotificationContent.SENDER_ONLY -> if (hasSender) ALL_ACTIONS else emptyList()
         NotificationContent.NONE -> emptyList()
     }
+
+    /** The sender as a new-mail notification names them: as saved in the contacts when found there (#280). */
+    internal fun notificationSenderName(email: Email, senderNames: Map<String, String>): String? =
+        withAddressBookName(email.from.firstOrNull(), senderNames)?.display()
 
     /** The per-message ids the account is left with once a pass is done. Counted rather than
      *  re-read afterwards: the decision has to be made before the first child is posted. */
@@ -205,12 +210,13 @@ object Notifications {
         mailboxId: String?,
         content: NotificationContent,
         summarised: Boolean,
+        senderNames: Map<String, String>,
     ) {
         ensureMailChannel(context, accountId, accountLabel)
         val generic = context.getString(R.string.notif_new_message)
         // Kept apart from the stand-ins below: whether the mail names itself decides the action
         // buttons, and "New message" / "(no subject)" name nothing (#57).
-        val fromName = email.from.firstOrNull()?.display()
+        val fromName = notificationSenderName(email, senderNames)
         val realSubject = email.subject?.takeIf { it.isNotBlank() }
         val sender = fromName ?: generic
         val subject = realSubject ?: context.getString(R.string.message_no_subject)

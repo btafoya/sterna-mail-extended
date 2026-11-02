@@ -607,7 +607,7 @@
     <string name="settings_quoted_dates_utc_subtitle">Das Datum in der Zitatzeile einer Antwort, im Kopf einer weitergeleiteten Nachricht und in jeder gesendeten Nachricht wird in UTC statt in der lokalen Zeit dieses Geräts geschrieben.</string>
     <string name="settings_recipient_suggestions_section">Empfängervorschläge</string>
     <string name="settings_suggest_contacts_title">Aus Kontakten vorschlagen</string>
-    <string name="settings_suggest_contacts_subtitle">Empfänger während der Eingabe aus den Kontakten dieses Geräts vervollständigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch. Wenn deaktiviert, werden trotzdem Personen vorgeschlagen, denen du kürzlich geschrieben hast.</string>
+    <string name="settings_suggest_contacts_subtitle">Empfänger während der Eingabe aus den Kontakten dieses Geräts vervollständigen und den für einen Absender gespeicherten Namen in der Liste und in der geöffneten Nachricht anzeigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch. Wenn deaktiviert, werden trotzdem Personen vorgeschlagen, denen du kürzlich geschrieben hast.</string>
     <string name="settings_search_history_section">Suchverlauf</string>
     <string name="settings_search_history_title">Suchen merken</string>
     <string name="settings_search_history_subtitle">Speichert die gesuchten Wörter auf diesem Gerät und schlägt sie beim nächsten Mal vor. Die Liste selbst verlässt das Gerät nie.</string>
@@ -1224,7 +1224,7 @@
     <string name="accounts_unreadable_title">Deine Konten konnten nicht gelesen werden</string>
     <string name="accounts_unreadable_body">Sterna Mail konnte die auf diesem Gerät gespeicherten Konten nicht lesen. Es wurde nichts gelöscht: Sie sind weiterhin vorhanden und werden nicht überschrieben. Eine Aktualisierung von Sterna Mail auf die neueste Version kann sie zurückholen.</string>
     <string name="compose_contacts_priming_title">Aus deinen Kontakten vorschlagen?</string>
-    <string name="compose_contacts_priming_body">Empfänger aus den Kontakten dieses Geräts vervollständigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch.</string>
+    <string name="compose_contacts_priming_body">Empfänger aus den Kontakten dieses Geräts vervollständigen und den für einen Absender gespeicherten Namen in der Liste und in der geöffneten Nachricht anzeigen. Sterna Mail liest sie nur auf dem Gerät und lädt sie nie hoch.</string>
     <string name="compose_contacts_priming_enable">Aktivieren</string>
     <string name="compose_contacts_priming_not_now">Jetzt nicht</string>
     <string name="settings_mark_read_title">Als gelesen markieren bei</string>

@@ -786,7 +786,7 @@
     <string name="settings_quoted_dates_utc_subtitle">A válasz idézősorában, a továbbított üzenet fejlécében és minden elküldött üzenetén a dátum UTC szerint szerepel, nem az eszköz helyi ideje szerint.</string>
     <string name="settings_recipient_suggestions_section">Címzettjavaslatok</string>
     <string name="settings_suggest_contacts_title">Javaslatok a névjegyekből</string>
-    <string name="settings_suggest_contacts_subtitle">Gépelés közben az eszköz névjegyeiből egészíti ki a címzetteket. A Sterna Mail csak az eszközön olvassa őket, soha nem tölti fel. Kikapcsolva is javasolja azokat, akiknek nemrég levelet írt.</string>
+    <string name="settings_suggest_contacts_subtitle">Gépelés közben az eszköz névjegyeiből egészíti ki a címzetteket, és a feladóhoz mentett nevet mutatja a listában és a megnyitott levélben. A Sterna Mail csak az eszközön olvassa őket, soha nem tölti fel. Kikapcsolva is javasolja azokat, akiknek nemrég levelet írt.</string>
     <string name="settings_search_history_section">Keresési előzmények</string>
     <string name="settings_search_history_title">Keresések megjegyzése</string>
     <string name="settings_search_history_subtitle">A keresett szavakat ezen az eszközön tárolja, és legközelebb felajánlja őket. Maga a lista soha nem hagyja el az eszközt.</string>
@@ -1264,7 +1264,7 @@
     <string name="accounts_unreadable_title">A fiókjait nem sikerült beolvasni</string>
     <string name="accounts_unreadable_body">A Sterna Mail nem tudta beolvasni az ezen az eszközön mentett fiókokat. Semmi sem törlődött: továbbra is megvannak, és semmi sem fogja felülírni őket. A Sterna Mail legújabb verzióra frissítése visszahozhatja őket.</string>
     <string name="compose_contacts_priming_title">Javaslatok a névjegyeiből?</string>
-    <string name="compose_contacts_priming_body">A címzettek kiegészítése az eszköz névjegyeiből. A Sterna Mail csak az eszközön olvassa őket, soha nem tölti fel.</string>
+    <string name="compose_contacts_priming_body">A címzettek kiegészítése az eszköz névjegyeiből, és a feladóhoz mentett név megjelenítése a listában és a megnyitott levélben. A Sterna Mail csak az eszközön olvassa őket, soha nem tölti fel.</string>
     <string name="compose_contacts_priming_enable">Engedélyezés</string>
     <string name="compose_contacts_priming_not_now">Most nem</string>
     <string name="settings_mark_read_title">Megjelölés olvasottként ekkor:</string>

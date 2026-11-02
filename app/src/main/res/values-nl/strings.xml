@@ -607,7 +607,7 @@
     <string name="settings_quoted_dates_utc_subtitle">De datum in de citaatregel van een antwoord, in de kop van een doorgestuurd bericht en op elk bericht dat je verstuurt wordt in UTC geschreven in plaats van in de lokale tijd van dit apparaat.</string>
     <string name="settings_recipient_suggestions_section">Ontvangersuggesties</string>
     <string name="settings_suggest_contacts_title">Suggesties uit contacten</string>
-    <string name="settings_suggest_contacts_subtitle">Vul ontvangers aan uit de contacten van dit apparaat terwijl je typt. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit. Uitgeschakeld stelt het nog steeds mensen voor die je onlangs hebt gemaild.</string>
+    <string name="settings_suggest_contacts_subtitle">Vul ontvangers aan uit de contacten van dit apparaat terwijl je typt, en toon de naam die je voor een afzender hebt opgeslagen in de lijst en het geopende bericht. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit. Uitgeschakeld stelt het nog steeds mensen voor die je onlangs hebt gemaild.</string>
     <string name="settings_search_history_section">Zoekgeschiedenis</string>
     <string name="settings_search_history_title">Zoekopdrachten onthouden</string>
     <string name="settings_search_history_subtitle">Bewaart de woorden waarop je zoekt op dit apparaat en stelt ze de volgende keer voor. De lijst zelf verlaat het apparaat nooit.</string>
@@ -1227,7 +1227,7 @@
     <string name="accounts_unreadable_title">Je accounts konden niet worden gelezen</string>
     <string name="accounts_unreadable_body">Sterna Mail kon de op dit apparaat opgeslagen accounts niet lezen. Er is niets verwijderd: ze staan er nog en er wordt niets overheen geschreven. Sterna Mail bijwerken naar de nieuwste versie kan ze terughalen.</string>
     <string name="compose_contacts_priming_title">Voorstellen uit je contacten?</string>
-    <string name="compose_contacts_priming_body">Ontvangers aanvullen uit de contacten van dit apparaat. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit.</string>
+    <string name="compose_contacts_priming_body">Ontvangers aanvullen uit de contacten van dit apparaat en de naam die je voor een afzender hebt opgeslagen tonen in de lijst en het geopende bericht. Sterna Mail leest ze alleen op het apparaat en uploadt ze nooit.</string>
     <string name="compose_contacts_priming_enable">Inschakelen</string>
     <string name="compose_contacts_priming_not_now">Niet nu</string>
     <string name="settings_mark_read_title">Als gelezen markeren bij</string>

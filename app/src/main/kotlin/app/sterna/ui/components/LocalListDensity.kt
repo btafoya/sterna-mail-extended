@@ -26,6 +26,8 @@ val LocalUnreadTint = compositionLocalOf { UNREAD_TINT_DEFAULT }
  */
 val LocalListMonogram = compositionLocalOf { LIST_MONOGRAM_DEFAULT }
 
+val LocalSenderNames = compositionLocalOf { emptyMap<String, String>() }
+
 val LocalBoldUnreadFolders = compositionLocalOf { BOLD_UNREAD_FOLDERS_DEFAULT }
 
 val LocalStarredInDrawer = compositionLocalOf { STARRED_IN_DRAWER_DEFAULT }

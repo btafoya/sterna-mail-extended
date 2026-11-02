@@ -23,7 +23,7 @@ class SenderLineWiringTest {
         assertEquals(
             "in Sent and Drafts the row shows \"To: …\" (#59, #69) or, a draft with no recipient yet, " +
                 "the sender who is yourself: the lookup must be handed `showRecipients`, not `recipient`",
-            listOf("val senderAddress = listAddressBesideName(email.from.firstOrNull(), rowShowsRecipients = showRecipients)"),
+            listOf("val senderAddress = listAddressBesideName(sender, rowShowsRecipients = showRecipients)"),
             row.filter { "senderAddress =" in it },
         )
     }

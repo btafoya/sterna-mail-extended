@@ -34,6 +34,7 @@ import app.sterna.ui.components.LocalBoldUnreadFolders
 import app.sterna.ui.components.LocalStarredInDrawer
 import app.sterna.ui.components.LocalListDensity
 import app.sterna.ui.components.LocalListMonogram
+import app.sterna.ui.components.LocalSenderNames
 import app.sterna.ui.components.LocalPreviewLines
 import app.sterna.ui.components.LocalUnreadTint
 import app.sterna.ui.theme.SternaTheme
@@ -98,6 +99,7 @@ class MainActivity : AppCompatActivity() {
             val listMonogram by settings.listMonogram.collectAsState(initial = LIST_MONOGRAM_DEFAULT)
             val boldUnreadFolders by settings.boldUnreadFolders.collectAsState(initial = BOLD_UNREAD_FOLDERS_DEFAULT)
             val starredInDrawer by settings.starredInDrawer.collectAsState(initial = STARRED_IN_DRAWER_DEFAULT)
+            val senderNames by application.container.senderNames.names.collectAsState()
             // PURE_BLACK_DEFAULT, not a literal, for the same reason: one that drifts repaints the
             // whole theme a frame after launch.
             val pureBlack by settings.pureBlack.collectAsState(initial = PURE_BLACK_DEFAULT)
@@ -107,6 +109,7 @@ class MainActivity : AppCompatActivity() {
                     LocalPreviewLines provides previewLines,
                     LocalUnreadTint provides unreadTint,
                     LocalListMonogram provides listMonogram,
+                    LocalSenderNames provides senderNames,
                     LocalBoldUnreadFolders provides boldUnreadFolders,
                     LocalStarredInDrawer provides starredInDrawer,
                     LocalVolumeTextSizeRelay provides volumeTextSizeRelay,

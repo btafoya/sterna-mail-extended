@@ -611,7 +611,7 @@
     <string name="settings_quoted_dates_utc_subtitle">A data na linha de citação de uma resposta, no cabeçalho de uma mensagem encaminhada e em cada mensagem que você envia é escrita em UTC em vez do horário local do dispositivo.</string>
     <string name="settings_recipient_suggestions_section">Sugestões de destinatários</string>
     <string name="settings_suggest_contacts_title">Sugerir a partir dos contatos</string>
-    <string name="settings_suggest_contacts_subtitle">Autocompletar destinatários a partir dos contatos deste aparelho enquanto você digita. O Sterna Mail os lê apenas no aparelho e nunca os envia. Quando desativado, ele ainda sugere pessoas para quem você enviou e-mails recentemente.</string>
+    <string name="settings_suggest_contacts_subtitle">Autocompletar destinatários a partir dos contatos deste aparelho enquanto você digita e mostrar o nome salvo para um remetente na lista e na mensagem aberta. O Sterna Mail os lê apenas no aparelho e nunca os envia. Quando desativado, ele ainda sugere pessoas para quem você enviou e-mails recentemente.</string>
     <string name="settings_search_history_section">Histórico de busca</string>
     <string name="settings_search_history_title">Lembrar buscas</string>
     <string name="settings_search_history_subtitle">Guarda neste dispositivo as palavras que você busca e as sugere da próxima vez. A lista em si nunca sai do dispositivo.</string>
@@ -1239,7 +1239,7 @@
     <string name="accounts_unreadable_title">Não foi possível ler suas contas</string>
     <string name="accounts_unreadable_body">O Sterna Mail não conseguiu ler as contas salvas neste aparelho. Nada foi excluído: elas continuam lá e nada será gravado por cima. Atualizar o Sterna Mail para a versão mais recente pode recuperá-las.</string>
     <string name="compose_contacts_priming_title">Sugerir a partir dos seus contatos?</string>
-    <string name="compose_contacts_priming_body">Autocompletar destinatários a partir dos contatos deste aparelho. O Sterna Mail os lê apenas no aparelho e nunca os envia.</string>
+    <string name="compose_contacts_priming_body">Autocompletar destinatários a partir dos contatos deste aparelho e mostrar o nome salvo para um remetente na lista e na mensagem aberta. O Sterna Mail os lê apenas no aparelho e nunca os envia.</string>
     <string name="compose_contacts_priming_enable">Ativar</string>
     <string name="compose_contacts_priming_not_now">Agora não</string>
     <string name="settings_mark_read_title">Marcar como lida ao</string>
