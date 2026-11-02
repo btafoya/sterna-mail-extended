@@ -38,6 +38,8 @@ class PushService : Service() {
     @Volatile
     private var generation = 0
 
+    private val passes = OnePassAtATime(scope)
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -141,7 +143,7 @@ class PushService : Service() {
             val watchedJmapIds = group.mapNotNull { it.jmapAccountId }.toSet()
             val handle = repo.openAccountPush(
                 owner,
-                onChanged = { if (gen == generation) scope.launch { group.forEach { onAccountChanged(it) } } },
+                onChanged = { if (gen == generation) passes.request(loginId) { group.forEach { onAccountChanged(it) } } },
                 onClosed = {
                     // Drop the dead connection now, not at the delayed retry: a retired socket that
                     // leaves its entry behind keeps isConnected answering true until the next arm,
@@ -198,6 +200,7 @@ class PushService : Service() {
                 credentials,
                 includeExtras = credentials.protocol != MailProtocol.IMAP,
             )
+            if (credentials.protocol == MailProtocol.IMAP) reconcileImapInbox(this, credentials)
         }.onFailure { Log.e(TAG, "onAccountChanged failed", it) }
     }
 

@@ -37,19 +37,16 @@ class SyncWindowIsWhatTheRefreshSendsTest {
         assertEquals(
             "InboxViewModel.refreshFolder is no longer, line for line, what this test was written " +
                 "against. Read the new body before updating it: a number substituted for " +
-                "`window.limit`, or a cap inserted above the call, is exactly what this pin " +
+                "`limit`, or a cap inserted above the call, is exactly what this pin " +
                 "exists to catch — and no other test in the repo can see it.",
             """
             {
             val credentials = store.load() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-            val window = store.syncWindow(credentials.id)
-            val pruneBefore = window.maxAgeDays?.let {
-            System.currentTimeMillis() - it.toLong() * MILLIS_PER_DAY
-            }
+            val (limit, pruneBefore) = pullWindowArgs(store.syncWindow(credentials.id), System.currentTimeMillis())
             val storedInbox = store.account(credentials.id)?.inboxId
-            val first = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
+            val first = repo.refresh(credentials, mailboxId, limit, pruneBefore)
             val realigned = realignedInboxId(mailboxId, storedInbox, repo.cachedInboxMailboxId(credentials))
-            val updated = if (realigned == null) first else repo.refresh(credentials, realigned, window.limit, pruneBefore)
+            val updated = if (realigned == null) first else repo.refresh(credentials, realigned, limit, pruneBefore)
             if (updated.mailboxId == storedInbox || realigned != null || mailboxId == null) {
             store.saveInboxMetaFor(credentials.id, updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, updated.mailboxId) }
@@ -73,7 +70,10 @@ class SyncWindowIsWhatTheRefreshSendsTest {
                 "one read, or they can disagree",
             1, body.count { "store.syncWindow(" in it },
         )
-        assertTrue("the cutoff is no longer derived from `window`", body.any { it.startsWith("val pruneBefore = window.maxAgeDays") })
+        assertTrue(
+            "the limit and the cutoff no longer come out of one pullWindowArgs call on that read",
+            body.any { it.startsWith("val (limit, pruneBefore) = pullWindowArgs(store.syncWindow(credentials.id), ") },
+        )
     }
 
     // -- reading the source --------------------------------------------------------------------------

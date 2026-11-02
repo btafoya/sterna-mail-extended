@@ -170,8 +170,8 @@ class DeparturesComeFromTheServerTest {
         // This says which branch it belongs to.
         assertEquals(
             "the empty departures must be the IMAP branch's — the one built from a re-read page",
-            listOf("load.mailboxId, load.name, load.role, page, watchedBaselineIds(load),"),
-            codeLinesNaming(body, "load.mailboxId"),
+            listOf("load.mailboxId, load.name, load.role, page, retained,"),
+            codeLinesNaming(body, "load.name, load.role"),
         )
     }
 

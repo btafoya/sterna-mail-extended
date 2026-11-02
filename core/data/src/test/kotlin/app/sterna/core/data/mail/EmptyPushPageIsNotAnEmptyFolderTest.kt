@@ -256,11 +256,14 @@ class EmptyPushPageIsNotAnEmptyFolderTest {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "refreshAccountFolders")
 
         assertEquals(
-            "the IMAP branch must pass watchedBaselineIds(load); `page.map { it.id }` is the " +
-                "defect — an empty page then becomes an empty baseline and the next pass " +
-                "re-announces the day",
-            listOf("load.mailboxId, load.name, load.role, page, watchedBaselineIds(load),"),
-            codeLinesNaming(body, "load.mailboxId"),
+            "the IMAP branch must pass the baseline built on watchedBaselineIds(load); " +
+                "`page.map { it.id }` is the defect — an empty page then becomes an empty " +
+                "baseline and the next pass re-announces the day",
+            listOf(
+                "watchedBaselineIds(load),",
+                "load.mailboxId, load.name, load.role, page, retained,",
+            ),
+            codeLinesNaming(body, "watchedBaselineIds(load)") + codeLinesNaming(body, "load.name, load.role"),
         )
     }
 

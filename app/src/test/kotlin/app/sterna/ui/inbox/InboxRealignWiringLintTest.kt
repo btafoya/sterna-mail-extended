@@ -26,12 +26,12 @@ class InboxRealignWiringLintTest {
         )
         assertEquals(
             "the first refresh is the folder asked for, with the account's window and cutoff",
-            listOf("credentials", "mailboxId", "window.limit", "pruneBefore"), refreshes[0],
+            listOf("credentials", "mailboxId", "limit", "pruneBefore"), refreshes[0],
         )
         assertEquals(
             "the second refresh must name the folder the decision returned: a `null` there is a " +
                 "refresh with no folder, which `imapWriteThrough` does not bound (#165)",
-            listOf("credentials", realigned, "window.limit", "pruneBefore"), refreshes[1],
+            listOf("credentials", realigned, "limit", "pruneBefore"), refreshes[1],
         )
         assertTrue(
             "the second refresh runs only when the decision returned a folder",

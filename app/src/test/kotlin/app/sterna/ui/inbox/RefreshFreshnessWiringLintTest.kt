@@ -197,20 +197,92 @@ class RefreshFreshnessWiringLintTest {
     }
 
     @Test
-    fun `the guard has exactly seven doorsteps, and one door`() {
+    fun `the guard has exactly eight doorsteps, and one door`() {
         val text = codeText(INBOX_VIEW_MODEL)
         val hits = Regex("""\brefreshUnlessFresh\b""").findAll(text).toList()
         assertEquals(
-            "refreshUnlessFresh must appear exactly 8 times in InboxViewModel.kt: its own " +
+            "refreshUnlessFresh must appear exactly 9 times in InboxViewModel.kt: its own " +
                 "declaration, plus the SEVEN reconciles that accompany a change of view — init, " +
                 "onAccountChanged, selectUnified, selectUnread, selectUnreadFromShortcut, " +
-                "select(mailbox), showInbox. Every " +
+                "select(mailbox), showInbox — and onResumed, the list coming back to the screen " +
+                "(#278). Every " +
                 "other refresh() in this file answers a gesture (pull, Retry) or reconciles the " +
                 "list after a write (move, delete, mark read, Undo), and skipping one of those " +
-                "leaves the screen showing a state the server no longer holds. An eighth doorstep " +
+                "leaves the screen showing a state the server no longer holds. A ninth doorstep " +
                 "is one copy-paste away and nothing else in the suite would see it. Found " +
                 "${hits.size}.",
-            8, hits.size,
+            9, hits.size,
+        )
+    }
+
+    @Test
+    fun `coming back to the list reconciles through the guard, unless a reconcile is in flight`() {
+        val body = declarationBody("fun onResumed()")
+        assertEquals(
+            "onResumed() must touch nothing while a reconcile is in flight or the view is fresh, " +
+                "and go through the guard only when it really reconciles. The in-flight test keeps " +
+                "the cold start whole: addObserver replays ON_RESUME right after init launched its " +
+                "reconcile, and refresh() cancels the job in flight. The freshness test keeps the " +
+                "error banner honest: coming back to the list is not a change of view, and the " +
+                "door's clearRefreshError() would drop the notice of a pull that failed seconds " +
+                "ago while nothing reconciles. The predicate is the door's own, shared, never a " +
+                "copy. Compared whole. Body was:\n$body",
+            "fun onResumed() { if (refreshJob?.isActive == true || currentViewIsFresh()) return " +
+                "refreshUnlessFresh() }",
+            body,
+        )
+    }
+
+    @Test
+    fun `the in-flight job is declared before the init block that writes it`() {
+        val text = codeText(INBOX_VIEW_MODEL)
+        val declaration = text.indexOf("private var refreshJob: Job? = null")
+        val init = Regex("""(?<![A-Za-z0-9_])init \{""").find(text)?.range?.first ?: -1
+        assertEquals(
+            "Initialisers and init blocks run in the order of the text. Declared below init, " +
+                "`refreshJob = null` runs after init's refresh() stored the cold start's job, " +
+                "onResumed() replayed by addObserver then sees null and launches a second, " +
+                "concurrent reconcile. refreshJob at $declaration, first init at $init.",
+            true,
+            declaration in 0 until init,
+        )
+    }
+
+    @Test
+    fun `the inbox screen calls onResumed on its own ON_RESUME`() {
+        val text = codeText(INBOX_SCREEN)
+        val observer = "DisposableEffect(lifecycleOwner) { val observer = LifecycleEventObserver { _, event -> " +
+            "if (event == Lifecycle.Event.ON_RESUME) viewModel.onResumed() } " +
+            "lifecycleOwner.lifecycle.addObserver(observer) " +
+            "onDispose { lifecycleOwner.lifecycle.removeObserver(observer) } }"
+        val hits = Regex(Regex.escape(observer)).findAll(text).map { it.range.first }.toList()
+        val screen = text.indexOf("fun InboxScreen(")
+        val nextComposable = Regex("""@Composable (private |internal )?fun """).find(text, screen)?.range?.first
+            ?: text.length
+        assertEquals(
+            "InboxScreen must observe its own lifecycle owner (the inbox route's back stack " +
+                "entry) and hand ON_RESUME to viewModel.onResumed(), exactly once, inside " +
+                "InboxScreen itself. Without it the ViewModel the app keeps alive shows the list " +
+                "of its last reconcile after unlock, Home and back, or Back from a message, while " +
+                "another client deleted or read mail meanwhile (#278). Found ${hits.size} at " +
+                "$hits, InboxScreen spans [$screen, $nextComposable).",
+            "1 inside InboxScreen",
+            "${hits.count { it in screen until nextComposable }} inside InboxScreen",
+        )
+        val owners = Regex("""\bval lifecycleOwner = [^ ]+""").findAll(text)
+            .filter { it.range.first in screen until nextComposable }.map { it.value }.toList()
+        assertEquals(
+            "The owner observed must be LocalLifecycleOwner.current, the inbox route's back stack " +
+                "entry. ProcessLifecycleOwner stays resumed while a message is read, so Back from " +
+                "a message would reconcile nothing. Found $owners.",
+            listOf("val lifecycleOwner = LocalLifecycleOwner.current"),
+            owners,
+        )
+        assertEquals(
+            "viewModel.onResumed() must have exactly one caller in InboxScreen.kt, the observer " +
+                "above.",
+            1,
+            Regex("""\bonResumed\(\)""").findAll(text).count(),
         )
     }
 
@@ -235,9 +307,15 @@ class RefreshFreshnessWiringLintTest {
                 "cached, the whole error scene with its Retry button stands in for the " +
                 "empty-folder one. Compared whole. Body was:\n$body",
             "private fun refreshUnlessFresh() { clearRefreshError() " +
-                "if (isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())) return " +
+                "if (currentViewIsFresh()) return " +
                 "refresh() }",
             body,
+        )
+        assertEquals(
+            "The predicate shared by the door and onResumed(). Compared whole. Body was:",
+            "private fun currentViewIsFresh(): Boolean { " +
+                "return isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock()) }",
+            declarationBody("private fun currentViewIsFresh(): Boolean"),
         )
     }
 
@@ -410,5 +488,9 @@ class RefreshFreshnessWiringLintTest {
         }
 
         private val INBOX_VIEW_MODEL: File by lazy { File(root, INBOX_VIEW_MODEL_PATH) }
+
+        private val INBOX_SCREEN: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt")
+        }
     }
 }

@@ -310,8 +310,9 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
     }
 
     /**
-     * Run one IMAP IDLE cycle on the selected mailbox: true on new mail (untagged exists or RECENT),
-     * false on the keep-alive timeout. Always ends IDLE and consumes the tagged result.
+     * One IMAP IDLE cycle: true when the mailbox changed (`EXISTS`, `RECENT`, `EXPUNGE`), false on the
+     * keep-alive timeout. `FETCH` is left out: our own `STORE` of a read flag comes back as one.
+     * Always ends IDLE and consumes the tagged result.
      */
     fun idle(timeoutMs: Int): Boolean {
         val tag = send("IDLE")
@@ -329,9 +330,8 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
                     if (socket.isClosed) throw ImapException("Connection closed during IDLE")
                     continue
                 }
-                // Untagged "* <n> exists" / "* <n> RECENT" announce new mail.
                 val kind = resp.getOrNull(2)
-                if (kind == "EXISTS" || kind == "RECENT") {
+                if (kind == "EXISTS" || kind == "RECENT" || kind == "EXPUNGE") {
                     changed = true
                     break
                 }

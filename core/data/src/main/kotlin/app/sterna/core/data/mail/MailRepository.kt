@@ -2357,7 +2357,7 @@ class MailRepository(
         val origin = originReadFor(credentials, emailId, email)
         val shown = email.copy(originalSender = origin.header, authenticationFailures = origin.authenticationFailures)
         val inline = fetchInlineImages(credentials, shown, emailId)
-        // The cache write is CONDITIONAL: a body cached after a failed read would say "no origin"
+        // The cache write is conditional: a body cached after a failed read would say "no origin"
         // for the life of the install, since this cache is served before any network call.
         if (cachesBodyAfterOriginRead(credentials.protocol, origin.succeeded)) {
             persistBody(credentials.id, emailId, shown, inline)
@@ -4388,11 +4388,15 @@ class MailRepository(
             }
             // No departures on IMAP: re-reading a folder says what it holds, never what left (#134).
             return loads.map { load ->
-                // The baseline is what this page can vouch for: nothing when it came back empty
-                // without the server stating the folder empty (`watchedBaselineIds`).
+                // The page widened by the cache's candidate window, null when the page cannot vouch
+                // for the folder (`imapRetainedBaseline`).
                 val page = load.messages.map { it.toEmail() }
+                val retained = imapRetainedBaseline(
+                    watchedBaselineIds(load),
+                    emailDao.idsReceivedSince(credentials.id, load.mailboxId, notifyCandidateFloor(System.currentTimeMillis())),
+                )
                 FolderRefresh(
-                    load.mailboxId, load.name, load.role, page, watchedBaselineIds(load),
+                    load.mailboxId, load.name, load.role, page, retained,
                     departedIds = emptyList(),
                     previewSources = load.previewSources,
                 )

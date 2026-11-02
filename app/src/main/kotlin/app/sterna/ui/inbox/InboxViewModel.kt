@@ -21,6 +21,7 @@ import app.sterna.push.FetchAndNotify
 import app.sterna.push.NewMailNotifier
 import app.sterna.push.Notifications
 import app.sterna.push.PushController
+import app.sterna.push.pullWindowArgs
 import app.sterna.snooze.Snoozes
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.FolderHiding
@@ -1219,6 +1220,9 @@ class InboxViewModel(
         ),
     )
 
+    /** Above `init`, which writes it: declared below, its `= null` would erase that job. */
+    private var refreshJob: Job? = null
+
     init {
         refreshUnlessFresh()
         connectivity.start()
@@ -1321,9 +1325,6 @@ class InboxViewModel(
         refreshUnlessFresh()
     }
 
-    /** The in-flight refresh, so a new one cancels-and-replaces it (never two reconciles at once). */
-    private var refreshJob: Job? = null
-
     /**
      * The refresh the reader asked for: the pull gesture and the two Retry buttons. Its indicator is
      * drawn at once, with none of the grace that keeps the tern off a folder tap's fetch (#178).
@@ -1336,18 +1337,27 @@ class InboxViewModel(
     }
 
     /**
-     * Reconcile, UNLESS this very view came back successfully less than 30 s ago (#178). The
-     * register is persisted and the decision is [isFresh]'s.
-     *
-     * Only for the reconciles that accompany a change of view. Never in front of [onReconnected]
-     * (the only thing that clears a failed reachability, #65), nor [refreshRequested], nor
-     * [forceRefresh], nor a reconcile that follows a write. The stale error is dropped first: a
-     * change of view never inherits the failure of the view before it.
+     * Reconcile, unless this very view came back successfully less than 30 s ago (#178): [isFresh]
+     * decides, on a persisted register. Only for a change of view and [onResumed]. Never in front
+     * of [onReconnected] (the only thing that clears a failed reachability, #65), nor of
+     * [refreshRequested], [forceRefresh] or a reconcile after a write. The stale error is dropped
+     * first: a change of view never inherits the failure of the view before it.
      */
     private fun refreshUnlessFresh() {
         clearRefreshError()
-        if (isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())) return
+        if (currentViewIsFresh()) return
         refresh()
+    }
+
+    private fun currentViewIsFresh(): Boolean {
+        return isFresh(decodeFreshness(store.refreshFreshness()), currentScopes(), clock())
+    }
+
+    fun onResumed() {
+        // Replayed by `addObserver` right after `init`'s reconcile, which `refresh` would cancel;
+        // fresh, `clearRefreshError` would drop a failed pull's banner while nothing reconciles.
+        if (refreshJob?.isActive == true || currentViewIsFresh()) return
+        refreshUnlessFresh()
     }
 
     /** Stamp [scopes] as reconciled now, pruning whatever fell out of the window ([recordFresh]).
@@ -1412,15 +1422,12 @@ class InboxViewModel(
 
     private suspend fun refreshFolder(mailboxId: String?) {
         val credentials = store.load() ?: error(getApplication<Application>().getString(R.string.status_no_saved_account))
-        val window = store.syncWindow(credentials.id)
-        val pruneBefore = window.maxAgeDays?.let {
-            System.currentTimeMillis() - it.toLong() * MILLIS_PER_DAY
-        }
+        val (limit, pruneBefore) = pullWindowArgs(store.syncWindow(credentials.id), System.currentTimeMillis())
         val storedInbox = store.account(credentials.id)?.inboxId
-        val first = repo.refresh(credentials, mailboxId, window.limit, pruneBefore)
+        val first = repo.refresh(credentials, mailboxId, limit, pruneBefore)
         val realigned = realignedInboxId(mailboxId, storedInbox, repo.cachedInboxMailboxId(credentials))
         // By name, never `null`: `imapWriteThrough` bounds its eviction by the folder named (#165).
-        val updated = if (realigned == null) first else repo.refresh(credentials, realigned, window.limit, pruneBefore)
+        val updated = if (realigned == null) first else repo.refresh(credentials, realigned, limit, pruneBefore)
         if (updated.mailboxId == storedInbox || realigned != null || mailboxId == null) {
             store.saveInboxMetaFor(credentials.id, updated.mailboxId, updated.mailboxName, updated.accountName, updated.unreadCount)
             // Codeberg #50: a reply landed by this refresh must trigger unarchive-on-reply too, since
@@ -3462,7 +3469,6 @@ class InboxViewModel(
     private data class Status(val refreshing: Boolean, val error: String?)
 
     private companion object {
-        const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000
         const val PURGE_HOLD_BACK_MS = 5_000L
 
         /** Most threads re-completed per action, bounds the Thread/get fan-out on a select-all. */
