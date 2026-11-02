@@ -2271,7 +2271,7 @@ class MailRepository(
         val cached = emailDao.emailsByIds(credentials.id, listOf(emailId)).firstOrNull()?.toEmail()
         val envelope = imapEnvelope(credentials.id, emailId, cached, { imap.fetchById(credentials, emailId) }, ::forgetGoneImapMessage)
         val mailboxId = envelope.mailboxId ?: error("Unknown mailbox for message.")
-        val raw = imap.fetchSource(credentials, mailboxId, uid)
+        val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }
         // Before the parse, because parsing "" succeeds: it yields a body the composer paints as a
         // usable blank draft. Raising sets editingDraftLossyOnOpen, so `performSend` destroys nothing.
         if (sourceCouldNotBeRead(raw)) {

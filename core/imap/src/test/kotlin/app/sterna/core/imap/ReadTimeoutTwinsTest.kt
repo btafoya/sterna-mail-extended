@@ -46,14 +46,14 @@ class ReadTimeoutTwinsTest {
     }
 
     @Test fun `the shared arming is what a budget actually sets`() {
-        // The one place, pinned whole: a `coerceAtLeast` gone means a negative budget reaches the
-        // socket; a missing assignment means no bound at all, on every call the app makes.
+        // The one place, pinned whole: a missing assignment means no bound at all, on every call
+        // the app makes. `timeoutOrFloor` itself is executed by `ImapSocketFloorTest`.
         assertEquals(
             "ImapSession.armReadTimeout is no longer, line for line, what this was written against",
             listOf(
                 "{",
                 "val previous = socket.soTimeout",
-                "socket.soTimeout = millis.coerceAtLeast(0)",
+                "socket.soTimeout = timeoutOrFloor(millis, readFloorMs)",
                 "return previous",
                 "}",
             ),

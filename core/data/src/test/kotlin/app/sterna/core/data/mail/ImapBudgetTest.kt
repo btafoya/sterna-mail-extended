@@ -70,7 +70,7 @@ class ImapBudgetTest {
         assertEquals(60_000, ImapBudget.effective(ImapBudget.NO_BUDGET, 60_000))
 
         // And with neither, NO_BUDGET, i.e. every existing caller, in every coroutine that
-        // installs no element, exactly as blocking as it has always been.
+        // installs no element, bounded then only by `ImapClient`'s floors.
         assertEquals(
             ImapBudget.NO_BUDGET,
             ImapBudget.effective(ImapBudget.NO_BUDGET, ImapBudget.NO_BUDGET),

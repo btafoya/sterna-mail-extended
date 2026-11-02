@@ -18,10 +18,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 const val LOCAL_DRAFT_RETRY_BASE_MILLIS: Long = 30_000L
 
-/**
- * The only thing that ends an `APPEND` whose peer stopped answering: without it the reads are
- * `soTimeout = 0`, the row stays `UPLOADING` with no backoff, and the IMAP mutex is held for ever.
- */
+/** The read budget of a deferred `APPEND`, named here rather than left to `ImapClient`'s read floor. */
 const val LOCAL_DRAFT_UPLOAD_BUDGET_MS: Int = 60_000
 
 /**

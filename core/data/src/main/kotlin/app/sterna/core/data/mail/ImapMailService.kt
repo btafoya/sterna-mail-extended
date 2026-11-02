@@ -171,7 +171,7 @@ internal fun previewIdsToRead(ids: List<String>, cached: Map<String, String>): S
 /** The deadline arithmetic behind a time-bounded IMAP call: a retry must not double the wait. */
 internal object ImapBudget {
 
-    /** No deadline. Also the socket value meaning "block", which is why they are one constant. */
+    /** No deadline. Also the socket value `ImapClient` replaces by its floors, hence one constant. */
     const val NO_BUDGET = 0
 
     fun deadline(budgetMs: Int, nowMs: Long): Long = if (budgetMs > 0) nowMs + budgetMs else NO_BUDGET.toLong()
@@ -207,8 +207,8 @@ internal class ImapReadBudget(val millis: Int) : AbstractCoroutineContextElement
 }
 
 /**
- * IMAP read+write path, parallel to the JMAP path in [MailRepository]. One connection is pooled per
- * account and reused across calls (IMAP is stateful, so access is serialised).
+ * IMAP read+write path, parallel to the JMAP path in [MailRepository]. Each account pools one connection
+ * per [ImapLane], reused across calls and serialised per lane (IMAP is stateful).
  */
 open class ImapMailService(
     private val imapClient: ImapClient,
@@ -218,6 +218,7 @@ open class ImapMailService(
     private val uidValidity: UidValidityStore = UidValidityStore.None,
     private val pendingExpunges: PendingExpungeStore = PendingExpungeStore.None,
     private val outgoingDates: OutgoingDateZones = OutgoingDateZones.DEVICE,
+    private val foregroundProbeMs: Int = FOREGROUND_PROBE_MS,
 ) {
     private class Pooled {
         val mutex = Mutex()
@@ -225,7 +226,7 @@ open class ImapMailService(
         var config: MailServerConfig? = null
     }
 
-    private val pool = ConcurrentHashMap<String, Pooled>()
+    private val pool = ConcurrentHashMap<ImapPoolKey, Pooled>()
 
     private val incremental = ImapIncrementalReader(uidValidity)
 
@@ -237,19 +238,20 @@ open class ImapMailService(
         credentials: AccountCredentials,
         budgetMs: Int = 0,
         retryOnFailure: Boolean = true,
+        lane: ImapLane = ImapLane.SHARED,
         // Suspending for one caller, [loadFolder], whose walk writes each page between requests.
         block: suspend (ImapSession) -> T,
     ): T =
         withContext(Dispatchers.IO) {
             val config = config(credentials.imap ?: error("Account has no IMAP server configured."), credentials)
-            val pooled = pool.getOrPut(credentials.id) { Pooled() }
+            val pooled = pool.getOrPut(ImapPoolKey(credentials.id, lane)) { Pooled() }
             pooled.mutex.withLock {
                 if (pooled.config != null && pooled.config != config) {
                     pooled.session?.let { runCatching { it.close() } }
                     pooled.session = null
                 }
                 pooled.config = config
-                runWithRetry(pooled, config, budgetMs, retryOnFailure, block)
+                runWithRetry(pooled, config, budgetMs, retryOnFailure, lane, block)
             }
         }
 
@@ -258,10 +260,18 @@ open class ImapMailService(
         config: MailServerConfig,
         budgetMs: Int,
         retryOnFailure: Boolean,
+        lane: ImapLane,
         block: suspend (ImapSession) -> T,
     ): T {
         val ambientMs = currentCoroutineContext()[ImapReadBudget]?.millis ?: ImapBudget.NO_BUDGET
         val deadline = ImapBudget.deadline(ImapBudget.effective(budgetMs, ambientMs), System.currentTimeMillis())
+        val idle = pooled.session
+        if (lane == ImapLane.FOREGROUND && idle != null &&
+            !idle.answersWithin(probeBound(foregroundProbeMs, ImapBudget.remaining(deadline, System.currentTimeMillis())))
+        ) {
+            closeAside(idle)
+            pooled.session = null
+        }
         var attempt = 0
         while (true) {
             // What is left of the budget bounds the connect, what is left after it bounds the reads.
@@ -301,12 +311,13 @@ open class ImapMailService(
         mailboxId: String,
         budgetMs: Int = 0,
         expectedUidValidity: Long? = null,
+        lane: ImapLane = ImapLane.SHARED,
         block: suspend (ImapSession, ImapMailboxStatus) -> T,
     ): T {
         val recorded = uidValidity.recorded(credentials.id, mailboxId)
         var observed = 0L
         val result = try {
-            withSession(credentials, budgetMs) { session ->
+            withSession(credentials, budgetMs, lane = lane) { session ->
                 val status = session.select(mailboxId, expectedUidValidity ?: recorded)
                 observed = status.uidValidity
                 block(session, status)
@@ -360,10 +371,12 @@ open class ImapMailService(
         withSession(credentials) { it.listFolders() }
 
     suspend fun disconnect(accountId: String) {
-        val pooled = pool.remove(accountId) ?: return
-        pooled.mutex.withLock {
-            pooled.session?.let { runCatching { it.close() } }
-            pooled.session = null
+        for (lane in ImapLane.entries) {
+            val pooled = pool.remove(ImapPoolKey(accountId, lane)) ?: continue
+            pooled.mutex.withLock {
+                pooled.session?.let { runCatching { it.close() } }
+                pooled.session = null
+            }
         }
     }
 
@@ -775,7 +788,7 @@ open class ImapMailService(
         uid: Long,
         section: String,
         encoding: String?,
-    ): ByteArray = onMailbox(credentials, mailboxId) { session, _ ->
+    ): ByteArray = onMailbox(credentials, mailboxId, lane = ImapLane.FOREGROUND) { session, _ ->
         MimeParser.decodeBytes(session.fetchSection(uid, section), encoding)
     }
 
@@ -792,7 +805,7 @@ open class ImapMailService(
         if (accountOf(emailId) != credentials.id) return ImapLookup.Unproven
         val (mailboxId, uid) = targetOf(emailId) ?: return ImapLookup.Unproven
         val recorded = uidValidity.recorded(credentials.id, mailboxId)
-        return onMailbox(credentials, mailboxId, expectedUidValidity = recorded) { session, status ->
+        return onMailbox(credentials, mailboxId, expectedUidValidity = recorded, lane = ImapLane.FOREGROUND) { session, status ->
             val entity = session.fetchByUid(uid)?.toEntity(credentials.id, mailboxId, status.uidValidity, null)
             when {
                 entity != null -> ImapLookup.Found(entity)
@@ -829,7 +842,9 @@ open class ImapMailService(
         uid: Long,
         expectedUidValidity: Long? = null,
     ): String =
-        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity) { session, _ -> session.fetchSource(uid) }
+        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = ImapLane.FOREGROUND) { session, _ ->
+            session.fetchSource(uid)
+        }
 
     /**
      * The server's delivery timestamp (`INTERNALDATE`), not `EmailEntity.receivedAt`, which here is
@@ -928,6 +943,8 @@ open class ImapMailService(
          * this the answer is "not found", i.e. APPEND: a copy too many is deletable, a draft is not.
          */
         const val DRAFT_LOOKUP_SCAN = 50
+
+        const val FOREGROUND_PROBE_MS = 5_000
 
         /** Stable, globally-unique cache id for an IMAP message. */
         fun emailId(accountId: String, mailboxId: String, uid: Long): String = "imap:$accountId:$mailboxId:$uid"

@@ -114,7 +114,7 @@ class RawSourceReadUnderNumberingTest {
                 "because their callers froze none. A new one on this list is a read nobody has " +
                 "decided the numbering of.",
             listOf(
-                "val raw = imap.fetchSource(credentials, mailboxId, uid)",
+                "val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }",
                 "imap.fetchSource(credentials, mailboxId, uid, numbering)",
                 "val raw = imap.fetchSource(credentials, cached.mailboxId, uid)",
             ),

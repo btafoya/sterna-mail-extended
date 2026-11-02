@@ -55,22 +55,30 @@ class ImapAmbientBudgetReachesTheSocketTest {
     }
 
     @Test(timeout = 30_000)
-    fun `the witness - without the element the same call never comes back`() {
+    fun `the witness - without the element the same call comes back only in the read floor`() {
         // The witness, and without it the test above proves nothing: a server that answered
         // quickly, an APPEND that failed for another reason, or a budget that was never consulted
         // would all produce the same green. So: the same server, the same call, no context element,
-        // and it must not return.
+        // bounded then by `ImapClient`'s read floor (#157), injected at FLOOR_MS, past the 2s above.
         //
-        // Bounded on the test side only, and it has to be: there is no bound on the app side,
-        // which is the whole point. The call is made on a daemon thread that is knowingly left
+        // On a daemon thread, which a floor gone missing leaves knowingly parked on the socket.
         muteServer().use { server ->
-            val outcome = appendOnItsOwnThread(server) { EmptyCoroutineContext }
+            val outcome = appendOnItsOwnThread(server, ImapClient(readFloorMs = FLOOR_MS)) { EmptyCoroutineContext }
 
             assertFalse(
-                "⛔ with no ImapReadBudget on the coroutine, an APPEND to a mute server must still " +
-                    "be endless — soTimeout 0. If this ever comes back on its own, something else " +
-                    "is bounding it and the test above is measuring that something else",
+                "with no ImapReadBudget on the coroutine, an APPEND to a mute server must not come " +
+                    "back before the ${FLOOR_MS}ms read floor. If it does, something else is bounding " +
+                    "it and the test above is measuring that something else",
                 outcome.done.await(2, TimeUnit.SECONDS),
+            )
+            assertTrue(
+                "and it must come back in the ${FLOOR_MS}ms read floor: with soTimeout 0 an APPEND " +
+                    "nobody bounded waits on a mute peer until TCP gives up, the account mutex held",
+                outcome.done.await(FLOOR_MS + 5_000L, TimeUnit.MILLISECONDS),
+            )
+            assertTrue(
+                "as a timeout, the type every caller reads as `could not be established`. Got: ${outcome.thrown}",
+                outcome.thrown is SocketTimeoutException,
             )
         }
     }
@@ -87,6 +95,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
      */
     private fun appendOnItsOwnThread(
         server: ScriptedImapServer,
+        client: ImapClient = ImapClient(),
         context: () -> CoroutineContext,
     ): Outcome {
         val outcome = Outcome(CountDownLatch(1))
@@ -96,7 +105,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
                     // Nothing is passed to appendDraft: it names no budget, and it cannot, the
                     // same call serves the interactive save. The bound, when there is one, is on
                     // the context, exactly as MailRepository.uploadLocalDraft installs it.
-                    withContext(context()) { service().appendDraft(credentials(server), DRAFTS, message()) }
+                    withContext(context()) { service(client).appendDraft(credentials(server), DRAFTS, message()) }
                 }
             }.exceptionOrNull()
             outcome.done.countDown()
@@ -115,7 +124,7 @@ class ImapAmbientBudgetReachesTheSocketTest {
         }
     }
 
-    private fun service() = ImapMailService(ImapClient(), SmtpClient(), unusedTokenRefresher())
+    private fun service(client: ImapClient) = ImapMailService(client, SmtpClient(), unusedTokenRefresher())
 
     private fun credentials(server: ScriptedImapServer) = AccountCredentials(
         server = "scripted",
@@ -144,6 +153,8 @@ class ImapAmbientBudgetReachesTheSocketTest {
          * that the number reaches the socket, not which number it is.
          */
         const val BUDGET_MS = 500
+
+        const val FLOOR_MS = 3_000
 
         /** `ImapDraftAppendGoesOutOnceTest`'s, verbatim and for its reason: the real service needs
          *  a refresher, a refresher needs an Android `Context`, and a password account never reads

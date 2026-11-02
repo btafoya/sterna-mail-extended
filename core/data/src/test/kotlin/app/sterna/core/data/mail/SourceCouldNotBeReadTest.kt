@@ -147,7 +147,7 @@ class SourceRefusalWiringTest {
         assertEquals(
             "the guard judges what the SERVER answered: any `.ifBlank { … }` or fallback on this " +
                 "line turns the unknown into a value before the refusal can see it",
-            listOf("val raw = imap.fetchSource(credentials, mailboxId, uid)"),
+            listOf("val raw = unavailableOnTimeout(emailId) { imap.fetchSource(credentials, mailboxId, uid) }"),
             codeLinesNaming(bodyOf("openEmailImap"), "imap.fetchSource("),
         )
     }

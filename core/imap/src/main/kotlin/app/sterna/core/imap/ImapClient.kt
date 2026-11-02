@@ -50,41 +50,48 @@ class ImapClient(
      *  A parameter, `core/imap` being plain Kotlin/JVM with no `BuildConfig` to read. */
     private val clientVersion: String? = null,
     private val trace: ImapCommandSink? = null,
+    private val readFloorMs: Int = IMAP_READ_FLOOR_MS,
+    private val connectFloorMs: Int = IMAP_CONNECT_FLOOR_MS,
 ) {
     suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession =
         withContext(Dispatchers.IO) { openSession(config, connectTimeoutMs) }
 
     /**
-     * Blocking connect + login. Use when already on a dedicated IO thread (e.g. IDLE).
-     * [connectTimeoutMs] bounds the TCP connect and the greeting/STARTTLS/login reads, after which
-     * the socket returns to its blocking default so no later operation inherits it.
+     * Blocking connect + login, for a caller already on an IO thread (e.g. IDLE). [connectTimeoutMs] bounds
+     * the TCP connect and the greeting/STARTTLS/login reads, 0 the floors, and no later operation inherits it.
+     * A failure closes the socket, which no caller holds yet: a refused or late LOGIN would stay open server-side.
      */
     fun openSession(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession {
         val timeout = connectTimeoutMs.coerceAtLeast(0)
         val plain = Socket()
-        plain.connect(InetSocketAddress(config.host, config.port), timeout)
-        val socket = when (config.security) {
-            MailSecurity.TLS ->
-                (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket).verifyingHostname()
-            else -> plain
-        }
-        val session = ImapSession(socket, trace ?: ImapCommandTap.installed)
-        session.withReadTimeout(timeout) {
-            session.readGreeting()
-            if (config.security == MailSecurity.STARTTLS) {
-                session.command("STARTTLS")
-                session.upgradeTls(config.host, config.port)
+        try {
+            plain.connect(InetSocketAddress(config.host, config.port), timeoutOrFloor(timeout, connectFloorMs))
+            val socket = when (config.security) {
+                MailSecurity.TLS ->
+                    (tlsFactory.createSocket(plain, config.host, config.port, true) as SSLSocket).verifyingHostname()
+                else -> plain
             }
-            if (config.accessToken != null) {
-                session.authenticateXoauth2(config.username, config.accessToken)
-            } else {
-                session.login(config.username, config.password)
+            val session = ImapSession(socket, trace ?: ImapCommandTap.installed, readFloorMs)
+            session.withReadTimeout(timeout) {
+                session.readGreeting()
+                if (config.security == MailSecurity.STARTTLS) {
+                    session.command("STARTTLS")
+                    session.upgradeTls(config.host, config.port)
+                }
+                if (config.accessToken != null) {
+                    session.authenticateXoauth2(config.username, config.accessToken)
+                } else {
+                    session.login(config.username, config.password)
+                }
+                // Post-authentication, so the capability list is the real one (RFC 3501 §7.1), and
+                // ahead of any SELECT, the window NetEase's servers judge (Codeberg #173).
+                session.identify(clientVersion)
             }
-            // Post-authentication, so the capability list is the real one (RFC 3501 §7.1), and
-            // ahead of any SELECT, the window NetEase's servers judge (Codeberg #173).
-            session.identify(clientVersion)
+            return session
+        } catch (failed: Throwable) {
+            runCatching { plain.close() }
+            throw failed
         }
-        return session
     }
 
     private companion object {
@@ -96,7 +103,11 @@ class ImapClient(
  * A connected, logged-in IMAP session. Stateful (SELECT then FETCH), so callers
  * keep it for a unit of work and [close] it after. Not thread-safe.
  */
-class ImapSession(private var socket: Socket, private val trace: ImapCommandSink? = null) : Closeable {
+class ImapSession(
+    private var socket: Socket,
+    private val trace: ImapCommandSink? = null,
+    private val readFloorMs: Int = IMAP_READ_FLOOR_MS,
+) : Closeable {
     private var input = ImapParser(BufferedInputStream(socket.inputStream))
     private var output: OutputStream = socket.outputStream
     private var tagN = 0
@@ -258,7 +269,7 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
      */
     private fun armReadTimeout(millis: Int): Int {
         val previous = socket.soTimeout
-        socket.soTimeout = millis.coerceAtLeast(0)
+        socket.soTimeout = timeoutOrFloor(millis, readFloorMs)
         return previous
     }
 
@@ -721,6 +732,10 @@ class ImapSession(private var socket: Socket, private val trace: ImapCommandSink
             first = false
         }
         return ImapUidWalk(seen.toList(), moved)
+    }
+
+    fun noop() {
+        command("NOOP")
     }
 
     /** Unseen messages in the selected mailbox, `\Deleted` ones excluded: this count is the account
@@ -1306,6 +1321,11 @@ private const val UID_SET_CHUNK = 200
      * `chunk × IMAP_PREVIEW_FETCH_BYTES` stays in the hundreds of kilobytes.
      */
 internal const val IMAP_PREVIEW_FETCH_CHUNK = 20
+
+internal const val IMAP_READ_FLOOR_MS = 60_000
+internal const val IMAP_CONNECT_FLOOR_MS = 30_000
+
+internal fun timeoutOrFloor(requestedMs: Int, floorMs: Int): Int = if (requestedMs > 0) requestedMs else floorMs
 
 /**
  * How long [ImapSession.close] may wait for the answer to its `LOGOUT`. A teardown courtesy: a live
