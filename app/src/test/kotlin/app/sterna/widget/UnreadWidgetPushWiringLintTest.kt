@@ -20,6 +20,7 @@ class UnreadWidgetPushWiringLintTest {
     @Test fun `the delivery pass redraws BOTH widgets, last, and outside its sign-out arm`() {
         assertEquals(
             "FetchAndNotify.run must END with a best-effort redraw of EACH home-screen widget, " +
+                "both counters (#283) and the list, " +
                 "outside its try. Without it, mail that arrives on a dead process notifies and " +
                 "leaves the cell as it was until something else opens the app (#112) — the " +
                 "counter showing the old number, and the latest-messages list not showing the " +
@@ -27,14 +28,17 @@ class UnreadWidgetPushWiringLintTest {
                 "⛔ Both, and both here: the two widgets have separate presence and separate " +
                 "draws, so a pass that refreshes one of them leaves the other frozen.",
             listOf(
-                "runCatching { UnreadWidgetDraw.refresh(context) }",
+                "runCatching { UnreadWidgetDraw.refresh(context, UnreadWidgetKind.Inboxes) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"unread widget not redrawn after the pass\", it) }",
+                "runCatching { UnreadWidgetDraw.refresh(context, UnreadWidgetKind.EveryFolder) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"every-folder unread widget not redrawn after the pass\", it) }",
                 "runCatching { RecentMailWidgetDraw.refresh(context) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"latest-messages widget not redrawn after the pass\", it) }",
             ),
-            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(6),
+            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(9),
         )
     }
 
@@ -45,8 +49,8 @@ class UnreadWidgetPushWiringLintTest {
      */
     @Test fun `AppContainer collects the push, gated on a widget being placed`() {
         assertEquals(
-            "AppContainer.init must launch UnreadWidgetPush.redraws over " +
-                "UnreadWidgetPresence.placed(appContext) and accountStore.accountsFlow, collecting " +
+            "AppContainer.init must launch UnreadWidgetPush.redraws once per counter, over THAT " +
+                "kind's UnreadWidgetPresence.placed and source and accountStore.accountsFlow, collecting " +
                 "the BY-ACCOUNT breakdown into UnreadWidgetDraw.redraw — the total alone cannot " +
                 "feed the enlarged cell's lines. Dropped, the widget stops following the mail the " +
                 "user is reading; ungated, every install pays for a widget it does not have; " +
@@ -54,17 +58,53 @@ class UnreadWidgetPushWiringLintTest {
                 "that never synced arrives or leaves, because such an account is absent from the " +
                 "breakdown entirely.",
             listOf(
-                "appScope.launch {",
-                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
-                "mailRepository.observeUnifiedInboxUnreadByAccount()",
-                "}.collect { unreadByAccount ->",
-                "runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }",
-                ".rethrowIfCancelled()",
-                ".onFailure { Log.w(\"Sterna\", \"unread widget not redrawn; the cell keeps its number\", it) }",
-                "}",
-                "}",
+                listOf(
+                    "appScope.launch {",
+                    "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.Inboxes), accountStore.accountsFlow) {",
+                    "UnreadWidgetKind.Inboxes.source(this@AppContainer)",
+                    "}.collect { unreadByAccount ->",
+                    "runCatching { UnreadWidgetDraw.redraw(appContext, UnreadWidgetKind.Inboxes, unreadByAccount) }",
+                    ".rethrowIfCancelled()",
+                    ".onFailure { Log.w(\"Sterna\", \"unread widget not redrawn; the cell keeps its number\", it) }",
+                    "}",
+                    "}",
+                ),
+                listOf(
+                    "appScope.launch {",
+                    "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.EveryFolder), accountStore.accountsFlow) {",
+                    "UnreadWidgetKind.EveryFolder.source(this@AppContainer)",
+                    "}.collect { unreadByAccount ->",
+                    "runCatching { UnreadWidgetDraw.redraw(appContext, UnreadWidgetKind.EveryFolder, unreadByAccount) }",
+                    ".rethrowIfCancelled()",
+                    ".onFailure { Log.w(\"Sterna\", \"every-folder unread widget not redrawn; the cell keeps its number\", it) }",
+                    "}",
+                    "}",
+                ),
             ),
-            blockContaining(STERNA_APPLICATION, "UnreadWidgetPush.redraws(", "appScope.launch {"),
+            listOf(
+                blockContaining(STERNA_APPLICATION, "UnreadWidgetKind.Inboxes.source(", "appScope.launch {"),
+                blockContaining(STERNA_APPLICATION, "UnreadWidgetKind.EveryFolder.source(", "appScope.launch {"),
+            ),
+        )
+    }
+
+    @Test fun `each counter's source is the one its drawer entry counts`() {
+        assertEquals(
+            "UnreadWidgetKind.Inboxes must read the unified inbox's breakdown and EveryFolder the " +
+                "drawer's Unread entry's (everyFolderUnreadByAccount over every account's folders). " +
+                "Swapped or shared, the every-folder cell shows the inboxes' number under the word " +
+                "Unread.",
+            listOf(
+                "{ container -> container.mailRepository.observeUnifiedInboxUnreadByAccount() },",
+                "{ container -> everyFolderUnreadByAccount(container.accountStore.accountsFlow) { container.mailRepository.observeMailboxes(it) } },",
+            ),
+            codeLines(WIDGET_KIND).filter { it.startsWith("{ container ->") },
+        )
+        assertEquals(
+            "the provider's draw on placement and the refresh read the kind's source, never a " +
+                "count of their own.",
+            listOf("kind.source(container).first()", "kind.source(app.container).first()"),
+            (codeLines(PROVIDER) + codeLines(WIDGET_DRAW)).filter { "source(" in it },
         )
     }
 
@@ -78,9 +118,18 @@ class UnreadWidgetPushWiringLintTest {
                 "the process is replaced.",
             listOf(
                 "override fun onEnabled(context: Context) {",
-                "UnreadWidgetPresence.set(true)",
+                "UnreadWidgetPresence.set(kind, true)",
             ),
             functionBody(PROVIDER, "override fun onEnabled(context: Context)"),
+        )
+        assertEquals(
+            "each provider class hands the shared body ITS kind: the gate it opens and closes, the " +
+                "cells it draws. Crossed, one counter's placement opens the other's gate.",
+            listOf(
+                "class UnreadWidgetProvider : UnreadCountWidgetProvider(UnreadWidgetKind.Inboxes)",
+                "class EveryFolderUnreadWidgetProvider : UnreadCountWidgetProvider(UnreadWidgetKind.EveryFolder)",
+            ),
+            codeLines(PROVIDER).filter { it.startsWith("class ") },
         )
         assertEquals(
             "UnreadWidgetProvider.onDisabled must CLOSE it, with false. Dropped — or handed true — " +
@@ -88,7 +137,7 @@ class UnreadWidgetPushWiringLintTest {
                 "for as long as the process lives, and nothing on screen ever says so.",
             listOf(
                 "override fun onDisabled(context: Context) {",
-                "UnreadWidgetPresence.set(false)",
+                "UnreadWidgetPresence.set(kind, false)",
             ),
             functionBody(PROVIDER, "override fun onDisabled(context: Context)"),
         )
@@ -97,14 +146,19 @@ class UnreadWidgetPushWiringLintTest {
                 "unchanged. A negation here shuts the gate for everyone who has a widget and opens " +
                 "it for everyone who has not, and it is one character.",
             listOf(
-                "fun placed(context: Context): StateFlow<Boolean> {",
-                "if (!seeded) {",
-                "seeded = true",
-                "set(anyWidgetPlaced(UnreadWidgetDraw.placedIds(context)))",
+                "fun placed(context: Context, kind: UnreadWidgetKind): StateFlow<Boolean> {",
+                "if (seeded.add(kind)) {",
+                "set(kind, anyWidgetPlaced(UnreadWidgetDraw.placedIds(context, kind)))",
                 "}",
-                "return state",
+                "return states.getValue(kind)",
             ),
-            functionBody(WIDGET_DRAW, "fun placed(context: Context)"),
+            functionBody(WIDGET_DRAW, "fun placed(context: Context, kind: UnreadWidgetKind)"),
+        )
+        assertEquals(
+            "and the seed counts THIS kind's cells: placedIds asks the widget manager for the " +
+                "kind's own provider class.",
+            listOf(".getAppWidgetIds(ComponentName(context, kind.provider))"),
+            codeLines(WIDGET_DRAW).filter { it.startsWith(".getAppWidgetIds(") },
         )
     }
 
@@ -198,6 +252,9 @@ class UnreadWidgetPushWiringLintTest {
         val STERNA_APPLICATION: File by lazy { File(ROOT, ANCHOR) }
         val FETCH_AND_NOTIFY: File by lazy {
             File(ROOT, "app/src/main/kotlin/app/sterna/push/FetchAndNotify.kt")
+        }
+        val WIDGET_KIND: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetKind.kt")
         }
         val PROVIDER: File by lazy {
             File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetProvider.kt")

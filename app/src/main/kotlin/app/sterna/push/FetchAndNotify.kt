@@ -10,6 +10,7 @@ import app.sterna.core.data.mail.accountGoneCause
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.widget.RecentMailWidgetDraw
 import app.sterna.widget.UnreadWidgetDraw
+import app.sterna.widget.UnreadWidgetKind
 import kotlinx.coroutines.flow.first
 
 /** The one fetch+notify pass shared by every delivery path: refresh the account's watched folders
@@ -114,9 +115,12 @@ object FetchAndNotify {
         // so a cancelled redraw would be logged as one nobody asked for. `rethrowIfCancelled` is not
         // decoration, `runCatching` would turn the pass being cancelled into a normal return. With
         // no widget placed it costs one binder call.
-        runCatching { UnreadWidgetDraw.refresh(context) }
+        runCatching { UnreadWidgetDraw.refresh(context, UnreadWidgetKind.Inboxes) }
             .rethrowIfCancelled()
             .onFailure { android.util.Log.w("FetchAndNotify", "unread widget not redrawn after the pass", it) }
+        runCatching { UnreadWidgetDraw.refresh(context, UnreadWidgetKind.EveryFolder) }
+            .rethrowIfCancelled()
+            .onFailure { android.util.Log.w("FetchAndNotify", "every-folder unread widget not redrawn after the pass", it) }
         // The same, for the other cell: separate presence, read and draw, and a list missing the
         // message the banner just announced is a plainer failure than a stale number.
         runCatching { RecentMailWidgetDraw.refresh(context) }

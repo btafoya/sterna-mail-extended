@@ -1306,6 +1306,8 @@
          itself, which wears the drawer's own "All inboxes" strings. -->
     <string name="widget_unread_title">Unread count</string>
     <string name="widget_unread_description">Shows how many unread messages are waiting.</string>
+    <string name="widget_unread_every_folder_title">Unread, every folder</string>
+    <string name="widget_unread_every_folder_description">Counts the unread messages of every folder but Trash, Spam, Sent and Drafts, and opens the Unread view.</string>
     <!-- The second home-screen widget: the list of the latest messages. The title is what the
          system's widget picker lists; the description is shown under it from Android 12 on
          (res/xml-v31). "Empty" is drawn ONLY when the inboxes are known and hold nothing, never

@@ -1263,6 +1263,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Contatore non letti</string>
     <string name="widget_unread_description">Mostra quanti messaggi non letti sono in attesa.</string>
+    <string name="widget_unread_every_folder_title">Non letti, tutte le cartelle</string>
+    <string name="widget_unread_every_folder_description">Conta i messaggi non letti di tutte le cartelle tranne Cestino, Spam, Inviati e Bozze, e apre la vista «Non letti».</string>
     <string name="widget_latest_title">Messaggi recenti</string>
     <string name="widget_latest_description">Elenca i messaggi più recenti di tutte le caselle di posta in arrivo.</string>
     <string name="widget_latest_empty">Nessun messaggio</string>

@@ -14,7 +14,7 @@ class RecentMailWidgetPresenceTest {
         assertNotSame(
             "the latest-messages gate must be its own StateFlow. Shared, one widget's callbacks " +
                 "answer for the other's.",
-            UnreadWidgetPresence.live,
+            UnreadWidgetPresence.live(UnreadWidgetKind.Inboxes),
             RecentMailWidgetPresence.live,
         )
     }
@@ -31,7 +31,7 @@ class RecentMailWidgetPresenceTest {
      * exactly as it was. A counter cell is still on the home screen.
      */
     @Test fun `removing the last latest-messages cell leaves the counter's gate open`() {
-        UnreadWidgetPresence.set(true)
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, true)
         RecentMailWidgetPresence.set(true)
 
         RecentMailWidgetPresence.set(false)
@@ -40,18 +40,18 @@ class RecentMailWidgetPresenceTest {
             "the counter still has a cell placed. Its gate closing here drops the unread " +
                 "subscription and the number stops following the mail, silently.",
             true,
-            UnreadWidgetPresence.live.value,
+            UnreadWidgetPresence.live(UnreadWidgetKind.Inboxes).value,
         )
         assertEquals(false, RecentMailWidgetPresence.live.value)
-        UnreadWidgetPresence.set(false)
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, false)
     }
 
     /** And the other direction: the counter's last cell going says nothing about this widget. */
     @Test fun `removing the last counter cell leaves the latest-messages gate open`() {
-        UnreadWidgetPresence.set(true)
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, true)
         RecentMailWidgetPresence.set(true)
 
-        UnreadWidgetPresence.set(false)
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, false)
 
         assertEquals(true, RecentMailWidgetPresence.live.value)
         RecentMailWidgetPresence.set(false)

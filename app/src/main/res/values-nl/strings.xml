@@ -1255,6 +1255,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Teller ongelezen</string>
     <string name="widget_unread_description">Toont hoeveel ongelezen berichten er wachten.</string>
+    <string name="widget_unread_every_folder_title">Ongelezen, alle mappen</string>
+    <string name="widget_unread_every_folder_description">Telt de ongelezen berichten in alle mappen behalve Prullenbak, Spam, Verzonden en Concepten, en opent de weergave Ongelezen.</string>
     <string name="widget_latest_title">Nieuwste berichten</string>
     <string name="widget_latest_description">Toont de nieuwste berichten uit al je postvakken IN.</string>
     <string name="widget_latest_empty">Geen berichten</string>

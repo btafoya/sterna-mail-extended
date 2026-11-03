@@ -41,6 +41,7 @@ import app.sterna.widget.RecentMailWidgetDraw
 import app.sterna.widget.RecentMailWidgetPresence
 import app.sterna.widget.RecentMailWidgetPush
 import app.sterna.widget.UnreadWidgetDraw
+import app.sterna.widget.UnreadWidgetKind
 import app.sterna.widget.UnreadWidgetPresence
 import app.sterna.widget.UnreadWidgetPush
 import kotlinx.coroutines.CoroutineScope
@@ -237,12 +238,21 @@ class AppContainer(context: Context) {
         // process subscribes a global Room query on behalf of the majority who never place
         //
         appScope.launch {
-            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {
-                mailRepository.observeUnifiedInboxUnreadByAccount()
+            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.Inboxes), accountStore.accountsFlow) {
+                UnreadWidgetKind.Inboxes.source(this@AppContainer)
             }.collect { unreadByAccount ->
-                runCatching { UnreadWidgetDraw.redraw(appContext, unreadByAccount) }
+                runCatching { UnreadWidgetDraw.redraw(appContext, UnreadWidgetKind.Inboxes, unreadByAccount) }
                     .rethrowIfCancelled()
                     .onFailure { Log.w("Sterna", "unread widget not redrawn; the cell keeps its number", it) }
+            }
+        }
+        appScope.launch {
+            UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.EveryFolder), accountStore.accountsFlow) {
+                UnreadWidgetKind.EveryFolder.source(this@AppContainer)
+            }.collect { unreadByAccount ->
+                runCatching { UnreadWidgetDraw.redraw(appContext, UnreadWidgetKind.EveryFolder, unreadByAccount) }
+                    .rethrowIfCancelled()
+                    .onFailure { Log.w("Sterna", "every-folder unread widget not redrawn; the cell keeps its number", it) }
             }
         }
         // The second widget's rows, pushed the same way and for the same defect: a message marked

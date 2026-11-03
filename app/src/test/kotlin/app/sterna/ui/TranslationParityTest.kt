@@ -58,7 +58,7 @@ class TranslationParityTest {
     }
 
     /**
-     * The home-screen widget's two texts, by name in the eleven languages, the general rule at the
+     * The unread counters' texts, by name in the eleven languages, the general rule at the
      * top compares against `values/`, so it would go green on a widget never translated at all.
      *
      * They are the only strings the widget contributes, and they are read in the one place the app
@@ -69,7 +69,12 @@ class TranslationParityTest {
     @Test
     fun `the eleven languages all name the unread widget`() {
         val files = listOf(File(res, "values/strings.xml")) + translations()
-        val expected = setOf("widget_unread_title", "widget_unread_description")
+        val expected = setOf(
+            "widget_unread_title",
+            "widget_unread_description",
+            "widget_unread_every_folder_title",
+            "widget_unread_every_folder_description",
+        )
         val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }
             .filterValues { it.isNotEmpty() }
         assertEquals("the widget picker's entry is untranslated in", emptyMap<String, Set<String>>(), missing)

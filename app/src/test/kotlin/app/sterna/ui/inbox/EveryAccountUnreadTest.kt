@@ -9,6 +9,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -173,6 +176,87 @@ class EveryAccountUnreadTest {
             everyAccountUnreadCount(listOf("A" to "1", "A" to "2", "B" to "1"), folders),
         )
         assertEquals(0, everyAccountUnreadCount(listOf("C" to "1"), folders))
+    }
+
+    /** [accounts] plus C, whose folder list holds nothing, and D, whose only unread mail is in
+     *  its Trash. */
+    private val fourAccounts = accounts + account("C") + account("D")
+    private val fourFolders = folders + mapOf(
+        "C" to emptyList(),
+        "D" to listOf(folder("1", "inbox", 0), folder("3", "trash", 256)),
+    )
+
+    @Test
+    fun `the count is split by account, never by folder id`() {
+        assertEquals(
+            "A: '1' 1 + '2' 2 + '4' 8 = 11, its Trash's 4 out. B: '1' 16, its hidden '2', its " +
+                "unsubscribed '4' and its Trash out. C lists no folder: absent. D's only unread " +
+                "mail is in its Trash: present at 0. Grouped by folder id, A's and B's '1' merge, " +
+                "as both accounts live on one server.",
+            mapOf("A" to 11, "B" to 16, "D" to 0),
+            everyAccountUnreadByAccount(everyAccountUnreadScopes(fourFolders, fourAccounts), fourFolders),
+        )
+    }
+
+    @Test
+    fun `the entry's number is the sum of the split`() {
+        val scopes = everyAccountUnreadScopes(fourFolders, fourAccounts)
+        assertEquals(
+            "One rule for the drawer's 'Unread' and the per-account split: 11 + 16 + 0 = 27.",
+            listOf(27, 27),
+            listOf(everyAccountUnreadCount(scopes, fourFolders), everyAccountUnreadByAccount(scopes, fourFolders).values.sum()),
+        )
+    }
+
+    @Test
+    fun `the split follows a folder hidden after it was first read`() = runTest {
+        val stored = MutableStateFlow(fourAccounts)
+        val seen = mutableListOf<Map<String, Int>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyFolderUnreadByAccount(stored) { id -> flowOf(fourFolders.getValue(id)) }.toList(seen)
+        }
+        stored.value = listOf(account("A", hidden = setOf("2"))) + fourAccounts.drop(1)
+        assertEquals(
+            "Hiding A's '2' (2 unread) changes no account id and no folder list: only the " +
+                "settings carried by the accounts flow can take it out of the count.",
+            listOf(mapOf("A" to 11, "B" to 16, "D" to 0), mapOf("A" to 9, "B" to 16, "D" to 0)),
+            seen,
+        )
+    }
+
+    @Test
+    fun `the split follows a folder list that changes after it was first read`() = runTest {
+        val lists = mapOf(
+            "A" to MutableStateFlow(listOf(folder("1", "inbox", 1), folder("2", null, 0), folder("3", "trash", 4))),
+            "B" to MutableStateFlow(folders.getValue("B")),
+        )
+        val seen = mutableListOf<Map<String, Int>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyFolderUnreadByAccount(flowOf(accounts)) { id -> lists.getValue(id) }.toList(seen)
+        }
+        lists.getValue("A").value = listOf(folder("1", "inbox", 1), folder("2", null, 3), folder("3", "trash", 4))
+        assertEquals(
+            "Three new unread messages in A's '2', outside the inbox: the widget must go from 1 " +
+                "to 4. Reading each folder list once leaves it on its first number.",
+            listOf(mapOf("A" to 1, "B" to 16), mapOf("A" to 4, "B" to 16)),
+            seen,
+        )
+    }
+
+    @Test
+    fun `the split follows the subscribed-only setting ticked after it was first read`() = runTest {
+        val stored = MutableStateFlow(accounts)
+        val seen = mutableListOf<Map<String, Int>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyFolderUnreadByAccount(stored) { id -> flowOf(folders.getValue(id)) }.toList(seen)
+        }
+        stored.value = listOf(account("A", onlySubscribed = true)) + accounts.drop(1)
+        assertEquals(
+            "Showing only A's subscribed folders takes its unsubscribed '4' (8 unread) out: " +
+                "11 becomes 3. The hide registry alone does not carry that setting.",
+            listOf(mapOf("A" to 11, "B" to 16), mapOf("A" to 3, "B" to 16)),
+            seen,
+        )
     }
 
     @Test

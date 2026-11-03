@@ -223,8 +223,10 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ An opt-in setting lets the volume keys step the text size of an open message.
   Everywhere else they keep changing the volume.
 - ✅ Contact avatars and sender monograms.
-- ✅ Home-screen widgets for the unread count and for recent mail, both respecting
-  the app lock.
+- ✅ Home-screen widgets for the unread count of the inboxes, for the unread count
+  of every folder but Trash, Spam, Sent and Drafts (opening the Unread view),
+  and for recent mail, all three respecting the app lock: while it is on, they
+  name no account, sender or subject.
 - ✅ Settings grouped into Accounts, the app, and the account you are on.
 - ✅ Storage screen with a per-account breakdown and Clear cache; the copies of
   attachments handed to another app are capped by size and age, and signing out

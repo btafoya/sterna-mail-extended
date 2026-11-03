@@ -1,5 +1,6 @@
 package app.sterna.widget
 
+import app.sterna.MainActivity
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
 import org.junit.Assert.assertEquals
@@ -33,6 +34,48 @@ class WidgetCellOpensWhatItSaysTest {
             cases.mapValues { (_, accounts) -> opensUnifiedInbox(accounts) },
         )
     }
+
+    @Test fun `the every-folder cell says Unread exactly when a tap carries the Unread extra`() {
+        val cases = mapOf(
+            "no account" to emptyList(),
+            "one account" to listOf(account("a")),
+            "two accounts" to listOf(account("a"), account("b")),
+            "three accounts" to listOf(account("a"), account("b"), account("c")),
+        )
+        assertEquals(
+            "label and extra must agree account for account: 'Unread' with EXTRA_OPEN_UNREAD, " +
+                "anything else with no Unread extra.",
+            cases.mapValues { (_, accounts) -> saysUnread(accounts) },
+            cases.mapValues { (_, accounts) -> extraOf(UnreadWidgetKind.EveryFolder, accounts) == MainActivity.EXTRA_OPEN_UNREAD },
+        )
+        assertEquals(
+            "and the every-folder cell never asks for the unified inbox, at any account count.",
+            emptyMap<String, String?>(),
+            cases.mapValues { (_, accounts) -> extraOf(UnreadWidgetKind.EveryFolder, accounts) }
+                .filterValues { it == MainActivity.EXTRA_OPEN_UNIFIED },
+        )
+        assertEquals(
+            "with an account, it does say Unread: the agreement above would also hold for a cell " +
+                "that never said it and never opened it.",
+            mapOf("no account" to false, "one account" to true, "two accounts" to true, "three accounts" to true),
+            cases.mapValues { (_, accounts) -> saysUnread(accounts) },
+        )
+    }
+
+    @Test fun `the inboxes' cell that says All inboxes carries the unified extra, never the Unread one`() {
+        val cases = listOf(emptyList(), listOf(account("a")), listOf(account("a"), account("b")))
+        assertEquals(
+            listOf(null, null, MainActivity.EXTRA_OPEN_UNIFIED),
+            cases.map { extraOf(UnreadWidgetKind.Inboxes, it) },
+        )
+    }
+
+    private fun saysUnread(accounts: List<StoredAccount>): Boolean =
+        UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, accounts, unread = 7).label ==
+            WidgetLabel.Translated(R.string.inbox_unread_view)
+
+    private fun extraOf(kind: UnreadWidgetKind, accounts: List<StoredAccount>): String? =
+        UnreadWidgetTap.extraOf(UnreadWidgetTap.of(kind, accounts))
 
     /** What the drawn cell is called, read off the rendered state, never derived here. */
     private fun saysAllInboxes(accounts: List<StoredAccount>): Boolean =

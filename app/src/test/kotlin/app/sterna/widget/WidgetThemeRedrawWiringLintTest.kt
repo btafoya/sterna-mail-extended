@@ -61,7 +61,28 @@ class WidgetThemeRedrawWiringLintTest {
         )
     }
 
+    @Test fun `the counter's refresh without a kind redraws every kind`() {
+        assertEquals(
+            "UnreadWidgetDraw.refresh(context), what setThemeMode, setPureBlack, setDynamicColor " +
+                "and setAppLock call, must refresh EVERY UnreadWidgetKind. Refreshing one, the " +
+                "other counter keeps the old theme, or an account's name under the lock, until " +
+                "mail arrives.",
+            listOf(
+                "suspend fun refresh(context: Context) {",
+                "UnreadWidgetKind.entries.forEach { refresh(context, it) }",
+            ),
+            functionBody(UNREAD_DRAW, "suspend fun refresh(context: Context)"),
+        )
+        assertEquals(
+            "and the four sites call that one, never a single kind's.",
+            List(4) { REFRESH_UNREAD },
+            DeclarationSource.kotlinLines(SETTINGS_VIEW_MODEL).filter { it.startsWith("UnreadWidgetDraw.") },
+        )
+    }
+
     private companion object {
+        val UNREAD_DRAW = file("app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
+
         val SETTINGS_VIEW_MODEL = file("app/src/main/kotlin/app/sterna/ui/settings/SettingsViewModel.kt")
 
         const val LAUNCH = "viewModelScope.launch {"

@@ -112,7 +112,8 @@ IMAP), kept on the folder's cache row and moved by the
 actions taken in the app (read, move, delete). It counts *messages*: in
 conversation view a thread with two unread messages counts for two where the
 list shows one row, and a snoozed message stays counted. The "All inboxes"
-header and the unread widget add up the inbox count of each account.
+header and the inbox unread widget add up the inbox count of each account; the
+every-folder unread widget counts what the drawer's "Unread" entry counts.
 
 ## Actions & safety
 

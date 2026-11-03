@@ -210,15 +210,24 @@ class RecentMailRowTapWiringLintTest {
             "the latest-messages template must not reuse the counter's request code. Both are " +
                 "constants in this repository, so this is one line to keep apart and nothing on " +
                 "either home-screen cell would show that they had been merged.",
-            requestCode(UNREAD_DRAW, "private const val TAP_REQUEST_CODE ="),
+            requestCode(UNREAD_KIND, "private const val TAP_REQUEST_CODE ="),
             requestCode(DRAW, "private const val ROW_TAP_REQUEST_CODE ="),
         )
         assertNotEquals(
             "and their actions must differ too — the action is what tells either template apart " +
                 "from the notification intents, and one shared string makes the pair collide on " +
                 "the request code alone.",
-            action(UNREAD_DRAW, "private const val ACTION_WIDGET_TAP ="),
+            action(UNREAD_KIND, "private const val ACTION_WIDGET_TAP ="),
             action(DRAW, "private const val ACTION_ROW_TAP ="),
+        )
+        assertEquals(
+            "and neither counter, the every-folder one included (#283), may share the row " +
+                "template's request code or action.",
+            emptyList<UnreadWidgetKind>(),
+            UnreadWidgetKind.entries.filter {
+                it.requestCode == requestCode(DRAW, "private const val ROW_TAP_REQUEST_CODE =") ||
+                    "\"${it.action}\"" == action(DRAW, "private const val ACTION_ROW_TAP =")
+            },
         )
     }
 
@@ -243,7 +252,7 @@ class RecentMailRowTapWiringLintTest {
     private companion object {
         val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
         val SERVICE = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetService.kt")
-        val UNREAD_DRAW = file("app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
+        val UNREAD_KIND = file("app/src/main/kotlin/app/sterna/widget/UnreadWidgetKind.kt")
         val ROW_LAYOUT = file("app/src/main/res/layout/widget_recent_row.xml")
 
         const val TEMPLATE_ATTACH =

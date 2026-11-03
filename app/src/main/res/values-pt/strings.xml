@@ -1267,6 +1267,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Contador de não lidas</string>
     <string name="widget_unread_description">Mostra quantas mensagens não lidas estão à espera.</string>
+    <string name="widget_unread_every_folder_title">Não lidas, todas as pastas</string>
+    <string name="widget_unread_every_folder_description">Conta as mensagens não lidas de todas as pastas exceto Lixeira, Spam, Enviados e Rascunhos, e abre a vista «Não lidas».</string>
     <string name="widget_latest_title">Mensagens recentes</string>
     <string name="widget_latest_description">Lista as mensagens mais recentes de todas as caixas de entrada.</string>
     <string name="widget_latest_empty">Sem mensagens</string>

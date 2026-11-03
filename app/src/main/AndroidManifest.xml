@@ -186,6 +186,21 @@
                 android:resource="@xml/appwidget_info_unread" />
         </receiver>
 
+        <!-- The drawer's "Unread" entry as a counter (#283): the same cell, its own component, so its
+             own cells, presence and picker entry. Its label is a THIRD placeholder for the reason
+             the two others are. -->
+        <receiver
+            android:name=".widget.EveryFolderUnreadWidgetProvider"
+            android:exported="true"
+            android:label="${everyFolderWidgetLabel}">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_info_unread_every_folder" />
+        </receiver>
+
         <!-- The home-screen list of the latest messages. Same family as the counter above, and its
              own component in every way the system can see: its own provider class, its own
              res/xml, and its own onEnabled/onDisabled (sharing the counter's would switch the

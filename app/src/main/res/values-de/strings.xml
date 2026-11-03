@@ -1252,6 +1252,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Ungelesen-Zähler</string>
     <string name="widget_unread_description">Zeigt, wie viele ungelesene Nachrichten warten.</string>
+    <string name="widget_unread_every_folder_title">Ungelesen, alle Ordner</string>
+    <string name="widget_unread_every_folder_description">Zählt die ungelesenen Nachrichten aller Ordner außer Papierkorb, Spam, Gesendet und Entwürfe und öffnet die Ansicht „Ungelesen“.</string>
     <string name="widget_latest_title">Neueste Nachrichten</string>
     <string name="widget_latest_description">Listet die neuesten Nachrichten aus allen Posteingängen auf.</string>
     <string name="widget_latest_empty">Keine Nachrichten</string>

@@ -21,16 +21,14 @@ class UnreadWidgetTapWiringLintTest {
                 "all, and their request codes cover every Int — so the action is the ONLY thing " +
                 "keeping FLAG_UPDATE_CURRENT from rewriting a notification's target (#112).",
             listOf(
-                "private fun tapIntent(context: Context, target: WidgetTapTarget): PendingIntent {",
+                "private fun tapIntent(context: Context, kind: UnreadWidgetKind, target: WidgetTapTarget): PendingIntent {",
                 "val intent = Intent(context, MainActivity::class.java)",
-                ".setAction(ACTION_WIDGET_TAP)",
+                ".setAction(kind.action)",
                 ".addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)",
-                "if (target == WidgetTapTarget.UnifiedInbox) {",
-                "intent.putExtra(MainActivity.EXTRA_OPEN_UNIFIED, true)",
-                "}",
+                "UnreadWidgetTap.extraOf(target)?.let { intent.putExtra(it, true) }",
                 "return PendingIntent.getActivity(",
                 "context,",
-                "TAP_REQUEST_CODE,",
+                "kind.requestCode,",
                 "intent,",
                 "PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,",
                 ")",
@@ -38,10 +36,14 @@ class UnreadWidgetTapWiringLintTest {
             functionBody(WIDGET_DRAW, "private fun tapIntent("),
         )
         assertEquals(
-            "the action must be a real, app-owned string. Emptied or nulled it stops separating " +
-                "the widget's intent from the notifications'.",
-            listOf("private const val ACTION_WIDGET_TAP = \"app.sterna.widget.TAP\""),
-            codeLines(WIDGET_DRAW).filter { "ACTION_WIDGET_TAP =" in it },
+            "the actions must be real, app-owned strings, one per counter. Emptied or nulled they " +
+                "stop separating the widget's intent from the notifications'; shared, the two " +
+                "counters rewrite each other's extra.",
+            listOf(
+                "private const val ACTION_WIDGET_TAP = \"app.sterna.widget.TAP\"",
+                "private const val ACTION_WIDGET_TAP_UNREAD = \"app.sterna.widget.TAP_UNREAD\"",
+            ),
+            codeLines(WIDGET_KIND).filter { it.startsWith("private const val ACTION_") },
         )
     }
 
@@ -52,7 +54,7 @@ class UnreadWidgetTapWiringLintTest {
         assertEquals(
             "render() must attach the tap intent to the cell's root view. Without it the widget " +
                 "draws the number and swallows every touch (#112).",
-            listOf("setOnClickPendingIntent(R.id.widget_unread_root, tapIntent(context, target))"),
+            listOf("setOnClickPendingIntent(R.id.widget_unread_root, tapIntent(context, kind, target))"),
             codeLines(WIDGET_DRAW).filter { it.startsWith("setOnClickPendingIntent(") },
         )
     }
@@ -404,6 +406,9 @@ class UnreadWidgetTapWiringLintTest {
         val STERNA_APP: File by lazy { File(ROOT, "app/src/main/kotlin/app/sterna/ui/SternaApp.kt") }
         val WIDGET_DRAW: File by lazy {
             File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetDraw.kt")
+        }
+        val WIDGET_KIND: File by lazy {
+            File(ROOT, "app/src/main/kotlin/app/sterna/widget/UnreadWidgetKind.kt")
         }
         val TAP_NAVIGATION: File by lazy {
             File(ROOT, "app/src/main/kotlin/app/sterna/ui/WidgetTapNavigation.kt")

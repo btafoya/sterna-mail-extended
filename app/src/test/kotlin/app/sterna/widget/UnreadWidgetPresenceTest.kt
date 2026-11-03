@@ -39,20 +39,61 @@ class UnreadWidgetPresenceTest {
      * The callbacks' end. `onEnabled` fires for the first cell and `onDisabled` for the last one
      */
     @Test fun `the system's callbacks move the live answer, both ways`() {
-        UnreadWidgetPresence.set(true)
+        UnreadWidgetKind.entries.forEach { kind ->
+            UnreadWidgetPresence.set(kind, true)
+            assertEquals(
+                "onEnabled must open the gate on the running process: the cell was placed long after " +
+                    "the seed was read, and nothing else will tell the app about it ($kind).",
+                true,
+                UnreadWidgetPresence.live(kind).value,
+            )
+
+            UnreadWidgetPresence.set(kind, false)
+            assertEquals(
+                "onDisabled must close it again. Left open, the app goes on counting unread mail for " +
+                    "a widget the user removed, for as long as the process lives ($kind).",
+                false,
+                UnreadWidgetPresence.live(kind).value,
+            )
+        }
+    }
+
+    @Test fun `placing one counter does not open the other's gate`() {
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, false)
+        UnreadWidgetPresence.set(UnreadWidgetKind.EveryFolder, false)
+
+        UnreadWidgetPresence.set(UnreadWidgetKind.EveryFolder, true)
+
         assertEquals(
-            "onEnabled must open the gate on the running process: the cell was placed long after " +
-                "the seed was read, and nothing else will tell the app about it.",
-            true,
-            UnreadWidgetPresence.live.value,
+            "only the every-folder counter was placed. The inboxes' gate opening with it " +
+                "subscribes a Room query for a cell nobody placed.",
+            mapOf(UnreadWidgetKind.Inboxes to false, UnreadWidgetKind.EveryFolder to true),
+            UnreadWidgetKind.entries.associateWith { UnreadWidgetPresence.live(it).value },
+        )
+        UnreadWidgetPresence.set(UnreadWidgetKind.EveryFolder, false)
+    }
+
+    @Test fun `removing the last cell of one counter leaves the other's gate open`() {
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, true)
+        UnreadWidgetPresence.set(UnreadWidgetKind.EveryFolder, true)
+
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, false)
+
+        assertEquals(
+            "the every-folder counter still has a cell placed. Its gate closing with the other's " +
+                "drops its subscription and its number stops following the mail, silently.",
+            mapOf(UnreadWidgetKind.Inboxes to false, UnreadWidgetKind.EveryFolder to true),
+            UnreadWidgetKind.entries.associateWith { UnreadWidgetPresence.live(it).value },
         )
 
-        UnreadWidgetPresence.set(false)
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, true)
+        UnreadWidgetPresence.set(UnreadWidgetKind.EveryFolder, false)
+
         assertEquals(
-            "onDisabled must close it again. Left open, the app goes on counting unread mail for " +
-                "a widget the user removed, for as long as the process lives.",
-            false,
-            UnreadWidgetPresence.live.value,
+            "and the other way round.",
+            mapOf(UnreadWidgetKind.Inboxes to true, UnreadWidgetKind.EveryFolder to false),
+            UnreadWidgetKind.entries.associateWith { UnreadWidgetPresence.live(it).value },
         )
+        UnreadWidgetPresence.set(UnreadWidgetKind.Inboxes, false)
     }
 }

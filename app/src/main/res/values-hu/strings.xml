@@ -1293,6 +1293,8 @@
          itself, which wears the drawer's own "All inboxes" strings. -->
     <string name="widget_unread_title">Olvasatlanok száma</string>
     <string name="widget_unread_description">Megmutatja, hány olvasatlan üzenet vár.</string>
+    <string name="widget_unread_every_folder_title">Olvasatlan, minden mappa</string>
+    <string name="widget_unread_every_folder_description">Megszámolja az olvasatlan üzeneteket minden mappában, a Kuka, a Levélszemét, az Elküldött és a Piszkozatok kivételével, és megnyitja az Olvasatlan nézetet.</string>
     <!-- The second home-screen widget: the list of the latest messages. The title is what the
          system's widget picker lists; the description is shown under it from Android 12 on
          (res/xml-v31). "Empty" is drawn ONLY when the inboxes are known and hold nothing, never

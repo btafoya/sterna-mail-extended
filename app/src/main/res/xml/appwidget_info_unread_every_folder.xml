@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The every-folder counter (#283). The same cell as res/xml/appwidget_info_unread.xml, value for
+    value; see that file for why updatePeriodMillis stays 0 and what resizeMode buys.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_unread"
+    android:minHeight="40dp"
+    android:minWidth="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

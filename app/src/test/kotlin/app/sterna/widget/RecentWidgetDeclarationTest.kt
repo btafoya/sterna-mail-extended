@@ -66,6 +66,7 @@ class RecentWidgetDeclarationTest {
                 "manifestPlaceholders[\"appLabel\"] = \"Sterna (test)\"",
                 "manifestPlaceholders[\"widgetLabel\"] = \"Unread count (test)\"",
                 "manifestPlaceholders[\"latestWidgetLabel\"] = \"Latest messages (test)\"",
+                "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"Unread, every folder (test)\"",
                 "versionNameSuffix = \"-test\"",
                 "}",
             ),

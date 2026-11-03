@@ -89,4 +89,45 @@ class UnreadWidgetContentTest {
             UnreadWidgetContent.of(emptyList(), unread = 12),
         )
     }
+
+    @Test fun `the every-folder counter says Unread at one account and at several`() {
+        assertEquals(
+            "from one account up the every-folder cell must wear R.string.inbox_unread_view, the " +
+                "drawer's own word for what it counts, and the figure handed in (#283). The inbox's " +
+                "name would be a lie at one account: the figure counts every folder.",
+            listOf(
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_unread_view), count = 3),
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_unread_view), count = 9),
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_unread_view), count = 0),
+            ),
+            listOf(
+                UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, listOf(account("solo", inboxName = "Bandeja")), unread = 3),
+                UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, listOf(account("a"), account("b")), unread = 9),
+                UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, listOf(account("a"), account("b"), account("c")), unread = 0),
+            ),
+        )
+    }
+
+    @Test fun `the every-folder counter with no account shows the app's name and zero, as the other`() {
+        assertEquals(
+            UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_app_name), count = 0),
+            UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, emptyList(), unread = 12),
+        )
+    }
+
+    @Test fun `the inboxes' counter keeps its labels when asked through its kind`() {
+        val cases = listOf(
+            emptyList(),
+            listOf(account("solo", inboxName = "Bandeja")),
+            listOf(account("a"), account("b")),
+        )
+        assertEquals(
+            listOf(
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_app_name), count = 0),
+                UnreadWidgetState(WidgetLabel.Verbatim("Bandeja"), count = 5),
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_all_inboxes), count = 5),
+            ),
+            cases.map { UnreadWidgetContent.of(UnreadWidgetKind.Inboxes, it, unread = 5) },
+        )
+    }
 }

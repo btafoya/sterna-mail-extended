@@ -187,15 +187,15 @@ class UnreadWidgetPaletteWiringLintTest {
                 "val palette = WidgetThemeReader.palette(app)",
                 "val store = app.container.accountStore",
                 "val accounts = store.accounts()",
-                "val target = UnreadWidgetTap.of(accounts)",
-                "val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, " +
+                "val target = UnreadWidgetTap.of(kind, accounts)",
+                "val small = tapped(app, kind, renderTotal(app, UnreadWidgetContent.of(kind, accounts, " +
                     "unreadByAccount.values.sum()), palette), target)",
                 "val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())",
                 "val views =",
                 "if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {",
                 "val fontScale = app.resources.configuration.fontScale",
                 "val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))",
-                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, renderAccounts(app, rows, palette), target)))",
+                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, kind, renderAccounts(app, rows, palette), target)))",
                 "} else {",
                 "small",
                 "}",
@@ -292,7 +292,7 @@ class UnreadWidgetPaletteWiringLintTest {
          * this line is where a reader could quietly go back to painting one of them.
          */
         const val DRAW_SIGNATURE =
-            "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"
+            "suspend fun draw(app: Application, kind: UnreadWidgetKind, ids: IntArray, unreadByAccount: Map<String, Int>) {"
 
         const val BACKGROUND =
             "setInt(R.id.widget_unread_root, \"setBackgroundResource\", " +

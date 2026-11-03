@@ -43,6 +43,16 @@ internal object UnreadWidgetContent {
         }
     }
 
+    fun of(kind: UnreadWidgetKind, accounts: List<StoredAccount>, unread: Int): UnreadWidgetState = when (kind) {
+        UnreadWidgetKind.Inboxes -> of(accounts, unread)
+        UnreadWidgetKind.EveryFolder ->
+            if (accounts.isEmpty()) {
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_app_name), 0)
+            } else {
+                UnreadWidgetState(WidgetLabel.Translated(R.string.inbox_unread_view), unread)
+            }
+    }
+
     /**
      * The enlarged cell's lines, or an empty list meaning "draw the total instead". Four guards, each
      */

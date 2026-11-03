@@ -16,7 +16,13 @@ import kotlinx.coroutines.withTimeout
 /**
  * The home-screen unread counter: one number and the name of what it counts, or, on a large enough
  */
-class UnreadWidgetProvider : AppWidgetProvider() {
+class UnreadWidgetProvider : UnreadCountWidgetProvider(UnreadWidgetKind.Inboxes)
+
+class EveryFolderUnreadWidgetProvider : UnreadCountWidgetProvider(UnreadWidgetKind.EveryFolder)
+
+abstract class UnreadCountWidgetProvider internal constructor(
+    private val kind: UnreadWidgetKind,
+) : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -36,9 +42,9 @@ class UnreadWidgetProvider : AppWidgetProvider() {
                 // first() waits for Room to open and any migration to run, and if it never emits
                 // the PendingResult is never finished and the system kills the process.
                 val unreadByAccount = withTimeout(DRAW_TIMEOUT_MS) {
-                    container.mailRepository.observeUnifiedInboxUnreadByAccount().first()
+                    kind.source(container).first()
                 }
-                UnreadWidgetDraw.draw(app, appWidgetIds, unreadByAccount)
+                UnreadWidgetDraw.draw(app, kind, appWidgetIds, unreadByAccount)
             } catch (t: Throwable) {
                 // An exception escaping a coroutine takes the process down, and a widget that could
                 // not be drawn must cost no more than a stale cell. Nothing is drawn on this
@@ -55,7 +61,7 @@ class UnreadWidgetProvider : AppWidgetProvider() {
      * The first cell was placed, from here on the app has a reason to watch the unread total.
      */
     override fun onEnabled(context: Context) {
-        UnreadWidgetPresence.set(true)
+        UnreadWidgetPresence.set(kind, true)
     }
 
     /**
@@ -63,7 +69,7 @@ class UnreadWidgetProvider : AppWidgetProvider() {
      * costing a user who has no widget exactly nothing.
      */
     override fun onDisabled(context: Context) {
-        UnreadWidgetPresence.set(false)
+        UnreadWidgetPresence.set(kind, false)
     }
 
     private companion object {

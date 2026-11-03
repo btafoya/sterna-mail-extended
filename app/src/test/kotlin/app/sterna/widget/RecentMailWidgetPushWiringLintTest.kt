@@ -57,7 +57,8 @@ class RecentMailWidgetPushWiringLintTest {
                 "AllInboxesView.existsFor — the dots on one, the label and the tap target on the " +
                 "other — and neither read carries the account count.",
             listOf(
-                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
+                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.Inboxes), accountStore.accountsFlow) {",
+                "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.EveryFolder), accountStore.accountsFlow) {",
                 "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
             ),
             lines.filter { it.startsWith("UnreadWidgetPush.redraws") || it.startsWith("RecentMailWidgetPush.redraws") },

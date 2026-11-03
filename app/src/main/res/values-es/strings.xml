@@ -1263,6 +1263,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Contador de no leídos</string>
     <string name="widget_unread_description">Muestra cuántos mensajes sin leer están esperando.</string>
+    <string name="widget_unread_every_folder_title">Sin leer, todas las carpetas</string>
+    <string name="widget_unread_every_folder_description">Cuenta los mensajes sin leer de todas las carpetas salvo Papelera, Spam, Enviados y Borradores, y abre la vista «Sin leer».</string>
     <string name="widget_latest_title">Mensajes recientes</string>
     <string name="widget_latest_description">Muestra los mensajes más recientes de todas tus bandejas de entrada.</string>
     <string name="widget_latest_empty">Sin mensajes</string>

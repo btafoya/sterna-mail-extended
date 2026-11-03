@@ -121,9 +121,32 @@ internal fun everyAccountUnreadScopes(
 internal fun everyAccountUnreadCount(
     scopes: List<Pair<String, String>>,
     folders: Map<String, List<Mailbox>>,
-): Int = scopes.sumOf { (accountId, folderId) ->
-    folders[accountId]?.firstOrNull { it.id == folderId }?.unreadForList ?: 0
+): Int = everyAccountUnreadByAccount(scopes, folders).values.sum()
+
+/**
+ * [everyAccountUnreadCount] split by account, keyed on the account, never on the folder id: two
+ * accounts of one server share folder ids. An account no pair names is absent, one whose pairs
+ * hold no unread mail is present at 0, as in `UnifiedInbox.unreadByAccount`.
+ */
+internal fun everyAccountUnreadByAccount(
+    scopes: List<Pair<String, String>>,
+    folders: Map<String, List<Mailbox>>,
+): Map<String, Int> = scopes.groupBy({ it.first }, { it.second }).mapValues { (accountId, folderIds) ->
+    folderIds.sumOf { folderId -> folders[accountId]?.firstOrNull { it.id == folderId }?.unreadForList ?: 0 }
 }
+
+/**
+ * [everyAccountUnreadByAccount] over every account's folders, always wanted. [accounts] is combined
+ * on its own: a folder hidden or unsubscribed changes no account id, so [everyAccountFoldersFlow]
+ * does not re-emit, and the folder would stay counted.
+ */
+internal fun everyFolderUnreadByAccount(
+    accounts: Flow<List<StoredAccount>>,
+    folders: (String) -> Flow<List<Mailbox>>,
+): Flow<Map<String, Int>> =
+    combine(everyAccountFoldersFlow(accounts, flowOf(true), folders), accounts) { lists, stored ->
+        everyAccountUnreadByAccount(everyAccountUnreadScopes(lists, stored), lists)
+    }.distinctUntilChanged()
 
 internal data class EveryAccountPass(val refreshed: Int, val failures: List<Throwable>)
 

@@ -1269,6 +1269,8 @@
          description (Android 12+). Neither is drawn by the widget itself. -->
     <string name="widget_unread_title">Compteur de non-lus</string>
     <string name="widget_unread_description">Affiche le nombre de messages non lus en attente.</string>
+    <string name="widget_unread_every_folder_title">Non lus, tous les dossiers</string>
+    <string name="widget_unread_every_folder_description">Compte les messages non lus de tous les dossiers sauf Corbeille, Spam, Envoyés et Brouillons, et ouvre la vue « Non lus ».</string>
     <string name="widget_latest_title">Derniers messages</string>
     <string name="widget_latest_description">Liste les messages les plus récents de toutes vos boîtes de réception.</string>
     <string name="widget_latest_empty">Aucun message</string>

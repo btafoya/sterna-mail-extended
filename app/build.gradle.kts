@@ -45,11 +45,13 @@ android {
         // label, and the whole reason the label is a placeholder is that a bench pass has to tell
         // the test install from the production one.
         manifestPlaceholders["latestWidgetLabel"] = "@string/widget_latest_title"
+        manifestPlaceholders["everyFolderWidgetLabel"] = "@string/widget_unread_every_folder_title"
         if (testApp) {
             applicationIdSuffix = ".test"
             manifestPlaceholders["appLabel"] = "Sterna (test)"
             manifestPlaceholders["widgetLabel"] = "Unread count (test)"
             manifestPlaceholders["latestWidgetLabel"] = "Latest messages (test)"
+            manifestPlaceholders["everyFolderWidgetLabel"] = "Unread, every folder (test)"
             // About row reads e.g. "1.3.13-test": tells the two apart from the inside.
             // A suffix only — versionName/versionCode themselves are never bumped for a test.
             versionNameSuffix = "-test"

@@ -30,8 +30,10 @@ class UnreadWidgetDeclarationTest {
             mapOf(
                 "xml/appwidget_info_recent.xml" to listOf(PERIOD),
                 "xml/appwidget_info_unread.xml" to listOf(PERIOD),
+                "xml/appwidget_info_unread_every_folder.xml" to listOf(PERIOD),
                 "xml-v31/appwidget_info_recent.xml" to listOf(PERIOD),
                 "xml-v31/appwidget_info_unread.xml" to listOf(PERIOD),
+                "xml-v31/appwidget_info_unread_every_folder.xml" to listOf(PERIOD),
             ),
             found,
         )
@@ -57,6 +59,84 @@ class UnreadWidgetDeclarationTest {
         )
     }
 
+    @Test fun `the every-folder counter's picker entry is a third placeholder, with its own test label`() {
+        assertEquals(
+            "the every-folder receiver's android:label must be the everyFolderWidgetLabel " +
+                "placeholder, filled with @string/widget_unread_every_folder_title by default and " +
+                "with its own literal under -PtestApp. Sharing the counter's placeholder gives the " +
+                "picker two entries called the same thing.",
+            listOf(
+                EVERY_FOLDER_RECEIVER_LABEL,
+                "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"@string/widget_unread_every_folder_title\"",
+                "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"Unread, every folder (test)\"",
+            ),
+            codeLines(MANIFEST).filter { "android:label=" in it && "everyFolderWidgetLabel" in it } +
+                codeLines(GRADLE).filter { "everyFolderWidgetLabel" in it },
+        )
+        assertEquals(
+            "the every-folder receiver must be its own exported APPWIDGET_UPDATE receiver pointing " +
+                "at its own declaration. Pointed at appwidget_info_unread, it previews and " +
+                "describes the other counter.",
+            listOf(
+                "<receiver",
+                "android:name=\".widget.EveryFolderUnreadWidgetProvider\"",
+                "android:exported=\"true\"",
+                EVERY_FOLDER_RECEIVER_LABEL,
+                "<intent-filter>",
+                "<action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\" />",
+                "</intent-filter>",
+                "<meta-data",
+                "android:name=\"android.appwidget.provider\"",
+                "android:resource=\"@xml/appwidget_info_unread_every_folder\" />",
+                "</receiver>",
+            ),
+            codeLines(MANIFEST).let { lines ->
+                val at = lines.indexOf("android:name=\".widget.EveryFolderUnreadWidgetProvider\"")
+                if (at < 1) emptyList() else lines.subList(at - 1, (at until lines.size).first { lines[it] == "</receiver>" } + 1)
+            },
+        )
+        assertEquals(
+            "and the counter keeps ITS component name and declaration: Android knows a placed " +
+                "cell by its ComponentName, so renaming either makes the cells on home screens " +
+                "disappear.",
+            listOf("android:name=\".widget.UnreadWidgetProvider\"", "android:resource=\"@xml/appwidget_info_unread\" />"),
+            codeLines(MANIFEST).filter {
+                it == "android:name=\".widget.UnreadWidgetProvider\"" || it == "android:resource=\"@xml/appwidget_info_unread\" />"
+            },
+        )
+    }
+
+    @Test fun `the every-folder declarations are the counter's but for their description and preview`() {
+        val differs = listOf("android:description=", "android:previewLayout=")
+        assertEquals(
+            "res/xml and res/xml-v31 appwidget_info_unread_every_folder.xml must carry the very " +
+                "attributes of appwidget_info_unread.xml — initialLayout, sizes, resizeMode, " +
+                "updatePeriodMillis, widgetCategory — and differ only by description and preview.",
+            listOf("xml", "xml-v31").associateWith { dir ->
+                codeLines(File(ROOT, "app/src/main/res/$dir/appwidget_info_unread.xml"))
+                    .filterNot { l -> differs.any { l.startsWith(it) } }
+            },
+            listOf("xml", "xml-v31").associateWith { dir ->
+                codeLines(File(ROOT, "app/src/main/res/$dir/appwidget_info_unread_every_folder.xml"))
+                    .filterNot { l -> differs.any { l.startsWith(it) } }
+            },
+        )
+        assertEquals(
+            "its Android 12+ picker entry describes and previews ITSELF, labelled \"Unread\" like " +
+                "the cell and the view a tap opens.",
+            listOf(
+                "android:description=\"@string/widget_unread_every_folder_description\"",
+                "android:previewLayout=\"@layout/widget_unread_every_folder_preview\"",
+            ),
+            codeLines(File(ROOT, "app/src/main/res/xml-v31/appwidget_info_unread_every_folder.xml"))
+                .filter { l -> differs.any { l.startsWith(it) } },
+        )
+        assertEquals(
+            listOf("android:text=\"12\"", "android:text=\"@string/inbox_unread_view\""),
+            codeLines(layout("widget_unread_every_folder_preview")).filter { it.startsWith("android:text=") },
+        )
+    }
+
     /**
      * And the test label is inside `if (testApp)`, which the rule above cannot see.
      */
@@ -72,6 +152,7 @@ class UnreadWidgetDeclarationTest {
                 "manifestPlaceholders[\"appLabel\"] = \"Sterna (test)\"",
                 "manifestPlaceholders[\"widgetLabel\"] = \"Unread count (test)\"",
                 "manifestPlaceholders[\"latestWidgetLabel\"] = \"Latest messages (test)\"",
+                "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"Unread, every folder (test)\"",
                 "versionNameSuffix = \"-test\"",
                 "}",
             ),
@@ -155,15 +236,15 @@ class UnreadWidgetDeclarationTest {
                 "val palette = WidgetThemeReader.palette(app)",
                 "val store = app.container.accountStore",
                 "val accounts = store.accounts()",
-                "val target = UnreadWidgetTap.of(accounts)",
-                "val small = tapped(app, renderTotal(app, UnreadWidgetContent.of(accounts, " +
+                "val target = UnreadWidgetTap.of(kind, accounts)",
+                "val small = tapped(app, kind, renderTotal(app, UnreadWidgetContent.of(kind, accounts, " +
                     "unreadByAccount.values.sum()), palette), target)",
                 "val rows = UnreadWidgetContent.byAccount(accounts, unreadByAccount, store.appLockEnabled())",
                 "val views =",
                 "if (rows.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {",
                 "val fontScale = app.resources.configuration.fontScale",
                 "val ventilated = SizeF(VENTILATED_WIDTH_DP, ventilatedHeightDp(rows.size, fontScale))",
-                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, renderAccounts(app, rows, palette), target)))",
+                "RemoteViews(mapOf(SMALL to small, ventilated to tapped(app, kind, renderAccounts(app, rows, palette), target)))",
                 "} else {",
                 "small",
                 "}",
@@ -259,9 +340,11 @@ class UnreadWidgetDeclarationTest {
             "SMALL must be exactly the minWidth/minHeight res/xml declares, in both variants.",
             mapOf(
                 "xml/appwidget_info_unread.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
+                "xml/appwidget_info_unread_every_folder.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
                 "xml-v31/appwidget_info_unread.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
+                "xml-v31/appwidget_info_unread_every_folder.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
             ),
-            INFO_FILES.filter { it.name == "appwidget_info_unread.xml" }.associate { file ->
+            INFO_FILES.filter { it.name.startsWith("appwidget_info_unread") }.associate { file ->
                 "${file.parentFile.name}/${file.name}" to
                     codeLines(file).filter { it.startsWith("android:minWidth=") || it.startsWith("android:minHeight=") }
             },
@@ -336,6 +419,8 @@ class UnreadWidgetDeclarationTest {
 
         val RECEIVER_LABEL = "android:label=\"$DOLLAR{widgetLabel}\">"
 
+        val EVERY_FOLDER_RECEIVER_LABEL = "android:label=\"$DOLLAR{everyFolderWidgetLabel}\">"
+
         /** Repo root, found by walking up from the module's working directory. */
         val ROOT: File by lazy {
             generateSequence(File("").absoluteFile) { it.parentFile }
@@ -373,7 +458,7 @@ class UnreadWidgetDeclarationTest {
          * colours `res/values-night` froze into it (#117).
          */
         const val DRAW_SIGNATURE =
-            "suspend fun draw(app: Application, ids: IntArray, unreadByAccount: Map<String, Int>) {"
+            "suspend fun draw(app: Application, kind: UnreadWidgetKind, ids: IntArray, unreadByAccount: Map<String, Int>) {"
 
         val RUNTIME_LAYOUT: File by lazy { layout("widget_unread") }
         val PREVIEW_LAYOUT: File by lazy { layout("widget_unread_preview") }
