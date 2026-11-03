@@ -183,22 +183,32 @@ fun <T> SettingChoiceRow(
     selected: T,
     optionLabel: (T) -> String,
     onSelect: (T) -> Unit,
+    enabled: Boolean = true,
 ) {
     var showDialog by remember { mutableStateOf(false) }
     SettingSpotlightTarget(title) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { showDialog = true }
+                .clickable(enabled = enabled) { showDialog = true }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (enabled) {
+                        Color.Unspecified
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    },
+                )
                 Text(
                     optionLabel(selected),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                        .copy(alpha = if (enabled) 1f else 0.38f),
                 )
             }
         }

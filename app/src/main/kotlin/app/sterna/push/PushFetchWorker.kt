@@ -30,7 +30,9 @@ class PushFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
         val credentials = store.allCredentials().firstOrNull { it.id == accountId }
             ?: return Result.success()
         if (!store.notificationsEnabled(accountId)) return Result.success()
-        return runCatching { FetchAndNotify.run(applicationContext, credentials, resetBaselines = reset) }
+        val fetched = runCatching { FetchAndNotify.run(applicationContext, credentials, resetBaselines = reset) }
+        if (fetched.isSuccess) DownloadAheadWorker.enqueue(applicationContext, accountId)
+        return fetched
             .fold(
                 { Result.success() },
                 {

@@ -628,8 +628,16 @@
     <string name="settings_quota_storage">Almacenamiento</string>
     <string name="settings_quota_messages">Mensajes</string>
     <string name="settings_quota_used_of">%1$s de %2$s</string>
+    <string name="settings_download_ahead_section">Descargas</string>
+    <string name="settings_download_ahead_title">Descargar mensajes por adelantado</string>
+    <string name="settings_download_ahead_subtitle">Guarda en este teléfono el texto de los mensajes recientes de la Bandeja de entrada antes de que los abras, sin sus adjuntos. Nunca va más atrás que los Mensajes para sincronizar de cada cuenta.</string>
+    <string name="settings_download_ahead_period_title">Período</string>
+    <string name="settings_download_ahead_7_days">7 días</string>
+    <string name="settings_download_ahead_1_month">1 mes</string>
+    <string name="settings_download_ahead_3_months">3 meses</string>
+    <string name="settings_download_ahead_6_months">6 meses</string>
     <string name="settings_maintenance_section">Mantenimiento</string>
-    <string name="settings_clear_cache_help">Vaciar la caché elimina de este dispositivo los mensajes y adjuntos descargados. Tus cuentas siguen conectadas y el correo se vuelve a descargar al abrirlo.</string>
+    <string name="settings_clear_cache_help">Vaciar la caché elimina de este dispositivo los mensajes y adjuntos descargados. Tus cuentas siguen conectadas y el correo se vuelve a descargar al abrirlo, o antes en el caso de los mensajes recientes de la Bandeja de entrada mientras Descargar mensajes por adelantado esté activado.</string>
     <string name="settings_clearing">Vaciando…</string>
     <string name="settings_clear_cache">Vaciar caché</string>
     <string name="settings_clear_cache_dialog_title">¿Vaciar caché?</string>
@@ -715,7 +723,7 @@
     <string name="settings_storage_section">Almacenamiento</string>
     <string name="settings_cached_messages">Mensajes en caché</string>
     <string name="settings_clear_account_cache">Vaciar la caché de esta cuenta</string>
-    <string name="settings_clear_account_cache_help">Vaciar la caché de esta cuenta elimina sus mensajes descargados. Los adjuntos no se guardan por cuenta, así que también se eliminan los adjuntos descargados de todas tus cuentas. Tus cuentas siguen conectadas y el correo se vuelve a descargar al abrirlo.</string>
+    <string name="settings_clear_account_cache_help">Vaciar la caché de esta cuenta elimina sus mensajes descargados. Los adjuntos no se guardan por cuenta, así que también se eliminan los adjuntos descargados de todas tus cuentas. Tus cuentas siguen conectadas y el correo se vuelve a descargar al abrirlo, o antes en el caso de los mensajes recientes de la Bandeja de entrada mientras Descargar mensajes por adelantado esté activado.</string>
     <string name="settings_pgp_section">Cifrado OpenPGP</string>
     <string name="settings_pgp_enable_title">Usar OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Firmar, cifrar y leer mensajes con %1$s</string>

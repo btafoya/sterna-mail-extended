@@ -40,6 +40,14 @@ class PendingExpungeWiringTest {
         )
     }
 
+    /** The statement itself, scoped to one account, is executed by `OrphanedAccountSweepSqlTest`. */
+    @Test fun `signing out purges the account's download-ahead skips`() {
+        assertEquals(
+            listOf("runCatching { emailBodyDao.deleteDownloadAheadSkipsForAccount(accountId) }"),
+            bodyOf(STORAGE, "purgeAccount").filter { "DownloadAheadSkips" in it },
+        )
+    }
+
     @Test fun `the service and the renumbering path share one store`() {
         val factory = code(FACTORY.readText())
         assertEquals(

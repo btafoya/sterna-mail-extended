@@ -391,6 +391,7 @@ class LocalDraftUploadWiringTest {
                 "runCatching { emailDao.deleteForAccount(accountId) }",
                 "runCatching { emailFtsDao.clearAccount(accountId) }",
                 "runCatching { emailBodyDao.deleteForAccount(accountId) }",
+                "runCatching { emailBodyDao.deleteDownloadAheadSkipsForAccount(accountId) }",
                 "runCatching { mailboxDao.deleteForAccount(accountId) }",
                 "runCatching { snoozedDao.deleteForAccount(accountId) }",
                 "runCatching { purgeSnapshotDao.deleteForAccount(accountId) }",

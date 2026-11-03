@@ -12,6 +12,25 @@ const val BODY_CACHE_ID_PREFIX_SQL: String =
 /** DELETE for [EmailBodyDao.deleteAll], shared with its JVM test. */
 const val BODY_CACHE_CLEAR_SQL: String = "DELETE FROM email_bodies"
 
+/** `local_drafts` holds the only copy of a draft typed here, so its id keeps its body. */
+const val ORPHAN_BODIES_SQL: String =
+    "DELETE FROM email_bodies WHERE accountId = :accountId " +
+        "AND id NOT IN (SELECT id FROM emails WHERE accountId = :accountId) " +
+        "AND id NOT IN (SELECT id FROM local_drafts WHERE accountId = :accountId) " +
+        "AND id NOT IN (:spareIds)"
+
+const val DOWNLOAD_AHEAD_SKIP_SQL: String =
+    "INSERT OR IGNORE INTO download_ahead_skips (accountId, id) VALUES (:accountId, :id)"
+
+const val DOWNLOAD_AHEAD_SKIPS_PRUNE_SQL: String =
+    "DELETE FROM download_ahead_skips WHERE accountId = :accountId " +
+        "AND id NOT IN (SELECT id FROM emails WHERE accountId = :accountId)"
+
+const val DOWNLOAD_AHEAD_SKIPS_ID_PREFIX_SQL: String =
+    "DELETE FROM download_ahead_skips WHERE accountId = :accountId AND id LIKE :idPrefix ESCAPE '\\'"
+
+const val DOWNLOAD_AHEAD_SKIPS_ACCOUNT_SQL: String = "DELETE FROM download_ahead_skips WHERE accountId = :accountId"
+
 @Dao
 interface EmailBodyDao {
 
@@ -25,15 +44,26 @@ interface EmailBodyDao {
     @Query("SELECT id FROM email_bodies WHERE accountId = :accountId AND id IN (:ids)")
     suspend fun cachedIds(accountId: String, ids: List<String>): List<String>
 
+    @Query(DOWNLOAD_AHEAD_SKIP_SQL)
+    suspend fun skipDownloadAhead(accountId: String, id: String)
+
+    @Query(DOWNLOAD_AHEAD_SKIPS_PRUNE_SQL)
+    suspend fun pruneDownloadAheadSkips(accountId: String)
+
+    @Query(DOWNLOAD_AHEAD_SKIPS_ID_PREFIX_SQL)
+    suspend fun deleteDownloadAheadSkipsForIdPrefix(accountId: String, idPrefix: String)
+
+    @Query(DOWNLOAD_AHEAD_SKIPS_ACCOUNT_SQL)
+    suspend fun deleteDownloadAheadSkipsForAccount(accountId: String)
+
+    @Query("SELECT DISTINCT accountId FROM download_ahead_skips")
+    suspend fun downloadAheadSkipAccountIds(): List<String>
+
     @Query("SELECT COUNT(*) FROM email_bodies WHERE accountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
 
-    /** LRU eviction: keep the [keep] most recently fetched bodies for an account, drop the rest. */
-    @Query(
-        "DELETE FROM email_bodies WHERE accountId = :accountId AND id NOT IN " +
-            "(SELECT id FROM email_bodies WHERE accountId = :accountId ORDER BY fetchedAt DESC LIMIT :keep)",
-    )
-    suspend fun pruneForAccount(accountId: String, keep: Int)
+    @Query(ORPHAN_BODIES_SQL)
+    suspend fun deleteOrphans(accountId: String, spareIds: List<String>)
 
     @Query("DELETE FROM email_bodies WHERE accountId = :accountId AND id = :id")
     suspend fun deleteById(accountId: String, id: String)

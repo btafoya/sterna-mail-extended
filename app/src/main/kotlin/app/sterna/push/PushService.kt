@@ -138,6 +138,7 @@ class PushService : Service() {
                 runCatching { FetchAndNotify.run(this, credentials, resetBaselines = reset) }
                     .onFailure { Log.w(TAG, "Baseline pass failed for account ${credentials.id}", it) }
             }
+            scope.launch { repo.downloadInboxesAhead(group) }
             // Any credential in the group reaches the shared session; prefer the login's own.
             val owner = group.firstOrNull { it.id == loginId } ?: group.first()
             val watchedJmapIds = group.mapNotNull { it.jmapAccountId }.toSet()
@@ -202,6 +203,7 @@ class PushService : Service() {
             )
             if (credentials.protocol == MailProtocol.IMAP) reconcileImapInbox(this, credentials)
         }.onFailure { Log.e(TAG, "onAccountChanged failed", it) }
+        scope.launch { application.container.mailRepository.downloadInboxesAhead(listOf(credentials)) }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

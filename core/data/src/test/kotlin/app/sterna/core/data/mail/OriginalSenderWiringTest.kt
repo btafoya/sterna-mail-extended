@@ -42,12 +42,17 @@ class OriginalSenderWiringTest {
         // Three lines pinned: what feeds the reader has to stay `rawHeaders`, never `headerOf`,
         // and `headers` has to be the list this very header produced, handed to the builder.
         assertEquals(
-            "openEmailImap must read the header list off the header it already has, and hand it on. Found:",
+            "openEmailImap must hand the header it already has to the builder it shares with the download ahead. Found:",
+            listOf("return shownImapEmail(credentials, mailboxId, uid, envelope, header, body)"),
+            codeLines(bodyOf("openEmailImap")).filter { "shownImapEmail(" in it },
+        )
+        assertEquals(
+            "shownImapEmail must read the header list off that header, and hand it on. Found:",
             listOf(
                 "val headers = MimeParser.rawHeaders(header)",
                 "return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))",
             ),
-            codeLines(bodyOf("openEmailImap"))
+            codeLines(bodyOf("shownImapEmail"))
                 .filter { it.startsWith("val headers =") || "openedImapEmail(" in it },
         )
         assertEquals(
@@ -101,17 +106,18 @@ class OriginalSenderWiringTest {
      * The prefetch: one grouped read for the window, and nothing persisted at all when it fails.
      */
     @Test fun `the prefetch reads the whole window at once and abandons it on failure`() {
-        val body = codeLines(bodyOf("prefetchInboxBodies"))
+        val body = codeLines(bodyOf("downloadAheadJmap"))
 
         assertEquals(
-            "one grouped read for the ids the prefetch is about to cache",
-            listOf("val origins = originalSendersOf(ctx, emails) ?: return"),
+            "one grouped read for the ids the batch is about to cache, and a failed one settles " +
+                "nothing: null would otherwise be cached as 'no origin' on the whole batch",
+            listOf("val origins = originalSendersOf(ctx, emails) ?: return 0"),
             body.filter { "originalSendersOf(" in it },
         )
         assertTrue(
-            "the grouped read must be able to say it FAILED — a plain map cannot, and null would " +
-                "then be cached as 'no origin' on the whole window. Found: " + body,
-            body.any { it == "val origins = originalSendersOf(ctx, emails) ?: return" },
+            "and it comes before anything is written. Found: " + body,
+            body.indexOf("val origins = originalSendersOf(ctx, emails) ?: return 0") <
+                body.indexOfFirst { it.startsWith("cacheAhead(") },
         )
         assertEquals(
             "…and each body is persisted carrying what that read found",

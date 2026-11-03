@@ -1,5 +1,6 @@
 package app.sterna.core.data.storage
 
+import app.sterna.core.data.db.DOWNLOAD_AHEAD_SKIPS_CREATE_SQL
 import app.sterna.core.data.db.SERVER_CONTACTS_CREATE_SQL
 import app.sterna.core.data.db.SERVER_CONTACTS_STATE_CREATE_SQL
 import app.sterna.core.data.mail.DaoQuerySource
@@ -28,6 +29,7 @@ class OrphanedAccountSweepSqlTest {
             st.executeUpdate("CREATE TABLE email_fts(emailId TEXT, accountId TEXT, subject TEXT)")
             st.executeUpdate("CREATE TABLE email_bodies(id TEXT, accountId TEXT, html TEXT, PRIMARY KEY(accountId, id))")
             st.executeUpdate(SERVER_CONTACTS_CREATE_SQL)
+            st.executeUpdate(DOWNLOAD_AHEAD_SKIPS_CREATE_SQL)
             st.executeUpdate(SERVER_CONTACTS_STATE_CREATE_SQL)
         }
     }
@@ -219,6 +221,16 @@ class OrphanedAccountSweepSqlTest {
         assertEquals(0, rowCount("server_contacts_state", "state-only"))
         assertEquals("the live account lost its address book", 1, rowCount("server_contacts", "kept"))
         assertEquals("the live account lost its address book state", 1, rowCount("server_contacts_state", "kept"))
+    }
+
+    @Test fun `an orphan known only to its download-ahead skips is swept`() {
+        exec("INSERT INTO download_ahead_skips VALUES(?, 'm1')", "skips-only")
+        exec("INSERT INTO download_ahead_skips VALUES(?, 'm1')", "kept")
+        insertEmail("kept")
+
+        assertEquals(listOf("skips-only"), sweep(listOf("kept")))
+        assertEquals(0, rowCount("download_ahead_skips", "skips-only"))
+        assertEquals("the live account lost its skips", 1, rowCount("download_ahead_skips", "kept"))
     }
 
     @Test fun `an account listed by several tables is swept once`() {

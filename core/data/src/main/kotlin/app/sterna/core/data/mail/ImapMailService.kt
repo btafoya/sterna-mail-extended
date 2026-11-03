@@ -33,6 +33,7 @@ import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
 import app.sterna.core.imap.fetchUidsPaged
 import app.sterna.core.imap.readForDisplay
+import app.sterna.core.imap.readTextParts
 import app.sterna.core.imap.searchFolders
 import app.sterna.core.imap.unseenUids
 import app.sterna.core.data.settings.NotificationContent
@@ -857,6 +858,17 @@ open class ImapMailService(
     ): ImapOpenRead =
         onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = lane) { session, _ ->
             session.readForDisplay(uid)
+        }
+
+    internal suspend fun fetchTextParts(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        lane: ImapLane,
+        expectedUidValidity: Long?,
+    ): ImapOpenRead? =
+        onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = lane) { session, _ ->
+            session.readTextParts(uid)
         }
 
     /**

@@ -55,6 +55,7 @@ import app.sterna.core.data.pgp.SmimeEngine
 import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.rethrowIfCancelled
 import app.sterna.core.data.search.SearchHistoryRepository
+import app.sterna.core.data.settings.DownloadAheadPeriod
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.settings.SortOrder
@@ -78,6 +79,7 @@ import app.sterna.core.imap.inlineArmorKind
 import app.sterna.core.imap.inlineDisplayText
 import app.sterna.core.imap.inlineVerifyBytes
 import app.sterna.core.imap.decodeMailboxPath
+import app.sterna.core.imap.ImapException
 import app.sterna.core.imap.MimeBody
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.imap.OutgoingMime
@@ -113,6 +115,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -141,11 +144,10 @@ private const val APPEND_THREAD_TARGET = 10
  *  fetches. */
 private const val MAX_APPEND_FILL_PAGES = 4
 
-/** How many of the inbox's newest messages to prefetch (bodies) into the cache per sync. */
-private const val PREFETCH_COUNT = 20
-
-/** Max cached message bodies kept per account (LRU); bounds on-device storage. */
-private const val BODY_CACHE_CAP = 100
+/** Messages read per download-ahead batch, and batches per pass: a pass ends within a worker's
+ *  life, and the next one resumes where it stopped. */
+private const val DOWNLOAD_AHEAD_BATCH = 25
+private const val DOWNLOAD_AHEAD_BATCHES_PER_PASS = 4
 
 /** Largest body row we will write (chars of JSON, body + inline images). A row past SQLite's 2 MB
  *  cursor window can be inserted but never read back. */
@@ -161,6 +163,25 @@ internal fun decodeCachedEmail(bodyJson: String): Email =
 /** Whether a body row of this size may be written without becoming unreadable later. */
 internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean =
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
+
+/** The download-ahead setting, as a pass reads it when it starts. */
+data class DownloadAheadSetting(val enabled: Boolean, val period: DownloadAheadPeriod)
+
+/** The oldest `sortKey` a pass downloads ahead, or null for no pass at all. No setting downloads
+ *  nothing: a repository built without one must not spend the user's data on its own. */
+internal fun downloadAheadCutoff(setting: DownloadAheadSetting?, nowMillis: Long): Long? {
+    if (setting == null) return null
+    if (!setting.enabled) return null
+    return nowMillis - java.util.concurrent.TimeUnit.DAYS.toMillis(setting.period.days.toLong())
+}
+
+/** Whether the folder's recorded numbering, read once a read came back, is known and is not the one
+ *  the read ran under: `invalidate` purged the folder meanwhile, and the UID now names another
+ *  message, whose row would get this body (#99). */
+internal fun renumberedSince(readUnder: Long?, recordedNow: Long?): Boolean {
+    val now = UidValidity.stated(recordedNow) ?: return false
+    return UidValidity.stated(readUnder) != now
+}
 
 /** [cached]'s `$seen`, `$flagged`, `$answered` and `$forwarded` taken from the `emails` [row]: a
  *  cached body's keywords are frozen at write time (#148, #232, #259). Null [row] means unknown. A
@@ -1090,6 +1111,10 @@ class MailRepository(
     private val smimeCertificates: SmimeCertificates? = null,
     /** App settings (null in tests): consulted for behavior toggles like mark-read-on-delete. */
     private val settings: SettingsRepository? = null,
+    /** Read at the start of each download-ahead pass; null downloads nothing ahead. */
+    private val downloadAheadSetting: suspend () -> DownloadAheadSetting? = {
+        settings?.let { DownloadAheadSetting(it.downloadAhead.first(), it.downloadAheadPeriod.first()) }
+    },
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
     private val syncStateStore: SyncCursorStore? = null,
     /** Swipes whose server write was still out, on disk (null in tests); see [OrphanedFlights]. */
@@ -1102,6 +1127,10 @@ class MailRepository(
 ) : MailSendHost, MailDraftHost, MailFolderHost, MailAccountHost {
     /** Background scope for fire-and-forget work (body prefetch) that must outlive a sync call. */
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** One download-ahead pass per account: the foreground refresh and a worker never read the same
+     *  ids twice, the second pass returning at once. */
+    private val downloadAheadLocks = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
 
     /** Everything the app sends, held apart from what it reads; see [MailSender]. */
     val sending: MailSender = MailSender(
@@ -1441,6 +1470,21 @@ class MailRepository(
                 "spared ${freshIds?.size ?: -1} fetched + floor $keepNewest + ${offWalk.size} unread",
             null,
         )
+    }
+
+    /** The one place a cached body follows its list row out, whichever path took the row: a move,
+     *  a delete, the sync window, a reconcile. Once per refresh rather than per write, and never
+     *  fatal to the refresh: a body left behind waits for the next one. */
+    private suspend fun sweepOrphanBodies(accountId: String) {
+        // Spared: rows an undo or a put-back is about to write again. Null past `MAX_CHANGES` of
+        // them, which would not bind in one statement on the oldest SQLite: the next refresh sweeps.
+        val spared = orphanBodySweepSpares(
+            recentlyMutated = recentlyMutatedIds(accountId),
+            inFlight = inFlightRemovals.values.filter { it.accountId == accountId }.map { it.id },
+        ) ?: return
+        runCatching { emailBodyDao.deleteOrphans(accountId, spared) }.getOrElseUnlessCancelled {
+            logInfo("MailSync", "orphan body sweep of $accountId failed", it)
+        }
     }
 
     /**
@@ -1984,6 +2028,7 @@ class MailRepository(
                     // window, not the 50 passed here.
                     val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)
                     mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
+                    bgScope.launch { runCatching { prefetchInboxBodies(credentials, load.targetMailboxId) } }
                     results += AccountInboxMeta(
                         credentials.id, load.accountName, load.targetMailboxId, load.targetName, load.unread,
                     )
@@ -2097,6 +2142,7 @@ class MailRepository(
             // the server's per-request limit has no business shortening it.
             pruneRetention(credentials.id, target.id, pruneBeforeMillis, sync.getOrNull()?.fetchedIds?.toSet(), sizing.retentionFloor, spareUnread = true)
         }
+        sweepOrphanBodies(credentials.id)
         // Folder counters land after the email rows, so a concurrent optimistic nudge survives.
         mailboxDao.replaceAll(credentials.id, mailboxes.toEntities(credentials))
         if (syncError != null) throw syncError
@@ -2181,6 +2227,7 @@ class MailRepository(
     ): MailboxMeta {
         val load = imapWriteThrough(credentials, mailboxId, limit)
         mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)
+        bgScope.launch { runCatching { prefetchInboxBodies(credentials, load.targetMailboxId) } }
         // Spares the window the read just listed, whole, whether it was walked or read as a delta
         // (#110). The same decision the reconcile took, called again rather than restated.
         if (pruneBeforeMillis != null) {
@@ -2193,6 +2240,7 @@ class MailRepository(
                 spareUnread = false,
             )
         }
+        sweepOrphanBodies(credentials.id)
         return MailboxMeta(load.accountName, load.targetMailboxId, load.targetName, load.unread)
     }
 
@@ -2319,9 +2367,22 @@ class MailRepository(
         if (markRead && !envelope.isSeen) {
             runCatching { setRead(credentials, emailId, seen = true) }
         }
+        return shownImapEmail(credentials, mailboxId, uid, envelope, header, body)
+    }
+
+    /** What a display read shows, built once for the open and the download ahead: a body the
+     *  download ahead caches skips [openEmailImap], so whatever this poses is posed for both.
+     *  What keeps the Autocrypt import off a message nothing touched or downloaded ahead is
+     *  `MessagePaging.needsLoad`'s `settled` argument. */
+    private fun shownImapEmail(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        envelope: Email,
+        header: String,
+        body: MimeBody,
+    ): Email {
         val headers = MimeParser.rawHeaders(header)
-        // Autocrypt (the receiving half): the correspondent's key, off the header already in hand.
-        // What keeps it off a message nothing touched is `MessagePaging.needsLoad`'s `settled` argument.
         importAutocryptKey(headers, envelope.from.firstOrNull()?.email, { autocryptInternalDate(credentials, mailboxId, uid, headers) })
         return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))
     }
@@ -2718,18 +2779,19 @@ class MailRepository(
         return map
     }
 
-    /** Persist a fetched body, then LRU-prune the account. A row bigger than SQLite's cursor window
-     *  can be written but never read back, so an oversized body is not cached at all. */
+    /** Persist a fetched body. A row bigger than SQLite's cursor window can be written but never
+     *  read back, so an oversized body is not cached at all, and false says so; a write that failed
+     *  answers true, being no reason never to try again. */
     private suspend fun persistBody(
         accountId: String,
         emailId: String,
         email: Email,
         inlineImages: Map<String, String>,
-    ) {
+    ): Boolean {
         runCatching {
             val bodyJson = cacheJson.encodeToString(Email.serializer(), email)
             val inlineJson = cacheJson.encodeToString(inlineImagesSerializer, inlineImages)
-            if (!fitsBodyCache(bodyJson, inlineJson)) return
+            if (!fitsBodyCache(bodyJson, inlineJson)) return false
             emailBodyDao.upsert(
                 EmailBodyEntity(
                     id = emailId,
@@ -2739,31 +2801,118 @@ class MailRepository(
                     fetchedAt = System.currentTimeMillis(),
                 ),
             )
-            emailBodyDao.pruneForAccount(accountId, BODY_CACHE_CAP)
+        }
+        return true
+    }
+
+    /** The download ahead of every account's inbox, found by its role, for the background syncs.
+     *  Never throws but a cancellation. */
+    suspend fun downloadInboxesAhead(accounts: List<AccountCredentials>) {
+        for (credentials in accounts) {
+            val outcome = runCatching {
+                val inbox = mailboxDao.idForRole(credentials.id, "inbox") ?: return@runCatching
+                prefetchInboxBodies(credentials, inbox)
+            }
+            // A sign-out is a cancellation too, and ends that account's pass, not the others'.
+            outcome.exceptionOrNull()?.let { if (it is CancellationException && it !is AccountGoneException) throw it }
         }
     }
 
-    /** Prefetch the newest [PREFETCH_COUNT] inbox bodies. JMAP only; best-effort, never throws. */
+    /** One download-ahead pass, in bounded batches; never throws but a cancellation. Inbox only:
+     *  each body imports its sender's Autocrypt key with no gesture, and Junk would plant forged ones. */
     private suspend fun prefetchInboxBodies(credentials: AccountCredentials, mailboxId: String) {
-        if (credentials.protocol == MailProtocol.IMAP) return
-        runCatching {
-            // Bounded in the statement, not with a `take`: `runCatching` does not catch an OutOfMemoryError.
-            val newest = emailDao.newestIds(credentials.id, mailboxId, PREFETCH_COUNT)
-            if (newest.isEmpty()) return
-            val already = emailBodyDao.cachedIds(credentials.id, newest).toSet()
-            val missing = newest.filter { it !in already }
-            if (missing.isEmpty()) return
-            val ctx = jmapSession(credentials)
-            val emails = client.getEmailsWithBody(ctx.session, ctx.accountId, missing, ctx.auth)
-            // The origin header (#160) is posed here too, not only in `openEmail`. `?: return`, a window
-            // whose origin read failed is not persisted, or those bodies would say "no origin" for good.
-            val origins = originalSendersOf(ctx, emails) ?: return
-            for (email in emails) {
-                val origin = origins[email.id]
-                val withOrigin = email.copy(originalSender = origin?.header, authenticationFailures = origin?.authenticationFailures)
-                persistBody(credentials.id, email.id, withOrigin, emptyMap())
-            }
+        if (mailboxDao.roleForId(credentials.id, mailboxId) != "inbox") return
+        val setting = runCatching { downloadAheadSetting() }.getOrElseUnlessCancelled { null }
+        val cutoff = downloadAheadCutoff(setting, System.currentTimeMillis()) ?: return
+        val lock = downloadAheadLocks.getOrPut(credentials.id) { Mutex() }
+        if (!lock.tryLock()) return
+        try {
+            runCatching {
+                emailBodyDao.pruneDownloadAheadSkips(credentials.id)
+                // A row of another numbering is never read: its SELECT would be refused, and the
+                // refusal purges the folder's bodies, index and notifications, on every pass.
+                val numbering = if (credentials.protocol == MailProtocol.IMAP) {
+                    UidValidity.stated(imap.recordedUidValidity(credentials.id, mailboxId))
+                } else {
+                    null
+                }
+                repeat(DOWNLOAD_AHEAD_BATCHES_PER_PASS) {
+                    // Bounded in the statement, not with a `take`: `runCatching` does not catch an OutOfMemoryError.
+                    val ids = emailDao.idsToDownloadAhead(credentials.id, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_BATCH)
+                    if (ids.isEmpty()) return
+                    val settled = if (credentials.protocol == MailProtocol.IMAP) {
+                        downloadAheadImap(credentials, mailboxId, ids)
+                    } else {
+                        downloadAheadJmap(credentials, ids)
+                    }
+                    // A batch that settled nothing would come back whole from the same query.
+                    if (settled == 0) return
+                }
+            }.getOrElseUnlessCancelled { }
+        } finally {
+            lock.unlock()
         }
+    }
+
+    /** How many of [ids] were settled: cached, or remembered as never to be. */
+    private suspend fun downloadAheadJmap(credentials: AccountCredentials, ids: List<String>): Int {
+        val ctx = jmapSession(credentials)
+        val emails = client.getEmailsWithBody(ctx.session, ctx.accountId, ids, ctx.auth)
+        // Before the origin read, which imports the senders' Autocrypt keys.
+        checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
+        // The origin header (#160) is posed here too, not only in `openEmail`. `?: return 0`, a batch
+        // whose origin read failed is not persisted, or those bodies would say "no origin" for good.
+        val origins = originalSendersOf(ctx, emails) ?: return 0
+        for (email in emails) {
+            val origin = origins[email.id]
+            val withOrigin = email.copy(originalSender = origin?.header, authenticationFailures = origin?.authenticationFailures)
+            cacheAhead(credentials.id, email.id, withOrigin)
+        }
+        return emails.size
+    }
+
+    /** [downloadAheadJmap] over IMAP, one message at a time on the shared lane: the foreground lane
+     *  is the open's, and a pass holding it would make the reader wait behind the whole batch. */
+    private suspend fun downloadAheadImap(credentials: AccountCredentials, mailboxId: String, ids: List<String>): Int {
+        var settled = 0
+        for (row in byIdsChunked(ids) { chunk -> emailDao.emailsByIds(credentials.id, chunk) }) {
+            val uid = ImapMailService.uidOf(row.id) ?: continue
+            // Never the whole source: a signed or encrypted message would bring its attachments.
+            val read = try {
+                imap.fetchTextParts(credentials, mailboxId, uid, ImapLane.SHARED, expectedUidValidity = row.uidValidity)
+            } catch (refused: ImapException) {
+                // A message the server refuses must not hold back the older ones behind it; a
+                // connection that dropped is not a refusal, and ends the pass.
+                if (refused.taggedStatus == null) throw refused
+                continue
+            }
+            if (renumberedSince(row.uidValidity, imap.recordedUidValidity(credentials.id, mailboxId))) return settled
+            checkAccountStillConfigured(credentials.id, accountStore.accounts().map { it.id })
+            settled++
+            if (read == null || read.body.tooLarge) {
+                rememberNotCachedAhead(credentials.id, row.id)
+                continue
+            }
+            val email = shownImapEmail(credentials, mailboxId, uid, row.toEmail(), read.header, read.body)
+            // As `openMessage` refuses to: a signed or encrypted body is never cached.
+            if (cryptoKindOf(email) != null) {
+                rememberNotCachedAhead(credentials.id, row.id)
+                continue
+            }
+            cacheAhead(credentials.id, row.id, email)
+        }
+        return settled
+    }
+
+    /** No inline image: `MessagePaging.warmable` does not pre-paint a body whose `cid:` images
+     *  are missing, and the open fetches them. */
+    private suspend fun cacheAhead(accountId: String, emailId: String, email: Email) {
+        if (persistBody(accountId, emailId, email, emptyMap())) return
+        rememberNotCachedAhead(accountId, emailId)
+    }
+
+    private suspend fun rememberNotCachedAhead(accountId: String, emailId: String) {
+        emailBodyDao.skipDownloadAhead(accountId, emailId)
     }
 
     suspend fun setRead(credentials: AccountCredentials, emailId: String, seen: Boolean) {

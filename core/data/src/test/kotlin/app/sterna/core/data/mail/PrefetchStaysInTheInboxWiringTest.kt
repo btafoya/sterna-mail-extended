@@ -44,9 +44,10 @@ class PrefetchStaysInTheInboxWiringTest {
                 "from the previous loop turn) prefetches bodies outside the inbox on every " +
                 "unified refresh, and each of those bodies imports its sender's public key into " +
                 "OpenKeychain unopened. Exactly one such line, so a second prefetch cannot be " +
-                "added beside it — ⛔ including one hidden behind a `/**/` on its own line, which " +
-                "is what this file's [codeLines] exists to stop.",
-            listOf("bgScope.launch { runCatching { prefetchInboxBodies(credentials, inbox.id) } }"),
+                "added beside it — including one hidden behind a `/**/` on its own line, which " +
+                "is what this file's [codeLines] exists to stop. The IMAP branch has its own, " +
+                "on the folder its write-through resolved, which the pass's role check filters.",
+            listOf(IMAP_LAUNCH, "bgScope.launch { runCatching { prefetchInboxBodies(credentials, inbox.id) } }"),
             codeLinesNaming(bodyOf("refreshAllInboxes"), "prefetchInboxBodies("),
         )
     }
@@ -75,22 +76,19 @@ class PrefetchStaysInTheInboxWiringTest {
         )
     }
 
-    @Test fun `an IMAP account leaves the unified refresh before any of this`() {
+    @Test fun `an IMAP account is served whole in its own branch of the unified refresh`() {
         assertEquals(
-            "⛔ This is one of the TWO lines that actually keep an IMAP account away from the " +
-                "prefetch, and the one nothing watched: `refreshAllInboxes` must serve an IMAP " +
-                "account entirely inside this branch and `continue` out of the loop turn. Drop " +
-                "the `continue` — or let a statement appear after the branch and before it — and " +
-                "the pass falls through into the JMAP half for an IMAP account: `resolve`, " +
-                "`syncMailbox`, and then the prefetch, which then really does import the keys of " +
-                "the newest inbox senders on an IMAP account without anything being opened. " +
-                "ENCRYPTION.md and SECURITY.md promise the opposite in those words. The other " +
-                "line, `refresh`'s `return refreshImap(...)`, is pinned whole by " +
-                "[SyncWindowReachesBothProtocolsTest] and is deliberately not restated here.",
+            "`refreshAllInboxes` must serve an IMAP account entirely inside this branch, its " +
+                "download ahead included, and `continue` out of the loop turn. Drop the `continue` " +
+                "and the pass falls through into the JMAP half for an IMAP account: `resolve`, " +
+                "`syncMailbox` and a second launch. The other line keeping IMAP out of the JMAP " +
+                "path, `refresh`'s `return refreshImap(...)`, is pinned whole by " +
+                "[SyncWindowReachesBothProtocolsTest].",
             listOf(
                 "if (credentials.protocol == MailProtocol.IMAP) {",
                 "val load = imapWriteThrough(credentials, mailboxId = null, limit = limit)",
                 "mailboxDao.replaceAllKeepingUnread(credentials.id, load.mailboxes, load.unreadStated)",
+                IMAP_LAUNCH,
                 "results += AccountInboxMeta(",
                 "credentials.id, load.accountName, load.targetMailboxId, load.targetName, load.unread,",
                 ")",
@@ -100,40 +98,48 @@ class PrefetchStaysInTheInboxWiringTest {
             adjacentBlock(
                 codeLines(bodyOf("refreshAllInboxes")),
                 "if (credentials.protocol == MailProtocol.IMAP) {",
-                8,
+                9,
             ),
         )
     }
 
-    @Test fun `the prefetch keeps its own IMAP refusal, unreachable though it is today`() {
+    @Test fun `the pass refuses any folder whose cached role is not the inbox, before anything else`() {
         assertEquals(
-            "`prefetchInboxBodies` must still open on `if (credentials.protocol == " +
-                "MailProtocol.IMAP) return`, as its FIRST statement. ⚠ Be honest about what this " +
-                "is worth: BOTH of its callers already leave for IMAP before reaching it " +
-                "(`refresh` returns into `refreshImap`, `refreshAllInboxes` `continue`s), so " +
-                "removing this line alone changes nothing observable today and no user could tell. " +
-                "It is defence in depth — the last net, not the first — and it is pinned so that " +
-                "the day a third caller appears, the net is still there rather than having been " +
-                "tidied away as dead code. What the two documents actually rest on is pinned by " +
-                "the test above and by [SyncWindowReachesBothProtocolsTest]. And should this line " +
-                "move BELOW the fetch, it stops being a refusal at all: the bodies are already " +
-                "cached by then.",
-            listOf("{", "if (credentials.protocol == MailProtocol.IMAP) return"),
+            "`prefetchInboxBodies` must open on this role check, as its FIRST statement. Both IMAP " +
+                "launches hand it whatever folder the write-through resolved, and a single-folder " +
+                "refresh of Junk resolves Junk: this line is what turns that into nothing. Below " +
+                "the fetch, it stops being a refusal at all: the bodies, and the keys, are taken " +
+                "by then. Executed in [DownloadAheadTest].",
+            listOf("{", "if (mailboxDao.roleForId(credentials.id, mailboxId) != \"inbox\") return"),
             codeLines(bodyOf("prefetchInboxBodies")).take(2),
         )
     }
 
-    @Test fun `only these two call sites can start a prefetch at all`() {
+    @Test fun `the background syncs find each account's inbox by its role`() {
         assertEquals(
-            "the whole of MailRepository.kt may name `prefetchInboxBodies(` on exactly three " +
-                "lines: the two refresh call sites and the declaration. A fourth line is a third " +
-                "producer — a push pass, a delta, a folder the user opened — warming bodies " +
-                "somewhere nobody audited, and every warmed body is an unopened key import. " +
-                "Fewer than three means a call site was deleted and the inbox is no longer " +
-                "warmed at all.",
+            "the workers name no folder: `downloadInboxesAhead` looks the inbox up by role, and " +
+                "nothing else, for each account it is handed.",
             listOf(
+                "val inbox = mailboxDao.idForRole(credentials.id, \"inbox\") ?: return@runCatching",
+                "prefetchInboxBodies(credentials, inbox)",
+            ),
+            codeLines(bodyOf("downloadInboxesAhead")).filter { "inbox" in it },
+        )
+    }
+
+    @Test fun `only these call sites can start a download ahead at all`() {
+        assertEquals(
+            "the whole of MailRepository.kt may name `prefetchInboxBodies(` on exactly these " +
+                "lines, in file order: the unified refresh (IMAP, then JMAP), the single-folder " +
+                "refresh (JMAP, then IMAP), the background entry and the declaration. Another line " +
+                "is another producer, warming bodies somewhere nobody audited, and every warmed " +
+                "body is an unopened key import.",
+            listOf(
+                IMAP_LAUNCH,
                 "bgScope.launch { runCatching { prefetchInboxBodies(credentials, inbox.id) } }",
                 "bgScope.launch { runCatching { prefetchInboxBodies(credentials, target.id) } }",
+                IMAP_LAUNCH,
+                "prefetchInboxBodies(credentials, inbox)",
                 "private suspend fun prefetchInboxBodies(credentials: AccountCredentials, mailboxId: String) {",
             ),
             codeLines(DaoQuerySource.mailSource("MailRepository")).filter { "prefetchInboxBodies(" in it },
@@ -175,6 +181,8 @@ class PrefetchStaysInTheInboxWiringTest {
 
     private companion object {
         const val REFRESH_GUARD = "if (target.role == \"inbox\") {"
+
+        const val IMAP_LAUNCH = "bgScope.launch { runCatching { prefetchInboxBodies(credentials, load.targetMailboxId) } }"
 
         const val INBOX_RESOLUTION = "val inbox = resolved.mailboxes.firstOrNull { it.role == \"inbox\" }"
 

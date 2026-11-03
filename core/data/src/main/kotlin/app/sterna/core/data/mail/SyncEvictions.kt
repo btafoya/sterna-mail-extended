@@ -226,3 +226,12 @@ internal data class SweepClaim(
     val reason: String,
     val firstThisSession: Boolean,
 )
+
+internal fun orphanBodySweepSpares(
+    recentlyMutated: Collection<String>,
+    inFlight: Collection<String>,
+    max: Int = MAX_CHANGES,
+): List<String>? {
+    val spared = (recentlyMutated + inFlight).distinct()
+    return spared.takeIf { it.size <= max }
+}

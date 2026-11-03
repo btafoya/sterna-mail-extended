@@ -634,8 +634,16 @@
     <string name="settings_quota_storage">Хранилище</string>
     <string name="settings_quota_messages">Письма</string>
     <string name="settings_quota_used_of">%1$s из %2$s</string>
+    <string name="settings_download_ahead_section">Загрузка</string>
+    <string name="settings_download_ahead_title">Загружать письма заранее</string>
+    <string name="settings_download_ahead_subtitle">Сохраняет на телефоне текст недавних писем из папки «Входящие» до того, как вы их откроете, без вложений. Не заходит дальше, чем «Письма для синхронизации» каждого аккаунта.</string>
+    <string name="settings_download_ahead_period_title">Период</string>
+    <string name="settings_download_ahead_7_days">7 дней</string>
+    <string name="settings_download_ahead_1_month">1 месяц</string>
+    <string name="settings_download_ahead_3_months">3 месяца</string>
+    <string name="settings_download_ahead_6_months">6 месяцев</string>
     <string name="settings_maintenance_section">Обслуживание</string>
-    <string name="settings_clear_cache_help">Очистка кеша удаляет загруженные письма и вложения с этого устройства. Аккаунты остаются в системе, а письма загружаются заново при открытии.</string>
+    <string name="settings_clear_cache_help">Очистка кеша удаляет загруженные письма и вложения с этого устройства. Аккаунты остаются в системе, а письма загружаются заново при открытии, а недавние письма из папки «Входящие» ещё раньше, пока включено «Загружать письма заранее».</string>
     <string name="settings_clearing">Очистка…</string>
     <string name="settings_clear_cache">Очистить кеш</string>
     <string name="settings_clear_cache_dialog_title">Очистить кеш?</string>
@@ -721,7 +729,7 @@
     <string name="settings_storage_section">Хранилище</string>
     <string name="settings_cached_messages">Письма в кеше</string>
     <string name="settings_clear_account_cache">Очистить кеш этого аккаунта</string>
-    <string name="settings_clear_account_cache_help">Очистка кеша этого аккаунта удаляет загруженные письма этого аккаунта. Вложения не хранятся отдельно по аккаунтам, поэтому загруженные вложения всех аккаунтов тоже удаляются. Аккаунты остаются в системе, а письма загружаются заново при открытии.</string>
+    <string name="settings_clear_account_cache_help">Очистка кеша этого аккаунта удаляет загруженные письма этого аккаунта. Вложения не хранятся отдельно по аккаунтам, поэтому загруженные вложения всех аккаунтов тоже удаляются. Аккаунты остаются в системе, а письма загружаются заново при открытии, а недавние письма из папки «Входящие» ещё раньше, пока включено «Загружать письма заранее».</string>
     <string name="settings_pgp_section">Шифрование OpenPGP</string>
     <string name="settings_pgp_enable_title">Использовать OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Подписывать, шифровать и читать письма через %1$s</string>

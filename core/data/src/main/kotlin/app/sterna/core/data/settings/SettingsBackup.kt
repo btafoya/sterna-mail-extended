@@ -63,6 +63,8 @@ data class SettingsBackup(
     /** [DeliveryMode] name (Instant / Battery saver). */
     val deliveryMode: String? = null,
     val notificationContent: String? = null,
+    val downloadAhead: Boolean? = null,
+    val downloadAheadPeriod: String? = null,
     /**
      * Account configuration without any secret. The password/refresh-token slot is never exported;
      * [StoredAccount.oauthAccessToken] and device/sync state are cleared before export.

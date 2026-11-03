@@ -13,6 +13,7 @@ private val APPEARANCE = SettingHost.Screen("appearance", R.string.settings_appe
 private val READING = SettingHost.Screen("reading", R.string.settings_reading_title)
 private val NOTIFICATIONS = SettingHost.Screen("notifications", R.string.settings_notifications_title)
 private val PRIVACY = SettingHost.Screen("privacy", R.string.settings_privacy_title)
+private val STORAGE = SettingHost.Screen("storage", R.string.settings_storage_title)
 private val ACCOUNT = SettingHost.CurrentAccount
 private val FOLDERS = SettingHost.CurrentAccountFolders
 
@@ -213,6 +214,20 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
         "image_allowlist", PRIVACY, R.string.settings_image_allowlist_section,
         R.string.settings_image_allowlist_empty,
         anchorKind = SECTION,
+    ),
+
+    SettingEntry(
+        "download_ahead", STORAGE, R.string.settings_download_ahead_title,
+        R.string.settings_download_ahead_subtitle,
+    ),
+    SettingEntry(
+        "download_ahead_period", STORAGE, R.string.settings_download_ahead_period_title,
+        options = listOf(
+            R.string.settings_download_ahead_7_days,
+            R.string.settings_download_ahead_1_month,
+            R.string.settings_download_ahead_3_months,
+            R.string.settings_download_ahead_6_months,
+        ),
     ),
 
     SettingEntry("display_name", ACCOUNT, R.string.settings_display_name_label),

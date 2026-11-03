@@ -4,6 +4,8 @@ import app.sterna.core.data.db.AccountMailboxId
 import app.sterna.core.data.db.AccountMailboxRole
 import app.sterna.core.data.db.AccountMailboxUnread
 import app.sterna.core.data.db.BODY_CACHE_ID_PREFIX_SQL
+import app.sterna.core.data.db.DOWNLOAD_AHEAD_SKIPS_CREATE_SQL
+import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EMAILS_CREATE_SQL
 import app.sterna.core.data.db.EMAIL_BODIES_CREATE_SQL
 import app.sterna.core.data.db.EMAIL_FTS_CREATE_SQL
@@ -46,6 +48,7 @@ class VanishedFolderLeavesNoTraceSqlTest {
             st.executeUpdate(EMAILS_CREATE_SQL)
             st.executeUpdate(EMAIL_FTS_CREATE_SQL)
             st.executeUpdate(EMAIL_BODIES_CREATE_SQL)
+            st.executeUpdate(DOWNLOAD_AHEAD_SKIPS_CREATE_SQL)
             st.executeUpdate(
                 "CREATE TABLE mailboxes(accountId TEXT NOT NULL, id TEXT NOT NULL, unreadEmails INTEGER NOT NULL, " +
                     "PRIMARY KEY(accountId, id))",
@@ -312,6 +315,42 @@ class VanishedFolderLeavesNoTraceSqlTest {
 
         assertEquals(listOf(id(account, "Archive", 3), id(OTHER, "INBOX", 1)), ids("email_fts"))
         assertEquals(listOf(id(account, "Archive", 3), id(account, "INBOX", 1), id(OTHER, "INBOX", 1)), ids("emails"))
+    }
+
+    private fun bodyDao(): EmailBodyDao =
+        Proxy.newProxyInstance(EmailBodyDao::class.java.classLoader, arrayOf(EmailBodyDao::class.java)) { _, method, args ->
+            when (method.name) {
+                "deleteForIdPrefix", "deleteDownloadAheadSkipsForIdPrefix" -> update(
+                    DaoQuerySource.daoQuery("EmailBodyDao", method.name),
+                    "accountId" to args!![0] as String, "idPrefix" to args[1] as String,
+                )
+                else -> error("EmailBodyDao.${method.name} was not expected here.")
+            }
+        } as EmailBodyDao
+
+    private fun skip(account: String, folder: String, uid: Long) {
+        db.prepareStatement("INSERT INTO download_ahead_skips VALUES (?, ?)").use {
+            it.setString(1, account); it.setString(2, id(account, folder, uid)); it.executeUpdate()
+        }
+    }
+
+    @Test fun `a renumbering drops the folder's download-ahead skips with its bodies, this account's only`() {
+        cache(account, "INBOX", 1)
+        skip(account, "INBOX", 2)
+        skip(account, "Archive", 3)
+        skip(OTHER, "INBOX", 2)
+
+        runBlocking {
+            MailboxUidValidityStore(permissive<MailboxUidValidityDao>(), bodyDao(), permissive(), ftsDao(), PendingExpungeStore.None)
+                .invalidate(account, "INBOX", 7L)
+        }
+
+        assertEquals(
+            "a skip kept under the new numbering would hide another message from the download ahead for good",
+            listOf(id(OTHER, "INBOX", 2), id(account, "Archive", 3)).sorted(),
+            ids("download_ahead_skips"),
+        )
+        assertEquals(emptyList<String>(), ids("email_bodies"))
     }
 
     @Test fun `a failed index purge does not fail the renumbering`() {

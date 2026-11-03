@@ -143,6 +143,7 @@ import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.ReadingPaneMode
 import app.sterna.core.data.settings.MessageTextSize
 import app.sterna.core.data.settings.PreviewLines
+import app.sterna.core.data.settings.DownloadAheadPeriod
 import app.sterna.core.data.settings.SwipeAction
 import app.sterna.core.data.settings.ThemeMode
 import app.sterna.core.data.settings.DeliveryMode
@@ -358,8 +359,8 @@ fun SettingsScreen(
         composable(focusable("privacy"), arguments = settingFocusArguments) { entry ->
             PrivacySecurityScreen(viewModel = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
-        composable("storage") { entry ->
-            StorageScreen(onBack = { entry.navigateOnce { nav.popBackStack() } })
+        composable(focusable("storage"), arguments = settingFocusArguments) { entry ->
+            StorageScreen(settings = viewModel, onBack = { entry.navigateOnce { nav.popBackStack() } })
         }
         composable("backup") { entry ->
             BackupScreen(
@@ -618,6 +619,13 @@ private fun readingPaneLabel(context: Context, mode: ReadingPaneMode): String = 
     ReadingPaneMode.ALWAYS -> context.getString(R.string.settings_reading_pane_always)
     ReadingPaneMode.LANDSCAPE -> context.getString(R.string.settings_reading_pane_landscape)
     ReadingPaneMode.NEVER -> context.getString(R.string.settings_reading_pane_never)
+}
+
+private fun downloadAheadPeriodLabel(context: Context, period: DownloadAheadPeriod): String = when (period) {
+    DownloadAheadPeriod.SEVEN_DAYS -> context.getString(R.string.settings_download_ahead_7_days)
+    DownloadAheadPeriod.ONE_MONTH -> context.getString(R.string.settings_download_ahead_1_month)
+    DownloadAheadPeriod.THREE_MONTHS -> context.getString(R.string.settings_download_ahead_3_months)
+    DownloadAheadPeriod.SIX_MONTHS -> context.getString(R.string.settings_download_ahead_6_months)
 }
 
 private fun previewLabel(context: Context, preview: PreviewLines): String = when (preview) {
@@ -1183,11 +1191,15 @@ private fun PrivacySecurityScreen(viewModel: SettingsViewModel, onBack: () -> Un
 
 @Composable
 private fun StorageScreen(
+    settings: SettingsViewModel,
     onBack: () -> Unit,
     viewModel: StorageViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     val clearing by viewModel.clearing.collectAsStateWithLifecycle()
+    val downloadAhead by settings.downloadAhead.collectAsStateWithLifecycle()
+    val downloadAheadPeriod by settings.downloadAheadPeriod.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
     DetailScaffold(title = stringResource(R.string.settings_storage_screen_title), onBack = onBack) { padding ->
         Column(
@@ -1209,6 +1221,22 @@ private fun StorageScreen(
                 SettingsSection(stringResource(R.string.settings_mailbox_quota_section)) {
                     state.quotas.forEach { QuotaRow(it) }
                 }
+            }
+            SettingsSection(stringResource(R.string.settings_download_ahead_section)) {
+                SettingSwitch(
+                    title = stringResource(R.string.settings_download_ahead_title),
+                    subtitle = stringResource(R.string.settings_download_ahead_subtitle),
+                    checked = downloadAhead,
+                    onCheckedChange = settings::setDownloadAhead,
+                )
+                SettingChoiceRow(
+                    title = stringResource(R.string.settings_download_ahead_period_title),
+                    options = DownloadAheadPeriod.entries,
+                    selected = downloadAheadPeriod,
+                    optionLabel = { downloadAheadPeriodLabel(context, it) },
+                    onSelect = settings::setDownloadAheadPeriod,
+                    enabled = downloadAhead,
+                )
             }
             SettingsSection(stringResource(R.string.settings_maintenance_section)) {
                 Text(

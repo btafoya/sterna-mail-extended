@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.account.K9SettingsImporter
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
+import app.sterna.core.data.settings.DOWNLOAD_AHEAD_DEFAULT
+import app.sterna.core.data.settings.DOWNLOAD_AHEAD_PERIOD_DEFAULT
+import app.sterna.core.data.settings.DownloadAheadPeriod
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.READING_PANE_MODE_DEFAULT
@@ -103,6 +106,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setUnreadTint(enabled: Boolean) {
         viewModelScope.launch { settings.setUnreadTint(enabled) }
+    }
+
+    val downloadAhead = settings.downloadAhead.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = DOWNLOAD_AHEAD_DEFAULT,
+    )
+
+    fun setDownloadAhead(enabled: Boolean) {
+        viewModelScope.launch { settings.setDownloadAhead(enabled) }
+    }
+
+    val downloadAheadPeriod = settings.downloadAheadPeriod.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = DOWNLOAD_AHEAD_PERIOD_DEFAULT,
+    )
+
+    fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {
+        viewModelScope.launch { settings.setDownloadAheadPeriod(period) }
     }
 
     // PURE_BLACK_DEFAULT, not a literal, for the reason given at unreadTint above.

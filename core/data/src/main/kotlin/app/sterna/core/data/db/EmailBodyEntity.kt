@@ -14,6 +14,6 @@ data class EmailBodyEntity(
     val accountId: String,
     val bodyJson: String,
     val inlineImagesJson: String,
-    /** Epoch millis when fetched, for LRU eviction. */
+    /** Epoch millis when fetched. */
     val fetchedAt: Long,
 )

@@ -324,6 +324,7 @@ class SettingsIndexGuardTest {
             "ReadingScreen" to "reading",
             "NotificationsScreen" to "notifications",
             "PrivacySecurityScreen" to "privacy",
+            "StorageScreen" to "storage",
             "AccountDetailScreen" to ACCOUNT,
             "PgpAccountSection" to ACCOUNT,
         )
@@ -354,6 +355,10 @@ class SettingsIndexGuardTest {
             "settings_protocol_section" to "names the account's protocol, nothing in it can be changed",
             "settings_pgp_section" to "its rows are drawn by PgpAccountSection, which this lint reads on its own",
             "settings_storage_section" to "a message count and a cache button, not a setting",
+            "settings_on_device_usage_section" to "figures measured on the device, nothing in it can be changed",
+            "settings_cached_per_account_section" to "a message count per account, nothing in it can be changed",
+            "settings_mailbox_quota_section" to "the server's quota figures, nothing in it can be changed",
+            "settings_maintenance_section" to "a cache button, an action rather than a setting",
         )
 
         const val APP_PATH = "app/src/main/kotlin/app/sterna/ui/SternaApp.kt"

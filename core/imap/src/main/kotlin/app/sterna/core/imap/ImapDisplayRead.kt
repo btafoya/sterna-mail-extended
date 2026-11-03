@@ -140,8 +140,12 @@ private fun parametersOf(node: Any?): List<Pair<String, String>>? {
  * alone, so a large attachment costs nothing until it is asked for. Every read is `BODY.PEEK`: a
  * bare `BODY[…]` sets `\Seen` on the server, for every device, before the reader decides anything.
  */
-fun ImapSession.readForDisplay(uid: Long): ImapOpenRead {
-    val byParts = try {
+fun ImapSession.readForDisplay(uid: Long): ImapOpenRead = readTextParts(uid) ?: wholeSourceRead(uid)
+
+/** [readForDisplay] with no whole-source fallback: null where only the source would serve, which
+ *  for a signed or encrypted message carries its attachments too. */
+fun ImapSession.readTextParts(uid: Long): ImapOpenRead? =
+    try {
         readByParts(uid)
     } catch (refused: ImapException) {
         // A server that refuses the structure or a section may still serve the source. A dropped
@@ -149,8 +153,6 @@ fun ImapSession.readForDisplay(uid: Long): ImapOpenRead {
         if (refused.taggedStatus == null) throw refused
         null
     }
-    return byParts ?: wholeSourceRead(uid)
-}
 
 /** Null when the whole source has to be read instead. */
 private fun ImapSession.readByParts(uid: Long): ImapOpenRead? {

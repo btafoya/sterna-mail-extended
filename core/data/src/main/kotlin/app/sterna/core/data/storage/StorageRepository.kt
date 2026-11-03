@@ -106,6 +106,7 @@ class StorageRepository(
         runCatching { emailDao.deleteForAccount(accountId) }
         runCatching { emailFtsDao.clearAccount(accountId) }
         runCatching { emailBodyDao.deleteForAccount(accountId) }
+        runCatching { emailBodyDao.deleteDownloadAheadSkipsForAccount(accountId) }
         runCatching { mailboxDao.deleteForAccount(accountId) }
         runCatching { snoozedDao.deleteForAccount(accountId) }
         // A pending Empty-trash destroy list belongs to the account that is going away (#99).
@@ -134,7 +135,7 @@ class StorageRepository(
             // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
                 mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() +
-                serverContactDao.accountIds() + moveMemory.accountIds()
+                emailBodyDao.downloadAheadSkipAccountIds() + serverContactDao.accountIds() + moveMemory.accountIds()
             val known = knownAccountIds()
             val orphans = OrphanedAccountCache.orphans(known, cached)
             orphans.forEach { accountId ->
@@ -142,6 +143,7 @@ class StorageRepository(
                 runCatching { emailDao.deleteForAccount(accountId) }
                 runCatching { emailFtsDao.clearAccount(accountId) }
                 runCatching { emailBodyDao.deleteForAccount(accountId) }
+                runCatching { emailBodyDao.deleteDownloadAheadSkipsForAccount(accountId) }
                 runCatching { mailboxDao.deleteForAccount(accountId) }
                 runCatching { serverContactDao.deleteRowsOfAccount(accountId) }
                 runCatching { serverContactDao.deleteState(accountId) }

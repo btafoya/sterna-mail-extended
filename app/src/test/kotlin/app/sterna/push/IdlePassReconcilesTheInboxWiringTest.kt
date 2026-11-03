@@ -19,7 +19,8 @@ class IdlePassReconcilesTheInboxWiringTest {
             "onAccountChanged must run FetchAndNotify first (the banner is decided against the " +
                 "baseline before anything moves the rows) and then, on IMAP only, the inbox " +
                 "reconcile, both inside one runCatching so a failed reconcile is logged like a " +
-                "failed pass and never escapes the service's scope.",
+                "failed pass and never escapes the service's scope. Then the download ahead, launched " +
+                "so the gate's next pass does not wait on it.",
             listOf(
                 "runCatching {",
                 "FetchAndNotify.run(",
@@ -29,6 +30,7 @@ class IdlePassReconcilesTheInboxWiringTest {
                 ")",
                 "if (credentials.protocol == MailProtocol.IMAP) reconcileImapInbox(this, credentials)",
                 "}.onFailure { Log.e(TAG, \"onAccountChanged failed\", it) }",
+                "scope.launch { application.container.mailRepository.downloadInboxesAhead(listOf(credentials)) }",
             ),
             statementsOf("private suspend fun onAccountChanged(credentials: AccountCredentials) {"),
         )

@@ -208,7 +208,7 @@ design.
 | Data | Location | Bound |
 |---|---|---|
 | Message list rows | Room `emails` | Pruned to the sync window (spare set excepted, and on JMAP unread messages). |
-| Message bodies | Room `email_bodies` | Opened/prefetched messages; LRU cap per account. |
+| Message bodies | Room `email_bodies` | Text of messages opened or downloaded in advance, with no cap. Each refresh of an account sweeps the bodies whose message has no list row left in it (sync window, move, delete), sparing local drafts and rows an undo is about to restore; Clear cache empties it. |
 | Search index | Room `email_fts` (FTS4) | Headers of every folder except Trash and Spam; outlives the display window. |
 | Outbox / scheduled / snoozed | Room | User data, additive migrations, never dropped. |
 | Attachments | `cacheDir/attachments/` | Size + age cap, LRU eviction. |

@@ -23,6 +23,15 @@ const val NOT_SNOOZED_EMAILS_SQL: String =
         "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
         "(CAST(strftime('%s','now') AS INTEGER) * 1000))"
 
+/** Newest first, neither cached nor skipped: what a pass caches leaves this answer, so the next one resumes there. */
+const val DOWNLOAD_AHEAD_IDS_SQL: String =
+    "SELECT e.id FROM emails e WHERE e.accountId = :accountId AND e.mailboxId = :mailboxId " +
+        "AND e.sortKey >= :cutoff " +
+        "AND (:uidValidity IS NULL OR e.uidValidity = :uidValidity) " +
+        "AND NOT EXISTS (SELECT 1 FROM email_bodies b WHERE b.accountId = e.accountId AND b.id = e.id) " +
+        "AND NOT EXISTS (SELECT 1 FROM download_ahead_skips s WHERE s.accountId = e.accountId AND s.id = e.id) " +
+        "ORDER BY e.sortKey DESC, e.id DESC LIMIT :limit"
+
 const val READ_AND_STAR_READ_SQL: String =
     "SELECT seen, flagged, answered, forwarded, labelsJson FROM emails WHERE accountId = :accountId AND id = :id LIMIT 1"
 
@@ -115,12 +124,14 @@ interface EmailDao {
     // The four per-folder reads below are scoped by accountId as well as mailboxId: servers
     // (e.g. Stalwart) number mailboxes per account, so two accounts' inboxes can share an id
 
-    /** The newest [limit] ids in one folder, the bound is the statement's, not the caller's. */
-    @Query(
-        "SELECT id FROM emails WHERE accountId = :accountId AND mailboxId = :mailboxId " +
-            "ORDER BY sortKey DESC, id DESC LIMIT :limit",
-    )
-    suspend fun newestIds(accountId: String, mailboxId: String, limit: Int): List<String>
+    @Query(DOWNLOAD_AHEAD_IDS_SQL)
+    suspend fun idsToDownloadAhead(
+        accountId: String,
+        mailboxId: String,
+        cutoff: Long,
+        uidValidity: Long?,
+        limit: Int,
+    ): List<String>
 
     /**
      * The account-qualified keys of a folder's unread messages, newest first, at most [limit].

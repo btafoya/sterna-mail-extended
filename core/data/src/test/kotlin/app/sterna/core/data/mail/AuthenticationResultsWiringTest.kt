@@ -148,7 +148,7 @@ class AuthenticationResultsWiringTest {
                 "val headers = MimeParser.rawHeaders(header)",
                 "return openedImapEmail(envelope, body, header, headers, authservNamesFor(credentials, apiUrl = null))",
             ),
-            codeLines(bodyOf("openEmailImap"))
+            codeLines(bodyOf("shownImapEmail"))
                 .filter { it.startsWith("val headers =") || "openedImapEmail(" in it },
         )
         assertEquals(
@@ -185,15 +185,19 @@ class AuthenticationResultsWiringTest {
         )
         assertEquals(
             listOf("val withOrigin = email.copy(originalSender = origin?.header, authenticationFailures = origin?.authenticationFailures)"),
-            codeLines(bodyOf("prefetchInboxBodies")).filter { "email.copy(" in it },
+            codeLines(bodyOf("downloadAheadJmap")).filter { "email.copy(" in it },
         )
     }
 
     /** What is copied is not necessarily what leaves: the object handed on is pinned too. */
     @Test fun `the prefetch caches and the unverified open returns the copy that carries the verdict`() {
         assertEquals(
-            listOf("persistBody(credentials.id, email.id, withOrigin, emptyMap())"),
-            codeLines(bodyOf("prefetchInboxBodies")).filter { it.startsWith("persistBody(") },
+            listOf("cacheAhead(credentials.id, email.id, withOrigin)"),
+            codeLines(bodyOf("downloadAheadJmap")).filter { it.startsWith("cacheAhead(") },
+        )
+        assertEquals(
+            listOf("if (persistBody(accountId, emailId, email, emptyMap())) return"),
+            codeLines(bodyOf("cacheAhead")).filter { "persistBody(" in it },
         )
         assertEquals(
             listOf("return MessageBody(shown, inline)"),

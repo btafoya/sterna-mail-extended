@@ -183,8 +183,8 @@ interface UidValidityStore {
     }
 }
 
-/** The one place that says what a renumbering invalidates: the folder's cached bodies, its
- *  index rows, its pending destroy lists and the UIDs it holds flagged for a later purge. Surviving rows heal only in columns the walk overwrites unconditionally;
+/** The one place that says what a renumbering invalidates: the folder's cached bodies and
+ *  download-ahead skips, its index rows, its pending destroy lists and the UIDs it holds flagged for a later purge. Surviving rows heal only in columns the walk overwrites unconditionally;
  *  `preview` is written back from the cache, so its read is bounded by [UidValidity.stated], and any
  *  future column filled that way owes the same bound (#187). */
 class MailboxUidValidityStore(
@@ -214,6 +214,7 @@ class MailboxUidValidityStore(
 
     override suspend fun invalidate(accountId: String, mailboxId: String, uidValidity: Long) {
         bodies.deleteForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
+        bodies.deleteDownloadAheadSkipsForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
         purgeSnapshots.deleteForMailbox(accountId, mailboxId)
         pendingExpunges.forgetMailbox(accountId, mailboxId)
         // Neither the index purge nor the hook may cost the invalidation; the purge precedes `record`, so a death between them replays it.

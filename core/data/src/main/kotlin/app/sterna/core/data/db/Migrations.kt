@@ -453,3 +453,15 @@ val MIGRATION_37_38 = object : Migration(37, 38) {
         db.execSQL("ALTER TABLE `emails` ADD COLUMN `labelsJson` TEXT NOT NULL DEFAULT '[]'")
     }
 }
+
+const val DOWNLOAD_AHEAD_SKIPS_CREATE_SQL: String =
+    "CREATE TABLE IF NOT EXISTS `download_ahead_skips` (" +
+        "`accountId` TEXT NOT NULL, " +
+        "`id` TEXT NOT NULL, " +
+        "PRIMARY KEY(`accountId`, `id`))"
+
+val MIGRATION_38_39 = object : Migration(38, 39) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(DOWNLOAD_AHEAD_SKIPS_CREATE_SQL)
+    }
+}

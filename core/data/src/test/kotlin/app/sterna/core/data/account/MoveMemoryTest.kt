@@ -106,7 +106,7 @@ class MoveMemoryTest {
         assertEquals(
             "the orphan sweep must inventory the move memory and forget an orphan's.",
             listOf(
-                "serverContactDao.accountIds() + moveMemory.accountIds()",
+                "emailBodyDao.downloadAheadSkipAccountIds() + serverContactDao.accountIds() + moveMemory.accountIds()",
                 "runCatching { moveMemory.forget(listOf(accountId)) }",
             ),
             sweep.filter { "moveMemory." in it },

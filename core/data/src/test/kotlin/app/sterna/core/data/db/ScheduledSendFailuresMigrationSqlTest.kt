@@ -393,8 +393,8 @@ class ScheduledSendFailuresMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema is at v38 (`labelsJson`), past this branch's v28",
-            38,
+            "the schema is at v39 (`download_ahead_skips`), past this branch's v28",
+            39,
             SCHEMA_VERSION,
         )
     }

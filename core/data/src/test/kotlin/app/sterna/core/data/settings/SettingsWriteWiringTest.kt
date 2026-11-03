@@ -337,6 +337,10 @@ class SettingsWriteWiringTest {
                 "suspend fun setVolumeTextSize(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_VOLUME_TEXT_SIZE] = enabled }",
             ),
+            Write(
+                "suspend fun setDownloadAhead(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_DOWNLOAD_AHEAD] = enabled }",
+            ),
         )
 
         /**
@@ -384,6 +388,10 @@ class SettingsWriteWiringTest {
             Write(
                 "suspend fun setNotificationContent(mode: NotificationContent) {",
                 "dataStore.edit { it[KEY_NOTIFICATION_CONTENT] = mode.name }",
+            ),
+            Write(
+                "suspend fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {",
+                "dataStore.edit { it[KEY_DOWNLOAD_AHEAD_PERIOD] = period.name }",
             ),
         )
 
@@ -463,6 +471,8 @@ class SettingsWriteWiringTest {
             "suspend fun setLastScheduleMinutes(minutes: Int) {" to "PLAIN, local, left out of the backup",
             "suspend fun setSearchHistory(enabled: Boolean) {" to
                 "PLAIN, the rest of its wiring pinned by SettingsBackupSearchHistoryTest and SearchHistoryWiringTest",
+            "suspend fun setDownloadAhead(enabled: Boolean) {" to "PLAIN",
+            "suspend fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {" to "ENUMS",
         )
     }
 }

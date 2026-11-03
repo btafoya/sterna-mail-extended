@@ -814,8 +814,16 @@
     <string name="settings_quota_storage">Storage</string>
     <string name="settings_quota_messages">Messages</string>
     <string name="settings_quota_used_of">%1$s of %2$s</string>
+    <string name="settings_download_ahead_section">Downloads</string>
+    <string name="settings_download_ahead_title">Download messages in advance</string>
+    <string name="settings_download_ahead_subtitle">Saves the text of recent Inbox messages on this phone before you open them, without their attachments. It never reaches further back than each account\'s Messages to sync.</string>
+    <string name="settings_download_ahead_period_title">How far back</string>
+    <string name="settings_download_ahead_7_days">7 days</string>
+    <string name="settings_download_ahead_1_month">1 month</string>
+    <string name="settings_download_ahead_3_months">3 months</string>
+    <string name="settings_download_ahead_6_months">6 months</string>
     <string name="settings_maintenance_section">Maintenance</string>
-    <string name="settings_clear_cache_help">Clearing the cache removes downloaded messages and attachments from this device. Your accounts stay signed in, and mail re-downloads when you open it.</string>
+    <string name="settings_clear_cache_help">Clearing the cache removes downloaded messages and attachments from this device. Your accounts stay signed in, and mail downloads again when you open it, or before that for recent Inbox messages while Download messages in advance is on.</string>
     <string name="settings_clearing">Clearing…</string>
     <string name="settings_clear_cache">Clear cache</string>
     <string name="settings_clear_cache_dialog_title">Clear cache?</string>
@@ -904,7 +912,7 @@
     <string name="settings_storage_section">Storage</string>
     <string name="settings_cached_messages">Cached messages</string>
     <string name="settings_clear_account_cache">Clear this account\'s cache</string>
-    <string name="settings_clear_account_cache_help">Clearing this account\'s cache removes its downloaded messages. Attachments are not stored per account, so downloaded attachments from all your accounts are cleared too. Your accounts stay signed in, and your mail re-downloads when you open it.</string>
+    <string name="settings_clear_account_cache_help">Clearing this account\'s cache removes its downloaded messages. Attachments are not stored per account, so downloaded attachments from all your accounts are cleared too. Your accounts stay signed in, and your mail downloads again when you open it, or before that for recent Inbox messages while Download messages in advance is on.</string>
     <string name="settings_pgp_section">OpenPGP encryption</string>
     <string name="settings_pgp_enable_title">Use OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Sign, encrypt and read mail with %1$s</string>

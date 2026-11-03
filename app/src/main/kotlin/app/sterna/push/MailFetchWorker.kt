@@ -95,6 +95,7 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 FetchAndNotify.run(applicationContext, credentials, includeInbox = pollInbox)
             }.onFailure { Log.w(TAG, "Fallback fetch failed for account ${credentials.id}", it) }
         }
+        container.mailRepository.downloadInboxesAhead(accounts)
         syncServerContactsOfEveryAccount(container)
         return Result.success()
     }

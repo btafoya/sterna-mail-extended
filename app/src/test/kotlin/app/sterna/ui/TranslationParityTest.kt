@@ -480,7 +480,7 @@ class TranslationParityTest {
             "the English text of settings_clear_account_cache_help changed. It owes exactly three " +
                 "statements: the MESSAGES that go are this account's, the ATTACHMENTS that go are " +
                 "those of ALL accounts (the cache tree is not per account), and the MAIL comes back " +
-                "on opening with the accounts still signed in. ⛔ Never that EVERYTHING comes back: " +
+                "on opening, or ahead for recent Inbox mail, with the accounts still signed in. ⛔ Never that EVERYTHING comes back: " +
                 "the sweep also empties cacheDir/outgoing, where compose stages the bytes of an " +
                 "attachment picked on the phone, and those are not on any server to re-download.",
             ACCOUNT_CACHE_ENGLISH,
@@ -1042,7 +1042,8 @@ class TranslationParityTest {
             ACCOUNT_CACHE_HELP_KEY to "Clearing this account\\'s cache removes its downloaded " +
                 "messages. Attachments are not stored per account, so downloaded attachments from " +
                 "all your accounts are cleared too. Your accounts stay signed in, and your mail " +
-                "re-downloads when you open it.",
+                "downloads again when you open it, or before that for recent Inbox messages while " +
+                "Download messages in advance is on.",
         )
 
         /**

@@ -28,6 +28,8 @@ enum class ReadingPaneMode { ALWAYS, LANDSCAPE, NEVER }
 /** How much of each message's body preview to show in the list. */
 enum class PreviewLines(val lines: Int) { NONE(0), ONE(1), THREE(3), FIVE(5) }
 
+enum class DownloadAheadPeriod(val days: Int) { SEVEN_DAYS(7), ONE_MONTH(30), THREE_MONTHS(90), SIX_MONTHS(180) }
+
 /** An action bound to a swipe gesture on a message row. */
 enum class SwipeAction { NONE, TOGGLE_READ, DELETE, ARCHIVE, FLAG }
 
@@ -401,6 +403,8 @@ class SettingsRepository(context: Context) {
         volumeTextSize = volumeTextSize.first(),
         deliveryMode = deliveryMode.first().name,
         notificationContent = notificationContent.first().name,
+        downloadAhead = downloadAhead.first(),
+        downloadAheadPeriod = downloadAheadPeriod.first().name,
     )
 
     /** Applies the DataStore-backed fields of [backup]; unknown enum values are skipped. */
@@ -442,6 +446,8 @@ class SettingsRepository(context: Context) {
         backup.volumeTextSize?.let { setVolumeTextSize(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
         notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
+        backup.downloadAhead?.let { setDownloadAhead(it) }
+        downloadAheadPeriodOrNull(backup.downloadAheadPeriod)?.let { setDownloadAheadPeriod(it) }
     }
 
     /**
@@ -480,6 +486,18 @@ class SettingsRepository(context: Context) {
 
     suspend fun setSearchHistory(enabled: Boolean) {
         dataStore.edit { it[KEY_SEARCH_HISTORY_ENABLED] = enabled }
+    }
+
+    val downloadAhead: Flow<Boolean> = dataStore.data.map(::downloadAheadFrom)
+
+    suspend fun setDownloadAhead(enabled: Boolean) {
+        dataStore.edit { it[KEY_DOWNLOAD_AHEAD] = enabled }
+    }
+
+    val downloadAheadPeriod: Flow<DownloadAheadPeriod> = dataStore.data.map(::downloadAheadPeriodFrom)
+
+    suspend fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {
+        dataStore.edit { it[KEY_DOWNLOAD_AHEAD_PERIOD] = period.name }
     }
 
     private fun swipeFlow(key: Preferences.Key<String>, default: SwipeAction): Flow<SwipeAction> =
@@ -673,3 +691,20 @@ const val SEARCH_HISTORY_DEFAULT = true
 
 internal fun searchHistoryFrom(prefs: Preferences): Boolean =
     prefs[KEY_SEARCH_HISTORY_ENABLED] ?: SEARCH_HISTORY_DEFAULT
+
+internal val KEY_DOWNLOAD_AHEAD = booleanPreferencesKey("download_ahead")
+
+const val DOWNLOAD_AHEAD_DEFAULT = true
+
+internal fun downloadAheadFrom(prefs: Preferences): Boolean =
+    prefs[KEY_DOWNLOAD_AHEAD] ?: DOWNLOAD_AHEAD_DEFAULT
+
+internal val KEY_DOWNLOAD_AHEAD_PERIOD = stringPreferencesKey("download_ahead_period")
+
+val DOWNLOAD_AHEAD_PERIOD_DEFAULT = DownloadAheadPeriod.SEVEN_DAYS
+
+internal fun downloadAheadPeriodOrNull(stored: String?): DownloadAheadPeriod? =
+    stored?.let { name -> DownloadAheadPeriod.entries.firstOrNull { it.name == name } }
+
+internal fun downloadAheadPeriodFrom(prefs: Preferences): DownloadAheadPeriod =
+    downloadAheadPeriodOrNull(prefs[KEY_DOWNLOAD_AHEAD_PERIOD]) ?: DOWNLOAD_AHEAD_PERIOD_DEFAULT
