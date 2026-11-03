@@ -1292,6 +1292,9 @@
     <string name="widget_latest_title">最新邮件</string>
     <string name="widget_latest_description">列出您所有收件箱中的最新邮件。</string>
     <string name="widget_latest_empty">没有邮件</string>
+    <string name="widget_unread_list_title">未读邮件</string>
+    <string name="widget_unread_list_description">按从新到旧列出除回收站、垃圾邮件、已发送和草稿外所有文件夹中的未读邮件，并打开“未读”视图。</string>
+    <string name="widget_unread_list_empty">没有未读邮件</string>
     <string name="widget_latest_hidden">邮件已隐藏</string>
     <string name="folders_manage_title">管理文件夹</string>
     <string name="folders_reorder_start">排序</string>

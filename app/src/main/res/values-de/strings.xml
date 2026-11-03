@@ -1257,6 +1257,9 @@
     <string name="widget_latest_title">Neueste Nachrichten</string>
     <string name="widget_latest_description">Listet die neuesten Nachrichten aus allen Posteingängen auf.</string>
     <string name="widget_latest_empty">Keine Nachrichten</string>
+    <string name="widget_unread_list_title">Ungelesene Nachrichten</string>
+    <string name="widget_unread_list_description">Listet die ungelesenen Nachrichten aller Ordner außer Papierkorb, Spam, Gesendet und Entwürfe auf, die neuesten zuerst, und öffnet die Ansicht „Ungelesen“.</string>
+    <string name="widget_unread_list_empty">Keine ungelesenen Nachrichten</string>
     <string name="widget_latest_hidden">Nachricht ausgeblendet</string>
     <string name="folders_manage_title">Ordner verwalten</string>
     <string name="folders_reorder_start">Anordnen</string>

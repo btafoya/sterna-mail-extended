@@ -220,6 +220,21 @@
                 android:resource="@xml/appwidget_info_recent" />
         </receiver>
 
+        <!-- The unread messages of the "Unread" view as a list (#283): the latest-messages cell
+             under its own component, so its own cells, presence and picker entry, served by the
+             same row service. Its label is a fourth placeholder for the reason the others are. -->
+        <receiver
+            android:name=".widget.UnreadListWidgetProvider"
+            android:exported="true"
+            android:label="${unreadListWidgetLabel}">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/appwidget_info_unread_list" />
+        </receiver>
+
         <!-- ⛔ THE ROW FACTORY, AND THE PERMISSION IS THE WHOLE POINT. Listing anything in a widget
              at minSdk 26 means a RemoteViewsService the widget host binds (RemoteCollectionItems
              is API 31+), and a service that any app may bind is a service that hands the sender

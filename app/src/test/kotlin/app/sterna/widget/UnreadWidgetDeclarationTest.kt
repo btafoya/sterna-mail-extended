@@ -31,9 +31,11 @@ class UnreadWidgetDeclarationTest {
                 "xml/appwidget_info_recent.xml" to listOf(PERIOD),
                 "xml/appwidget_info_unread.xml" to listOf(PERIOD),
                 "xml/appwidget_info_unread_every_folder.xml" to listOf(PERIOD),
+                "xml/appwidget_info_unread_list.xml" to listOf(PERIOD),
                 "xml-v31/appwidget_info_recent.xml" to listOf(PERIOD),
                 "xml-v31/appwidget_info_unread.xml" to listOf(PERIOD),
                 "xml-v31/appwidget_info_unread_every_folder.xml" to listOf(PERIOD),
+                "xml-v31/appwidget_info_unread_list.xml" to listOf(PERIOD),
             ),
             found,
         )
@@ -153,6 +155,7 @@ class UnreadWidgetDeclarationTest {
                 "manifestPlaceholders[\"widgetLabel\"] = \"Unread count (test)\"",
                 "manifestPlaceholders[\"latestWidgetLabel\"] = \"Latest messages (test)\"",
                 "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"Unread, every folder (test)\"",
+                "manifestPlaceholders[\"unreadListWidgetLabel\"] = \"Unread messages (test)\"",
                 "versionNameSuffix = \"-test\"",
                 "}",
             ),
@@ -344,7 +347,7 @@ class UnreadWidgetDeclarationTest {
                 "xml-v31/appwidget_info_unread.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
                 "xml-v31/appwidget_info_unread_every_folder.xml" to listOf(MIN_HEIGHT, MIN_WIDTH),
             ),
-            INFO_FILES.filter { it.name.startsWith("appwidget_info_unread") }.associate { file ->
+            INFO_FILES.filter { it.name.startsWith("appwidget_info_unread") && it.name != "appwidget_info_unread_list.xml" }.associate { file ->
                 "${file.parentFile.name}/${file.name}" to
                     codeLines(file).filter { it.startsWith("android:minWidth=") || it.startsWith("android:minHeight=") }
             },

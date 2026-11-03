@@ -1,5 +1,7 @@
 package app.sterna.widget
 
+import app.sterna.MainActivity
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import app.sterna.core.data.settings.NotificationContent
@@ -148,6 +150,26 @@ class RecentMailWidgetTapTest {
         assertEquals(
             listOf(RecentRowTap("msg-9", "acct-alpha", "mbox-beta")),
             snapshot.rows.map { it.tap },
+        )
+        assertEquals(
+            "and in neither list does the lock change what a touch asks for: the message in the " +
+                "inboxes' list, the Unread view in the unread list.",
+            mapOf(
+                RecentWidgetKind.Inboxes to mapOf(
+                    MainActivity.EXTRA_OPEN_EMAIL_ID to "msg-9",
+                    MainActivity.EXTRA_OPEN_ACCOUNT_ID to "acct-alpha",
+                    MainActivity.EXTRA_OPEN_MAILBOX_ID to "mbox-beta",
+                ),
+                RecentWidgetKind.Unread to mapOf(MainActivity.EXTRA_OPEN_UNREAD to true),
+            ),
+            RecentWidgetKind.entries.associateWith { kind ->
+                RecentMailWidgetTap.templateExtras(kind, listOf(StoredAccount(id = "acct-alpha", server = "https://mail.example.test", username = "a@example.test", inboxId = "inbox", inboxName = "Inbox"))) + snapshot.rows.single().let { RecentMailWidgetTap.rowExtras(kind, it.tap) }
+            },
+        )
+        assertEquals(
+            "⛔ while the line itself names nobody, whichever list draws it.",
+            listOf(RecentWidgetRow("«hidden»", null, "09:12", unread = true, accountColor = null, monogram = null)),
+            snapshot.rows.map { it.drawn },
         )
     }
 }

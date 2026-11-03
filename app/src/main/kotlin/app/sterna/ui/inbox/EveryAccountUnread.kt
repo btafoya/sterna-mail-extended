@@ -9,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -147,6 +148,39 @@ internal fun everyFolderUnreadByAccount(
     combine(everyAccountFoldersFlow(accounts, flowOf(true), folders), accounts) { lists, stored ->
         everyAccountUnreadByAccount(everyAccountUnreadScopes(lists, stored), lists)
     }.distinctUntilChanged()
+
+/**
+ * [everyAccountUnreadScopes], or null while no account's folder list is known: an unread widget
+ * then says nothing, where an empty list, folders known and none of them in the view, says that
+ * nothing is unread.
+ */
+internal fun unreadViewScopesOnceListed(
+    known: Map<String, List<Mailbox>>,
+    settings: List<StoredAccount>,
+): List<Pair<String, String>>? =
+    if (known.values.all { it.isEmpty() }) null
+    else everyAccountUnreadScopes(known, settings)
+
+/**
+ * The scopes of the unread view of every account, for a reader of its rows. [accounts] is combined
+ * on its own for the reason [everyFolderUnreadByAccount] gives. Deduplicated: a folder list
+ * re-emits on every counter a sync writes, and an equal scope list would re-subscribe the rows.
+ */
+internal fun everyAccountUnreadScopesFlow(
+    accounts: Flow<List<StoredAccount>>,
+    folders: (String) -> Flow<List<Mailbox>>,
+): Flow<List<Pair<String, String>>?> {
+    val scopes = combine(everyAccountFoldersFlow(accounts, flowOf(true), folders), accounts) { known, settings ->
+        unreadViewScopesOnceListed(known, settings)
+    }
+    return scopes.distinctUntilChanged()
+}
+
+/** [everyAccountUnreadScopesFlow] read once, for a draw that is not a subscription. */
+internal suspend fun everyAccountUnreadScopesNow(
+    accounts: Flow<List<StoredAccount>>,
+    folders: (String) -> Flow<List<Mailbox>>,
+): List<Pair<String, String>>? = everyAccountUnreadScopesFlow(accounts, folders).first()
 
 internal data class EveryAccountPass(val refreshed: Int, val failures: List<Throwable>)
 

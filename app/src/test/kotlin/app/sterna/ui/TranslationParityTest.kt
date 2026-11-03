@@ -109,6 +109,19 @@ class TranslationParityTest {
         assertEquals("the latest-messages widget is untranslated in", emptyMap<String, Set<String>>(), missing)
     }
 
+    @Test
+    fun `the eleven languages all name the unread-messages widget`() {
+        val files = listOf(File(res, "values/strings.xml")) + translations()
+        val expected = setOf(
+            "widget_unread_list_title",
+            "widget_unread_list_description",
+            "widget_unread_list_empty",
+        )
+        val missing = files.associate { it.parentFile.name to (expected - keysOf(it)) }
+            .filterValues { it.isNotEmpty() }
+        assertEquals("the unread-messages widget is untranslated in", emptyMap<String, Set<String>>(), missing)
+    }
+
     /**
      * The rules above compare against whatever `values-*` happen to exist, so they say nothing
      * about a language that disappears, and nothing about the label added last. Both are pinned

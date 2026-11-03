@@ -3,11 +3,8 @@ package app.sterna.widget
 import app.sterna.widget.DeclarationSource.codeLines
 import app.sterna.widget.DeclarationSource.file
 import app.sterna.widget.DeclarationSource.functionBody
-import app.sterna.widget.DeclarationSource.kotlinLines
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Test
-import java.io.File
 
 /**
  * Source lint, not a behaviour test, the tap pane's half of what no JVM test can run. What a row
@@ -26,13 +23,14 @@ class RecentMailRowTapWiringLintTest {
                 "banner and opens someone else's message. Drop FLAG_MUTABLE and every row of the " +
                 "cell opens the same nothing.",
             listOf(
-                "private fun rowTapTemplate(context: Context): PendingIntent {",
+                "private fun rowTapTemplate(context: Context, kind: RecentWidgetKind, extras: Map<String, Boolean>): PendingIntent {",
                 "val intent = Intent(context, MainActivity::class.java)",
-                ".setAction(ACTION_ROW_TAP)",
+                ".setAction(kind.action)",
                 ".addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)",
+                "extras.forEach { (name, value) -> intent.putExtra(name, value) }",
                 "return PendingIntent.getActivity(",
                 "context,",
-                "ROW_TAP_REQUEST_CODE,",
+                "kind.requestCode,",
                 "intent,",
                 "PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,",
                 ")",
@@ -40,10 +38,40 @@ class RecentMailRowTapWiringLintTest {
             functionBody(DRAW, "private fun rowTapTemplate("),
         )
         assertEquals(
-            "the action must be a real, app-owned string, and its own: emptied, nulled or set to " +
-                "the counter's it stops telling this template apart from the intents around it.",
-            listOf("private const val ACTION_ROW_TAP = \"app.sterna.widget.OPEN_RECENT\""),
-            kotlinLines(DRAW).filter { it.startsWith("private const val ACTION_ROW_TAP") },
+            "each kind's action must be a real, app-owned string, and its own: emptied, nulled or " +
+                "set to another widget's it stops telling this template apart from the intents " +
+                "around it.",
+            mapOf(
+                RecentWidgetKind.Inboxes to ("app.sterna.widget.OPEN_RECENT" to 1),
+                RecentWidgetKind.Unread to ("app.sterna.widget.OPEN_UNREAD_LIST" to 3),
+            ),
+            RecentWidgetKind.entries.associateWith { it.action to it.requestCode },
+        )
+    }
+
+    @Test fun `the unread cell opens its view from its frame and its notice, through the rows' own template`() {
+        assertEquals(
+            "RecentMailWidgetDraw.draw must build ONE template per draw, hand it to the list, and " +
+                "post the very same PendingIntent on the root and the notice when the kind opens a " +
+                "view — and only then. A second PendingIntent for the frame is a second identity to " +
+                "keep apart from the notifications; a frame target on the inboxes' list opens " +
+                "something no row of it says.",
+            listOf(
+                "val template = rowTapTemplate(app, kind, drawing.tapExtras)",
+                "views.setPendingIntentTemplate(R.id.widget_recent_list, template)",
+                "if (kind.opensAs != null) {",
+                "views.setOnClickPendingIntent(R.id.widget_recent_root, template)",
+                "views.setOnClickPendingIntent(R.id.widget_recent_notice, template)",
+            ),
+            functionBody(DRAW, DRAW_SIGNATURE).filter {
+                it.startsWith("val template =") || it.startsWith("views.setPendingIntentTemplate(") ||
+                    it.startsWith("if (kind.opensAs") || it.startsWith("views.setOnClickPendingIntent(")
+            },
+        )
+        assertEquals(
+            "only the unread list has a cell target.",
+            mapOf(RecentWidgetKind.Inboxes to null, RecentWidgetKind.Unread to UnreadWidgetKind.EveryFolder),
+            RecentWidgetKind.entries.associateWith { it.opensAs },
         )
     }
 
@@ -59,7 +87,7 @@ class RecentMailRowTapWiringLintTest {
                 "given an adapter. Without it a fill-in intent is a message in a bottle: the " +
                 "launcher has nothing to fill in, and no row opens anything.",
             listOf(TEMPLATE_ATTACH),
-            functionBody(DRAW, "fun draw(app: Application, ids: IntArray, drawing: RecentWidgetDrawing)")
+            functionBody(DRAW, DRAW_SIGNATURE)
                 .filter { it.startsWith("views.setPendingIntentTemplate(") },
         )
     }
@@ -69,15 +97,14 @@ class RecentMailRowTapWiringLintTest {
      */
     @Test fun `a row's fill-in intent carries extras and nothing else`() {
         assertEquals(
-            "the per-row fill-in must be a bare Intent carrying the three OPEN_* extras and " +
+            "the per-row fill-in must be a bare Intent carrying RecentMailWidgetTap.rowExtras and " +
                 "nothing else — no action, no data, no component. Anything else in here is " +
-                "written into the activity the template is about to start.",
+                "written into the activity the template is about to start; and the extras are " +
+                "the executed rule's, which WidgetCellOpensWhatItSaysTest runs per kind.",
             listOf(
-                "fun rowFillIn(tap: RecentRowTap): Intent {",
+                "fun rowFillIn(kind: RecentWidgetKind, tap: RecentRowTap): Intent {",
                 "val intent = Intent()",
-                "intent.putExtra(MainActivity.EXTRA_OPEN_EMAIL_ID, tap.emailId)",
-                "tap.accountId?.let { intent.putExtra(MainActivity.EXTRA_OPEN_ACCOUNT_ID, it) }",
-                "tap.mailboxId?.let { intent.putExtra(MainActivity.EXTRA_OPEN_MAILBOX_ID, it) }",
+                "RecentMailWidgetTap.rowExtras(kind, tap).forEach { (name, value) -> intent.putExtra(name, value) }",
                 "return intent",
             ),
             functionBody(DRAW, "fun rowFillIn("),
@@ -205,61 +232,37 @@ class RecentMailRowTapWiringLintTest {
     /**
      * The two widgets must not share a request code, and this rule reads the two numbers rather
      */
-    @Test fun `the two widgets' request codes, and their actions, are different things`() {
-        assertNotEquals(
-            "the latest-messages template must not reuse the counter's request code. Both are " +
-                "constants in this repository, so this is one line to keep apart and nothing on " +
-                "either home-screen cell would show that they had been merged.",
-            requestCode(UNREAD_KIND, "private const val TAP_REQUEST_CODE ="),
-            requestCode(DRAW, "private const val ROW_TAP_REQUEST_CODE ="),
-        )
-        assertNotEquals(
-            "and their actions must differ too — the action is what tells either template apart " +
-                "from the notification intents, and one shared string makes the pair collide on " +
-                "the request code alone.",
-            action(UNREAD_KIND, "private const val ACTION_WIDGET_TAP ="),
-            action(DRAW, "private const val ACTION_ROW_TAP ="),
+    @Test fun `every widget's request code, and every widget's action, is its own`() {
+        val identities = UnreadWidgetKind.entries.map { "counter ${it.name}" to (it.action to it.requestCode) } +
+            RecentWidgetKind.entries.map { "list ${it.name}" to (it.action to it.requestCode) }
+        assertEquals(
+            "four widgets, four request codes: 0 and 2 the counters', 1 and 3 the lists'. The " +
+                "identity of a PendingIntent ignores extras, so two kinds on one pair rewrite each " +
+                "other's template under FLAG_UPDATE_CURRENT: the unread list's rows open a message, " +
+                "or the inboxes' rows the Unread view. Read off both enums as they run.",
+            mapOf("counter Inboxes" to 0, "counter EveryFolder" to 2, "list Inboxes" to 1, "list Unread" to 3),
+            identities.associate { (name, id) -> name to id.second },
         )
         assertEquals(
-            "and neither counter, the every-folder one included (#283), may share the row " +
-                "template's request code or action.",
-            emptyList<UnreadWidgetKind>(),
-            UnreadWidgetKind.entries.filter {
-                it.requestCode == requestCode(DRAW, "private const val ROW_TAP_REQUEST_CODE =") ||
-                    "\"${it.action}\"" == action(DRAW, "private const val ACTION_ROW_TAP =")
-            },
+            "and four actions, none shared.",
+            identities.size,
+            identities.map { it.second.first }.toSet().size,
         )
-    }
-
-    /**
-     * The integer a `private const val … = <n>` declares, read from the source. Fails loudly when
-     * the declaration is gone: a rename must redden this rule rather than satisfy it against
-     * nothing.
-     */
-    private fun requestCode(file: File, declaration: String): Int {
-        val line = kotlinLines(file).singleOrNull { it.startsWith(declaration) }
-            ?: error("${file.name} no longer declares exactly one `$declaration` — was it renamed?")
-        return line.substringAfter("=").trim().toInt()
-    }
-
-    /** The same for a string constant, quotes included, so two spellings can be compared. */
-    private fun action(file: File, declaration: String): String {
-        val line = kotlinLines(file).singleOrNull { it.startsWith(declaration) }
-            ?: error("${file.name} no longer declares exactly one `$declaration` — was it renamed?")
-        return line.substringAfter("=").trim()
     }
 
     private companion object {
         val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
         val SERVICE = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetService.kt")
-        val UNREAD_KIND = file("app/src/main/kotlin/app/sterna/widget/UnreadWidgetKind.kt")
+
+        const val DRAW_SIGNATURE =
+            "fun draw(app: Application, kind: RecentWidgetKind, ids: IntArray, drawing: RecentWidgetDrawing)"
         val ROW_LAYOUT = file("app/src/main/res/layout/widget_recent_row.xml")
 
         const val TEMPLATE_ATTACH =
-            "views.setPendingIntentTemplate(R.id.widget_recent_list, rowTapTemplate(app))"
+            "views.setPendingIntentTemplate(R.id.widget_recent_list, template)"
 
         const val FILL_IN_ATTACH =
             "views.setOnClickFillInIntent(R.id.widget_recent_row_root, " +
-                "RecentMailWidgetDraw.rowFillIn(item.tap))"
+                "RecentMailWidgetDraw.rowFillIn(kind, item.tap))"
     }
 }

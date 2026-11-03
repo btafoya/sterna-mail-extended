@@ -30,17 +30,40 @@ class RecentMailWidgetPushWiringLintTest {
                 "mail arrives or leaves.",
             listOf(
                 "appScope.launch {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
-                "mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {",
+                "RecentWidgetKind.Inboxes.source(this@AppContainer)",
                 "}.collect {",
-                "RecentMailWidgetDraw.forget()",
-                "runCatching { RecentMailWidgetDraw.refresh(appContext) }",
+                "RecentMailWidgetDraw.forget(RecentWidgetKind.Inboxes)",
+                "runCatching { RecentMailWidgetDraw.refresh(appContext, RecentWidgetKind.Inboxes) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { Log.w(\"Sterna\", \"latest-messages widget not redrawn; the cell keeps its rows\", it) }",
                 "}",
                 "}",
             ),
-            blockContaining(STERNA_APPLICATION, "RecentMailWidgetPush.redraws(", "appScope.launch {"),
+            blockContaining(STERNA_APPLICATION, "RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes)", "appScope.launch {"),
+        )
+    }
+
+    @Test fun `AppContainer collects the unread list's push, gated on ITS OWN cells`() {
+        assertEquals(
+            "AppContainer.init must launch a fourth collection for RecentWidgetKind.Unread: over " +
+                "that kind's presence and source, forgetting that kind's held drawing and " +
+                "refreshing that kind. Dropped, a message read in the app keeps its row on the " +
+                "unread list; on the other kind's gate, the list stops following the mail the day " +
+                "the other cell goes; forgetting the other kind serves this cell the stale rows.",
+            listOf(
+                "appScope.launch {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {",
+                "RecentWidgetKind.Unread.source(this@AppContainer)",
+                "}.collect {",
+                "RecentMailWidgetDraw.forget(RecentWidgetKind.Unread)",
+                "runCatching { RecentMailWidgetDraw.refresh(appContext, RecentWidgetKind.Unread) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { Log.w(\"Sterna\", \"unread-messages widget not redrawn; the cell keeps its rows\", it) }",
+                "}",
+                "}",
+            ),
+            blockContaining(STERNA_APPLICATION, "RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread)", "appScope.launch {"),
         )
     }
 
@@ -59,7 +82,8 @@ class RecentMailWidgetPushWiringLintTest {
             listOf(
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.Inboxes), accountStore.accountsFlow) {",
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.EveryFolder), accountStore.accountsFlow) {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {",
             ),
             lines.filter { it.startsWith("UnreadWidgetPush.redraws") || it.startsWith("RecentMailWidgetPush.redraws") },
         )
@@ -76,14 +100,26 @@ class RecentMailWidgetPushWiringLintTest {
                 "has this widget and opens it for everyone who has not; a missing seed leaves a " +
                 "cell placed before the last reboot following nothing at all.",
             listOf(
-                "fun placed(context: Context): StateFlow<Boolean> {",
-                "if (!seeded) {",
-                "seeded = true",
-                "set(anyWidgetPlaced(RecentMailWidgetDraw.placedIds(context)))",
+                "fun placed(context: Context, kind: RecentWidgetKind): StateFlow<Boolean> {",
+                "if (seeded.add(kind)) {",
+                "set(kind, anyWidgetPlaced(RecentMailWidgetDraw.placedIds(context, kind)))",
                 "}",
-                "return state",
+                "return states.getValue(kind)",
             ),
-            functionBody(PROVIDER, "fun placed(context: Context)"),
+            functionBody(PROVIDER, "fun placed(context: Context, kind: RecentWidgetKind)"),
+        )
+        assertEquals(
+            "and the cells it asks about are THAT kind's provider's: a constant class here seeds " +
+                "the unread list's gate from the inboxes' cells.",
+            listOf(
+                "fun placedIds(context: Context, kind: RecentWidgetKind): IntArray =",
+                "AppWidgetManager.getInstance(context)",
+                ".getAppWidgetIds(ComponentName(context, kind.provider))",
+            ),
+            kotlinLines(DRAW).let { lines ->
+                val at = lines.indexOfFirst { it.startsWith("fun placedIds(") }
+                if (at < 0) emptyList() else lines.subList(at, at + 3)
+            },
         )
     }
 
@@ -112,5 +148,6 @@ class RecentMailWidgetPushWiringLintTest {
 
         /** Holds `RecentMailWidgetPresence` as well as the provider itself. */
         val PROVIDER = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetProvider.kt")
+        val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
     }
 }

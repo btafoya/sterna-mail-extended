@@ -1316,6 +1316,9 @@
     <string name="widget_latest_title">Latest messages</string>
     <string name="widget_latest_description">Lists the newest messages from all your inboxes.</string>
     <string name="widget_latest_empty">No messages</string>
+    <string name="widget_unread_list_title">Unread messages</string>
+    <string name="widget_unread_list_description">Lists the unread messages of every folder but Trash, Spam, Sent and Drafts, newest first, and opens the Unread view.</string>
+    <string name="widget_unread_list_empty">No unread messages</string>
     <string name="widget_latest_hidden">Message hidden</string>
     <string name="folders_manage_title">Manage folders</string>
     <string name="folders_reorder_start">Reorder</string>

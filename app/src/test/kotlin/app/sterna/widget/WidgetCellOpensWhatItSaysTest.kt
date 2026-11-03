@@ -70,6 +70,60 @@ class WidgetCellOpensWhatItSaysTest {
         )
     }
 
+    @Test fun `the unread list opens the Unread view from every row, and never a message`() {
+        val row = RecentRowTap("msg-1", "acct-a", "mbox-a")
+        val carried = RecentWidgetKind.entries.associateWith { kind ->
+            RecentMailWidgetTap.templateExtras(kind, listOf(account("a"))).keys + RecentMailWidgetTap.rowExtras(kind, row).keys
+        }
+        assertEquals(
+            "a row of the unread list must carry EXTRA_OPEN_UNREAD and none of the message " +
+                "extras: with EXTRA_OPEN_EMAIL_ID beside it, the cell titled \"Unread messages\" " +
+                "opens one message instead of the view it lists.",
+            setOf(MainActivity.EXTRA_OPEN_UNREAD),
+            carried.getValue(RecentWidgetKind.Unread),
+        )
+        assertEquals(
+            "and a row of the inboxes' list opens its own message, never the Unread view.",
+            setOf(MainActivity.EXTRA_OPEN_EMAIL_ID, MainActivity.EXTRA_OPEN_ACCOUNT_ID, MainActivity.EXTRA_OPEN_MAILBOX_ID),
+            carried.getValue(RecentWidgetKind.Inboxes),
+        )
+        assertEquals(
+            "the Unread extra is a flag MainActivity reads as a boolean, set to true.",
+            mapOf(MainActivity.EXTRA_OPEN_UNREAD to true),
+            RecentMailWidgetTap.templateExtras(RecentWidgetKind.Unread, listOf(account("a"))),
+        )
+    }
+
+    @Test fun `the unread list asks for no view without an account, as the every-folder counter does`() {
+        val cases = mapOf(
+            "no account" to emptyList(),
+            "one account" to listOf(account("a")),
+            "two accounts" to listOf(account("a"), account("b")),
+        )
+        assertEquals(
+            "with no account the unread list's touch must carry no opening extra: MainActivity " +
+                "keeps an Unread request pending and delivers it after the next sign-in, a view " +
+                "nobody asked for by then. From one account up it opens the Unread view.",
+            mapOf(
+                "no account" to emptyMap(),
+                "one account" to mapOf(MainActivity.EXTRA_OPEN_UNREAD to true),
+                "two accounts" to mapOf(MainActivity.EXTRA_OPEN_UNREAD to true),
+            ),
+            cases.mapValues { (_, accounts) -> RecentMailWidgetTap.templateExtras(RecentWidgetKind.Unread, accounts) },
+        )
+        assertEquals(
+            "and it is the every-folder counter's own decision, account count for account count, " +
+                "so the list and the counter titled alike never open two different things.",
+            cases.mapValues { (_, accounts) -> extraOf(UnreadWidgetKind.EveryFolder, accounts) },
+            cases.mapValues { (_, accounts) -> RecentMailWidgetTap.templateExtras(RecentWidgetKind.Unread, accounts).keys.singleOrNull() },
+        )
+        assertEquals(
+            "the inboxes' list never carries an opening extra in its template, at any account count.",
+            cases.mapValues { emptyMap<String, Boolean>() },
+            cases.mapValues { (_, accounts) -> RecentMailWidgetTap.templateExtras(RecentWidgetKind.Inboxes, accounts) },
+        )
+    }
+
     private fun saysUnread(accounts: List<StoredAccount>): Boolean =
         UnreadWidgetContent.of(UnreadWidgetKind.EveryFolder, accounts, unread = 7).label ==
             WidgetLabel.Translated(R.string.inbox_unread_view)

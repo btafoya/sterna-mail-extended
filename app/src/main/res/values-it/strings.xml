@@ -1268,6 +1268,9 @@
     <string name="widget_latest_title">Messaggi recenti</string>
     <string name="widget_latest_description">Elenca i messaggi più recenti di tutte le caselle di posta in arrivo.</string>
     <string name="widget_latest_empty">Nessun messaggio</string>
+    <string name="widget_unread_list_title">Messaggi non letti</string>
+    <string name="widget_unread_list_description">Elenca i messaggi non letti di tutte le cartelle tranne Cestino, Spam, Inviati e Bozze, dal più recente, e apre la vista «Non letti».</string>
+    <string name="widget_unread_list_empty">Nessun messaggio non letto</string>
     <string name="widget_latest_hidden">Messaggio nascosto</string>
     <string name="folders_manage_title">Gestisci le cartelle</string>
     <string name="folders_reorder_start">Riordina</string>

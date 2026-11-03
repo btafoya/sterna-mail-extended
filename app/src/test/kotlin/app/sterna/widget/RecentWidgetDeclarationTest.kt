@@ -53,6 +53,103 @@ class RecentWidgetDeclarationTest {
         )
     }
 
+    @Test fun `the unread list is its own receiver, with a fourth placeholder and its own test label`() {
+        assertEquals(
+            "the unread-list receiver's android:label must be the unreadListWidgetLabel " +
+                "placeholder, filled with @string/widget_unread_list_title by default and with its " +
+                "own literal under -PtestApp: one placeholder for two widgets gives the picker two " +
+                "entries called the same thing.",
+            listOf(
+                UNREAD_LIST_RECEIVER_LABEL,
+                "manifestPlaceholders[\"unreadListWidgetLabel\"] = \"@string/widget_unread_list_title\"",
+                "manifestPlaceholders[\"unreadListWidgetLabel\"] = \"Unread messages (test)\"",
+            ),
+            codeLines(MANIFEST).filter { "android:label=" in it && "unreadListWidgetLabel" in it } +
+                codeLines(GRADLE).filter { "unreadListWidgetLabel" in it },
+        )
+        assertEquals(
+            "it must be an exported APPWIDGET_UPDATE receiver and nothing more, pointing at its own " +
+                "declaration: pointed at appwidget_info_recent it previews and describes the " +
+                "inboxes' list.",
+            listOf(
+                "<receiver",
+                "android:name=\".widget.UnreadListWidgetProvider\"",
+                "android:exported=\"true\"",
+                UNREAD_LIST_RECEIVER_LABEL,
+                "<intent-filter>",
+                "<action android:name=\"android.appwidget.action.APPWIDGET_UPDATE\" />",
+                "</intent-filter>",
+                "<meta-data",
+                "android:name=\"android.appwidget.provider\"",
+                "android:resource=\"@xml/appwidget_info_unread_list\" />",
+                "</receiver>",
+            ),
+            codeLines(MANIFEST).let { lines ->
+                val at = lines.indexOf("android:name=\".widget.UnreadListWidgetProvider\"")
+                if (at < 1) emptyList() else lines.subList(at - 1, (at until lines.size).first { lines[it] == "</receiver>" } + 1)
+            },
+        )
+        assertEquals(
+            "and the latest-messages list keeps ITS component, declaration and row service: Android " +
+                "knows a placed cell by its ComponentName, and both lists are served by the one " +
+                "service.",
+            listOf(
+                "android:name=\".widget.RecentMailWidgetProvider\"",
+                "android:resource=\"@xml/appwidget_info_recent\" />",
+                "android:name=\".widget.RecentMailWidgetService\"",
+            ),
+            codeLines(MANIFEST).filter {
+                it == "android:name=\".widget.RecentMailWidgetProvider\"" ||
+                    it == "android:resource=\"@xml/appwidget_info_recent\" />" ||
+                    (it.startsWith("android:name=\".widget.") && "Service" in it)
+            },
+        )
+    }
+
+    @Test fun `the unread list's declarations are the latest-messages list's but for their description and preview`() {
+        val differs = listOf("android:description=", "android:previewLayout=")
+        assertEquals(
+            "res/xml and res/xml-v31 appwidget_info_unread_list.xml must carry the very attributes " +
+                "of appwidget_info_recent.xml — initialLayout, sizes, resizeMode, " +
+                "updatePeriodMillis=\"0\", widgetCategory — and differ only by description and preview.",
+            listOf("xml", "xml-v31").associateWith { dir ->
+                codeLines(file("app/src/main/res/$dir/appwidget_info_recent.xml"))
+                    .filterNot { l -> differs.any { l.startsWith(it) } }
+            },
+            listOf("xml", "xml-v31").associateWith { dir ->
+                codeLines(file("app/src/main/res/$dir/appwidget_info_unread_list.xml"))
+                    .filterNot { l -> differs.any { l.startsWith(it) } }
+            },
+        )
+        assertEquals(
+            "its Android 12+ picker entry describes and previews ITSELF, never the runtime layout, " +
+                "whose list a preview never fills.",
+            listOf(
+                "android:description=\"@string/widget_unread_list_description\"",
+                "android:previewLayout=\"@layout/widget_unread_list_preview\"",
+            ),
+            codeLines(UNREAD_LIST_INFO_V31).filter { l -> differs.any { l.startsWith(it) } },
+        )
+        assertEquals(
+            "the preview shows the same three example rows as the latest-messages list's, and " +
+                "EVERY one of them bold, sender and time: the list holds nothing but unread mail, " +
+                "and bold is a row's only unread mark. One plain row advertises a read message " +
+                "in a list that never shows one.",
+            listOf(
+                codeLines(PREVIEW_LAYOUT).filter { it.startsWith("android:text=") },
+                List(6) { "android:textStyle=\"bold\"" },
+                listOf(MONOGRAM_SRC, ACCOUNT_DOT_SRC, MONOGRAM_SRC, ACCOUNT_DOT_SRC, MONOGRAM_SRC, ACCOUNT_DOT_SRC),
+                listOf(DOT_INVISIBLE, DOT_INVISIBLE, DOT_INVISIBLE),
+            ),
+            listOf(
+                codeLines(UNREAD_LIST_PREVIEW).filter { it.startsWith("android:text=") },
+                codeLines(UNREAD_LIST_PREVIEW).filter { it.startsWith("android:textStyle=") },
+                codeLines(UNREAD_LIST_PREVIEW).filter { it.startsWith("android:src=") },
+                codeLines(UNREAD_LIST_PREVIEW).filter { it.startsWith("android:visibility=") },
+            ),
+        )
+    }
+
     /**
      * And the test label is inside `if (testApp)`, which the rule above cannot see.
      */
@@ -67,6 +164,7 @@ class RecentWidgetDeclarationTest {
                 "manifestPlaceholders[\"widgetLabel\"] = \"Unread count (test)\"",
                 "manifestPlaceholders[\"latestWidgetLabel\"] = \"Latest messages (test)\"",
                 "manifestPlaceholders[\"everyFolderWidgetLabel\"] = \"Unread, every folder (test)\"",
+                "manifestPlaceholders[\"unreadListWidgetLabel\"] = \"Unread messages (test)\"",
                 "versionNameSuffix = \"-test\"",
                 "}",
             ),
@@ -210,6 +308,8 @@ class RecentWidgetDeclarationTest {
 
         val RECEIVER_LABEL = "android:label=\"$DOLLAR{latestWidgetLabel}\">"
 
+        val UNREAD_LIST_RECEIVER_LABEL = "android:label=\"$DOLLAR{unreadListWidgetLabel}\">"
+
         const val PREVIEW = "android:previewLayout=\"@layout/widget_recent_preview\""
 
         const val ACCOUNT_DOT_SRC = "android:src=\"@drawable/widget_recent_account_dot\""
@@ -227,6 +327,8 @@ class RecentWidgetDeclarationTest {
         val INFO_V31 = file("app/src/main/res/xml-v31/appwidget_info_recent.xml")
         val RUNTIME_LAYOUT = file("app/src/main/res/layout/widget_recent.xml")
         val PREVIEW_LAYOUT = file("app/src/main/res/layout/widget_recent_preview.xml")
+        val UNREAD_LIST_INFO_V31 = file("app/src/main/res/xml-v31/appwidget_info_unread_list.xml")
+        val UNREAD_LIST_PREVIEW = file("app/src/main/res/layout/widget_unread_list_preview.xml")
         val ROW_LAYOUT = file("app/src/main/res/layout/widget_recent_row.xml")
     }
 }

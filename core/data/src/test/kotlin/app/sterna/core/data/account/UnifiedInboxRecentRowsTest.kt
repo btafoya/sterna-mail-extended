@@ -3,7 +3,9 @@ package app.sterna.core.data.account
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.filter.SourceText
 import app.sterna.core.data.mail.RecentInbox
+import app.sterna.core.data.mail.recentUnreadRows
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -246,6 +248,95 @@ class UnifiedInboxRecentRowsTest {
         job.cancel()
     }
 
+    @Test fun `only a change of scopes re-subscribes the unread rows`() = runTest {
+        val reader = Reader()
+        val scopes = MutableSharedFlow<List<Pair<String, String>>?>()
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            recentUnreadRows(scopes, reader::rowsFor).toList(mutableListOf())
+        }
+        runCurrent()
+
+        scopes.emit(listOf("a" to "1", "b" to "1"))
+        scopes.emit(listOf("a" to "1", "b" to "1"))
+        scopes.emit(listOf("a" to "1", "b" to "1", "a" to "2"))
+        scopes.emit(listOf("a" to "1", "b" to "1", "a" to "2"))
+        runCurrent()
+
+        assertEquals(
+            "An equal scope list handed again, what every counter written to a folder row " +
+                "produces upstream, must not cancel and rebuild the observed query.",
+            listOf(
+                listOf("a" to "1", "b" to "1"),
+                listOf("a" to "1", "b" to "1", "a" to "2"),
+            ),
+            reader.calls,
+        )
+        job.cancel()
+    }
+
+    @Test fun `no folder list known and nothing in the view are two answers, and neither reads`() = runTest {
+        val reader = Reader()
+        val scopes = MutableStateFlow<List<Pair<String, String>>?>(null)
+        val seen = mutableListOf<RecentInbox>()
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            recentUnreadRows(scopes, reader::rowsFor).toList(seen)
+        }
+        runCurrent()
+
+        scopes.value = emptyList()
+        runCurrent()
+        scopes.value = listOf("a" to "1")
+        runCurrent()
+
+        assertEquals(
+            listOf(
+                RecentInbox(configured = false, rows = emptyList()),
+                RecentInbox(configured = true, rows = emptyList()),
+                read(Reader.seed("a")),
+            ),
+            seen,
+        )
+        assertEquals(listOf(listOf("a" to "1")), reader.calls)
+        job.cancel()
+    }
+
+    @Test fun `the latest-messages one-shot read keeps every message, read or not`() {
+        val source = SourceText.read(
+            "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt",
+        )
+        assertEquals(
+            "recentUnifiedInbox must read with ListFilter.NONE, as its observed twin does: the " +
+                "published latest-messages widget lists read mail too, and an unread filter here " +
+                "empties the cell at every draw that is not a subscription.",
+            listOf(
+                "suspend fun recentUnifiedInbox(limit: Int): RecentInbox =",
+                "recentUnifiedInboxFrom(accountStore.allInboxScopes()) { scopes ->",
+                "emailDao.recentUnified(recentUnifiedQuery(scopes, limit, ListFilter.NONE))",
+                "}",
+            ),
+            SourceText.codeLines(SourceText.functionSource(source, "suspend fun recentUnifiedInbox(")),
+        )
+    }
+
+    @Test fun `MailRepository reads the unread rows through recentUnreadQuery`() {
+        val source = SourceText.read(
+            "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt",
+        )
+        assertEquals(
+            "Both unread reads must go through recentUnreadQuery, and the observed one through " +
+                "recentUnreadRows: recentUnifiedQuery with ListFilter.NONE lists read mail, " +
+                "and a flow of its own re-subscribes on every folder counter written.",
+            listOf(
+                "suspend fun recentUnread(scopes: List<Pair<String, String>>?, limit: Int): RecentInbox =",
+                "recentUnreadFrom(scopes) { s -> emailDao.recentUnified(recentUnreadQuery(s, limit)) }",
+                "fun observeRecentUnread(scopes: Flow<List<Pair<String, String>>?>, limit: Int): Flow<RecentInbox> =",
+                "recentUnreadRows(scopes) { s -> emailDao.observeRecentUnified(recentUnreadQuery(s, limit)) }",
+            ),
+            SourceText.codeLines(SourceText.functionSource(source, "suspend fun recentUnread(")) +
+                SourceText.codeLines(SourceText.functionSource(source, "fun observeRecentUnread(")),
+        )
+    }
+
     /**
      * Source lint, and the hole the tests above cannot reach: they inject their own account flow
      */
@@ -261,7 +352,7 @@ class UnifiedInboxRecentRowsTest {
             listOf(
                 "fun observeRecentUnifiedInbox(limit: Int): Flow<RecentInbox> = UnifiedInbox.recentRows(",
                 "accountStore.accountsFlow,",
-                ") { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit)) }",
+                ") { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit, ListFilter.NONE)) }",
             ),
             SourceText.codeLines(
                 SourceText.functionSource(source, "fun observeRecentUnifiedInbox(limit: Int)"),

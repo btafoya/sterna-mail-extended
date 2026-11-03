@@ -1,5 +1,6 @@
 package app.sterna.core.data.mail
 
+import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteProgram
 import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.settings.SortOrder
@@ -10,6 +11,14 @@ import org.junit.Before
 import org.junit.Test
 import java.sql.Connection
 import java.sql.DriverManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 
 /**
  * What the "latest messages" home-screen widget is allowed to read, run against real SQLite.
@@ -78,48 +87,49 @@ class RecentUnifiedInboxSqlTest {
      * The widget's read as the repository builds it, statement and binds together.
      */
     private fun widget(scopes: List<Pair<String, String>>, limit: Int) =
-        recentUnifiedInboxFrom(scopes) { s ->
-            val query = recentUnifiedQuery(s, limit)
-            val recorded = RecordingStatement().also { query.bindTo(it) }
-            assertEquals(
-                "the query declares an argument count its own bindTo does not fill",
-                query.argCount,
-                recorded.bound.size,
-            )
-            assertEquals(
-                "every placeholder in the statement must get exactly one argument",
-                query.sql.count { it == '?' },
-                recorded.bound.size,
-            )
-            db.prepareStatement(query.sql).use { ps ->
-                recorded.bound.forEach { (i, v) ->
-                    when (v) {
-                        is Long -> ps.setLong(i, v)
-                        is String -> ps.setString(i, v)
-                        else -> error("the widget query bound something unexpected: $v")
-                    }
+        recentUnifiedInboxFrom(scopes) { s -> run(recentUnifiedQuery(s, limit, ListFilter.NONE)) }
+
+    private fun run(query: SimpleSQLiteQuery): List<RecentEmailRow> {
+        val recorded = RecordingStatement().also { query.bindTo(it) }
+        assertEquals(
+            "the query declares an argument count its own bindTo does not fill",
+            query.argCount,
+            recorded.bound.size,
+        )
+        assertEquals(
+            "every placeholder in the statement must get exactly one argument",
+            query.sql.count { it == '?' },
+            recorded.bound.size,
+        )
+        return db.prepareStatement(query.sql).use { ps ->
+            recorded.bound.forEach { (i, v) ->
+                when (v) {
+                    is Long -> ps.setLong(i, v)
+                    is String -> ps.setString(i, v)
+                    else -> error("the widget query bound something unexpected: $v")
                 }
-                ps.executeQuery().use { rs ->
-                    buildList {
-                        while (rs.next()) {
-                            add(
-                                RecentEmailRow(
-                                    id = rs.getString("id"),
-                                    accountId = rs.getString("accountId"),
-                                    mailboxId = rs.getString("mailboxId"),
-                                    subject = rs.getString("subject"),
-                                    fromName = rs.getString("fromName"),
-                                    fromEmail = rs.getString("fromEmail"),
-                                    seen = rs.getInt("seen") != 0,
-                                    sortKey = rs.getLong("sortKey"),
-                                    receivedAt = rs.getString("receivedAt"),
-                                )
+            }
+            ps.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(
+                            RecentEmailRow(
+                                id = rs.getString("id"),
+                                accountId = rs.getString("accountId"),
+                                mailboxId = rs.getString("mailboxId"),
+                                subject = rs.getString("subject"),
+                                fromName = rs.getString("fromName"),
+                                fromEmail = rs.getString("fromEmail"),
+                                seen = rs.getInt("seen") != 0,
+                                sortKey = rs.getLong("sortKey"),
+                                receivedAt = rs.getString("receivedAt"),
                             )
-                        }
+                        )
                     }
                 }
             }
         }
+    }
 
     /** The ids the app's own flat list draws, in its own order, bound the way `pagingQuery` binds. */
     private fun listed(scopes: List<Pair<String, String>>): List<String> =
@@ -216,7 +226,7 @@ class RecentUnifiedInboxSqlTest {
     @Test fun `the widget's statement cannot carry the body of a message`() {
         insert("m1", sortKey = 100)
 
-        db.prepareStatement(recentUnifiedSql(1)).use { ps ->
+        db.prepareStatement(recentUnifiedSql(1, ListFilter.NONE)).use { ps ->
             ps.setString(1, "acc1"); ps.setString(2, "inbox"); ps.setInt(3, 10)
             ps.executeQuery().use { rs ->
                 val meta = rs.metaData
@@ -270,5 +280,121 @@ class RecentUnifiedInboxSqlTest {
         assertEquals(1, widget(one, limit = 0).rows.size)
         assertEquals(1, widget(one, limit = -1).rows.size)
         assertEquals(1, widget(one, limit = Int.MIN_VALUE).rows.size)
+    }
+
+    @Test fun `the latest-messages statement is unchanged, word for word`() {
+        assertEquals(
+            "SELECT id, accountId, mailboxId, subject, fromName, fromEmail, seen, sortKey, receivedAt FROM emails " +
+                "WHERE ((emails.accountId = ? AND emails.mailboxId = ?) OR (emails.accountId = ? AND emails.mailboxId = ?)) " +
+                "AND NOT EXISTS (SELECT 1 FROM snoozed WHERE snoozed.emailId = emails.id " +
+                "AND snoozed.accountId = emails.accountId AND snoozed.until > " +
+                "(CAST(strftime('%s','now') AS INTEGER) * 1000)) " +
+                "ORDER BY sortKey DESC, id DESC LIMIT ?",
+            recentUnifiedSql(2, ListFilter.NONE),
+        )
+    }
+
+    @Test fun `the unread widget's statement is the unread view's predicate, sorted and bounded as the other`() {
+        val query = recentUnreadQuery(listOf("acc1" to "inbox", "acc2" to "archive"), limit = 500)
+        assertEquals(
+            "The unread widget must read through listRowsWhereSql with the unread criterion, the " +
+                "predicate of the list it opens: a 'seen = 0' of its own drifts from it.",
+            "SELECT id, accountId, mailboxId, subject, fromName, fromEmail, seen, sortKey, receivedAt FROM emails " +
+                "WHERE ${listRowsWhereSql(2, ListFilter(unreadOnly = true))} " +
+                "ORDER BY sortKey DESC, id DESC LIMIT ?",
+            query.sql,
+        )
+        val recorded = RecordingStatement().also { query.bindTo(it) }
+        assertEquals(
+            listOf("acc1", "inbox", "acc2", "archive", RECENT_ROWS_MAX.toLong()),
+            recorded.bound.values.toList(),
+        )
+    }
+
+    private fun unread(scopes: List<Pair<String, String>>?, limit: Int = 10) =
+        recentUnreadFrom(scopes) { s -> run(recentUnreadQuery(s, limit)) }
+
+    @Test fun `only unread mail reaches the unread widget, newest first, snoozes out, bounded`() {
+        insert("read", seen = 1, sortKey = 900)
+        insert("u1", seen = 0, sortKey = 100)
+        insert("u2", seen = 0, sortKey = 300)
+        insert("u3", seen = 0, sortKey = 200)
+        insert("later", seen = 0, sortKey = 950)
+        snooze("later", System.currentTimeMillis() + 3_600_000)
+
+        assertEquals(listOf("u2", "u3", "u1"), unread(one).rows.map { it.id })
+        assertEquals(listOf("u2", "u3"), unread(one, limit = 2).rows.map { it.id })
+    }
+
+    @Test fun `no folder list known is not the same answer as nothing unread`() {
+        insert("u1", seen = 0, sortKey = 100)
+
+        assertEquals(RecentInbox(configured = false, rows = emptyList()), unread(null))
+        assertEquals(
+            "Folders known, none of them in the view: a true 'nothing unread', and no statement " +
+                "is built for it.",
+            RecentInbox(configured = true, rows = emptyList()),
+            recentUnreadFrom(emptyList()) { error("an empty scope list was read") },
+        )
+    }
+
+    private fun observed(scopes: Flow<List<Pair<String, String>>?>, roomInvalidations: Flow<Int>) =
+        recentUnreadRows(scopes) { s -> roomInvalidations.map { run(recentUnreadQuery(s, 10)) } }
+            .map { inbox -> inbox.rows.map { "${it.accountId}/${it.mailboxId}/${it.id}" } }
+
+    @Test fun `a message read leaves the unread widget at the next emission`() = runTest {
+        insert("u1", seen = 0, sortKey = 200)
+        insert("u2", seen = 0, sortKey = 100)
+        val ticks = MutableStateFlow(0)
+        val seen = mutableListOf<List<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            observed(flowOf(one), ticks).toList(seen)
+        }
+
+        db.createStatement().use { it.executeUpdate("UPDATE emails SET seen = 1 WHERE id = 'u1'") }
+        ticks.value = 1
+
+        assertEquals(
+            listOf(listOf("acc1/inbox/u1", "acc1/inbox/u2"), listOf("acc1/inbox/u2")),
+            seen,
+        )
+    }
+
+    @Test fun `an unread message outside the inbox enters once its folder is in the scopes`() = runTest {
+        insert("inbox-mail", seen = 0, sortKey = 100)
+        insert("archived", seen = 0, mailbox = "archive", sortKey = 300)
+        insert("binned", seen = 0, mailbox = "trash", sortKey = 500)
+        val scopes = MutableStateFlow<List<Pair<String, String>>?>(one)
+        val seen = mutableListOf<List<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            observed(scopes, flowOf(0)).toList(seen)
+        }
+
+        scopes.value = listOf("acc1" to "inbox", "acc1" to "archive")
+
+        assertEquals(
+            listOf(
+                listOf("acc1/inbox/inbox-mail"),
+                listOf("acc1/archive/archived", "acc1/inbox/inbox-mail"),
+            ),
+            seen,
+        )
+    }
+
+    @Test fun `two accounts of one server sharing folder ids stay apart in the unread widget`() = runTest {
+        insert("mine", seen = 0, mailbox = "7", sortKey = 100)
+        insert("theirs", seen = 0, mailbox = "7", accountId = "acc2", sortKey = 200)
+        insert("their-other", seen = 0, mailbox = "8", accountId = "acc2", sortKey = 300)
+        val scopes = MutableStateFlow<List<Pair<String, String>>?>(listOf("acc1" to "7", "acc2" to "8"))
+        val seen = mutableListOf<List<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            observed(scopes, flowOf(0)).toList(seen)
+        }
+
+        assertEquals(
+            "acc2's '7' is not acc1's '7' (#121): a bare folder id reads the sibling account's mail.",
+            listOf(listOf("acc2/8/their-other", "acc1/7/mine")),
+            seen,
+        )
     }
 }

@@ -46,12 +46,14 @@ android {
         // the test install from the production one.
         manifestPlaceholders["latestWidgetLabel"] = "@string/widget_latest_title"
         manifestPlaceholders["everyFolderWidgetLabel"] = "@string/widget_unread_every_folder_title"
+        manifestPlaceholders["unreadListWidgetLabel"] = "@string/widget_unread_list_title"
         if (testApp) {
             applicationIdSuffix = ".test"
             manifestPlaceholders["appLabel"] = "Sterna (test)"
             manifestPlaceholders["widgetLabel"] = "Unread count (test)"
             manifestPlaceholders["latestWidgetLabel"] = "Latest messages (test)"
             manifestPlaceholders["everyFolderWidgetLabel"] = "Unread, every folder (test)"
+            manifestPlaceholders["unreadListWidgetLabel"] = "Unread messages (test)"
             // About row reads e.g. "1.3.13-test": tells the two apart from the inside.
             // A suffix only — versionName/versionCode themselves are never bumped for a test.
             versionNameSuffix = "-test"

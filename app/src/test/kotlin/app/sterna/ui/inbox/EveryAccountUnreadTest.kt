@@ -259,6 +259,114 @@ class EveryAccountUnreadTest {
         )
     }
 
+    // -- the scopes the unread widget's rows are read in (#283) -----------------------------------
+
+    @Test
+    fun `the widget's scopes are the unread view's, never Trash, Junk, Spam, Sent nor Drafts`() = runTest {
+        val one = listOf(account("A"))
+        val listed = mapOf(
+            "A" to listOf(
+                folder("1", "inbox", 0),
+                folder("2", null, 0),
+                folder("3", "trash", 1),
+                folder("5", "junk", 1),
+                folder("6", "spam", 1),
+                folder("7", "sent", 1),
+                folder("8", "drafts", 1),
+                folder("9", "archive", 0),
+            ),
+        )
+        assertEquals(
+            "Every folder of the unread view, the inbox and the folders outside it alike, and none " +
+                "of the five roles it leaves out.",
+            listOf("A" to "1", "A" to "2", "A" to "9"),
+            everyAccountUnreadScopesNow(flowOf(one)) { id -> flowOf(listed.getValue(id)) },
+        )
+    }
+
+    @Test
+    fun `the widget's scopes follow a folder hidden after they were first read`() = runTest {
+        val stored = MutableStateFlow(accounts)
+        val seen = mutableListOf<List<Pair<String, String>>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyAccountUnreadScopesFlow(stored) { id -> flowOf(folders.getValue(id)) }.toList(seen)
+        }
+        stored.value = listOf(account("A", hidden = setOf("2"))) + accounts.drop(1)
+        assertEquals(
+            "Hiding A's '2' changes no account id and no folder list: only the settings carried " +
+                "by the accounts flow can take it out of the widget.",
+            listOf(
+                listOf("A" to "1", "A" to "2", "A" to "4", "B" to "1"),
+                listOf("A" to "1", "A" to "4", "B" to "1"),
+            ),
+            seen,
+        )
+    }
+
+    @Test
+    fun `the widget's scopes follow the subscribed-only setting ticked after they were first read`() = runTest {
+        val stored = MutableStateFlow(accounts)
+        val seen = mutableListOf<List<Pair<String, String>>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyAccountUnreadScopesFlow(stored) { id -> flowOf(folders.getValue(id)) }.toList(seen)
+        }
+        stored.value = listOf(account("A", onlySubscribed = true)) + accounts.drop(1)
+        assertEquals(
+            listOf(
+                listOf("A" to "1", "A" to "2", "A" to "4", "B" to "1"),
+                listOf("A" to "1", "A" to "2", "B" to "1"),
+            ),
+            seen,
+        )
+    }
+
+    @Test
+    fun `a counter moving in a folder list does not re-emit the widget's scopes`() = runTest {
+        val lists = mapOf(
+            "A" to MutableStateFlow(folders.getValue("A")),
+            "B" to MutableStateFlow(folders.getValue("B")),
+        )
+        val seen = mutableListOf<List<Pair<String, String>>?>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            everyAccountUnreadScopesFlow(flowOf(accounts)) { id -> lists.getValue(id) }.toList(seen)
+        }
+        lists.getValue("A").value = folders.getValue("A").map { it.copy(unreadForList = it.unreadForList + 5) }
+        lists.getValue("B").value = folders.getValue("B").map { it.copy(unreadForList = 0) }
+        assertEquals(
+            "Every sync rewrites the counters of the folder rows; the scopes they derive do not " +
+                "move, and each re-emission would re-subscribe the widget's query.",
+            listOf(listOf("A" to "1", "A" to "2", "A" to "4", "B" to "1")),
+            seen,
+        )
+    }
+
+    @Test
+    fun `one account's folder list known is enough, another's still missing reads as not arrived yet`() = runTest {
+        val listed = mapOf("A" to folders.getValue("A"), "B" to emptyList())
+        assertEquals(
+            "B's folder list has not arrived, A's has: the widget reads A's folders. Taking one " +
+                "missing list for 'not configured' hides A's unread mail behind the app's name.",
+            listOf("A" to "1", "A" to "2", "A" to "4"),
+            everyAccountUnreadScopesNow(flowOf(accounts)) { id -> flowOf(listed.getValue(id)) },
+        )
+    }
+
+    @Test
+    fun `no folder list known is null, folders known and none in the view is an empty list`() = runTest {
+        assertNull(everyAccountUnreadScopesNow(flowOf(emptyList())) { error("no account to list") })
+        assertNull(
+            "Accounts whose folder lists have not arrived: nothing may be said about their mail.",
+            everyAccountUnreadScopesNow(flowOf(accounts)) { flowOf(emptyList()) },
+        )
+        assertEquals(
+            "A's only folders are its Trash and a hidden one: known, and nothing in the view.",
+            emptyList<Pair<String, String>>(),
+            everyAccountUnreadScopesNow(flowOf(listOf(account("A", hidden = setOf("2"))))) {
+                flowOf(listOf(folder("2", null, 3), folder("3", "trash", 4)))
+            },
+        )
+    }
+
     @Test
     fun `under All inboxes and in every account's view the entry carries every account's number`() {
         assertEquals(

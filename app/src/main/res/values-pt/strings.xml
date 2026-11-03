@@ -1272,6 +1272,9 @@
     <string name="widget_latest_title">Mensagens recentes</string>
     <string name="widget_latest_description">Lista as mensagens mais recentes de todas as caixas de entrada.</string>
     <string name="widget_latest_empty">Sem mensagens</string>
+    <string name="widget_unread_list_title">Mensagens não lidas</string>
+    <string name="widget_unread_list_description">Lista as mensagens não lidas de todas as pastas exceto Lixeira, Spam, Enviados e Rascunhos, das mais recentes para as mais antigas, e abre a vista «Não lidas».</string>
+    <string name="widget_unread_list_empty">Sem mensagens não lidas</string>
     <string name="widget_latest_hidden">Mensagem oculta</string>
     <string name="folders_manage_title">Gerir as pastas</string>
     <string name="folders_reorder_start">Reordenar</string>

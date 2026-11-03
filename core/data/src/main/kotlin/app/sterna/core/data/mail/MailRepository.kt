@@ -102,6 +102,7 @@ import app.sterna.core.jmap.model.SearchQuery
 import app.sterna.core.jmap.model.VacationResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -115,6 +116,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -794,12 +796,12 @@ internal fun representativeIndicatorsSql(filter: ListFilter, alias: String): Str
     (if (filter.flaggedOnly) " AND $alias.flagged = 1" else "") +
         (if (filter.withAttachment) " AND $alias.hasAttachment = 1" else "")
 
-/** The home-screen widget's read of the unified inbox, as one bounded statement. Which rows is
- *  [listRowsWhereSql] with the unread funnel off, so the pair scope (#121) and the snooze filter
- *  come free. `, id DESC` is a tie-break: rows commonly share a sortKey. */
-internal fun recentUnifiedSql(scopeCount: Int): String =
+/** A home-screen widget's read, as one bounded statement. Which rows is [listRowsWhereSql] under
+ *  [filter], so the pair scope (#121), the snooze filter and the list's own criteria come free.
+ *  `, id DESC` is a tie-break: rows commonly share a sortKey. */
+internal fun recentUnifiedSql(scopeCount: Int, filter: ListFilter): String =
     "SELECT $RECENT_EMAIL_ROW_COLUMNS FROM emails " +
-        "WHERE ${listRowsWhereSql(scopeCount, ListFilter.NONE)} " +
+        "WHERE ${listRowsWhereSql(scopeCount, filter)} " +
         "ORDER BY sortKey DESC, id DESC LIMIT ?"
 
 /** The most rows a widget read will ever ask SQLite for. A count derived from the cell's height
@@ -810,11 +812,16 @@ internal const val RECENT_ROWS_MAX: Int = 50
 internal fun recentRowBound(requested: Int): Int = requested.coerceIn(1, RECENT_ROWS_MAX)
 
 /** [recentUnifiedSql], bound the way [pagingQuery] binds its scopes, plus the row bound last. */
-internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int): SimpleSQLiteQuery =
+internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int, filter: ListFilter): SimpleSQLiteQuery =
     SimpleSQLiteQuery(
-        recentUnifiedSql(scopes.size),
+        recentUnifiedSql(scopes.size, filter),
         (scopes.flatMap { listOf<Any>(it.first, it.second) } + recentRowBound(limit)).toTypedArray(),
     )
+
+/** The unread widget's read: the unread view's own criterion, through [listRowsWhereSql] like the
+ *  list it opens, so a message read in the app leaves the cell at the next invalidation. */
+internal fun recentUnreadQuery(scopes: List<Pair<String, String>>, limit: Int): SimpleSQLiteQuery =
+    recentUnifiedQuery(scopes, limit, ListFilter(unreadOnly = true))
 
 /** What a widget read answers. [configured] is the difference between "no message" and "no answer":
  *  no scope means no account, an undecodable account blob, or an `inboxId` still null after a
@@ -827,6 +834,32 @@ internal inline fun recentUnifiedInboxFrom(
 ): RecentInbox =
     if (scopes.isEmpty()) RecentInbox(configured = false, rows = emptyList())
     else RecentInbox(configured = true, rows = read(scopes))
+
+/** [recentUnifiedInboxFrom] for scopes that are not inboxes. Null [scopes] is "no folder list known
+ *  yet", `configured = false`; an empty list is folders known and none of them in the view, which
+ *  is a true "nothing unread" and reads nothing. */
+internal inline fun recentUnreadFrom(
+    scopes: List<Pair<String, String>>?,
+    read: (List<Pair<String, String>>) -> List<RecentEmailRow>,
+): RecentInbox = when {
+    scopes == null -> RecentInbox(configured = false, rows = emptyList())
+    scopes.isEmpty() -> RecentInbox(configured = true, rows = emptyList())
+    else -> RecentInbox(configured = true, rows = read(scopes))
+}
+
+/** [recentUnreadFrom] observed over scopes the caller computes. Deduplicated before [rowsFor]: the
+ *  scopes of every folder derive from folder rows whose counters every sync rewrites, and each new
+ *  list, even an equal one, would cancel and rebuild the observed query. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun recentUnreadRows(
+    scopes: Flow<List<Pair<String, String>>?>,
+    rowsFor: (List<Pair<String, String>>) -> Flow<List<RecentEmailRow>>,
+): Flow<RecentInbox> = scopes
+    .distinctUntilChanged()
+    .flatMapLatest { known ->
+        if (known.isNullOrEmpty()) flowOf(recentUnreadFrom(known) { emptyList() })
+        else rowsFor(known).map { rows -> recentUnreadFrom(known) { rows } }
+    }
 
 /** The unified unread total broken down per account. A JMAP inbox contributes the unread count of
  *  its row in [rows], found by both halves of its scope (#121), and 0 while it has no row; never
@@ -1637,14 +1670,24 @@ class MailRepository(
      *  (the same (account, folder) pair scope, #121). The list's sort and filters do not apply. */
     suspend fun recentUnifiedInbox(limit: Int): RecentInbox =
         recentUnifiedInboxFrom(accountStore.allInboxScopes()) { scopes ->
-            emailDao.recentUnified(recentUnifiedQuery(scopes, limit))
+            emailDao.recentUnified(recentUnifiedQuery(scopes, limit, ListFilter.NONE))
         }
 
     /** [recentUnifiedInbox] observed, so the widget follows the mail (#112). The emitted value is a
      *  trigger, not a snapshot: `RecentMailWidgetDraw.read` also reads the setting and the app lock. */
     fun observeRecentUnifiedInbox(limit: Int): Flow<RecentInbox> = UnifiedInbox.recentRows(
         accountStore.accountsFlow,
-    ) { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit)) }
+    ) { scopes -> emailDao.observeRecentUnified(recentUnifiedQuery(scopes, limit, ListFilter.NONE)) }
+
+    /** The unread mail of [scopes], computed by the caller (the "Unread" view's folders of every
+     *  account), newest first and bounded like [recentUnifiedInbox]. See [recentUnreadFrom] for null. */
+    suspend fun recentUnread(scopes: List<Pair<String, String>>?, limit: Int): RecentInbox =
+        recentUnreadFrom(scopes) { s -> emailDao.recentUnified(recentUnreadQuery(s, limit)) }
+
+    /** [recentUnread] observed. [scopes] is expected to re-emit on every folder list write, and
+     *  [recentUnreadRows] holds the subscription through those. */
+    fun observeRecentUnread(scopes: Flow<List<Pair<String, String>>?>, limit: Int): Flow<RecentInbox> =
+        recentUnreadRows(scopes) { s -> emailDao.observeRecentUnified(recentUnreadQuery(s, limit)) }
 
     /** Unread across the inboxes of [scopes], one entry per account, re-emitted when a folder row
      *  changes. The decision is [unreadByAccountFrom]. */

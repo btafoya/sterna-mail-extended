@@ -40,6 +40,7 @@ import app.sterna.ui.connect.OutlookSignIn
 import app.sterna.widget.RecentMailWidgetDraw
 import app.sterna.widget.RecentMailWidgetPresence
 import app.sterna.widget.RecentMailWidgetPush
+import app.sterna.widget.RecentWidgetKind
 import app.sterna.widget.UnreadWidgetDraw
 import app.sterna.widget.UnreadWidgetKind
 import app.sterna.widget.UnreadWidgetPresence
@@ -262,13 +263,23 @@ class AppContainer(context: Context) {
         // Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS provider's
         // cells, and sharing the counter's would let each widget decide the other's freshness.
         appScope.launch {
-            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext), accountStore.accountsFlow) {
-                mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT)
+            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {
+                RecentWidgetKind.Inboxes.source(this@AppContainer)
             }.collect {
-                RecentMailWidgetDraw.forget()
-                runCatching { RecentMailWidgetDraw.refresh(appContext) }
+                RecentMailWidgetDraw.forget(RecentWidgetKind.Inboxes)
+                runCatching { RecentMailWidgetDraw.refresh(appContext, RecentWidgetKind.Inboxes) }
                     .rethrowIfCancelled()
                     .onFailure { Log.w("Sterna", "latest-messages widget not redrawn; the cell keeps its rows", it) }
+            }
+        }
+        appScope.launch {
+            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {
+                RecentWidgetKind.Unread.source(this@AppContainer)
+            }.collect {
+                RecentMailWidgetDraw.forget(RecentWidgetKind.Unread)
+                runCatching { RecentMailWidgetDraw.refresh(appContext, RecentWidgetKind.Unread) }
+                    .rethrowIfCancelled()
+                    .onFailure { Log.w("Sterna", "unread-messages widget not redrawn; the cell keeps its rows", it) }
             }
         }
     }

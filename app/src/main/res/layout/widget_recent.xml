@@ -10,6 +10,9 @@
 
     The ListView is filled by RecentMailWidgetService through setRemoteAdapter — the only way to
     list anything below API 31, where RemoteViews.RemoteCollectionItems does not exist yet.
+    Its height wraps its rows, bounded by the cell and scrolling past it, so the empty part of the
+    cell below the last row belongs to widget_recent_root: a list covering the whole cell swallows
+    that touch, and the Unread messages widget's tap on the cell then opens nothing.
 
     ⭐ THE NOTICE CARRIES TEXT, and it is not decoration. This file is what the system inflates the
     instant a cell is dropped on the home screen, before any read has answered — and that read may
@@ -32,7 +35,7 @@
     <ListView
         android:id="@+id/widget_recent_list"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:divider="@null"
         android:dividerHeight="0dp" />
 

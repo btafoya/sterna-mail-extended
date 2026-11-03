@@ -23,12 +23,15 @@ import kotlinx.coroutines.withTimeoutOrNull
 class RecentMailWidgetService : RemoteViewsService() {
 
     override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
-        RecentMailWidgetFactory(applicationContext)
+        RecentMailWidgetFactory(applicationContext, RecentWidgetKind.named(intent.getStringExtra(RecentMailWidgetDraw.EXTRA_KIND)))
 }
 
 /** Plumbing only: every decision drawn here was taken in [RecentMailWidgetContent], where a JVM
  *  test can run it. A `RemoteViewsFactory` cannot be executed in that suite. */
-internal class RecentMailWidgetFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
+internal class RecentMailWidgetFactory(
+    private val context: Context,
+    private val kind: RecentWidgetKind,
+) : RemoteViewsService.RemoteViewsFactory {
 
     /** What [getViewAt] serves, replaced whole by [onDataSetChanged] and never edited in place. */
     @Volatile
@@ -55,7 +58,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
     override fun onDataSetChanged() {
         val app = context.applicationContext as? Application ?: return
         val read = try {
-            runBlocking { withTimeoutOrNull(READ_TIMEOUT_MS) { RecentMailWidgetDraw.read(app) } }
+            runBlocking { withTimeoutOrNull(READ_TIMEOUT_MS) { RecentMailWidgetDraw.read(app, kind) } }
         } catch (t: Throwable) {
             Log.w(TAG, "Latest-messages widget not refreshed; the cell keeps what it last showed", t)
             null
@@ -63,7 +66,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         // Failing that, whatever the last read left behind; failing that, nothing is drawn.
         // Rows and colours come out of the same drawing, in one expression, or a read landing in
         // between would mix the colours of one moment with the rows of another.
-        val drawing = read ?: RecentMailWidgetDraw.drawing ?: return
+        val drawing = read ?: RecentMailWidgetDraw.drawing(kind) ?: return
         rows = drawing.snapshot.rows
         palette = drawing.colours?.palette
         monogramRamps = drawing.colours?.monogramRamps
@@ -135,7 +138,7 @@ internal class RecentMailWidgetFactory(private val context: Context) : RemoteVie
         )
         // What a tap on THIS row asks for, as extras merged into the list's template. On the row's
         // root: on a TextView the cell would only react on the sender's name.
-        views.setOnClickFillInIntent(R.id.widget_recent_row_root, RecentMailWidgetDraw.rowFillIn(item.tap))
+        views.setOnClickFillInIntent(R.id.widget_recent_row_root, RecentMailWidgetDraw.rowFillIn(kind, item.tap))
         return views
     }
 

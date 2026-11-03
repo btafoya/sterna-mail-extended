@@ -1294,6 +1294,9 @@
     <string name="widget_latest_title">Последние письма</string>
     <string name="widget_latest_description">Показывает самые свежие письма из всех папок «Входящие».</string>
     <string name="widget_latest_empty">Нет писем</string>
+    <string name="widget_unread_list_title">Непрочитанные письма</string>
+    <string name="widget_unread_list_description">Показывает непрочитанные письма из всех папок, кроме Корзины, Спама, Отправленных и Черновиков, сначала новые, и открывает раздел «Непрочитанные».</string>
+    <string name="widget_unread_list_empty">Нет непрочитанных писем</string>
     <string name="widget_latest_hidden">Сообщение скрыто</string>
     <string name="folders_manage_title">Управление папками</string>
     <string name="folders_reorder_start">Упорядочить</string>

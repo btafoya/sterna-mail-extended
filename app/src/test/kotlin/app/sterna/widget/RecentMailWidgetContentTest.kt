@@ -530,20 +530,34 @@ class RecentMailWidgetContentTest {
      */
     @Test fun `the state that affirms nothing draws the app's name, never the empty line`() {
         assertEquals(
-            "the silent state names the app and stops there.",
-            R.string.app_name,
-            RecentMailWidgetContent.notice(RecentWidgetCell.NothingToSay),
+            "the silent state names the app and stops there, in both lists.",
+            RecentWidgetKind.entries.associateWith { R.string.app_name },
+            RecentWidgetKind.entries.associateWith { RecentMailWidgetContent.notice(RecentWidgetCell.NothingToSay, it) },
         )
-        assertNotEquals(
-            "⛔ and it is NOT the empty-inbox line, which is a claim about the reader's mailbox.",
-            R.string.widget_latest_empty,
-            RecentMailWidgetContent.notice(RecentWidgetCell.NothingToSay),
+        assertEquals(
+            "⛔ and it is NOT either empty line, each a claim about the reader's mailbox.",
+            emptyList<RecentWidgetKind>(),
+            RecentWidgetKind.entries.filter {
+                RecentMailWidgetContent.notice(RecentWidgetCell.NothingToSay, it) in
+                    setOf(R.string.widget_latest_empty, R.string.widget_unread_list_empty)
+            },
         )
     }
 
-    @Test fun `the empty inbox draws the empty line, and a list draws none`() {
-        assertEquals(R.string.widget_latest_empty, RecentMailWidgetContent.notice(RecentWidgetCell.EmptyInbox))
-        assertEquals(null, RecentMailWidgetContent.notice(RecentWidgetCell.Rows))
+    @Test fun `each list says its own kind of empty, and a list draws none`() {
+        assertEquals(
+            "the inboxes' list says there is no message, the unread list that there is no unread " +
+                "one: \"No messages\" over a list of unread mail says the mailbox is empty.",
+            mapOf(
+                RecentWidgetKind.Inboxes to R.string.widget_latest_empty,
+                RecentWidgetKind.Unread to R.string.widget_unread_list_empty,
+            ),
+            RecentWidgetKind.entries.associateWith { RecentMailWidgetContent.notice(RecentWidgetCell.EmptyInbox, it) },
+        )
+        assertEquals(
+            RecentWidgetKind.entries.associateWith { null },
+            RecentWidgetKind.entries.associateWith { RecentMailWidgetContent.notice(RecentWidgetCell.Rows, it) },
+        )
     }
 
     // ---- the whole read, projected ----

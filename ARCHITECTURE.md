@@ -113,7 +113,10 @@ actions taken in the app (read, move, delete). It counts *messages*: in
 conversation view a thread with two unread messages counts for two where the
 list shows one row, and a snoozed message stays counted. The "All inboxes"
 header and the inbox unread widget add up the inbox count of each account; the
-every-folder unread widget counts what the drawer's "Unread" entry counts.
+every-folder unread widget counts what the drawer's "Unread" entry counts. The
+unread list widget reads the same folders as that widget, the scopes of the
+Unread view (`everyAccountUnreadScopes`), and keeps the unread messages with
+the Unread view's own predicate (`listRowsWhereSql` with `unreadOnly`).
 
 ## Actions & safety
 

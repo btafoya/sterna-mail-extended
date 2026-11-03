@@ -1291,6 +1291,9 @@
     <string name="widget_latest_title">Najnowsze wiadomości</string>
     <string name="widget_latest_description">Pokazuje najnowsze wiadomości ze wszystkich skrzynek odbiorczych.</string>
     <string name="widget_latest_empty">Brak wiadomości</string>
+    <string name="widget_unread_list_title">Nieprzeczytane wiadomości</string>
+    <string name="widget_unread_list_description">Pokazuje nieprzeczytane wiadomości ze wszystkich folderów oprócz Kosza, Spamu, Wysłanych i Wersji roboczych, od najnowszych, i otwiera widok Nieprzeczytane.</string>
+    <string name="widget_unread_list_empty">Brak nieprzeczytanych wiadomości</string>
     <string name="widget_latest_hidden">Wiadomość ukryta</string>
     <string name="folders_manage_title">Zarządzaj folderami</string>
     <string name="folders_reorder_start">Zmień kolejność</string>

@@ -1260,6 +1260,9 @@
     <string name="widget_latest_title">Nieuwste berichten</string>
     <string name="widget_latest_description">Toont de nieuwste berichten uit al je postvakken IN.</string>
     <string name="widget_latest_empty">Geen berichten</string>
+    <string name="widget_unread_list_title">Ongelezen berichten</string>
+    <string name="widget_unread_list_description">Toont de ongelezen berichten in alle mappen behalve Prullenbak, Spam, Verzonden en Concepten, nieuwste eerst, en opent de weergave Ongelezen.</string>
+    <string name="widget_unread_list_empty">Geen ongelezen berichten</string>
     <string name="widget_latest_hidden">Bericht verborgen</string>
     <string name="folders_manage_title">Mappen beheren</string>
     <string name="folders_reorder_start">Herschikken</string>

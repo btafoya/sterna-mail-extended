@@ -20,7 +20,7 @@ class UnreadWidgetPushWiringLintTest {
     @Test fun `the delivery pass redraws BOTH widgets, last, and outside its sign-out arm`() {
         assertEquals(
             "FetchAndNotify.run must END with a best-effort redraw of EACH home-screen widget, " +
-                "both counters (#283) and the list, " +
+                "both counters and both lists (#283), each in its own runCatching, " +
                 "outside its try. Without it, mail that arrives on a dead process notifies and " +
                 "leaves the cell as it was until something else opens the app (#112) — the " +
                 "counter showing the old number, and the latest-messages list not showing the " +
@@ -34,11 +34,14 @@ class UnreadWidgetPushWiringLintTest {
                 "runCatching { UnreadWidgetDraw.refresh(context, UnreadWidgetKind.EveryFolder) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"every-folder unread widget not redrawn after the pass\", it) }",
-                "runCatching { RecentMailWidgetDraw.refresh(context) }",
+                "runCatching { RecentMailWidgetDraw.refresh(context, RecentWidgetKind.Inboxes) }",
                 ".rethrowIfCancelled()",
                 ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"latest-messages widget not redrawn after the pass\", it) }",
+                "runCatching { RecentMailWidgetDraw.refresh(context, RecentWidgetKind.Unread) }",
+                ".rethrowIfCancelled()",
+                ".onFailure { android.util.Log.w(\"FetchAndNotify\", \"unread-messages widget not redrawn after the pass\", it) }",
             ),
-            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(9),
+            functionBody(FETCH_AND_NOTIFY, "suspend fun run(").takeLast(12),
         )
     }
 

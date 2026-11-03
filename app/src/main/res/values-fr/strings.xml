@@ -1274,6 +1274,9 @@
     <string name="widget_latest_title">Derniers messages</string>
     <string name="widget_latest_description">Liste les messages les plus récents de toutes vos boîtes de réception.</string>
     <string name="widget_latest_empty">Aucun message</string>
+    <string name="widget_unread_list_title">Messages non lus</string>
+    <string name="widget_unread_list_description">Liste les messages non lus de tous les dossiers sauf Corbeille, Spam, Envoyés et Brouillons, les plus récents d’abord, et ouvre la vue « Non lus ».</string>
+    <string name="widget_unread_list_empty">Aucun message non lu</string>
     <string name="widget_latest_hidden">Message masqué</string>
     <string name="folders_manage_title">Gérer les dossiers</string>
     <string name="folders_reorder_start">Réorganiser</string>

@@ -75,9 +75,9 @@ internal object RecentMailWidgetContent {
     /** The single line drawn instead of the list, or null when the list is what the cell shows.
      * [RecentWidgetCell.NothingToSay] resolves to the app's own name, never to the empty-inbox
      *  line: that is the whole difference between the two silent-looking states. */
-    fun notice(cell: RecentWidgetCell): Int? = when (cell) {
+    fun notice(cell: RecentWidgetCell, kind: RecentWidgetKind): Int? = when (cell) {
         RecentWidgetCell.Rows -> null
-        RecentWidgetCell.EmptyInbox -> R.string.widget_latest_empty
+        RecentWidgetCell.EmptyInbox -> kind.emptyNotice
         RecentWidgetCell.NothingToSay -> R.string.app_name
     }
 

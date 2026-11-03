@@ -225,8 +225,10 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Contact avatars and sender monograms.
 - ✅ Home-screen widgets for the unread count of the inboxes, for the unread count
   of every folder but Trash, Spam, Sent and Drafts (opening the Unread view),
-  and for recent mail, all three respecting the app lock: while it is on, they
-  name no account, sender or subject.
+  for recent mail, and for a list of the newest unread messages of every folder
+  but Trash, Spam, Sent and Drafts, hidden and unsubscribed folders left out
+  (opening the Unread view), all four respecting the app lock: while it is on,
+  they name no account, sender or subject.
 - ✅ Settings grouped into Accounts, the app, and the account you are on.
 - ✅ Storage screen with a per-account breakdown and Clear cache; the copies of
   attachments handed to another app are capped by size and age, and signing out

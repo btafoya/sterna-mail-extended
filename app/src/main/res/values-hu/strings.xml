@@ -1303,6 +1303,9 @@
     <string name="widget_latest_title">Legújabb üzenetek</string>
     <string name="widget_latest_description">Felsorolja az összes postafiókja legújabb üzeneteit.</string>
     <string name="widget_latest_empty">Nincs üzenet</string>
+    <string name="widget_unread_list_title">Olvasatlan üzenetek</string>
+    <string name="widget_unread_list_description">Felsorolja az olvasatlan üzeneteket minden mappából, a Kuka, a Levélszemét, az Elküldött és a Piszkozatok kivételével, a legújabbal kezdve, és megnyitja az Olvasatlan nézetet.</string>
+    <string name="widget_unread_list_empty">Nincs olvasatlan üzenet</string>
     <string name="widget_latest_hidden">Rejtett üzenet</string>
     <string name="folders_manage_title">Mappák kezelése</string>
     <string name="folders_reorder_start">Átrendezés</string>

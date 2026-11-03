@@ -32,13 +32,13 @@ class RecentMailWidgetWiringLintTest {
                 "the home screen: the reader took the initials off her message list and gets " +
                 "them back on her launcher, with no switch anywhere that turns them off.",
             listOf(
-                "suspend fun read(app: Application): RecentWidgetDrawing {",
+                "suspend fun read(app: Application, kind: RecentWidgetKind): RecentWidgetDrawing {",
                 "val container = app.container",
                 "val content = container.settingsRepository.notificationContent.first()",
                 "val listMonogram = container.settingsRepository.listMonogram.first()",
                 "val appLockEnabled = container.accountStore.appLockEnabled()",
                 "val accounts = container.accountStore.accounts()",
-                "val inbox = container.mailRepository.recentUnifiedInbox(ROW_LIMIT)",
+                "val inbox = kind.read(container, accounts)",
                 "val snapshot = RecentMailWidgetContent.snapshot(",
                 "inbox = inbox,",
                 "content = content,",
@@ -50,11 +50,143 @@ class RecentMailWidgetWiringLintTest {
                 "accountColors = RecentMailWidgetContent.accountColors(accounts),",
                 ")",
                 "val colours = WidgetThemeReader.colours(app)",
-                "val drawing = RecentWidgetDrawing(snapshot, colours)",
-                "held = drawing",
+                "val drawing = RecentWidgetDrawing(snapshot, colours, RecentMailWidgetTap.templateExtras(kind, accounts))",
+                "held.hold(kind, drawing)",
                 "return drawing",
             ),
-            functionBody(DRAW, "suspend fun read(app: Application)"),
+            functionBody(DRAW, "suspend fun read(app: Application, kind: RecentWidgetKind)"),
+        )
+    }
+
+    @Test fun `each list reads its own mail, the unread one from the accounts read once`() {
+        assertEquals(
+            "RecentWidgetKind must read the inboxes' list from recentUnifiedInbox and the unread " +
+                "list from recentUnread over everyAccountUnreadScopesNow(flowOf(accounts)), the very " +
+                "list read() read: a second store read lets scopes and colours disagree. And the " +
+                "flows must be the same two reads, observed, bounded by ROW_LIMIT.",
+            listOf(
+                "{ container, _ -> container.mailRepository.recentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT) },",
+                "{ container -> container.mailRepository.observeRecentUnifiedInbox(RecentMailWidgetDraw.ROW_LIMIT) },",
+                "{ container, accounts ->",
+                "container.mailRepository.recentUnread(",
+                "everyAccountUnreadScopesNow(flowOf(accounts)) { container.mailRepository.observeMailboxes(it) },",
+                "RecentMailWidgetDraw.ROW_LIMIT,",
+                "{ container ->",
+                "container.mailRepository.observeRecentUnread(",
+                "everyAccountUnreadScopesFlow(container.accountStore.accountsFlow) { container.mailRepository.observeMailboxes(it) },",
+                "RecentMailWidgetDraw.ROW_LIMIT,",
+            ),
+            kotlinLines(KIND).filter { "container" in it || "ROW_LIMIT" in it },
+        )
+    }
+
+    @Test fun `the held drawing, the forget and the refresh are each list's own`() {
+        assertEquals(
+            "RecentMailWidgetDraw must hold its drawings in a HeldDrawings, serve each factory " +
+                "its OWN kind's, and forget() / refresh(context) without a kind must reach every " +
+                "kind: SettingsViewModel and AccountsViewModel call those two, and one list left " +
+                "out keeps the old theme, colour or, under the lock, a sender's name.",
+            listOf(
+                listOf("private val held = HeldDrawings()"),
+                listOf("fun drawing(kind: RecentWidgetKind): RecentWidgetDrawing? = held[kind]"),
+                listOf("fun forget(kind: RecentWidgetKind) {", "held.forget(kind)"),
+                listOf("fun forget() {", "RecentWidgetKind.entries.forEach { forget(it) }"),
+                listOf("suspend fun refresh(context: Context) {", "RecentWidgetKind.entries.forEach { refresh(context, it) }"),
+            ),
+            listOf(
+                kotlinLines(DRAW).filter { it.startsWith("private val held") },
+                kotlinLines(DRAW).filter { it.startsWith("fun drawing(") },
+                functionBody(DRAW, "fun forget(kind: RecentWidgetKind)"),
+                functionBody(DRAW, "fun forget()"),
+                functionBody(DRAW, "suspend fun refresh(context: Context)"),
+            ),
+        )
+    }
+
+    @Test fun `a refresh and a placement read and draw the kind they were asked for, bounded and never thrown`() {
+        assertEquals(
+            "RecentMailWidgetDraw.refresh(context, kind) must ask for THAT kind's cells, read THAT " +
+                "kind under withTimeoutOrNull and draw THAT kind. A constant kind on any of the " +
+                "three lines draws the inboxes' rows into the unread cell, or reads one list and " +
+                "draws the other's ids; withTimeout throws a CancellationException that " +
+                "FetchAndNotify and the push collection read as a sign-out or a cancelled pass.",
+            listOf(
+                "suspend fun refresh(context: Context, kind: RecentWidgetKind) {",
+                "val app = context.applicationContext as? Application ?: return",
+                "val ids = placedIds(app, kind)",
+                "if (ids.isEmpty()) return",
+                "val drawing = withTimeoutOrNull(REFRESH_TIMEOUT_MS) { read(app, kind) } ?: return",
+                "draw(app, kind, ids, drawing)",
+            ),
+            functionBody(DRAW, "suspend fun refresh(context: Context, kind: RecentWidgetKind)"),
+        )
+        assertEquals(
+            "RecentListWidgetProvider.onUpdate must read and draw its OWN kind, bounded by " +
+                "withTimeoutOrNull(DRAW_TIMEOUT_MS), draw nothing on null, catch everything and " +
+                "finish the broadcast on every path. A constant kind makes a freshly placed unread " +
+                "cell show the inboxes' list; withTimeout, or a missing finish(), costs the " +
+                "process at about 10 s.",
+            listOf(
+                "override fun onUpdate(",
+                "context: Context,",
+                "appWidgetManager: AppWidgetManager,",
+                "appWidgetIds: IntArray,",
+                ") {",
+                "val app = context.applicationContext as? Application ?: return",
+                "val pending = goAsync()",
+                "CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {",
+                "try {",
+                "val drawing = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app, kind) }",
+                "if (drawing != null) RecentMailWidgetDraw.draw(app, kind, appWidgetIds, drawing)",
+                "} catch (t: Throwable) {",
+                "Log.w(TAG, \"Latest-messages widget not redrawn; the cell keeps what it last showed\", t)",
+                "} finally {",
+                "pending.finish()",
+                "}",
+                "}",
+            ),
+            functionBody(PROVIDER, "override fun onUpdate("),
+        )
+        assertEquals(
+            "and the two delays stay what the system allows a goAsync() receiver and a delivery " +
+                "pass: 5 s each, well under the ~10 s after which the process is killed.",
+            listOf("const val DRAW_TIMEOUT_MS = 5_000L", "private const val REFRESH_TIMEOUT_MS = 5_000L"),
+            kotlinLines(PROVIDER).filter { it.startsWith("const val DRAW_TIMEOUT_MS") } +
+                kotlinLines(DRAW).filter { it.startsWith("private const val REFRESH_TIMEOUT_MS") },
+        )
+    }
+
+    @Test fun `each cell's rows are served by the factory of its own kind`() {
+        assertEquals(
+            "adapterIntent must write the kind BEFORE taking the data URI (filterEquals ignores " +
+                "extras: the URI is what keeps two cells, and two kinds, on two factories), and " +
+                "the service must build its factory with the kind the intent names.",
+            listOf(
+                listOf(
+                    "private fun adapterIntent(context: Context, kind: RecentWidgetKind, widgetId: Int): Intent =",
+                    "Intent(context, RecentMailWidgetService::class.java).apply {",
+                    "putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)",
+                    "putExtra(EXTRA_KIND, kind.name)",
+                    "data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))",
+                ),
+                listOf(
+                    "override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =",
+                    "RecentMailWidgetFactory(applicationContext, RecentWidgetKind.named(intent.getStringExtra(RecentMailWidgetDraw.EXTRA_KIND)))",
+                ),
+            ),
+            listOf(
+                functionBody(DRAW, "private fun adapterIntent(").take(5),
+                kotlinLines(SERVICE).let { lines ->
+                    val at = lines.indexOf("override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =")
+                    if (at < 0) emptyList() else lines.subList(at, at + 2)
+                },
+            ),
+        )
+        assertEquals(
+            "a name reads back as its kind, and an adapter bound before the unread list existed, " +
+                "which names none, is the inboxes' list it always was.",
+            mapOf("Inboxes" to RecentWidgetKind.Inboxes, "Unread" to RecentWidgetKind.Unread, null to RecentWidgetKind.Inboxes),
+            listOf("Inboxes", "Unread", null).associateWith { RecentWidgetKind.named(it) },
         )
     }
 
@@ -83,17 +215,30 @@ class RecentMailWidgetWiringLintTest {
             listOf(
                 listOf(
                     "override fun onEnabled(context: Context) {",
-                    "RecentMailWidgetPresence.set(true)",
+                    "RecentMailWidgetPresence.set(kind, true)",
                 ),
                 listOf(
                     "override fun onDisabled(context: Context) {",
-                    "RecentMailWidgetPresence.set(false)",
+                    "RecentMailWidgetPresence.set(kind, false)",
                 ),
             ),
             listOf(
                 functionBody(PROVIDER, "override fun onEnabled(context: Context)"),
                 functionBody(PROVIDER, "override fun onDisabled(context: Context)"),
             ),
+        )
+        assertEquals(
+            "and each provider class is bound to its own kind, the inboxes' list keeping its " +
+                "class name: Android knows a placed cell by its ComponentName.",
+            listOf(
+                "class RecentMailWidgetProvider : RecentListWidgetProvider(RecentWidgetKind.Inboxes)",
+                "class UnreadListWidgetProvider : RecentListWidgetProvider(RecentWidgetKind.Unread)",
+            ),
+            kotlinLines(PROVIDER).filter { it.startsWith("class ") },
+        )
+        assertEquals(
+            mapOf(RecentWidgetKind.Inboxes to RecentMailWidgetProvider::class.java, RecentWidgetKind.Unread to UnreadListWidgetProvider::class.java),
+            RecentWidgetKind.entries.associateWith { it.provider },
         )
     }
 
@@ -193,12 +338,14 @@ class RecentMailWidgetWiringLintTest {
 
     private companion object {
         val DRAW = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetDraw.kt")
+        val KIND = file("app/src/main/kotlin/app/sterna/widget/RecentWidgetKind.kt")
+        val SERVICE = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetService.kt")
         val PROVIDER = file("app/src/main/kotlin/app/sterna/widget/RecentMailWidgetProvider.kt")
         val SETTINGS_VIEW_MODEL = file("app/src/main/kotlin/app/sterna/ui/settings/SettingsViewModel.kt")
         val ACCOUNTS_VIEW_MODEL = file("app/src/main/kotlin/app/sterna/ui/settings/AccountsViewModel.kt")
 
         const val NOTICE =
-            "val notice = RecentMailWidgetContent.notice(snapshot.cell)?.let { app.getString(it) } " +
+            "val notice = RecentMailWidgetContent.notice(snapshot.cell, kind)?.let { app.getString(it) } " +
                 "?: app.getString(R.string.app_name)"
 
         const val REDRAW_LAUNCH = "viewModelScope.launch {"

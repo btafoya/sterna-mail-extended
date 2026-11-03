@@ -12,11 +12,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The home-screen list of the latest messages of every inbox, the second widget, and a separate
  */
-class RecentMailWidgetProvider : AppWidgetProvider() {
+class RecentMailWidgetProvider : RecentListWidgetProvider(RecentWidgetKind.Inboxes)
+
+class UnreadListWidgetProvider : RecentListWidgetProvider(RecentWidgetKind.Unread)
+
+abstract class RecentListWidgetProvider internal constructor(
+    private val kind: RecentWidgetKind,
+) : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -32,8 +39,8 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
             try {
                 // withTimeoutOrNull, never withTimeout, whose CancellationException a caller
                 // that reads cancellation as a sign-out would re-throw. Null means: draw nothing.
-                val drawing = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app) }
-                if (drawing != null) RecentMailWidgetDraw.draw(app, appWidgetIds, drawing)
+                val drawing = withTimeoutOrNull(DRAW_TIMEOUT_MS) { RecentMailWidgetDraw.read(app, kind) }
+                if (drawing != null) RecentMailWidgetDraw.draw(app, kind, appWidgetIds, drawing)
             } catch (t: Throwable) {
                 // An exception escaping a coroutine takes the process down, and a widget that could
                 // not be drawn must cost no more than a stale cell.
@@ -44,13 +51,13 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    /** The first cell of THIS widget was placed. Not the counter's, see [RecentMailWidgetPresence]. */
+    /** The first cell of this kind was placed. Not the other's, see [RecentMailWidgetPresence]. */
     override fun onEnabled(context: Context) {
-        RecentMailWidgetPresence.set(true)
+        RecentMailWidgetPresence.set(kind, true)
     }
 
     override fun onDisabled(context: Context) {
-        RecentMailWidgetPresence.set(false)
+        RecentMailWidgetPresence.set(kind, false)
     }
 
     private companion object {
@@ -65,28 +72,27 @@ class RecentMailWidgetProvider : AppWidgetProvider() {
 }
 
 /**
- * Is at least one latest-messages cell placed?, its own state, and that is the whole point.
+ * Is a cell of each list placed?, one state per kind: shared, one list's last cell would stop the other's push.
  */
 internal object RecentMailWidgetPresence {
 
-    private val state = MutableStateFlow(false)
+    private val states = RecentWidgetKind.entries.associateWith { MutableStateFlow(false) }
 
-    @Volatile private var seeded = false
+    private val seeded: MutableSet<RecentWidgetKind> = ConcurrentHashMap.newKeySet<RecentWidgetKind>()
 
-    fun placed(context: Context): StateFlow<Boolean> {
-        if (!seeded) {
-            seeded = true
-            set(anyWidgetPlaced(RecentMailWidgetDraw.placedIds(context)))
+    fun placed(context: Context, kind: RecentWidgetKind): StateFlow<Boolean> {
+        if (seeded.add(kind)) {
+            set(kind, anyWidgetPlaced(RecentMailWidgetDraw.placedIds(context, kind)))
         }
-        return state
+        return states.getValue(kind)
     }
 
     /**
      * The same flow without the seed, what [set] writes into, and the handle a JVM test can hold.
      */
-    val live: StateFlow<Boolean> get() = state
+    fun live(kind: RecentWidgetKind): StateFlow<Boolean> = states.getValue(kind)
 
-    fun set(placed: Boolean) {
-        state.value = placed
+    fun set(kind: RecentWidgetKind, placed: Boolean) {
+        states.getValue(kind).value = placed
     }
 }

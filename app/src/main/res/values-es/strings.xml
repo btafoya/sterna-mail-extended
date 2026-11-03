@@ -1268,6 +1268,9 @@
     <string name="widget_latest_title">Mensajes recientes</string>
     <string name="widget_latest_description">Muestra los mensajes más recientes de todas tus bandejas de entrada.</string>
     <string name="widget_latest_empty">Sin mensajes</string>
+    <string name="widget_unread_list_title">Mensajes sin leer</string>
+    <string name="widget_unread_list_description">Muestra los mensajes sin leer de todas las carpetas salvo Papelera, Spam, Enviados y Borradores, los más recientes primero, y abre la vista «Sin leer».</string>
+    <string name="widget_unread_list_empty">No hay mensajes sin leer</string>
     <string name="widget_latest_hidden">Mensaje oculto</string>
     <string name="folders_manage_title">Gestionar carpetas</string>
     <string name="folders_reorder_start">Reordenar</string>
