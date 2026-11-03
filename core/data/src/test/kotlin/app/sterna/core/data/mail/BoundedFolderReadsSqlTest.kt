@@ -346,8 +346,9 @@ class BoundedFolderReadsSqlTest {
     }
 
     @Test fun `the download ahead asks for one batch of the period and nothing else`() {
-        assertLine("prefetchInboxBodies", "val ids = emailDao.idsToDownloadAhead(credentials.id, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_BATCH)")
+        assertLine("downloadBodiesAhead", "val ids = emailDao.idsToDownloadAhead(credentials.id, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_BATCH)")
         assertNoUnboundedRead("prefetchInboxBodies")
+        assertNoUnboundedRead("downloadBodiesAhead")
         assertNoUnboundedRead("downloadAheadImap")
     }
 

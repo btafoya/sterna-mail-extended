@@ -226,8 +226,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Home-screen widgets for the unread count and for recent mail, both respecting
   the app lock.
 - ✅ Settings grouped into Accounts, the app, and the account you are on.
-- ✅ Storage screen with a per-account breakdown and Clear cache; the attachment
-  cache is capped by size and age, and signing out purges that account.
+- ✅ Storage screen with a per-account breakdown and Clear cache; the copies of
+  attachments handed to another app are capped by size and age, and signing out
+  purges that account.
 - ✅ Per-account sync window, by age or by message count.
 - ✅ Reply bar toggle, and a compact top bar naming the folder and the account.
 - ✅ About screen: version and release date, source, license, author.

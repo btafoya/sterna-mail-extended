@@ -55,9 +55,47 @@ class PendingExpungeWiringTest {
             factory.filter { it.startsWith("val pendingExpunges") },
         )
         assertEquals(
-            "handed once to MailboxUidValidityStore and once to ImapMailService, both positionally last",
+            "handed once to MailboxUidValidityStore and once to ImapMailService",
             listOf("pendingExpunges,", "pendingExpunges,"),
             factory.filter { it == "pendingExpunges," },
+        )
+    }
+
+    /** The store of parts (#157): one instance, built under `filesDir`, handed to the three users
+     *  that would otherwise compile without it, each argument a default of null or a positional
+     *  slot. What each does with it is executed in `AttachmentStoreTest` and `DownloadAheadTest`. */
+    @Test fun `the store of parts reaches the renumbering, the repository and the cache buttons`() {
+        val factory = code(FACTORY.readText())
+        assertEquals(
+            listOf("val attachmentStore = AttachmentStore(java.io.File(appContext.filesDir, ATTACHMENT_STORE_DIR))"),
+            factory.filter { it.startsWith("val attachmentStore") },
+        )
+        val at = factory.indexOf("val uidValidity = MailboxUidValidityStore(")
+        assertEquals(
+            "the renumbering's store, whose `invalidate` empties the folder's parts",
+            listOf(
+                "database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),",
+                "database.emailFtsDao(),",
+                "pendingExpunges,",
+                "attachmentStore,",
+                ")",
+            ),
+            factory.subList(at + 1, at + 6),
+        )
+        assertEquals(
+            "named once for MailRepository, whose parameter defaults to null, and once for StorageRepository",
+            listOf("attachmentStore = attachmentStore,", "attachmentStore = attachmentStore,"),
+            factory.filter { it.startsWith("attachmentStore =") },
+        )
+    }
+
+    @Test fun `the orphaned-account sweep inventories the store of parts and empties an orphan's`() {
+        assertEquals(
+            listOf(
+                "mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() + attachmentStore.accountIds() +",
+                "runCatching { attachmentStore.clearAccount(accountId) }",
+            ),
+            bodyOf(STORAGE, "purgeOrphanedAccounts").filter { "attachmentStore." in it },
         )
     }
 

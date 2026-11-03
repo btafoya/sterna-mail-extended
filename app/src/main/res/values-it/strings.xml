@@ -630,12 +630,14 @@
     <string name="settings_quota_used_of">%1$s di %2$s</string>
     <string name="settings_download_ahead_section">Download</string>
     <string name="settings_download_ahead_title">Scarica i messaggi in anticipo</string>
-    <string name="settings_download_ahead_subtitle">Salva su questo telefono il testo dei messaggi recenti della Posta in arrivo prima che tu li apra, senza gli allegati. Non va mai più indietro dei Messaggi da sincronizzare di ciascun account.</string>
+    <string name="settings_download_ahead_subtitle">Salva su questo telefono il testo dei messaggi recenti della Posta in arrivo prima che tu li apra. Non va mai più indietro dei Messaggi da sincronizzare di ciascun account.</string>
     <string name="settings_download_ahead_period_title">Periodo</string>
     <string name="settings_download_ahead_7_days">7 giorni</string>
     <string name="settings_download_ahead_1_month">1 mese</string>
     <string name="settings_download_ahead_3_months">3 mesi</string>
     <string name="settings_download_ahead_6_months">6 mesi</string>
+    <string name="settings_download_ahead_attachments_title">Anche gli allegati</string>
+    <string name="settings_download_ahead_attachments_subtitle">Salva anche gli allegati di questi messaggi, per aprirli senza connessione.</string>
     <string name="settings_maintenance_section">Manutenzione</string>
     <string name="settings_clear_cache_help">Svuotare la cache rimuove da questo dispositivo i messaggi e gli allegati scaricati. I tuoi account restano connessi e la posta viene riscaricata all\'apertura, o prima per i messaggi recenti della Posta in arrivo finché Scarica i messaggi in anticipo è attivo.</string>
     <string name="settings_clearing">Svuotamento…</string>
@@ -723,7 +725,7 @@
     <string name="settings_storage_section">Archiviazione</string>
     <string name="settings_cached_messages">Messaggi in cache</string>
     <string name="settings_clear_account_cache">Svuota la cache di questo account</string>
-    <string name="settings_clear_account_cache_help">Svuotare la cache di questo account rimuove i suoi messaggi scaricati. Gli allegati non vengono salvati per account, quindi vengono rimossi anche gli allegati scaricati di tutti i tuoi account. I tuoi account restano connessi e la posta viene riscaricata all\'apertura, o prima per i messaggi recenti della Posta in arrivo finché Scarica i messaggi in anticipo è attivo.</string>
+    <string name="settings_clear_account_cache_help">Svuotare la cache di questo account rimuove i suoi messaggi e allegati scaricati. Le copie degli allegati aperti in un\'altra app non vengono salvate per account, quindi vengono rimosse anche quelle di tutti i tuoi account. I tuoi account restano connessi e la posta viene riscaricata all\'apertura, o prima per i messaggi recenti della Posta in arrivo finché Scarica i messaggi in anticipo è attivo.</string>
     <string name="settings_pgp_section">Crittografia OpenPGP</string>
     <string name="settings_pgp_enable_title">Usa OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Firma, cifra e leggi i messaggi con %1$s</string>

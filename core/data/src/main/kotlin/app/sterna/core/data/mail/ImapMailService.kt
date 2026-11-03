@@ -26,6 +26,7 @@ import app.sterna.core.imap.ImapUidValidityChanged
 import app.sterna.core.imap.ImapWriteNotReplayable
 import app.sterna.core.imap.MailSecurity
 import app.sterna.core.imap.MailServerConfig
+import app.sterna.core.imap.ImapException
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
@@ -785,14 +786,33 @@ open class ImapMailService(
         return result
     }
 
-    suspend fun fetchAttachment(
+    internal suspend fun fetchAttachment(
         credentials: AccountCredentials,
         mailboxId: String,
         uid: Long,
         section: String,
         encoding: String?,
-    ): ByteArray = onMailbox(credentials, mailboxId, lane = ImapLane.FOREGROUND) { session, _ ->
+        lane: ImapLane = ImapLane.FOREGROUND,
+        expectedUidValidity: Long? = null,
+    ): ByteArray = onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = lane) { session, _ ->
         MimeParser.decodeBytes(session.fetchSection(uid, section), encoding)
+    }
+
+    internal suspend fun fetchPartAhead(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        uid: Long,
+        section: String,
+        encoding: String?,
+        expectedUidValidity: Long?,
+    ): ByteArray = onMailbox(credentials, mailboxId, expectedUidValidity = expectedUidValidity, lane = ImapLane.SHARED) { session, _ ->
+        val raw = try {
+            session.fetchSection(uid, section)
+        } catch (refused: ImapException) {
+            if (partFetchRefusedForGood(refused)) throw ImapPartRefused(section, refused)
+            throw refused
+        }
+        MimeParser.decodeBytes(raw, encoding)
     }
 
     /** One message's ENVELOPE, by folder and UID, `null` when the folder no longer holds it (#159). */

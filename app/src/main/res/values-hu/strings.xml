@@ -805,12 +805,14 @@
     <string name="settings_quota_used_of">%1$s / %2$s</string>
     <string name="settings_download_ahead_section">Letöltések</string>
     <string name="settings_download_ahead_title">Üzenetek előzetes letöltése</string>
-    <string name="settings_download_ahead_subtitle">A Beérkezett üzenetek legutóbbi leveleinek szövegét a megnyitásuk előtt a telefonra menti, mellékletek nélkül. Sosem megy vissza tovább, mint az egyes fiókok Szinkronizálandó üzenetek beállítása.</string>
+    <string name="settings_download_ahead_subtitle">A Beérkezett üzenetek legutóbbi leveleinek szövegét a megnyitásuk előtt a telefonra menti. Sosem megy vissza tovább, mint az egyes fiókok Szinkronizálandó üzenetek beállítása.</string>
     <string name="settings_download_ahead_period_title">Időszak</string>
     <string name="settings_download_ahead_7_days">7 nap</string>
     <string name="settings_download_ahead_1_month">1 hónap</string>
     <string name="settings_download_ahead_3_months">3 hónap</string>
     <string name="settings_download_ahead_6_months">6 hónap</string>
+    <string name="settings_download_ahead_attachments_title">Mellékletek is</string>
+    <string name="settings_download_ahead_attachments_subtitle">Ezeknek a leveleknek a mellékleteit is elmenti, így kapcsolat nélkül is megnyithatók.</string>
     <string name="settings_maintenance_section">Karbantartás</string>
     <string name="settings_clear_cache_help">A gyorsítótár ürítése eltávolítja a letöltött üzeneteket és mellékleteket erről az eszközről. A fiókjai bejelentkezve maradnak, és a levelek újra letöltődnek, amikor megnyitja őket, a Beérkezett üzenetek legutóbbi levelei pedig már előtte, amíg az Üzenetek előzetes letöltése be van kapcsolva.</string>
     <string name="settings_clearing">Ürítés…</string>
@@ -901,7 +903,7 @@
     <string name="settings_storage_section">Tárhely</string>
     <string name="settings_cached_messages">Gyorsítótárazott üzenetek</string>
     <string name="settings_clear_account_cache">A fiók gyorsítótárának ürítése</string>
-    <string name="settings_clear_account_cache_help">A fiók gyorsítótárának ürítése eltávolítja a fiók letöltött üzeneteit. A mellékletek tárolása nem fiókonként történik, ezért az összes fiókjának letöltött mellékletei is törlődnek. A fiókjai bejelentkezve maradnak, és a levelei újra letöltődnek, amikor megnyitja őket, a Beérkezett üzenetek legutóbbi levelei pedig már előtte, amíg az Üzenetek előzetes letöltése be van kapcsolva.</string>
+    <string name="settings_clear_account_cache_help">A fiók gyorsítótárának ürítése eltávolítja a fiók letöltött üzeneteit és mellékleteit. A más alkalmazásban megnyitott mellékletek másolatai nem fiókonként tárolódnak, ezért az összes fiókjáé is törlődik. A fiókjai bejelentkezve maradnak, és a levelei újra letöltődnek, amikor megnyitja őket, a Beérkezett üzenetek legutóbbi levelei pedig már előtte, amíg az Üzenetek előzetes letöltése be van kapcsolva.</string>
     <string name="settings_pgp_section">OpenPGP-titkosítás</string>
     <string name="settings_pgp_enable_title">OpenPGP használata</string>
     <string name="settings_pgp_enable_subtitle">Levelek aláírása, titkosítása és olvasása ezzel: %1$s</string>

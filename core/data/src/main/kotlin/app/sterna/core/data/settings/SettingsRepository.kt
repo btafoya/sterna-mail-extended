@@ -405,6 +405,7 @@ class SettingsRepository(context: Context) {
         notificationContent = notificationContent.first().name,
         downloadAhead = downloadAhead.first(),
         downloadAheadPeriod = downloadAheadPeriod.first().name,
+        downloadAheadAttachments = downloadAheadAttachments.first(),
     )
 
     /** Applies the DataStore-backed fields of [backup]; unknown enum values are skipped. */
@@ -448,6 +449,7 @@ class SettingsRepository(context: Context) {
         notificationContentOrNull(backup.notificationContent)?.let { setNotificationContent(it) }
         backup.downloadAhead?.let { setDownloadAhead(it) }
         downloadAheadPeriodOrNull(backup.downloadAheadPeriod)?.let { setDownloadAheadPeriod(it) }
+        backup.downloadAheadAttachments?.let { setDownloadAheadAttachments(it) }
     }
 
     /**
@@ -498,6 +500,12 @@ class SettingsRepository(context: Context) {
 
     suspend fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {
         dataStore.edit { it[KEY_DOWNLOAD_AHEAD_PERIOD] = period.name }
+    }
+
+    val downloadAheadAttachments: Flow<Boolean> = dataStore.data.map(::downloadAheadAttachmentsFrom)
+
+    suspend fun setDownloadAheadAttachments(enabled: Boolean) {
+        dataStore.edit { it[KEY_DOWNLOAD_AHEAD_ATTACHMENTS] = enabled }
     }
 
     private fun swipeFlow(key: Preferences.Key<String>, default: SwipeAction): Flow<SwipeAction> =
@@ -708,3 +716,10 @@ internal fun downloadAheadPeriodOrNull(stored: String?): DownloadAheadPeriod? =
 
 internal fun downloadAheadPeriodFrom(prefs: Preferences): DownloadAheadPeriod =
     downloadAheadPeriodOrNull(prefs[KEY_DOWNLOAD_AHEAD_PERIOD]) ?: DOWNLOAD_AHEAD_PERIOD_DEFAULT
+
+internal val KEY_DOWNLOAD_AHEAD_ATTACHMENTS = booleanPreferencesKey("download_ahead_attachments")
+
+const val DOWNLOAD_AHEAD_ATTACHMENTS_DEFAULT = false
+
+internal fun downloadAheadAttachmentsFrom(prefs: Preferences): Boolean =
+    prefs[KEY_DOWNLOAD_AHEAD_ATTACHMENTS] ?: DOWNLOAD_AHEAD_ATTACHMENTS_DEFAULT

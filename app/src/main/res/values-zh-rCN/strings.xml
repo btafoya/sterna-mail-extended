@@ -801,12 +801,14 @@
     <string name="settings_quota_used_of">%1$s / %2$s</string>
     <string name="settings_download_ahead_section">下载</string>
     <string name="settings_download_ahead_title">提前下载邮件</string>
-    <string name="settings_download_ahead_subtitle">在你打开之前，先将收件箱中近期邮件的正文保存到此手机，不含附件。范围不会超出各账户的“要同步的邮件”。</string>
+    <string name="settings_download_ahead_subtitle">在你打开之前，先将收件箱中近期邮件的正文保存到此手机。范围不会超出各账户的“要同步的邮件”。</string>
     <string name="settings_download_ahead_period_title">时间范围</string>
     <string name="settings_download_ahead_7_days">7 天</string>
     <string name="settings_download_ahead_1_month">1 个月</string>
     <string name="settings_download_ahead_3_months">3 个月</string>
     <string name="settings_download_ahead_6_months">6 个月</string>
+    <string name="settings_download_ahead_attachments_title">同时下载附件</string>
+    <string name="settings_download_ahead_attachments_subtitle">同时保存这些邮件的附件，无需联网即可打开。</string>
     <string name="settings_maintenance_section">维护</string>
     <string name="settings_clear_cache_help">清除缓存会从此设备删除已下载的邮件和附件。您的账户会保持登录状态，当您打开时邮件会重新下载；开启“提前下载邮件”时，收件箱中的近期邮件会提前下载。</string>
     <string name="settings_clearing">正在清除…</string>
@@ -897,7 +899,7 @@
     <string name="settings_storage_section">存储</string>
     <string name="settings_cached_messages">缓存的邮件</string>
     <string name="settings_clear_account_cache">清除此账户的缓存</string>
-    <string name="settings_clear_account_cache_help">清除此账户的缓存会删除其已下载的邮件。附件并非按账户单独存储，因此所有账户已下载的附件也会一并清除。您的账户保持登录状态，当您打开时邮件会重新下载；开启“提前下载邮件”时，收件箱中的近期邮件会提前下载。</string>
+    <string name="settings_clear_account_cache_help">清除此账户的缓存会删除其已下载的邮件和附件。在其他应用中打开的附件副本并非按账户单独存储，因此所有账户的副本也会一并清除。您的账户保持登录状态，当您打开时邮件会重新下载；开启“提前下载邮件”时，收件箱中的近期邮件会提前下载。</string>
     <string name="settings_pgp_section">OpenPGP 加密</string>
     <string name="settings_pgp_enable_title">使用 OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">使用 %1$s 签名、加密和阅读邮件</string>

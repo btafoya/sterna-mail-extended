@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.account.K9SettingsImporter
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
+import app.sterna.core.data.settings.DOWNLOAD_AHEAD_ATTACHMENTS_DEFAULT
 import app.sterna.core.data.settings.DOWNLOAD_AHEAD_DEFAULT
 import app.sterna.core.data.settings.DOWNLOAD_AHEAD_PERIOD_DEFAULT
 import app.sterna.core.data.settings.DownloadAheadPeriod
@@ -126,6 +127,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {
         viewModelScope.launch { settings.setDownloadAheadPeriod(period) }
+    }
+
+    val downloadAheadAttachments = settings.downloadAheadAttachments.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = DOWNLOAD_AHEAD_ATTACHMENTS_DEFAULT,
+    )
+
+    fun setDownloadAheadAttachments(enabled: Boolean) {
+        viewModelScope.launch { settings.setDownloadAheadAttachments(enabled) }
     }
 
     // PURE_BLACK_DEFAULT, not a literal, for the reason given at unreadTint above.

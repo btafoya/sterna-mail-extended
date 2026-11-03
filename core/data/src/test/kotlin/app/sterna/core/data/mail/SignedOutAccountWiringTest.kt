@@ -396,14 +396,15 @@ class SignedOutAccountWiringTest {
         val body = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
         val sites = body.indices.filter { body[it].trim().startsWith("$guard(") }
         assertEquals(
-            "MailRepository no longer carries eighteen guard call sites — five entries and thirteen " +
+            "MailRepository no longer carries nineteen guard call sites — five entries and fourteen " +
                 "writes, the tenth being the one `ImapFolderWrites` asks before each page and each " +
                 "flag write of an IMAP folder read, the eleventh the one the IMAP unread catch-up " +
                 "asks on entry, before it evicts and before each page it inserts (executed in " +
-                "ImapUnreadBackfillTest), the last two the download ahead's, before each JMAP batch " +
-                "and each IMAP message it caches. If a path was added or removed, say so here:\n" +
+                "ImapUnreadBackfillTest), the next two the download ahead's, before each JMAP batch " +
+                "and each IMAP message it caches, the last the one it asks before each part it " +
+                "stores. If a path was added or removed, say so here:\n" +
                 sites.joinToString("\n") { body[it].trim() },
-            18, sites.size,
+            19, sites.size,
         )
         sites.forEach { site ->
             val open = openBlocksAt(body, site).filter { "try" in it || "runCatching" in it }
@@ -423,7 +424,7 @@ class SignedOutAccountWiringTest {
         // file is where that costs the most: `AccountStillConfigured.kt` is in the same package, so
         //
         // It is the same family of blindness as the hole this file was extended for: what is not
-        // pinned is invisible. So the declaration itself is pinned, once, for all eighteen sites.
+        // pinned is invisible. So the declaration itself is pinned, once, for all nineteen sites.
         val declaration = Regex("""\bfun\s+$guard\s*[(<]""")
         val found = (DaoQuerySource.mailSource("MailRepository") + "\n" + DaoQuerySource.mailSource("MailAccounts")).lines()
             .map { it.trim() }

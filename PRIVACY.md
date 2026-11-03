@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-11-02.
+Last updated: 2026-11-03.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -8,7 +8,7 @@ Last updated: 2026-11-02.
 
 - **Account credentials**, encrypted with the Android KeyStore.
 - **Cached mail**, so the app works offline.
-- **Attachments you open.** Old ones are pruned (past 30 days or 200 MB) when you open the next one. Settings → Storage → **Clear cache** empties it.
+- **Attachments you open**, and with Settings → Storage → **Attachments too** on, those of the Inbox messages downloaded in advance. Each one stays until its message is no longer in any list on your phone. The copy handed to another app to show an attachment is pruned (past 30 days or 200 MB) when you open the next one. Settings → Storage → **Clear cache** empties both, and an account's own **Clear cache** empties that account's.
 - **Drafts and messages waiting to go out**, until your server has them.
 - **A photo you take from the composer** stays in the app's cache while it is being attached, then it is handled like any other attachment. If the app is closed while the camera is open, the photo stays there until Settings → Storage → **Clear cache**.
 - **Settings**, the **addresses you have written to** (for autocomplete) and the **senders you allow to load images**.

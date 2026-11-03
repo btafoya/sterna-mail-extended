@@ -65,6 +65,7 @@ data class SettingsBackup(
     val notificationContent: String? = null,
     val downloadAhead: Boolean? = null,
     val downloadAheadPeriod: String? = null,
+    val downloadAheadAttachments: Boolean? = null,
     /**
      * Account configuration without any secret. The password/refresh-token slot is never exported;
      * [StoredAccount.oauthAccessToken] and device/sync state are cleared before export.

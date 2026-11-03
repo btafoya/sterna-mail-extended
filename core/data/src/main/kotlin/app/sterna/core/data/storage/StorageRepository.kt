@@ -51,6 +51,7 @@ class StorageRepository(
     /** Where those drafts' attachment bytes are staged; the same tree `MailRepository` writes to. */
     private val localDraftFilesDir: File,
     private val serverContactDao: ServerContactDao,
+    private val attachmentStore: AttachmentStore,
 ) {
     private val moveMemory: MoveMemory get() = MoveMemory.of(context)
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
@@ -64,7 +65,8 @@ class StorageRepository(
     suspend fun usage(): StorageUsage = withContext(Dispatchers.IO) {
         val dbBytes = DB_FILES.sumOf { context.getDatabasePath(it).safeLength() }
         val attachmentBytes = (attachmentsDir.listFiles()?.sumOf { it.safeLength() } ?: 0L) +
-            (outgoingDir.listFiles()?.sumOf { it.safeLength() } ?: 0L)
+            (outgoingDir.listFiles()?.sumOf { it.safeLength() } ?: 0L) +
+            runCatching { attachmentStore.sizeBytes() }.getOrDefault(0L)
         val perAccount = emailDao.countsByAccount()
             .map { AccountUsage(it.accountId, it.messageCount) }
         StorageUsage(dbBytes, attachmentBytes, perAccount)
@@ -80,6 +82,7 @@ class StorageRepository(
         // would leave "clear cache" incomplete, and the first sync records it again anyway.
         mailboxUidValidityDao.deleteAll()
         clearAttachments()
+        attachmentStore.clearAll()
     }
 
     /** Cached-message count for one account. */
@@ -97,6 +100,7 @@ class StorageRepository(
         mailboxDao.deleteForAccount(accountId)
         mailboxUidValidityDao.deleteForAccount(accountId)
         clearAttachments()
+        attachmentStore.clearAccount(accountId)
     }
 
     /**
@@ -124,6 +128,7 @@ class StorageRepository(
             )
         }
         runCatching { clearAttachments() }
+        runCatching { attachmentStore.clearAccount(accountId) }
     }
 
     /**
@@ -134,7 +139,7 @@ class StorageRepository(
             // The inventory first: everything written after this snapshot belongs to an account the
             // list read below is guaranteed to contain.
             val cached = emailDao.countsByAccount().map { it.accountId } +
-                mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() +
+                mailboxDao.accountIds() + emailFtsDao.accountIds() + emailBodyDao.accountIds() + attachmentStore.accountIds() +
                 emailBodyDao.downloadAheadSkipAccountIds() + serverContactDao.accountIds() + moveMemory.accountIds()
             val known = knownAccountIds()
             val orphans = OrphanedAccountCache.orphans(known, cached)
@@ -148,11 +153,12 @@ class StorageRepository(
                 runCatching { serverContactDao.deleteRowsOfAccount(accountId) }
                 runCatching { serverContactDao.deleteState(accountId) }
                 runCatching { moveMemory.forget(listOf(accountId)) }
+                runCatching { attachmentStore.clearAccount(accountId) }
             }
             orphans
         }
 
-    /** Write a downloaded attachment to the cache, then enforce the size/age cap. */
+    /** A copy handed to another app, then the size/age cap, which binds these alone, never [attachmentStore]. */
     suspend fun cacheAttachment(name: String?, bytes: ByteArray): File = withContext(Dispatchers.IO) {
         val dir = attachmentsDir.apply { mkdirs() }
         val file = cacheAttachmentInto(dir, name, bytes)

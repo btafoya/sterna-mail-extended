@@ -229,6 +229,10 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
             R.string.settings_download_ahead_6_months,
         ),
     ),
+    SettingEntry(
+        "download_ahead_attachments", STORAGE, R.string.settings_download_ahead_attachments_title,
+        R.string.settings_download_ahead_attachments_subtitle,
+    ),
 
     SettingEntry("display_name", ACCOUNT, R.string.settings_display_name_label),
     SettingEntry("account_colour", ACCOUNT, R.string.settings_account_colour_section, anchorKind = SECTION),

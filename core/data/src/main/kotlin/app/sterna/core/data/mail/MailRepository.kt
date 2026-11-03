@@ -59,6 +59,8 @@ import app.sterna.core.data.settings.DownloadAheadPeriod
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
 import app.sterna.core.data.settings.SortOrder
+import app.sterna.core.data.storage.AttachmentStore
+import app.sterna.core.data.storage.storedPartKeyOf
 import app.sterna.core.jmap.BasicAuth
 import app.sterna.core.jmap.ContentTooLargeException
 import app.sterna.core.jmap.DownloadLimits
@@ -149,6 +151,10 @@ private const val MAX_APPEND_FILL_PAGES = 4
 private const val DOWNLOAD_AHEAD_BATCH = 25
 private const val DOWNLOAD_AHEAD_BATCHES_PER_PASS = 4
 
+/** Messages whose attachments one pass downloads ahead; the next pass resumes past the settled ones. */
+private const val DOWNLOAD_AHEAD_ATTACHMENT_MESSAGES_PER_PASS = 25
+private const val DOWNLOAD_AHEAD_ATTACHMENT_ID_PAGE = 100
+
 /** Largest body row we will write (chars of JSON, body + inline images). A row past SQLite's 2 MB
  *  cursor window can be inserted but never read back. */
 internal const val MAX_CACHED_BODY_CHARS = 1_000_000
@@ -165,7 +171,30 @@ internal fun fitsBodyCache(bodyJson: String, inlineImagesJson: String): Boolean 
     bodyJson.length + inlineImagesJson.length <= MAX_CACHED_BODY_CHARS
 
 /** The download-ahead setting, as a pass reads it when it starts. */
-data class DownloadAheadSetting(val enabled: Boolean, val period: DownloadAheadPeriod)
+data class DownloadAheadSetting(
+    val enabled: Boolean,
+    val period: DownloadAheadPeriod,
+    val attachments: Boolean = false,
+)
+
+/** Whether a pass takes the period's attachments too: only with the download ahead on and the
+ *  attachments asked for. */
+internal fun downloadAheadTakesAttachments(setting: DownloadAheadSetting?): Boolean =
+    setting != null && setting.enabled && setting.attachments
+
+/** Whether a part that failed to download ahead is given up for good, or left for the next pass:
+ *  a refusal that would come back the same is final; a sign-in, a timeout, a busy or failing
+ *  server and a dropped connection are not. A given-up part is still fetched when opened. */
+internal fun attachmentAheadGivesUp(failure: Throwable): Boolean = when (failure) {
+    is ContentTooLargeException -> true
+    is ImapPartRefused -> true
+    is ImapException -> false
+    is JmapException -> failure.httpCode.let { it != null && it in 400..499 && it !in PASSING_HTTP_REFUSALS }
+    is IllegalStateException -> true
+    else -> false
+}
+
+private val PASSING_HTTP_REFUSALS = setOf(401, 403, 408, 429)
 
 /** The oldest `sortKey` a pass downloads ahead, or null for no pass at all. No setting downloads
  *  nothing: a repository built without one must not spend the user's data on its own. */
@@ -1113,8 +1142,12 @@ class MailRepository(
     private val settings: SettingsRepository? = null,
     /** Read at the start of each download-ahead pass; null downloads nothing ahead. */
     private val downloadAheadSetting: suspend () -> DownloadAheadSetting? = {
-        settings?.let { DownloadAheadSetting(it.downloadAhead.first(), it.downloadAheadPeriod.first()) }
+        settings?.let {
+            DownloadAheadSetting(it.downloadAhead.first(), it.downloadAheadPeriod.first(), it.downloadAheadAttachments.first())
+        }
     },
+    /** Where parts are kept and read back before the network (null in tests: every read goes out). */
+    private val attachmentStore: AttachmentStore? = null,
     /** Persisted sync cursors (null in tests): deltas survive process death (issue #17). */
     private val syncStateStore: SyncCursorStore? = null,
     /** Swipes whose server write was still out, on disk (null in tests); see [OrphanedFlights]. */
@@ -1475,7 +1508,7 @@ class MailRepository(
     /** The one place a cached body follows its list row out, whichever path took the row: a move,
      *  a delete, the sync window, a reconcile. Once per refresh rather than per write, and never
      *  fatal to the refresh: a body left behind waits for the next one. */
-    private suspend fun sweepOrphanBodies(accountId: String) {
+    internal suspend fun sweepOrphanBodies(accountId: String) {
         // Spared: rows an undo or a put-back is about to write again. Null past `MAX_CHANGES` of
         // them, which would not bind in one statement on the oldest SQLite: the next refresh sweeps.
         val spared = orphanBodySweepSpares(
@@ -1484,6 +1517,12 @@ class MailRepository(
         ) ?: return
         runCatching { emailBodyDao.deleteOrphans(accountId, spared) }.getOrElseUnlessCancelled {
             logInfo("MailSync", "orphan body sweep of $accountId failed", it)
+        }
+        val store = attachmentStore ?: return
+        runCatching {
+            store.deleteOrphans(accountId, spared) { ids -> byIdsChunked(ids) { chunk -> emailDao.listedIds(accountId, chunk) } }
+        }.getOrElseUnlessCancelled {
+            logInfo("MailSync", "orphan part sweep of $accountId failed", it)
         }
     }
 
@@ -2836,23 +2875,108 @@ class MailRepository(
                 } else {
                     null
                 }
-                repeat(DOWNLOAD_AHEAD_BATCHES_PER_PASS) {
-                    // Bounded in the statement, not with a `take`: `runCatching` does not catch an OutOfMemoryError.
-                    val ids = emailDao.idsToDownloadAhead(credentials.id, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_BATCH)
-                    if (ids.isEmpty()) return
-                    val settled = if (credentials.protocol == MailProtocol.IMAP) {
-                        downloadAheadImap(credentials, mailboxId, ids)
-                    } else {
-                        downloadAheadJmap(credentials, ids)
-                    }
-                    // A batch that settled nothing would come back whole from the same query.
-                    if (settled == 0) return
+                downloadBodiesAhead(credentials, mailboxId, cutoff, numbering)
+                val store = attachmentStore
+                if (store != null && downloadAheadTakesAttachments(setting)) {
+                    downloadAttachmentsAhead(credentials, mailboxId, cutoff, numbering, store)
                 }
             }.getOrElseUnlessCancelled { }
         } finally {
             lock.unlock()
         }
     }
+
+    private suspend fun downloadBodiesAhead(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        cutoff: Long,
+        numbering: Long?,
+    ) {
+        repeat(DOWNLOAD_AHEAD_BATCHES_PER_PASS) {
+            // Bounded in the statement, not with a `take`: `runCatching` does not catch an OutOfMemoryError.
+            val ids = emailDao.idsToDownloadAhead(credentials.id, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_BATCH)
+            if (ids.isEmpty()) return
+            val settled = if (credentials.protocol == MailProtocol.IMAP) {
+                downloadAheadImap(credentials, mailboxId, ids)
+            } else {
+                downloadAheadJmap(credentials, ids)
+            }
+            // A batch that settled nothing would come back whole from the same query.
+            if (settled == 0) return
+        }
+    }
+
+    /** The parts the cached body lists, not `hasAttachment`'s, which misses one shown with no
+     *  disposition; a body never cached (signed, IMAP-encrypted, too large) has none taken. Settled
+     *  once each part is stored or given up, it is not looked at again; a failure that may pass
+     *  ends the pass. An empty part list is not encoded, a non-empty one starts `"attachments":[{`. */
+    private suspend fun downloadAttachmentsAhead(
+        credentials: AccountCredentials,
+        mailboxId: String,
+        cutoff: Long,
+        numbering: Long?,
+        store: AttachmentStore,
+    ) {
+        val accountId = credentials.id
+        val pending = mutableListOf<String>()
+        var offset = 0
+        while (pending.size < DOWNLOAD_AHEAD_ATTACHMENT_MESSAGES_PER_PASS) {
+            val page = emailDao.idsToDownloadAttachmentsAhead(
+                accountId, mailboxId, cutoff, numbering, DOWNLOAD_AHEAD_ATTACHMENT_ID_PAGE, offset,
+            )
+            if (page.isEmpty()) break
+            offset += page.size
+            pending += page.filterNot { store.isSettled(accountId, it) }
+        }
+        if (pending.isEmpty()) return
+        val jmapCtx = if (credentials.protocol == MailProtocol.IMAP) null else jmapSession(credentials)
+        for (emailId in pending.take(DOWNLOAD_AHEAD_ATTACHMENT_MESSAGES_PER_PASS)) {
+            val cached = emailBodyDao.byId(accountId, emailId) ?: continue
+            val email = runCatching { decodeCachedEmail(cached.bodyJson) }.getOrElseUnlessCancelled { null } ?: continue
+            for (part in email.attachments) {
+                val key = storedPartKeyOf(part) ?: continue
+                if (store.has(accountId, emailId, key) || store.isSkipped(accountId, emailId, key)) continue
+                val folder = imapTarget(emailId)?.first
+                val fetched = try {
+                    DownloadLimits.enforce(part.size, DownloadLimits.ATTACHMENT_MAX_BYTES)
+                    if (jmapCtx == null) {
+                        val (mb, uid) = imapTarget(emailId) ?: error("Couldn't locate the message.")
+                        val section = part.partId ?: error("Attachment has no section.")
+                        imap.fetchPartAhead(credentials, mb, uid, section, part.encoding, expectedUidValidity = numbering)
+                    } else {
+                        val blobId = part.blobId ?: error("Attachment has no blob.")
+                        client.downloadBlob(
+                            jmapCtx.session, jmapCtx.accountId, blobId, part.type, part.name, jmapCtx.auth,
+                            DownloadLimits.ATTACHMENT_MAX_BYTES,
+                        )
+                    }
+                } catch (failure: Exception) {
+                    if (failure is CancellationException || !attachmentAheadGivesUp(failure)) throw failure
+                    store.markSkipped(accountId, emailId, key)
+                    continue
+                }
+                // Read under the numbering the cached body was, not the one recorded at the fetch.
+                if (folder != null && renumberedSince(numbering, recordedNumberingOf(accountId, folder))) return
+                checkAccountStillConfigured(accountId, accountStore.accounts().map { it.id })
+                if (attachmentCouldNotBeRead(fetched)) {
+                    store.markSkipped(accountId, emailId, key)
+                    continue
+                }
+                store.write(accountId, emailId, key, fetched)
+                if (folder != null && renumberedSince(numbering, recordedNumberingOf(accountId, folder))) {
+                    store.delete(accountId, emailId)
+                    return
+                }
+            }
+            store.markSettled(accountId, emailId)
+        }
+    }
+
+    /** Read on both sides of a part's fetch: a part read under one numbering is never stored once
+     *  another is recorded, `invalidate` having emptied the folder's parts meanwhile, and the UID
+     *  naming another message now. It destroys nothing. */
+    private suspend fun recordedNumberingOf(account: String, folder: String): Long? =
+        imap.recordedUidValidity(account, folder)
 
     /** How many of [ids] were settled: cached, or remembered as never to be. */
     private suspend fun downloadAheadJmap(credentials: AccountCredentials, ids: List<String>): Int {
@@ -4684,16 +4808,41 @@ class MailRepository(
         // The size is announced by the message (JMAP) or its BODYSTRUCTURE (IMAP): refuse before
         // the round-trip, and before the branch, so IMAP is held to the same ceiling as JMAP.
         DownloadLimits.enforce(part.size, maxBytes)
+        // A compose blob has no message to key it under, and no list row to take it away.
+        val key = storedPartKeyOf(part)?.takeIf { emailId.isNotBlank() }
+        val store = attachmentStore?.takeIf { key != null }
+        if (store != null && key != null) {
+            store.read(credentials.id, emailId, key)?.let { stored ->
+                // A part whose size the message did not announce is held to [maxBytes] here instead.
+                DownloadLimits.enforce(stored.size.toLong(), maxBytes)
+                return stored
+            }
+        }
         if (credentials.protocol == MailProtocol.IMAP) {
             val (mb, uid) = imapTarget(emailId) ?: error("Couldn't locate the message.")
             val section = part.partId ?: error("Attachment has no section.")
-            return imap.fetchAttachment(credentials, mb, uid, section, part.encoding)
+            val readUnder = recordedNumberingOf(credentials.id, mb)
+            val bytes = imap.fetchAttachment(credentials, mb, uid, section, part.encoding)
+            if (store != null && key != null && !attachmentCouldNotBeRead(bytes) &&
+                !renumberedSince(readUnder, recordedNumberingOf(credentials.id, mb))
+            ) {
+                runCatching {
+                    store.write(credentials.id, emailId, key, bytes)
+                    // A renumbering between the check and the write: `invalidate` has already run.
+                    if (renumberedSince(readUnder, recordedNumberingOf(credentials.id, mb))) store.delete(credentials.id, emailId)
+                }
+            }
+            return bytes
         }
         val ctx = jmapSession(credentials)
         val blobId = part.blobId ?: error("Attachment has no blob.")
-        return client.downloadBlob(
+        val bytes = client.downloadBlob(
             ctx.session, ctx.accountId, blobId, part.type, part.name, ctx.auth, maxBytes,
         )
+        if (store != null && key != null && !attachmentCouldNotBeRead(bytes)) {
+            runCatching { store.write(credentials.id, emailId, key, bytes) }
+        }
+        return bytes
     }
 
     override suspend fun uploadAttachment(

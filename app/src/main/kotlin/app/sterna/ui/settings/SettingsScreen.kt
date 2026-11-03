@@ -1200,6 +1200,7 @@ private fun StorageScreen(
     val clearing by viewModel.clearing.collectAsStateWithLifecycle()
     val downloadAhead by settings.downloadAhead.collectAsStateWithLifecycle()
     val downloadAheadPeriod by settings.downloadAheadPeriod.collectAsStateWithLifecycle()
+    val downloadAheadAttachments by settings.downloadAheadAttachments.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
     DetailScaffold(title = stringResource(R.string.settings_storage_screen_title), onBack = onBack) { padding ->
         Column(
@@ -1235,6 +1236,13 @@ private fun StorageScreen(
                     selected = downloadAheadPeriod,
                     optionLabel = { downloadAheadPeriodLabel(context, it) },
                     onSelect = settings::setDownloadAheadPeriod,
+                    enabled = downloadAhead,
+                )
+                SettingSwitch(
+                    title = stringResource(R.string.settings_download_ahead_attachments_title),
+                    subtitle = stringResource(R.string.settings_download_ahead_attachments_subtitle),
+                    checked = downloadAheadAttachments,
+                    onCheckedChange = settings::setDownloadAheadAttachments,
                     enabled = downloadAhead,
                 )
             }

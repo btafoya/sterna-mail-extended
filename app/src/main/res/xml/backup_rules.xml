@@ -12,4 +12,5 @@
     <exclude domain="database" path="sterna.db-wal" />
     <exclude domain="database" path="sterna.db-shm" />
     <exclude domain="file" path="datastore/" />
+    <exclude domain="file" path="attachment-store/" />
 </full-backup-content>

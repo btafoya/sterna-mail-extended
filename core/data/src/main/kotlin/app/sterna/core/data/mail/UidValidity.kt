@@ -5,6 +5,7 @@ import app.sterna.core.data.db.EmailFtsDao
 import app.sterna.core.data.db.MailboxUidValidityDao
 import app.sterna.core.data.db.PurgeSnapshotDao
 import app.sterna.core.data.getOrElseUnlessCancelled
+import app.sterna.core.data.storage.AttachmentStore
 
 /**
  * What an IMAP folder's UIDVALIDITY licenses (RFC 3501 §2.3.1.1, #99). After a shifting
@@ -137,10 +138,13 @@ object UidValidity {
     /** The `like` pattern for one IMAP folder's cached ids, SQL wildcards escaped: a folder called
      *  `a_b` would otherwise match `axb` and take a neighbour's bodies. Backslash first. */
     fun bodyCacheIdPrefix(accountId: String, mailboxId: String): String =
-        (ImapMailService.emailId(accountId, mailboxId, 0L).dropLast(1))
+        folderIdPrefix(accountId, mailboxId)
             .replace("\\", "\\\\")
             .replace("%", "\\%")
             .replace("_", "\\_") + "%"
+
+    fun folderIdPrefix(accountId: String, mailboxId: String): String =
+        ImapMailService.emailId(accountId, mailboxId, 0L).dropLast(1)
 }
 
 /** Where a forward IMAP move put a message, as `COPYUID` stated it, for the Undo (#99).
@@ -183,8 +187,8 @@ interface UidValidityStore {
     }
 }
 
-/** The one place that says what a renumbering invalidates: the folder's cached bodies and
- *  download-ahead skips, its index rows, its pending destroy lists and the UIDs it holds flagged for a later purge. Surviving rows heal only in columns the walk overwrites unconditionally;
+/** The one place that says what a renumbering invalidates: the folder's cached bodies, stored
+ *  parts and download-ahead skips, its index rows, its pending destroy lists and the UIDs it holds flagged for a later purge. Surviving rows heal only in columns the walk overwrites unconditionally;
  *  `preview` is written back from the cache, so its read is bounded by [UidValidity.stated], and any
  *  future column filled that way owes the same bound (#187). */
 class MailboxUidValidityStore(
@@ -193,6 +197,7 @@ class MailboxUidValidityStore(
     private val purgeSnapshots: PurgeSnapshotDao,
     private val index: EmailFtsDao,
     private val pendingExpunges: PendingExpungeStore,
+    private val attachments: AttachmentStore? = null,
 ) : UidValidityStore {
 
     override var onRenumbered: ((String, String) -> Unit)? = null
@@ -215,6 +220,7 @@ class MailboxUidValidityStore(
     override suspend fun invalidate(accountId: String, mailboxId: String, uidValidity: Long) {
         bodies.deleteForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
         bodies.deleteDownloadAheadSkipsForIdPrefix(accountId, UidValidity.bodyCacheIdPrefix(accountId, mailboxId))
+        attachments?.deleteForFolder(accountId, UidValidity.folderIdPrefix(accountId, mailboxId))
         purgeSnapshots.deleteForMailbox(accountId, mailboxId)
         pendingExpunges.forgetMailbox(accountId, mailboxId)
         // Neither the index purge nor the hook may cost the invalidation; the purge precedes `record`, so a death between them replays it.

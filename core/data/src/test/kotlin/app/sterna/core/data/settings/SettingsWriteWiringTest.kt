@@ -341,6 +341,10 @@ class SettingsWriteWiringTest {
                 "suspend fun setDownloadAhead(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_DOWNLOAD_AHEAD] = enabled }",
             ),
+            Write(
+                "suspend fun setDownloadAheadAttachments(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_DOWNLOAD_AHEAD_ATTACHMENTS] = enabled }",
+            ),
         )
 
         /**
@@ -473,6 +477,7 @@ class SettingsWriteWiringTest {
                 "PLAIN, the rest of its wiring pinned by SettingsBackupSearchHistoryTest and SearchHistoryWiringTest",
             "suspend fun setDownloadAhead(enabled: Boolean) {" to "PLAIN",
             "suspend fun setDownloadAheadPeriod(period: DownloadAheadPeriod) {" to "ENUMS",
+            "suspend fun setDownloadAheadAttachments(enabled: Boolean) {" to "PLAIN",
         )
     }
 }

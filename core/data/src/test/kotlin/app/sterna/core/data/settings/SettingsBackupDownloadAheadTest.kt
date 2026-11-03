@@ -109,8 +109,37 @@ class SettingsBackupDownloadAheadTest {
         assertTrue(exported, exported.contains("\"downloadAheadPeriod\": null"))
     }
 
+    @Test fun theAttachmentsAreOffUntilAsked() {
+        assertFalse(DOWNLOAD_AHEAD_ATTACHMENTS_DEFAULT)
+        assertFalse(
+            "absent on every install the update reaches: it must read as off, or it fills the phone unasked",
+            downloadAheadAttachmentsFrom(emptyPreferences()),
+        )
+        assertTrue(downloadAheadAttachmentsFrom(preferencesOf(attachmentsKey to true)))
+        assertFalse(
+            "the switch of the text is not the switch of the attachments",
+            downloadAheadAttachmentsFrom(preferencesOf(switchKey to true)),
+        )
+    }
+
+    @Test fun theAttachmentsSurviveAnExportAndItsImport() {
+        for (enabled in listOf(true, false)) {
+            val exported = SettingsBackupCodec.encode(
+                SettingsBackup(downloadAheadAttachments = downloadAheadAttachmentsFrom(preferencesOf(attachmentsKey to enabled))),
+            )
+            assertEquals(exported, enabled, checkNotNull(SettingsBackupCodec.decode(exported)).downloadAheadAttachments)
+        }
+    }
+
+    @Test fun aBackupWrittenBeforeTheAttachmentsExistedLeavesThemAsTheyAre() {
+        val old = checkNotNull(SettingsBackupCodec.decode("""{"version":1,"downloadAhead":true}"""))
+        assertTrue(old.isPlausible())
+        assertNull("absent is leave as is, which restoreBackup reads as null", old.downloadAheadAttachments)
+    }
+
     // Spelled out rather than imported: the keys name persisted user data, so renaming one silently
     // drops every stored choice.
     private val switchKey = booleanPreferencesKey("download_ahead")
     private val periodKey = stringPreferencesKey("download_ahead_period")
+    private val attachmentsKey = booleanPreferencesKey("download_ahead_attachments")
 }

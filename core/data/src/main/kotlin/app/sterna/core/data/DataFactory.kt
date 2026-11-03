@@ -18,6 +18,8 @@ import app.sterna.core.data.pgp.SmimeKeySource
 import app.sterna.core.data.search.SearchHistoryRepository
 import app.sterna.core.data.settings.OutgoingDateZones
 import app.sterna.core.data.settings.SettingsRepository
+import app.sterna.core.data.storage.ATTACHMENT_STORE_DIR
+import app.sterna.core.data.storage.AttachmentStore
 import app.sterna.core.data.storage.StorageRepository
 import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.SmtpClient
@@ -53,10 +55,12 @@ object DataFactory {
         // The IMAP service verifies each folder's UIDVALIDITY through this store, and it is the
         // store, not the service, that says what a renumbering invalidates (Codeberg #99).
         val pendingExpunges = MailboxPendingExpungeStore(database.pendingExpungeDao())
+        val attachmentStore = AttachmentStore(java.io.File(appContext.filesDir, ATTACHMENT_STORE_DIR))
         val uidValidity = MailboxUidValidityStore(
             database.mailboxUidValidityDao(), database.emailBodyDao(), database.purgeSnapshotDao(),
             database.emailFtsDao(),
             pendingExpunges,
+            attachmentStore,
         )
         // One tree, handed to both readers: the repository that stages a draft's bytes there and
         // the sign-out that has to clear them (#95). Two literals would be one rename away from a
@@ -101,6 +105,7 @@ object DataFactory {
                 },
                 outgoingDates = outgoingDates,
                 searchHistory = searchHistory,
+                attachmentStore = attachmentStore,
             ),
             storageRepository = StorageRepository(
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
@@ -112,6 +117,7 @@ object DataFactory {
                 localDraftDao = database.localDraftDao(),
                 localDraftFilesDir = localDraftFiles,
                 serverContactDao = database.serverContactDao(),
+                attachmentStore = attachmentStore,
             ),
             smimeCertificates = smimeCertificates,
         )

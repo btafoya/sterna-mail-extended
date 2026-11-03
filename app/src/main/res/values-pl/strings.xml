@@ -636,12 +636,14 @@
     <string name="settings_quota_used_of">%1$s z %2$s</string>
     <string name="settings_download_ahead_section">Pobieranie</string>
     <string name="settings_download_ahead_title">Pobieraj wiadomości z wyprzedzeniem</string>
-    <string name="settings_download_ahead_subtitle">Zapisuje na tym telefonie tekst najnowszych wiadomości z folderu Odebrane, zanim je otworzysz, bez załączników. Nigdy nie sięga dalej niż Wiadomości do synchronizacji danego konta.</string>
+    <string name="settings_download_ahead_subtitle">Zapisuje na tym telefonie tekst najnowszych wiadomości z folderu Odebrane, zanim je otworzysz. Nigdy nie sięga dalej niż Wiadomości do synchronizacji danego konta.</string>
     <string name="settings_download_ahead_period_title">Okres</string>
     <string name="settings_download_ahead_7_days">7 dni</string>
     <string name="settings_download_ahead_1_month">1 miesiąc</string>
     <string name="settings_download_ahead_3_months">3 miesiące</string>
     <string name="settings_download_ahead_6_months">6 miesięcy</string>
+    <string name="settings_download_ahead_attachments_title">Również załączniki</string>
+    <string name="settings_download_ahead_attachments_subtitle">Zapisuje też załączniki tych wiadomości, aby otwierały się bez połączenia.</string>
     <string name="settings_maintenance_section">Konserwacja</string>
     <string name="settings_clear_cache_help">Wyczyszczenie pamięci podręcznej usuwa pobrane wiadomości i załączniki z tego urządzenia. Twoje konta pozostają zalogowane, a wiadomości pobierają się ponownie po otwarciu, a najnowsze z folderu Odebrane wcześniej, gdy włączone jest Pobieraj wiadomości z wyprzedzeniem.</string>
     <string name="settings_clearing">Czyszczenie…</string>
@@ -729,7 +731,7 @@
     <string name="settings_storage_section">Pamięć</string>
     <string name="settings_cached_messages">Wiadomości w pamięci podręcznej</string>
     <string name="settings_clear_account_cache">Wyczyść pamięć podręczną tego konta</string>
-    <string name="settings_clear_account_cache_help">Wyczyszczenie pamięci podręcznej tego konta usuwa jego pobrane wiadomości. Załączniki nie są przechowywane osobno dla każdego konta, więc usuwane są też pobrane załączniki wszystkich kont. Twoje konta pozostają zalogowane, a wiadomości pobierają się ponownie po otwarciu, a najnowsze z folderu Odebrane wcześniej, gdy włączone jest Pobieraj wiadomości z wyprzedzeniem.</string>
+    <string name="settings_clear_account_cache_help">Wyczyszczenie pamięci podręcznej tego konta usuwa jego pobrane wiadomości i załączniki. Kopie załączników otwartych w innej aplikacji nie są przechowywane osobno dla każdego konta, więc usuwane są też kopie ze wszystkich kont. Twoje konta pozostają zalogowane, a wiadomości pobierają się ponownie po otwarciu, a najnowsze z folderu Odebrane wcześniej, gdy włączone jest Pobieraj wiadomości z wyprzedzeniem.</string>
     <string name="settings_pgp_section">Szyfrowanie OpenPGP</string>
     <string name="settings_pgp_enable_title">Używaj OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Podpisuj, szyfruj i odczytuj wiadomości za pomocą %1$s</string>

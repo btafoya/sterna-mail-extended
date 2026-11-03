@@ -211,7 +211,8 @@ design.
 | Message bodies | Room `email_bodies` | Text of messages opened or downloaded in advance, with no cap. Each refresh of an account sweeps the bodies whose message has no list row left in it (sync window, move, delete), sparing local drafts and rows an undo is about to restore; Clear cache empties it. |
 | Search index | Room `email_fts` (FTS4) | Headers of every folder except Trash and Spam; outlives the display window. |
 | Outbox / scheduled / snoozed | Room | User data, additive migrations, never dropped. |
-| Attachments | `cacheDir/attachments/` | Size + age cap, LRU eviction. |
+| Attachments | `filesDir/attachment-store/`, one directory per account | Parts opened or downloaded in advance, read before the network, kept as received (an encrypted part stays encrypted), with no cap. Swept with the message's last list row by the same refresh sweep as the bodies, purged per folder on a renumbering, per account by its Clear cache and sign-out. |
+| Attachment copies | `cacheDir/attachments/` | The named file handed to a viewer. Size + age cap, LRU eviction. |
 | Credentials | SharedPreferences, KeyStore-encrypted | `AccountStore`. |
 | Settings | DataStore | Reactive `Flow` per setting. |
 

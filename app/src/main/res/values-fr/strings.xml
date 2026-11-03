@@ -630,12 +630,14 @@
     <string name="settings_quota_used_of">%1$s sur %2$s</string>
     <string name="settings_download_ahead_section">Téléchargements</string>
     <string name="settings_download_ahead_title">Télécharger les messages à l\'avance</string>
-    <string name="settings_download_ahead_subtitle">Enregistre sur ce téléphone le texte des messages récents de la Boîte de réception avant que vous les ouvriez, sans leurs pièces jointes. Ne remonte jamais plus loin que les Messages à synchroniser de chaque compte.</string>
+    <string name="settings_download_ahead_subtitle">Enregistre sur ce téléphone le texte des messages récents de la Boîte de réception avant que vous les ouvriez. Ne remonte jamais plus loin que les Messages à synchroniser de chaque compte.</string>
     <string name="settings_download_ahead_period_title">Période</string>
     <string name="settings_download_ahead_7_days">7 jours</string>
     <string name="settings_download_ahead_1_month">1 mois</string>
     <string name="settings_download_ahead_3_months">3 mois</string>
     <string name="settings_download_ahead_6_months">6 mois</string>
+    <string name="settings_download_ahead_attachments_title">Pièces jointes aussi</string>
+    <string name="settings_download_ahead_attachments_subtitle">Enregistre aussi les pièces jointes de ces messages, pour les ouvrir sans connexion.</string>
     <string name="settings_maintenance_section">Maintenance</string>
     <string name="settings_clear_cache_help">Vider le cache supprime les messages et pièces jointes téléchargés de cet appareil. Vos comptes restent connectés et les messages se retéléchargent à l\'ouverture, ou avant pour les messages récents de la Boîte de réception tant que Télécharger les messages à l\'avance est activé.</string>
     <string name="settings_clearing">Suppression…</string>
@@ -723,7 +725,7 @@
     <string name="settings_storage_section">Stockage</string>
     <string name="settings_cached_messages">Messages en cache</string>
     <string name="settings_clear_account_cache">Vider le cache de ce compte</string>
-    <string name="settings_clear_account_cache_help">Vider le cache de ce compte supprime ses messages téléchargés. Les pièces jointes ne sont pas rangées par compte : celles de tous vos comptes sont donc supprimées aussi. Vos comptes restent connectés et les messages se retéléchargent à l\'ouverture, ou avant pour les messages récents de la Boîte de réception tant que Télécharger les messages à l\'avance est activé.</string>
+    <string name="settings_clear_account_cache_help">Vider le cache de ce compte supprime ses messages et pièces jointes téléchargés. Les copies de pièces jointes ouvertes dans une autre app ne sont pas rangées par compte : celles de tous vos comptes sont donc supprimées aussi. Vos comptes restent connectés et les messages se retéléchargent à l\'ouverture, ou avant pour les messages récents de la Boîte de réception tant que Télécharger les messages à l\'avance est activé.</string>
     <string name="settings_pgp_section">Chiffrement OpenPGP</string>
     <string name="settings_pgp_enable_title">Utiliser OpenPGP</string>
     <string name="settings_pgp_enable_subtitle">Signer, chiffrer et lire les messages avec %1$s</string>

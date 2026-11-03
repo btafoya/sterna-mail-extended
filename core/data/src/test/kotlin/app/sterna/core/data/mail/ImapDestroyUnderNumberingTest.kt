@@ -378,15 +378,17 @@ class ImapDestroyUnderNumberingTest {
                 "(`numberingRowsWereReadUnder`, off `emails.uidValidity`) and never the folder's " +
                 "current record, which a background pass realigns the moment it meets a renumbering. " +
                 "A new `imap.recordedUidValidity(` on that path is the defect coming back. The " +
-                "download ahead's two reads, second and third here, destroy nothing: the first keeps " +
-                "its batch to the rows of the recorded numbering, the second refuses to cache a body " +
-                "the folder was renumbered under since (#99).",
+                "download ahead's three reads, second to fourth here, destroy nothing: the first keeps " +
+                "its batch to the rows of the recorded numbering, the second refuses to store a part " +
+                "read under a numbering that has since changed (#157), the third refuses to cache a " +
+                "body the folder was renumbered under since (#99).",
             listOf(
                 // The notification pre-pass's own read of the same value: it is how a preview pass
                 // notices a folder renumbered under it, since `fetchPreview` swallows the refusal
                 // (see `MailRepository.recordedNumbering`, and `PreviewConveyanceTest`).
                 "imap.recordedUidValidity(accountId, mailboxId)",
                 "UidValidity.stated(imap.recordedUidValidity(credentials.id, mailboxId))",
+                "imap.recordedUidValidity(account, folder)",
                 "if (renumberedSince(row.uidValidity, imap.recordedUidValidity(credentials.id, mailboxId))) return settled",
                 "if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, mailboxId) else null",
                 "if (credentials.protocol == MailProtocol.IMAP) imap.recordedUidValidity(credentials.id, trashMailboxId)",

@@ -13,6 +13,7 @@
         <exclude domain="database" path="sterna.db-wal" />
         <exclude domain="database" path="sterna.db-shm" />
         <exclude domain="file" path="datastore/" />
+        <exclude domain="file" path="attachment-store/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="sterna_account.xml" />
@@ -21,5 +22,6 @@
         <exclude domain="database" path="sterna.db-wal" />
         <exclude domain="database" path="sterna.db-shm" />
         <exclude domain="file" path="datastore/" />
+        <exclude domain="file" path="attachment-store/" />
     </device-transfer>
 </data-extraction-rules>

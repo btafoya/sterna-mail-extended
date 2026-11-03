@@ -626,12 +626,14 @@
     <string name="settings_quota_used_of">%1$s van %2$s</string>
     <string name="settings_download_ahead_section">Downloads</string>
     <string name="settings_download_ahead_title">Berichten vooraf downloaden</string>
-    <string name="settings_download_ahead_subtitle">Bewaart de tekst van recente berichten in Postvak IN op deze telefoon voordat je ze opent, zonder bijlagen. Gaat nooit verder terug dan Te synchroniseren berichten van elk account.</string>
+    <string name="settings_download_ahead_subtitle">Bewaart de tekst van recente berichten in Postvak IN op deze telefoon voordat je ze opent. Gaat nooit verder terug dan Te synchroniseren berichten van elk account.</string>
     <string name="settings_download_ahead_period_title">Periode</string>
     <string name="settings_download_ahead_7_days">7 dagen</string>
     <string name="settings_download_ahead_1_month">1 maand</string>
     <string name="settings_download_ahead_3_months">3 maanden</string>
     <string name="settings_download_ahead_6_months">6 maanden</string>
+    <string name="settings_download_ahead_attachments_title">Ook bijlagen</string>
+    <string name="settings_download_ahead_attachments_subtitle">Bewaart ook de bijlagen van deze berichten, zodat ze zonder verbinding opengaan.</string>
     <string name="settings_maintenance_section">Onderhoud</string>
     <string name="settings_clear_cache_help">Bij het wissen van de cache worden gedownloade berichten en bijlagen van dit apparaat verwijderd. Je accounts blijven aangemeld en e-mail wordt opnieuw gedownload als je deze opent, of al eerder voor recente berichten in Postvak IN zolang Berichten vooraf downloaden aanstaat.</string>
     <string name="settings_clearing">Wissen…</string>
@@ -719,7 +721,7 @@
     <string name="settings_storage_section">Opslag</string>
     <string name="settings_cached_messages">Berichten in cache</string>
     <string name="settings_clear_account_cache">Cache van dit account wissen</string>
-    <string name="settings_clear_account_cache_help">Bij het wissen van de cache van dit account worden de gedownloade berichten ervan verwijderd. Bijlagen worden niet per account opgeslagen, dus de gedownloade bijlagen van al je accounts worden ook verwijderd. Je accounts blijven aangemeld en e-mail wordt opnieuw gedownload als je deze opent, of al eerder voor recente berichten in Postvak IN zolang Berichten vooraf downloaden aanstaat.</string>
+    <string name="settings_clear_account_cache_help">Bij het wissen van de cache van dit account worden de gedownloade berichten en bijlagen ervan verwijderd. Kopieën van bijlagen die in een andere app zijn geopend, worden niet per account opgeslagen, dus die van al je accounts worden ook verwijderd. Je accounts blijven aangemeld en e-mail wordt opnieuw gedownload als je deze opent, of al eerder voor recente berichten in Postvak IN zolang Berichten vooraf downloaden aanstaat.</string>
     <string name="settings_pgp_section">OpenPGP-versleuteling</string>
     <string name="settings_pgp_enable_title">OpenPGP gebruiken</string>
     <string name="settings_pgp_enable_subtitle">E-mails ondertekenen, versleutelen en lezen met %1$s</string>

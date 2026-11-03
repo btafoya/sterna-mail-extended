@@ -406,6 +406,7 @@ class LocalDraftUploadWiringTest {
                 ")",
                 "}",
                 "runCatching { clearAttachments() }",
+                "runCatching { attachmentStore.clearAccount(accountId) }",
                 "}",
             ),
             codeOf(storageBody("purgeAccount")),
