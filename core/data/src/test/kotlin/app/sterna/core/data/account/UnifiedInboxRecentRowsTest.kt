@@ -323,14 +323,16 @@ class UnifiedInboxRecentRowsTest {
             "core/data/src/main/kotlin/app/sterna/core/data/mail/MailRepository.kt",
         )
         assertEquals(
-            "Both unread reads must go through recentUnreadQuery, and the observed one through " +
-                "recentUnreadRows: recentUnifiedQuery with ListFilter.NONE lists read mail, " +
+            "Both unread reads must go through the lots of recentUnreadQuery (recentUnreadInLots, " +
+                "observeRecentUnreadInLots: one statement over every folder exceeds SQLite's 999 " +
+                "binds below Android 12), and the observed one through recentUnreadRows: " +
+                "recentUnifiedQuery with ListFilter.NONE lists read mail, " +
                 "and a flow of its own re-subscribes on every folder counter written.",
             listOf(
                 "suspend fun recentUnread(scopes: List<Pair<String, String>>?, limit: Int): RecentInbox =",
-                "recentUnreadFrom(scopes) { s -> emailDao.recentUnified(recentUnreadQuery(s, limit)) }",
+                "recentUnreadFrom(scopes) { s -> recentUnreadInLots(s, limit) { q -> emailDao.recentUnified(q) } }",
                 "fun observeRecentUnread(scopes: Flow<List<Pair<String, String>>?>, limit: Int): Flow<RecentInbox> =",
-                "recentUnreadRows(scopes) { s -> emailDao.observeRecentUnified(recentUnreadQuery(s, limit)) }",
+                "recentUnreadRows(scopes) { s -> observeRecentUnreadInLots(s, limit) { q -> emailDao.observeRecentUnified(q) } }",
             ),
             SourceText.codeLines(SourceText.functionSource(source, "suspend fun recentUnread(")) +
                 SourceText.codeLines(SourceText.functionSource(source, "fun observeRecentUnread(")),

@@ -114,6 +114,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -822,6 +823,43 @@ internal fun recentUnifiedQuery(scopes: List<Pair<String, String>>, limit: Int, 
  *  list it opens, so a message read in the app leaves the cell at the next invalidation. */
 internal fun recentUnreadQuery(scopes: List<Pair<String, String>>, limit: Int): SimpleSQLiteQuery =
     recentUnifiedQuery(scopes, limit, ListFilter(unreadOnly = true))
+
+/** Pairs per [recentUnreadQuery]: two binds each plus the row bound, under SQLite's 999 below
+ *  Android 12. The unread scopes are every folder of every account, with no ceiling of their own. */
+internal const val RECENT_UNREAD_SCOPES_PER_QUERY: Int = 400
+
+/** [recentUnreadQuery] over [scopes] in lots of [RECENT_UNREAD_SCOPES_PER_QUERY]: one lot is the
+ *  single statement itself. */
+internal fun recentUnreadQueries(scopes: List<Pair<String, String>>, limit: Int): List<SimpleSQLiteQuery> =
+    scopes.chunked(RECENT_UNREAD_SCOPES_PER_QUERY).map { recentUnreadQuery(it, limit) }
+
+/** The rows the single statement over every lot returns: each lot holds its own first
+ *  [recentRowBound] rows, so their union holds the overall first, in [recentUnifiedSql]'s order.
+ *  `String.compareTo` (UTF-16) equals SQLite's BINARY (UTF-8 bytes) on the ASCII ids JMAP and
+ *  IMAP UIDs give. Rows tied on `sortKey` and `id` have no order in SQLite either. */
+internal fun mergeRecentLots(lots: List<List<RecentEmailRow>>, limit: Int): List<RecentEmailRow> =
+    lots.singleOrNull() ?: lots.flatten()
+        .distinct()
+        .sortedWith(compareByDescending<RecentEmailRow> { it.sortKey }.thenByDescending { it.id })
+        .take(recentRowBound(limit))
+
+/** The unread rows of [scopes], one [read] per lot of [recentUnreadQueries]. */
+internal inline fun recentUnreadInLots(
+    scopes: List<Pair<String, String>>,
+    limit: Int,
+    read: (SimpleSQLiteQuery) -> List<RecentEmailRow>,
+): List<RecentEmailRow> = mergeRecentLots(recentUnreadQueries(scopes, limit).map { read(it) }, limit)
+
+/** [recentUnreadInLots] observed: one subscription per lot, merged at each emission of any. */
+internal fun observeRecentUnreadInLots(
+    scopes: List<Pair<String, String>>,
+    limit: Int,
+    observe: (SimpleSQLiteQuery) -> Flow<List<RecentEmailRow>>,
+): Flow<List<RecentEmailRow>> {
+    val queries = recentUnreadQueries(scopes, limit)
+    queries.singleOrNull()?.let { return observe(it) }
+    return combine(queries.map(observe)) { lots -> mergeRecentLots(lots.asList(), limit) }.distinctUntilChanged()
+}
 
 /** What a widget read answers. [configured] is the difference between "no message" and "no answer":
  *  no scope means no account, an undecodable account blob, or an `inboxId` still null after a
@@ -1682,12 +1720,12 @@ class MailRepository(
     /** The unread mail of [scopes], computed by the caller (the "Unread" view's folders of every
      *  account), newest first and bounded like [recentUnifiedInbox]. See [recentUnreadFrom] for null. */
     suspend fun recentUnread(scopes: List<Pair<String, String>>?, limit: Int): RecentInbox =
-        recentUnreadFrom(scopes) { s -> emailDao.recentUnified(recentUnreadQuery(s, limit)) }
+        recentUnreadFrom(scopes) { s -> recentUnreadInLots(s, limit) { q -> emailDao.recentUnified(q) } }
 
     /** [recentUnread] observed. [scopes] is expected to re-emit on every folder list write, and
      *  [recentUnreadRows] holds the subscription through those. */
     fun observeRecentUnread(scopes: Flow<List<Pair<String, String>>?>, limit: Int): Flow<RecentInbox> =
-        recentUnreadRows(scopes) { s -> emailDao.observeRecentUnified(recentUnreadQuery(s, limit)) }
+        recentUnreadRows(scopes) { s -> observeRecentUnreadInLots(s, limit) { q -> emailDao.observeRecentUnified(q) } }
 
     /** Unread across the inboxes of [scopes], one entry per account, re-emitted when a folder row
      *  changes. The decision is [unreadByAccountFrom]. */

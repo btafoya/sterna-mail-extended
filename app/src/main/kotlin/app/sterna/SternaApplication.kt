@@ -263,7 +263,11 @@ class AppContainer(context: Context) {
         // Its own launch and its own gate: RecentMailWidgetPresence is seeded from THIS provider's
         // cells, and sharing the counter's would let each widget decide the other's freshness.
         appScope.launch {
-            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {
+            RecentMailWidgetPush.redraws(
+                RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes),
+                accountStore.accountsFlow,
+                onReadFailure = { Log.w("Sterna", "latest-messages widget read failed; the cell keeps its rows", it) },
+            ) {
                 RecentWidgetKind.Inboxes.source(this@AppContainer)
             }.collect {
                 RecentMailWidgetDraw.forget(RecentWidgetKind.Inboxes)
@@ -273,7 +277,11 @@ class AppContainer(context: Context) {
             }
         }
         appScope.launch {
-            RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {
+            RecentMailWidgetPush.redraws(
+                RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread),
+                accountStore.accountsFlow,
+                onReadFailure = { Log.w("Sterna", "unread-messages widget read failed; the cell keeps its rows", it) },
+            ) {
                 RecentWidgetKind.Unread.source(this@AppContainer)
             }.collect {
                 RecentMailWidgetDraw.forget(RecentWidgetKind.Unread)

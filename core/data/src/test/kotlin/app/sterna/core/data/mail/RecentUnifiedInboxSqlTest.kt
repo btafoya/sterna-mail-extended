@@ -312,7 +312,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     private fun unread(scopes: List<Pair<String, String>>?, limit: Int = 10) =
-        recentUnreadFrom(scopes) { s -> run(recentUnreadQuery(s, limit)) }
+        recentUnreadFrom(scopes) { s -> recentUnreadInLots(s, limit) { q -> run(q) } }
 
     @Test fun `only unread mail reaches the unread widget, newest first, snoozes out, bounded`() {
         insert("read", seen = 1, sortKey = 900)
@@ -324,6 +324,84 @@ class RecentUnifiedInboxSqlTest {
 
         assertEquals(listOf("u2", "u3", "u1"), unread(one).rows.map { it.id })
         assertEquals(listOf("u2", "u3"), unread(one, limit = 2).rows.map { it.id })
+    }
+
+    private val manyFoldersWithA2AcrossTwoLots = (0 until 500).map { i -> "a${i / 150}" to "f${i % 150}" }
+
+    private fun fillPastAnyBoundInFirstLotWithSortKeyTiesAcrossLots() {
+        manyFoldersWithA2AcrossTwoLots.forEachIndexed { i, (account, folder) ->
+            if (i % 7 == 0) insert("u$i", seen = 0, mailbox = folder, accountId = account, sortKey = (i % 40).toLong())
+            if (i % 11 == 0) insert("r$i", seen = 1, mailbox = folder, accountId = account, sortKey = 500)
+        }
+        insert("t4-lot2", seen = 0, mailbox = "f10", accountId = "a3", sortKey = 100)
+        insert("t3-lot1", seen = 0, mailbox = "f3", accountId = "a0", sortKey = 100)
+        insert("t2-lot2", seen = 0, mailbox = "f120", accountId = "a2", sortKey = 100)
+        insert("t1-lot1", seen = 0, mailbox = "f3", accountId = "a1", sortKey = 100)
+        insert("a2-lot1", seen = 0, mailbox = "f50", accountId = "a2", sortKey = 90)
+        insert("a2-lot2", seen = 0, mailbox = "f130", accountId = "a2", sortKey = 95)
+    }
+
+    private fun singleStatementSqliteJdbcAccepts(scopes: List<Pair<String, String>>, limit: Int) =
+        run(recentUnreadQuery(scopes, limit))
+
+    @Test fun `no unread statement binds more than SQLite's 999 below Android 12`() {
+        val queries = recentUnreadQueries(manyFoldersWithA2AcrossTwoLots, limit = 10)
+        assertTrue(
+            "one unread read over 500 folders bound ${queries.map { it.argCount }} variables",
+            queries.all { it.argCount <= 999 },
+        )
+        assertEquals(
+            "every (account, folder) pair is bound once, in order, across the lots",
+            manyFoldersWithA2AcrossTwoLots,
+            queries.flatMap { q -> RecordingStatement().also { q.bindTo(it) }.bound.values.toList().dropLast(1) }
+                .chunked(2).map { (a, m) -> a as String to m as String },
+        )
+    }
+
+    @Test fun `one lot is the single statement, bound alike`() {
+        val scopes = (0 until 400).map { "a" to "f$it" }
+        val lot = recentUnreadQueries(scopes, limit = 10).single()
+        val single = recentUnreadQuery(scopes, limit = 10)
+        assertEquals(single.sql, lot.sql)
+        assertEquals(
+            RecordingStatement().also { single.bindTo(it) }.bound,
+            RecordingStatement().also { lot.bindTo(it) }.bound,
+        )
+    }
+
+    @Test fun `the unread rows read in lots are the rows of the single statement`() {
+        fillPastAnyBoundInFirstLotWithSortKeyTiesAcrossLots()
+        assertEquals(
+            "the fixture's ties across lots",
+            listOf("t4-lot2", "t3-lot1", "t2-lot2", "t1-lot1", "a2-lot2", "a2-lot1"),
+            singleStatementSqliteJdbcAccepts(manyFoldersWithA2AcrossTwoLots, limit = 6).map { it.id },
+        )
+        for (limit in listOf(1, 5, 10, 30, RECENT_ROWS_MAX)) {
+            assertEquals(
+                "limit $limit",
+                singleStatementSqliteJdbcAccepts(manyFoldersWithA2AcrossTwoLots, limit),
+                unread(manyFoldersWithA2AcrossTwoLots, limit).rows,
+            )
+        }
+    }
+
+    @Test fun `the observed unread rows in lots are the rows of the single statement`() = runTest {
+        fillPastAnyBoundInFirstLotWithSortKeyTiesAcrossLots()
+        val ticks = MutableStateFlow(0)
+        val seen = mutableListOf<List<RecentEmailRow>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            recentUnreadRows(flowOf(manyFoldersWithA2AcrossTwoLots)) { s ->
+                observeRecentUnreadInLots(s, 10) { q -> ticks.map { run(q) } }
+            }.map { it.rows }.toList(seen)
+        }
+        val before = singleStatementSqliteJdbcAccepts(manyFoldersWithA2AcrossTwoLots, 10)
+
+        db.createStatement().use { it.executeUpdate("UPDATE emails SET seen = 1 WHERE id IN ('t4-lot2', 't3-lot1')") }
+        ticks.value = 1
+
+        assertEquals(before, seen.first())
+        assertEquals(singleStatementSqliteJdbcAccepts(manyFoldersWithA2AcrossTwoLots, 10), seen.last())
+        assertTrue("the read rows left the observed unread widget", seen.last().none { it.id in setOf("t4-lot2", "t3-lot1") })
     }
 
     @Test fun `no folder list known is not the same answer as nothing unread`() {
@@ -339,7 +417,7 @@ class RecentUnifiedInboxSqlTest {
     }
 
     private fun observed(scopes: Flow<List<Pair<String, String>>?>, roomInvalidations: Flow<Int>) =
-        recentUnreadRows(scopes) { s -> roomInvalidations.map { run(recentUnreadQuery(s, 10)) } }
+        recentUnreadRows(scopes) { s -> observeRecentUnreadInLots(s, 10) { q -> roomInvalidations.map { run(q) } } }
             .map { inbox -> inbox.rows.map { "${it.accountId}/${it.mailboxId}/${it.id}" } }
 
     @Test fun `a message read leaves the unread widget at the next emission`() = runTest {

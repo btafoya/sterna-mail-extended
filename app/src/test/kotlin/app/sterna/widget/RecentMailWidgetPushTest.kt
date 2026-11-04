@@ -5,6 +5,7 @@ import app.sterna.core.data.db.RecentEmailRow
 import app.sterna.core.data.mail.RecentInbox
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.toList
@@ -14,6 +15,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -81,7 +83,7 @@ class RecentMailWidgetPushTest {
         dispatcher: TestDispatcher,
         accounts: Flow<List<StoredAccount>> = MutableStateFlow(twoAccounts),
     ) = scope.launch(dispatcher) {
-        RecentMailWidgetPush.redraws(placed, accounts, reader::inbox).toList(seen)
+        RecentMailWidgetPush.redraws(placed, accounts, onReadFailure = { error("no read fails here: $it") }, reader::inbox).toList(seen)
     }
 
     /**
@@ -215,7 +217,7 @@ class RecentMailWidgetPushTest {
         val second = read(row("a", seen = true), row("b"))
         val seen = mutableListOf<RecentInbox>()
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts)) {
+            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts), onReadFailure = { error("no read fails here: $it") }) {
                 flowOf(first, first, second, second, first)
             }.toList(seen)
         }
@@ -239,7 +241,7 @@ class RecentMailWidgetPushTest {
     @Test fun `an empty inbox and no account at all are two different redraws`() = runTest {
         val seen = mutableListOf<RecentInbox>()
         val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts)) {
+            RecentMailWidgetPush.redraws(MutableStateFlow(true), MutableStateFlow(twoAccounts), onReadFailure = { error("no read fails here: $it") }) {
                 flowOf(read(), nothingToSay, read())
             }.toList(seen)
         }
@@ -377,6 +379,51 @@ class RecentMailWidgetPushTest {
             listOf(read(row("r0"))),
             seen,
         )
+        job.cancel()
+    }
+
+    @Test fun `a read that throws is reported, keeps what was drawn, and a new placement reads again`() = runTest {
+        val subscriptions = mutableListOf<Int>()
+        val placed = MutableStateFlow(true)
+        val seen = mutableListOf<RecentInbox>()
+        val failures = mutableListOf<Throwable>()
+        var escaped: Throwable? = null
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            runCatching {
+                RecentMailWidgetPush.redraws(placed, MutableStateFlow(twoAccounts), onReadFailure = { failures += it }) {
+                    val index = subscriptions.size
+                    subscriptions += index
+                    flow {
+                        emit(read(row("r$index")))
+                        if (index == 0) throw IllegalStateException("too many SQL variables")
+                    }
+                }.toList(seen)
+            }.onFailure { escaped = it }
+        }
+        runCurrent()
+
+        assertNull(
+            "the read's exception must not leave the collection: appScope has no handler, so it " +
+                "kills the process, and Application.onCreate rebuilds the same collection at the " +
+                "next start, crashing again for as long as the cell is placed.",
+            escaped,
+        )
+        assertEquals("what was read before the failure is drawn", listOf(read(row("r0"))), seen)
+        assertEquals(
+            "and the failure is reported, once; by type and message, since stack-trace recovery " +
+                "hands the catch a copy of the exception and not the instance thrown",
+            listOf("IllegalStateException: too many SQL variables"),
+            failures.map { "${it::class.simpleName}: ${it.message}" },
+        )
+
+        placed.value = false
+        runCurrent()
+        placed.value = true
+        runCurrent()
+
+        assertEquals("a cell placed again subscribes a new read", listOf(0, 1), subscriptions)
+        assertEquals("and draws from it", listOf(read(row("r0")), read(row("r1"))), seen)
+        assertEquals("which did not fail", 1, failures.size)
         job.cancel()
     }
 }

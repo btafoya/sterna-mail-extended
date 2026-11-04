@@ -30,7 +30,11 @@ class RecentMailWidgetPushWiringLintTest {
                 "mail arrives or leaves.",
             listOf(
                 "appScope.launch {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {",
+                "RecentMailWidgetPush.redraws(",
+                "RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes),",
+                "accountStore.accountsFlow,",
+                "onReadFailure = { Log.w(\"Sterna\", \"latest-messages widget read failed; the cell keeps its rows\", it) },",
+                ") {",
                 "RecentWidgetKind.Inboxes.source(this@AppContainer)",
                 "}.collect {",
                 "RecentMailWidgetDraw.forget(RecentWidgetKind.Inboxes)",
@@ -53,7 +57,11 @@ class RecentMailWidgetPushWiringLintTest {
                 "the other cell goes; forgetting the other kind serves this cell the stale rows.",
             listOf(
                 "appScope.launch {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {",
+                "RecentMailWidgetPush.redraws(",
+                "RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread),",
+                "accountStore.accountsFlow,",
+                "onReadFailure = { Log.w(\"Sterna\", \"unread-messages widget read failed; the cell keeps its rows\", it) },",
+                ") {",
                 "RecentWidgetKind.Unread.source(this@AppContainer)",
                 "}.collect {",
                 "RecentMailWidgetDraw.forget(RecentWidgetKind.Unread)",
@@ -82,10 +90,14 @@ class RecentMailWidgetPushWiringLintTest {
             listOf(
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.Inboxes), accountStore.accountsFlow) {",
                 "UnreadWidgetPush.redraws(UnreadWidgetPresence.placed(appContext, UnreadWidgetKind.EveryFolder), accountStore.accountsFlow) {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), accountStore.accountsFlow) {",
-                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), accountStore.accountsFlow) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Inboxes), " +
+                    "accountStore.accountsFlow, onReadFailure = { Log.w(\"Sterna\", \"latest-messages widget read failed; the cell keeps its rows\", it) }, ) {",
+                "RecentMailWidgetPush.redraws(RecentMailWidgetPresence.placed(appContext, RecentWidgetKind.Unread), " +
+                    "accountStore.accountsFlow, onReadFailure = { Log.w(\"Sterna\", \"unread-messages widget read failed; the cell keeps its rows\", it) }, ) {",
             ),
-            lines.filter { it.startsWith("UnreadWidgetPush.redraws") || it.startsWith("RecentMailWidgetPush.redraws") },
+            lines.indices
+                .filter { lines[it].startsWith("UnreadWidgetPush.redraws") || lines[it].startsWith("RecentMailWidgetPush.redraws") }
+                .map { argumentsUpToTrailingLambda(lines, it) },
         )
     }
 
@@ -121,6 +133,12 @@ class RecentMailWidgetPushWiringLintTest {
                 if (at < 0) emptyList() else lines.subList(at, at + 3)
             },
         )
+    }
+
+    private fun argumentsUpToTrailingLambda(lines: List<String>, at: Int): String {
+        val end = (at until lines.size).firstOrNull { lines[it].endsWith("{") }
+            ?: error("`${lines[at]}` never opens its lambda")
+        return lines.subList(at, end + 1).joinToString(" ").replace("( ", "(")
     }
 
     /**
