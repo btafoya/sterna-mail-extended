@@ -189,7 +189,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Remote images and tracking pixels blocked by default, with a per-sender
   allowlist.
 - ✅ Tracking parameters stripped from tapped links.
-- ✅ Optional confirmation before an external link opens, showing where it goes.
+- ✅ Optional confirmation before an external link opens, showing where it goes; a long press on any link shows the same dialog and copies the address.
 - ✅ App lock, biometric, falling back to the screen PIN, pattern or password.
 - ✅ The composer asks the keyboard not to learn what is typed into it.
 - ✅ A strip in the open message when your own mail server, if Sterna recognises

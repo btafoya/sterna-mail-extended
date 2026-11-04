@@ -4070,6 +4070,7 @@ private fun EmailWebView(
     client.onOpenUrl = { uri ->
         if (confirmLinks) pendingLink = uri else leaveOnce { openExternally(context, uri) }
     }
+    client.onLongPressLink = { uri -> pendingLink = uri }
     // The body's resting scroll geometry as measured by the height poll, when it actually measured
     // rather than fell back. It is what lets the host decide the Reply/Forward bar in the same frame
     // as the body's reveal (#63); null keeps the old, bias-to-hidden path.
@@ -4164,6 +4165,34 @@ private fun EmailWebView(
                 settings.builtInZoomControls = true
                 settings.displayZoomControls = false
                 webViewClient = client
+                setOnLongClickListener {
+                    val hit = hitTestResult
+                    when (hit.type) {
+                        WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                            val target = hit.extra?.let { client.openableTarget(Uri.parse(it)) }
+                                ?: return@setOnLongClickListener false
+                            client.onLongPressLink(target)
+                            true
+                        }
+                        // `extra` is the image's own address here, or lacks its scheme: only the href is the link.
+                        WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
+                        WebView.HitTestResult.EMAIL_TYPE,
+                        WebView.HitTestResult.PHONE_TYPE,
+                        WebView.HitTestResult.GEO_TYPE,
+                        -> {
+                            val reply = Handler(Looper.getMainLooper()) { msg ->
+                                // A late reply must not raise a dialog over a body left; `parent` never clears here.
+                                if (isAttachedToWindow) {
+                                    msg.data.getString("url")?.let { client.openableTarget(Uri.parse(it)) }?.let { client.onLongPressLink(it) }
+                                }
+                                true
+                            }
+                            requestFocusNodeHref(reply.obtainMessage())
+                            true
+                        }
+                        else -> false
+                    }
+                }
             }
             // The WebView is deliberately not the AndroidView root: an intermediate FrameLayout changes
             // the clip geometry HWUI hands the GL functor when the nav fade composites this subtree
@@ -4390,6 +4419,15 @@ private fun restingMetrics(wv: WebView, step: HeightPoll.Report, maxSeen: Int): 
     )
 }
 
+// intent:, javascript:, file:, content: or data: in a hostile email could reach into another app.
+private val SAFE_OPEN_SCHEMES = setOf("http", "https", "mailto", "tel", "sms", "geo")
+
+internal fun openableLinkTarget(url: String, stripTracking: Boolean): String? {
+    val colon = url.indexOf(':')
+    if (colon < 0 || url.substring(0, colon).lowercase() !in SAFE_OPEN_SCHEMES) return null
+    return if (stripTracking) LinkCleaner.strip(url) else url
+}
+
 /** Serves `cid:` images, blocks remote resource loads while [blockRemote]; opens links externally. */
 private class BlockingWebViewClient : WebViewClient() {
     var blockRemote: Boolean = true
@@ -4398,6 +4436,11 @@ private class BlockingWebViewClient : WebViewClient() {
 
     /** Reports the final (possibly cleaned) URL to open; the composable decides how. */
     var onOpenUrl: (Uri) -> Unit = {}
+
+    var onLongPressLink: (Uri) -> Unit = {}
+
+    fun openableTarget(url: Uri): Uri? = openableLinkTarget(url.toString(), stripTracking)
+        ?.let { if (it == url.toString()) url else Uri.parse(it) }
 
     /** Reports the rendered content height (Android px). The host does not size anything from it, it
      *  uses it purely as "the body has laid out, reveal it". The second argument carries the resting
@@ -4486,21 +4529,15 @@ private class BlockingWebViewClient : WebViewClient() {
 
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val url = request?.url ?: return false
-        val scheme = url.scheme?.lowercase()
-        // Only hand off web/contact schemes to the system. Never forward intent:, javascript:, file:,
-        // content:, data: an <a href="intent://…"> in a hostile email could redirect into another app.
-        if (scheme !in SAFE_OPEN_SCHEMES) return true // swallow: don't navigate, don't open
+        val target = openableTarget(url) ?: return true
         // Act only on a genuine user tap. Auto-navigations (<meta refresh>, scripted redirects) arrive
         // without a gesture; ignoring them stops a message acting just by being viewed.
         if (!request.hasGesture()) return true
-        // Strip tracking params (utm_*, fbclid, …) so the sender can't tell the link was clicked.
-        val target = if (stripTracking) Uri.parse(LinkCleaner.strip(url.toString())) else url
         onOpenUrl(target)
         return true
     }
 
     private companion object {
-        val SAFE_OPEN_SCHEMES = setOf("http", "https", "mailto", "tel", "sms", "geo")
         val MAIN = Handler(Looper.getMainLooper())
     }
 }
