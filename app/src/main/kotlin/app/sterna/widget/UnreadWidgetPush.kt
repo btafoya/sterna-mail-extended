@@ -25,13 +25,17 @@ internal object UnreadWidgetPush {
     ): Flow<Map<String, Int>> = placed
         .distinctUntilChanged()
         .flatMapLatest { anyPlaced ->
-            if (anyPlaced) unread().combine(accounts.map(::cellBound), ::Pair) else emptyFlow()
+            if (anyPlaced) unread().combine(accounts.map(::redrawKey), ::Pair) else emptyFlow()
         }
         .distinctUntilChanged()
         .map { (unreadByAccount, _) -> unreadByAccount }
 
-    /** Which of [UnreadWidgetContent.of]'s three arms the cell is drawn by, the account list
-     *  projected down to the only thing this trigger may react to. */
+    /** The account list projected down to which of [UnreadWidgetContent.of]'s arms draws the cell and
+     *  the row order [UnreadWidgetContent.byAccount] follows. A renamed account does not redraw. */
+    private data class RedrawKey(val bound: CellBound, val idOrder: List<String>)
+
+    private fun redrawKey(accounts: List<StoredAccount>) = RedrawKey(cellBound(accounts), accounts.map { it.id })
+
     private enum class CellBound { ALL_INBOXES, ONE_ACCOUNT, NO_ACCOUNT }
 
     private fun cellBound(accounts: List<StoredAccount>): CellBound = when {

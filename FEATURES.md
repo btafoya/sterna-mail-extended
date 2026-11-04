@@ -134,6 +134,8 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 
 - ✅ Several accounts, add, switch and sign out. Credentials are encrypted with the
   AndroidKeyStore.
+- ✅ Put your accounts in the order you choose, on this device. A shared mailbox
+  stays with its account.
 - ✅ Setup led by the address: one field, then only the secret that the answer
   needs. A manual host and port form is the fallback.
 - ✅ Autodiscovery of `/.well-known/jmap`, and of the IMAP/SMTP settings a domain

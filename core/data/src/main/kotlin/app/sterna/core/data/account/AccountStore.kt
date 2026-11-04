@@ -112,9 +112,8 @@ fun diffLinkedAccounts(
     // Eviction reads the raw list, admission the probe-filtered one, never the other way round.
     val admissible = retainReachableMailAccounts(discovered, probes).drop(1)
     val trackedJmapIds = existingLinked.mapNotNull { it.jmapAccountId }.toSet()
-    // Self-healing: two linked records tracking the same server account under one login are
-    // duplicates (a leftover of the pre-lock reconcile write race), keep the oldest (records are
-    // appended, so list order is age order) and prune the rest like a revocation.
+    // Self-healing: linked duplicates of one server account (pre-lock reconcile race) keep the first,
+    // the oldest, as a move carries a login's shares in their order; the rest is pruned as revoked.
     val duplicateIds = existingLinked
         .filter { it.jmapAccountId != null }
         .groupBy { it.jmapAccountId }
@@ -592,6 +591,27 @@ class AccountStore(context: Context) : AccountStorage {
     @Synchronized
     fun moveFolderTo(id: String, siblings: List<String>, folderId: String, toIndex: Int) {
         saveAccounts(withFolderDropped(accounts(), id, siblings, folderId, toIndex))
+    }
+
+    @Synchronized
+    fun moveAccount(id: String, up: Boolean) {
+        val read = accounts()
+        val moved = withAccountMoved(read, id, up)
+        if (moved !== read) saveAccountOrder(moved)
+    }
+
+    @Synchronized
+    fun moveAccountTo(id: String, rank: Int) {
+        val read = accounts()
+        val moved = withAccountDropped(read, id, rank)
+        if (moved !== read) saveAccountOrder(moved)
+    }
+
+    private fun saveAccountOrder(moved: List<StoredAccount>) {
+        // `currentId` falls back to the first account: unpinned, a move to the top would switch it.
+        val shown = currentId()
+        if (prefs.getString(KEY_CURRENT, null) != shown) prefs.edit().putString(KEY_CURRENT, shown).apply()
+        saveAccounts(moved)
     }
 
     @Synchronized

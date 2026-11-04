@@ -123,21 +123,10 @@ data class StoredAccount(
     companion object {
         /** Every login, followed by its delegated mailboxes; an orphan delegate is emitted at the end rather than
          *  dropped. */
-        fun accountsScreenRows(all: List<StoredAccount>): List<AccountRowEntry> {
-            val visible = all.filter { !it.importPending }
-            val delegates = visible.filter { it.isShared }
-            val rows = mutableListOf<AccountRowEntry>()
-            val hung = mutableSetOf<String>()
-            visible.filter { !it.isShared }.forEach { login ->
-                rows += AccountRowEntry(login, underLogin = false)
-                delegates.filter { it.loginId == login.id }.forEach { delegate ->
-                    rows += AccountRowEntry(delegate, underLogin = true)
-                    hung += delegate.id
-                }
+        fun accountsScreenRows(all: List<StoredAccount>): List<AccountRowEntry> =
+            accountBlocks(all).flatMap { block ->
+                block.mapIndexed { index, account -> AccountRowEntry(account, underLogin = index > 0) }
             }
-            delegates.filterNot { it.id in hung }.forEach { rows += AccountRowEntry(it, underLogin = false) }
-            return rows
-        }
 
         /** Heals manual identities polluted by an old merge-on-save fold: drops entries that only mirror a server
          *  identity. */

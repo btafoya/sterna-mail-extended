@@ -20,7 +20,7 @@ import org.junit.Test
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class UnreadWidgetPushTest {
 
-    /** Nothing but the id matters here: the bound this pane follows is the list's size. */
+    /** Nothing but the id matters here: the trigger follows the list's size and its id order. */
     private fun account(id: String) = StoredAccount(id = id, server = "s", username = "u")
 
     /** Two accounts: above [AllInboxesView.existsFor], so the cell is called "All inboxes". */
@@ -298,9 +298,75 @@ class UnreadWidgetPushTest {
     }
 
     /**
-     * The price of the arm above, and the reason it carries a bound and not the account list.
+     * The price of the arm above, and the reason it carries the bound and the id order, not the list.
      */
-    @Test fun `an account list that does not cross the bound costs nothing`() = runTest {
+    @Test fun `an account list that keeps its order costs nothing`() = runTest {
+        val counter = Counter()
+        val threeAccounts = listOf(account("a"), account("b"), account("c"))
+        val accounts = MutableStateFlow(threeAccounts)
+        val seen = mutableListOf<Map<String, Int>>()
+        val job = collectPush(
+            MutableStateFlow(true), counter, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), accounts,
+        )
+        runCurrent()
+
+        accounts.value = threeAccounts.map { it.copy(unread = 9) }
+        runCurrent()
+        accounts.value = threeAccounts.map { it.copy(unread = 4) }
+        runCurrent()
+
+        assertEquals(
+            "a write that leaves the same accounts in the same order and changes a field the cell " +
+                "does not draw " +
+                "must not redraw: the only redraw is the one the subscription itself asked for. " +
+                "Every extra one costs a binder call, a decode of the account blob and a launcher " +
+                "re-inflation, on each of the ~27 writes that go through saveAccounts.",
+            listOf(mapOf(ACCOUNT to 100)),
+            seen,
+        )
+        assertEquals(
+            "and above all the count is not asked again: the breakdown is keyed on countedInboxes, " +
+                "and rebuilding a global Room query on every saveAccounts is the expense " +
+                "this arm was designed around.",
+            listOf("ask#0"),
+            counter.asked,
+        )
+        assertEquals("nor re-subscribed", listOf("collect#0"), counter.subscribed)
+        job.cancel()
+    }
+
+    @Test fun `reordering the accounts redraws, on a count that did not move`() = runTest {
+        val breakdown = mapOf("a" to 3, "b" to 5, "c" to 1)
+        val counter = Counter { breakdown }
+        val accounts = MutableStateFlow(listOf(account("a"), account("b"), account("c")))
+        val seen = mutableListOf<Map<String, Int>>()
+        val job = collectPush(
+            MutableStateFlow(true), counter, seen, backgroundScope,
+            UnconfinedTestDispatcher(testScheduler), accounts,
+        )
+        runCurrent()
+
+        accounts.value = listOf(account("c"), account("a"), account("b"))
+        runCurrent()
+        accounts.value = listOf(account("c"), account("b"), account("a"))
+        runCurrent()
+
+        assertEquals(
+            "moving an account in Settings > Accounts must ask for a redraw each time (#285): the " +
+                "enlarged cell lists its rows in the order of the account list, read at draw " +
+                "time, and the breakdown map is blind to that order. Swallowed, the home screen " +
+                "keeps the old order until some count happens to move, and the release notes " +
+                "promise that the widgets follow the order chosen.",
+            listOf(breakdown, breakdown, breakdown),
+            seen,
+        )
+        assertEquals("and the count is NOT re-subscribed for it", listOf("ask#0"), counter.asked)
+        assertEquals("still one subscription", listOf("collect#0"), counter.subscribed)
+        job.cancel()
+    }
+
+    @Test fun `an account added or removed above the bound redraws`() = runTest {
         val counter = Counter()
         val accounts = MutableStateFlow(listOf(account("a"), account("b"), account("c")))
         val seen = mutableListOf<Map<String, Int>>()
@@ -316,21 +382,12 @@ class UnreadWidgetPushTest {
         runCurrent()
 
         assertEquals(
-            "three accounts becoming two, then two others, never crosses the bound: the cell is " +
-                "drawn exactly the same way, so the only redraw is the one the subscription itself " +
-                "asked for. Every extra one costs a binder call, a decode of the account blob and " +
-                "a launcher re-inflation, on each of the ~27 writes that go through saveAccounts.",
-            listOf(mapOf(ACCOUNT to 100)),
+            "three accounts becoming two, then two others, stays 'All inboxes' but changes which " +
+                "rows the enlarged cell lists, so each one is a redraw.",
+            listOf(mapOf(ACCOUNT to 100), mapOf(ACCOUNT to 100), mapOf(ACCOUNT to 100)),
             seen,
         )
-        assertEquals(
-            "and above all the count is not asked again: the breakdown is keyed on countedInboxes, " +
-                "and rebuilding a global Room query on every saveAccounts is the expense " +
-                "this arm was designed around.",
-            listOf("ask#0"),
-            counter.asked,
-        )
-        assertEquals("nor re-subscribed", listOf("collect#0"), counter.subscribed)
+        assertEquals("and the count is NOT re-subscribed for it", listOf("ask#0"), counter.asked)
         job.cancel()
     }
 

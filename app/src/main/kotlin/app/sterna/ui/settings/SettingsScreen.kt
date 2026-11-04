@@ -106,6 +106,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1390,9 +1391,26 @@ private fun AccountsScreen(
             if (result == SnackbarResult.ActionPerformed) viewModel.restoreImport(account)
         }
     }
-    DetailScaffold(title = stringResource(R.string.settings_accounts_screen_title), onBack = onBack) { padding ->
+    var reorderAsked by rememberSaveable { mutableStateOf(false) }
+    val reorderable = mayReorderAccounts(accounts)
+    val reordering = reorderAsked && reorderable
+    LaunchedEffect(reorderable) { if (!reorderable) reorderAsked = false }
+    BackHandler(enabled = reordering) { reorderAsked = false }
+    DetailScaffold(
+        title = stringResource(R.string.settings_accounts_screen_title),
+        onBack = onBack,
+        actions = {
+            if (reorderable) {
+                TextButton(onClick = { reorderAsked = !reordering }) {
+                    Text(stringResource(if (reordering) R.string.folders_reorder_done else R.string.folders_reorder_start))
+                }
+            }
+        },
+    ) { padding ->
       Box(Modifier.fillMaxSize().padding(padding)) {
-        LazyColumn(Modifier.fillMaxSize()) {
+        if (reordering) {
+            AccountReorderColumn(accounts, viewModel, Modifier.fillMaxSize())
+        } else LazyColumn(Modifier.fillMaxSize()) {
             if (pending.isNotEmpty()) {
                 item(key = "pending-import") {
                     PendingImportAccountsSection(
