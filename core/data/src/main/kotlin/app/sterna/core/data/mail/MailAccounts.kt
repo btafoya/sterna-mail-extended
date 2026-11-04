@@ -579,7 +579,7 @@ class MailAccounts(
     suspend fun loadFilterRules(credentials: AccountCredentials, script: String? = null): FilterRulesState {
         if (credentials.protocol == MailProtocol.IMAP) return loadFilterRulesBySieve(credentials, script)
         val ctx = host.jmapSession(credentials)
-        if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
+        if (!ctx.session.accountSupports(ctx.accountId, app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
             return FilterRulesState.Unsupported
         }
         val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)
@@ -620,7 +620,7 @@ class MailAccounts(
         if (credentials.protocol == MailProtocol.IMAP) return loadFilterScriptStatusBySieve(credentials, script)
         return runCatching {
             val ctx = host.jmapSession(credentials)
-            if (!ctx.session.capabilities.containsKey(app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
+            if (!ctx.session.accountSupports(ctx.accountId, app.sterna.core.jmap.Jmap.SIEVE_CAPABILITY)) {
                 return@runCatching FilterScriptStatus()
             }
             val scripts = client.getSieveScripts(ctx.session, ctx.accountId, ctx.auth)

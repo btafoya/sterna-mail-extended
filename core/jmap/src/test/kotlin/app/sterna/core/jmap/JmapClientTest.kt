@@ -781,6 +781,55 @@ class JmapClientTest {
         assertEquals(0, server.requestCount) // capability gate skips the network
     }
 
+    private fun withdrawnFromTheAccountSession() = JmapSession(
+        apiUrl = server.url("/jmap/api/").toString(),
+        capabilities = mapOf(
+            Jmap.CORE_CAPABILITY to buildJsonObject {},
+            Jmap.MAIL_CAPABILITY to buildJsonObject {},
+            Jmap.VACATION_CAPABILITY to buildJsonObject {},
+            Jmap.QUOTA_CAPABILITY to buildJsonObject {},
+            Jmap.SIEVE_CAPABILITY to buildJsonObject {},
+        ),
+        accounts = mapOf(
+            "acc1" to app.sterna.core.jmap.model.JmapAccount(
+                name = "u",
+                accountCapabilities = mapOf(Jmap.MAIL_CAPABILITY to buildJsonObject {}),
+            ),
+        ),
+    )
+
+    private fun answerForbiddenRatherThanHangOnAnEmptyQueue() {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"methodResponses":[["error",{"type":"forbidden"},"x0"]],"sessionState":"1"}""",
+            ),
+        )
+    }
+
+    @Test fun getVacationResponse_nullAndNoCallWhenWithdrawnFromTheAccount() = runBlocking {
+        answerForbiddenRatherThanHangOnAnEmptyQueue()
+        val vr = client.getVacationResponse(withdrawnFromTheAccountSession(), "acc1", BasicAuth("u", "p"))
+
+        assertNull(vr)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun getQuotas_emptyAndNoCallWhenWithdrawnFromTheAccount() = runBlocking {
+        answerForbiddenRatherThanHangOnAnEmptyQueue()
+        val quotas = client.getQuotas(withdrawnFromTheAccountSession(), "acc1", BasicAuth("u", "p"))
+
+        assertTrue(quotas.isEmpty())
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun getSieveScripts_emptyAndNoCallWhenWithdrawnFromTheAccount() = runBlocking {
+        answerForbiddenRatherThanHangOnAnEmptyQueue()
+        val scripts = client.getSieveScripts(withdrawnFromTheAccountSession(), "acc1", BasicAuth("u", "p"))
+
+        assertTrue(scripts.isEmpty())
+        assertEquals(0, server.requestCount)
+    }
+
     // ---- on-behalf sending seams (issue #31) ----
 
     @Test fun sendEmail_returnsTheCreatedEmailId() = runBlocking {

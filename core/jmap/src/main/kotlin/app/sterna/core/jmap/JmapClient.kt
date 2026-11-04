@@ -1531,7 +1531,7 @@ class JmapClient internal constructor(
          *  not advertise the vacationresponse capability. */
     suspend fun getVacationResponse(session: JmapSession, accountId: String, auth: JmapAuth): VacationResponse? =
         withContext(Dispatchers.IO) {
-            if (!session.capabilities.containsKey(Jmap.VACATION_CAPABILITY)) return@withContext null
+            if (!session.accountSupports(accountId, Jmap.VACATION_CAPABILITY)) return@withContext null
             val payload = buildJsonObject {
                 putJsonArray("using") {
                     add(Jmap.CORE_CAPABILITY)
@@ -1599,7 +1599,7 @@ class JmapClient internal constructor(
         /** Fetch the account's Quota objects (RFC 9425), empty if the server has no quota capability. */
     suspend fun getQuotas(session: JmapSession, accountId: String, auth: JmapAuth): List<Quota> =
         withContext(Dispatchers.IO) {
-            if (!session.capabilities.containsKey(Jmap.QUOTA_CAPABILITY)) return@withContext emptyList()
+            if (!session.accountSupports(accountId, Jmap.QUOTA_CAPABILITY)) return@withContext emptyList()
             val payload = buildJsonObject {
                 putJsonArray("using") {
                     add(Jmap.CORE_CAPABILITY)
@@ -1622,7 +1622,7 @@ class JmapClient internal constructor(
         /** Fetch the account's Sieve scripts (RFC 9661), empty if the server has no sieve capability. */
     suspend fun getSieveScripts(session: JmapSession, accountId: String, auth: JmapAuth): List<SieveScript> =
         withContext(Dispatchers.IO) {
-            if (!session.capabilities.containsKey(Jmap.SIEVE_CAPABILITY)) return@withContext emptyList()
+            if (!session.accountSupports(accountId, Jmap.SIEVE_CAPABILITY)) return@withContext emptyList()
             val payload = buildJsonObject {
                 putJsonArray("using") {
                     add(Jmap.CORE_CAPABILITY)

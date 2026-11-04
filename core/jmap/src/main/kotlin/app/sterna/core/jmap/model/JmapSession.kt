@@ -45,6 +45,11 @@ data class JmapSession(
         return (listOfNotNull(primary?.takeIf { it in ids }) + ids.filterNot { it == primary }).distinct()
     }
 
+    fun accountSupports(accountId: String, capability: String): Boolean {
+        val ownOrSessionWide = accounts[accountId]?.accountCapabilities.orEmpty().ifEmpty { capabilities }
+        return ownOrSessionWide.containsKey(capability)
+    }
+
     fun contactsAccountId(): String? {
         if (!capabilities.containsKey(Jmap.CONTACTS_CAPABILITY)) return null
         return primaryAccounts[Jmap.CONTACTS_CAPABILITY]
