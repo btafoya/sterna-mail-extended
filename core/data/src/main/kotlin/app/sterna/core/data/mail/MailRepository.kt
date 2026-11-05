@@ -1642,11 +1642,16 @@ class MailRepository(
         mailboxId: String,
         emailIds: List<String>,
     ): List<String> {
-        if (emailIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()
-        val confirmed = confirmedDepartures(emailIds, mailboxId) { ids ->
-            // Inside the supplier: a pass with nothing to confirm never even opens a session.
-            val ctx = jmapSession(credentials)
-            client.mailboxIdsOf(ctx.session, ctx.accountId, ids, ctx.auth)
+        if (emailIds.isEmpty()) return emptyList()
+        val confirmed = if (credentials.protocol == MailProtocol.IMAP) {
+            val asked = imapDepartureUids(emailIds, credentials.id, mailboxId)
+            imap.confirmedAbsent(credentials, mailboxId, asked.keys).mapNotNull { asked[it] }
+        } else {
+            confirmedDepartures(emailIds, mailboxId) { ids ->
+                // Inside the supplier: a pass with nothing to confirm never even opens a session.
+                val ctx = jmapSession(credentials)
+                client.mailboxIdsOf(ctx.session, ctx.accountId, ids, ctx.auth)
+            }
         }
         if (confirmed.size != emailIds.size) {
             logInfo(

@@ -1,6 +1,7 @@
 package app.sterna.push
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -16,7 +17,7 @@ class DepartedMailLosesItsBannerWiringTest {
                 "an id the folder still holds is not gone, whatever the delta said. It names " +
                 "CANDIDATES, not departures — nothing is cancelled before the server confirms",
             listOf(
-                "val candidates = Notifications.departuresToCancel(active, credentials.id, departedIds, emails.map { it.id })",
+                "val candidates = Notifications.departuresToCancel(active, credentials.id, departing, emails.map { it.id })",
             ),
             codeLinesNaming(body, "departuresToCancel("),
         )
@@ -98,6 +99,27 @@ class DepartedMailLosesItsBannerWiringTest {
             listOf("val departed = repository.confirmDepartures(credentials, mailboxId, candidates)"),
             codeLinesNaming(body, "confirmDepartures("),
         )
+    }
+
+    @Test fun `on IMAP the remembered difference is filtered by the shade before the server is asked`() {
+        val body = bodyOf(NOTIFIER, "notifyDiff")
+        assertEquals(
+            "the remembered ids must be this folder's own baseline, the one `newSince` reads",
+            listOf("val remembered = prefs(context).getStringSet(key(credentials.id, mailboxId), null).orEmpty()"),
+            codeLinesNaming(body, "val remembered"),
+        )
+        assertEquals(
+            "the candidates must come from the pure decision, fed the folder's post-sync content",
+            listOf("val departing = departureCandidates(credentials.protocol, departedIds, remembered, emails.map { it.id })"),
+            codeLinesNaming(body, "departureCandidates("),
+        )
+        val lines = body.lines().map { it.trim() }
+        val merged = lines.indexOfFirst { it.startsWith("val departing = departureCandidates(") }
+        val filtered = lines.indexOfFirst { it.startsWith("val candidates = Notifications.departuresToCancel(") }
+        val asked = lines.indexOfFirst { it.startsWith("val departed = repository.confirmDepartures(") }
+        assertTrue("the merge, the shade filter and the question must all be there", merged >= 0 && filtered >= 0 && asked >= 0)
+        assertTrue("the shade filter must take the merged candidates, so it comes after them", merged < filtered)
+        assertTrue("the shade filter must come BEFORE the question to the server", filtered < asked)
     }
 
     @Test fun `each refreshed folder hands the notifier its own departures`() {

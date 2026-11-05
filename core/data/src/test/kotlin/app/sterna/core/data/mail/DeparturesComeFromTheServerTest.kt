@@ -222,10 +222,25 @@ class DeparturesComeFromTheServerTest {
     @Test fun `the confirmation asks the server where the candidates are, and costs nothing otherwise`() {
         val body = DaoQuerySource.mailFunctionBody("MailRepository", "confirmDepartures")
         assertEquals(
-            "no request may leave for a pass with nothing to confirm, nor for IMAP — where the " +
-                "departure list is empty by construction anyway",
-            listOf("if (emailIds.isEmpty() || credentials.protocol == MailProtocol.IMAP) return emptyList()"),
+            "no request may leave for a pass with nothing to confirm",
+            listOf("if (emailIds.isEmpty()) return emptyList()"),
             codeLinesNaming(body, "return emptyList()"),
+        )
+        assertEquals(
+            "IMAP has its own question, the JMAP one being an Email/get it cannot answer",
+            listOf("val confirmed = if (credentials.protocol == MailProtocol.IMAP) {"),
+            codeLinesNaming(body, "MailProtocol.IMAP"),
+        )
+        assertEquals(
+            "on IMAP only this account's ids of THIS folder are put to its SELECT, by the pure " +
+                "selection a test executes: a UID of another folder names another message here",
+            listOf("val asked = imapDepartureUids(emailIds, credentials.id, mailboxId)"),
+            codeLinesNaming(body, "imapDepartureUids("),
+        )
+        assertEquals(
+            "…and nothing but that selection goes out, the answer mapped back to the ids asked",
+            listOf("imap.confirmedAbsent(credentials, mailboxId, asked.keys).mapNotNull { asked[it] }"),
+            codeLinesNaming(body, "confirmedAbsent("),
         )
         assertEquals(
             "the location read must be the ids-only + mailboxIds Email/get, on THIS account's " +
@@ -235,7 +250,7 @@ class DeparturesComeFromTheServerTest {
         )
         assertEquals(
             "the verdict must be the pure function a test can execute, not a filter written inline",
-            listOf("val confirmed = confirmedDepartures(emailIds, mailboxId) { ids ->"),
+            listOf("confirmedDepartures(emailIds, mailboxId) { ids ->"),
             codeLinesNaming(body, "confirmedDepartures("),
         )
         assertEquals(

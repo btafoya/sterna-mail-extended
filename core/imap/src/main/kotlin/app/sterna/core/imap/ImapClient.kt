@@ -509,10 +509,14 @@ class ImapSession(
          * reported as proved gone, destroying the row of a message still in the folder. Every untagged
          * `SEARCH` line is read, a server being free to split its result.
          */
-    internal fun uidsStillInSource(set: String): Set<Long> =
-        command("UID SEARCH UID $set").untagged
+    internal fun uidsStillInSource(set: String): Set<Long> = searchedUids("UID SEARCH UID $set")
+
+    internal fun uidsHeldUndeleted(set: String): Set<Long> = searchedUids("UID SEARCH UID $set UNDELETED")
+
+    private fun searchedUids(line: String): Set<Long> =
+        command(line).untagged
             .filter { it.getOrNull(1) == "SEARCH" }
-            .flatMap { line -> line.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }
+            .flatMap { response -> response.drop(2).mapNotNull { (it as? String)?.toLongOrNull() } }
             .toSet()
 
     /** Fetch a single message by UID (envelope + flags), or null if not found, or hidden. */

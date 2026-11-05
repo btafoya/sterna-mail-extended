@@ -4,6 +4,7 @@ import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.ConnectionSecurity
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.smtpLogin
+import app.sterna.core.data.getOrElseUnlessCancelled
 import app.sterna.core.data.db.EmailEntity
 import app.sterna.core.data.db.EmailRecipients
 import app.sterna.core.data.db.MailboxEntity
@@ -32,6 +33,7 @@ import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
+import app.sterna.core.imap.departedOf
 import app.sterna.core.imap.fetchUidsPaged
 import app.sterna.core.imap.readForDisplay
 import app.sterna.core.imap.readTextParts
@@ -351,6 +353,13 @@ open class ImapMailService(
     private suspend fun reconcileNumbering(accountId: String, mailboxId: String, observed: Long) {
         if (observed <= 0L) return
         rememberNumbering(accountId, mailboxId, uidValidity.recorded(accountId, mailboxId), observed)
+    }
+
+    suspend fun confirmedAbsent(credentials: AccountCredentials, mailboxId: String, uids: Collection<Long>): List<Long> {
+        if (uids.isEmpty()) return emptyList()
+        val gone = runCatching { onMailbox(credentials, mailboxId) { session, _ -> session.departedOf(uids) } }
+            .getOrElseUnlessCancelled { return emptyList() }
+        return gone.sorted()
     }
 
     /** The numbering last observed for a folder, for a caller that has to record it elsewhere

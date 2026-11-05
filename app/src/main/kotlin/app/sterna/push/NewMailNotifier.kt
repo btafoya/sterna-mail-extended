@@ -150,7 +150,9 @@ object NewMailNotifier {
             .map { it.id }
         // #134: a message deleted from another client is gone from this folder, yet its banner
         // stayed on screen.
-        val candidates = Notifications.departuresToCancel(active, credentials.id, departedIds, emails.map { it.id })
+        val remembered = prefs(context).getStringSet(key(credentials.id, mailboxId), null).orEmpty()
+        val departing = departureCandidates(credentials.protocol, departedIds, remembered, emails.map { it.id })
+        val candidates = Notifications.departuresToCancel(active, credentials.id, departing, emails.map { it.id })
         // The confirmation, from the layer that talks to the server. It confirms nothing when it
         // cannot ask and does not throw: leaving a banner up is survivable, and this pass has new
         // mail to announce.
