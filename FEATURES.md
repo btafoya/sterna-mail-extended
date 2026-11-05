@@ -39,6 +39,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ ⭐ Conversation threading, the server's threads on JMAP, rebuilt from
   `References` on IMAP. Can be turned off for a flat list.
 - ✅ Offline reading, and paged lists that load older mail as you scroll.
+- ✅ Optional download in advance of the text of the Inbox messages of a chosen
+  period (7 days to 6 months, within each account's sync window), on IMAP and
+  JMAP, and if you choose, of their attachments too.
 - ✅ Mark read or unread, star, archive, delete, with an Undo snackbar.
 - ✅ Configurable swipe actions; long-press for multi-select and bulk actions.
 - ✅ Sort by date, subject, sender, unread-first or starred-first; mark all read.
@@ -123,7 +126,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   address book (read-only, on JMAP servers that publish one) and opt-in device
   contacts, as removable chips, with address validation.
 - ✅ With device contacts turned on, a sender you saved in your contacts shows under
-  that name in the message list and the open message.
+  that name in the message list, the open message and notifications.
 - ✅ Several sending identities per account, each with its own signature, chosen
   from a From picker.
 - ✅ Read-receipt requests and responses, both off by default, never sent without a
@@ -189,7 +192,7 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
 - ✅ Remote images and tracking pixels blocked by default, with a per-sender
   allowlist.
 - ✅ Tracking parameters stripped from tapped links.
-- ✅ Optional confirmation before an external link opens, showing where it goes; a long press on any link shows the same dialog and copies the address.
+- ✅ Optional confirmation before an external link opens, showing where it goes; a long press on a link in the message body shows the same dialog, with a button to copy its address.
 - ✅ App lock, biometric, falling back to the screen PIN, pattern or password.
 - ✅ The composer asks the keyboard not to learn what is typed into it.
 - ✅ A strip in the open message when your own mail server, if Sterna recognises
@@ -226,10 +229,11 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   Everywhere else they keep changing the volume.
 - ✅ Contact avatars and sender monograms.
 - ✅ Home-screen widgets for the unread count of the inboxes, for the unread count
-  of every folder but Trash, Spam, Sent and Drafts (opening the Unread view),
-  for recent mail, and for a list of the newest unread messages of every folder
-  but Trash, Spam, Sent and Drafts, hidden and unsubscribed folders left out
-  (opening the Unread view), all four respecting the app lock: while it is on,
+  of the folders the Unread view shows (every folder but Trash, Spam, Sent and
+  Drafts, opening the Unread view), for recent mail, and for a list of the newest
+  unread messages of those same folders, hidden folders left out, and
+  unsubscribed ones when the account shows only subscribed folders (opening the
+  Unread view), all four respecting the app lock: while it is on,
   they name no account, sender or subject.
 - ✅ Settings grouped into Accounts, the app, and the account you are on.
 - ✅ Storage screen with a per-account breakdown and Clear cache; the copies of

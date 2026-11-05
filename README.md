@@ -168,8 +168,9 @@ Running your own server, with a free certificate or one you issued yourself? See
 - Push for new mail with **no Google / FCM** (JMAP EventSource, IMAP IDLE or
   **UnifiedPush**), grouped per account, with quiet hours
 - Four home-screen widgets: an unread count for the unified inbox, an unread
-  count for every folder of every account except Trash, Spam, Sent, Drafts and
-  hidden or unsubscribed folders, as the Unread entry counts, a short list of
+  count for the folders the Unread view shows (every folder of every account
+  except Trash, Spam, Sent, Drafts and hidden folders, and unsubscribed ones when
+  the account shows only subscribed folders), a short list of
   recent mail, and a short list of the newest unread messages from those same
   folders, which opens the Unread view; rows follow the notification-content
   setting, and name neither sender nor subject when the app lock is on

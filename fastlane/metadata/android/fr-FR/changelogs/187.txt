@@ -1,0 +1,7 @@
+Réglages → Stockage peut télécharger d'avance les messages récents de la réception, pièces jointes comprises au choix, pour les lire hors ligne.
+
+Deux widgets : un compteur et une liste des derniers non-lus, pour les dossiers de la vue Non lus.
+
+Ordre des comptes au choix. Expéditeurs sous le nom de vos contacts.
+
+IMAP : ouvrir un message n'attend plus la synchro, les suppressions des autres clients apparaissent. Appui long sur un lien : sa destination. Tri des dossiers de A à Z.

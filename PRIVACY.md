@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-05.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -8,7 +8,7 @@ Last updated: 2026-11-03.
 
 - **Account credentials**, encrypted with the Android KeyStore.
 - **Cached mail**, so the app works offline.
-- **Attachments you open**, and with Settings → Storage → **Attachments too** on, those of the Inbox messages downloaded in advance. Each one stays until its message is no longer in any list on your phone. The copy handed to another app to show an attachment is pruned (past 30 days or 200 MB) when you open the next one. Settings → Storage → **Clear cache** empties both, and an account's own **Clear cache** empties that account's.
+- **Attachments of the messages you open**, image previews and calendar invitations included, and with Settings → Storage → **Attachments too** on, those of the Inbox messages downloaded in advance. Each one stays until its message is no longer in any list on your phone. The copy handed to another app to show an attachment is pruned (past 30 days or 200 MB) when you open the next one. Settings → Storage → **Clear cache** empties both, and an account's own **Clear cache** empties that account's and the copies handed to other apps for every account.
 - **Drafts and messages waiting to go out**, until your server has them.
 - **A photo you take from the composer** stays in the app's cache while it is being attached, then it is handled like any other attachment. If the app is closed while the camera is open, the photo stays there until Settings → Storage → **Clear cache**.
 - **Settings**, the **addresses you have written to** (for autocomplete) and the **senders you allow to load images**.
@@ -59,7 +59,7 @@ Sterna's own manifest declares seven permissions:
 | `POST_NOTIFICATIONS` | New-mail notifications. Optional. |
 | `FOREGROUND_SERVICE` / `FOREGROUND_SERVICE_SPECIAL_USE` | Keep push alive without Google. |
 | `RECEIVE_BOOT_COMPLETED` | Restore push after a reboot or update. |
-| `READ_CONTACTS` | Suggest recipients and show the names you saved for senders, locally. Optional, off by default. |
+| `READ_CONTACTS` | Suggest recipients and show the names you saved for senders in the app and its notifications, locally. Optional, off by default. |
 
 From the libraries Sterna is built with, the installed app carries three permissions more than that table: `USE_BIOMETRIC` and `USE_FINGERPRINT` for the optional app lock (Android does the check and only answers yes or no), and `WAKE_LOCK` so a background check can finish with the screen off. One more entry, ending in `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, is built from Sterna's own package name; it is signature-level, it guards Sterna's internal broadcasts, and no other app can hold it.
 

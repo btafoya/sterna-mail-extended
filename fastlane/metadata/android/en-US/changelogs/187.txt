@@ -1,0 +1,7 @@
+Settings → Storage can download recent Inbox messages in advance, attachments too if you choose, to read them offline.
+
+Two new widgets: an unread count and a list of the newest unread messages, for the folders the Unread view shows.
+
+Accounts in the order you choose. Senders show under the name saved in your contacts.
+
+IMAP: opening a message no longer waits for a sync, and other clients' deletions now show. Long press on a link shows where it goes. Sort folders A to Z.
