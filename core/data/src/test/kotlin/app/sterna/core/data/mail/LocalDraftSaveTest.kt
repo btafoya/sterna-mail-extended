@@ -1357,6 +1357,20 @@ class LocalDraftSaveTest {
             "a login with no domain still yields a syntactically valid Message-ID",
             "u1@localhost", newMessageId("alex", "u1"),
         )
+        assertEquals(
+            "the domain follows the last `@`: a quoted local part may contain one",
+            "u1@x.org", newMessageId("\"a@b\"@x.org", "u1"),
+        )
+    }
+
+    @Test fun `the Message-ID names the trimmed From domain, else the login's, else localhost`() {
+        val login = "alex@example.test"
+        assertEquals("an `@` with nothing after names no domain", "u1@example.test", newMessageId(messageIdAddress("alex@", login), "u1"))
+        assertEquals("u1@example.test", newMessageId(messageIdAddress("alex@ ", login), "u1"))
+        assertEquals("u1@alias.test", newMessageId(messageIdAddress(" alex@alias.test ", login), "u1"))
+        assertEquals("u1@example.test", newMessageId(messageIdAddress("", login), "u1"))
+        assertEquals("u1@example.test", newMessageId(messageIdAddress(null, login), "u1"))
+        assertEquals("u1@localhost", newMessageId(messageIdAddress(null, "alex"), "u1"))
     }
 
     // ---- 6 bis. the row builder: every argument reaches the row -------------------------------------------

@@ -54,8 +54,12 @@ internal fun localDraftMessageId(
     mint: () -> String,
 ): String = mint()
 
-internal fun newMessageId(username: String, unique: String = java.util.UUID.randomUUID().toString()): String =
-    "$unique@${username.substringAfter('@', "localhost")}"
+internal fun newMessageId(address: String, unique: String = java.util.UUID.randomUUID().toString()): String =
+    "$unique@${address.substringAfterLast('@', "localhost")}"
+
+internal fun messageIdAddress(fromEmail: String?, login: String): String =
+    sequenceOf(fromEmail, login).mapNotNull { it?.trim() }
+        .firstOrNull { it.substringAfterLast('@', "").isNotBlank() } ?: "localhost"
 
 /**
  * Frozen here because this is the only moment it is true: a UID names a message inside one numbering

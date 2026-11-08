@@ -39,6 +39,7 @@ import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -71,6 +72,8 @@ import java.time.ZoneId
  *   here checks it.
  * - The date of an IMAP send: [RecordingImap] stands in for the service that builds the bytes, so
  *   the switch there is read by [ImapSentDateFollowsTheSwitchTest].
+ * - Per RFC 8621 §4.6 a server may rewrite the `Message-ID` a send gives it, and §7.5 lets
+ *   delivery rewrite header fields. Our tests just check the IDs we put on the wire.
  */
 class MailSenderDeliversOnBothProtocolsTest {
 
@@ -264,9 +267,9 @@ class MailSenderDeliversOnBothProtocolsTest {
         attachmentsJson = attachmentsJson,
     )
 
-    private fun credentials(protocol: MailProtocol) = AccountCredentials(
+    private fun credentials(protocol: MailProtocol, username: String = "alex@example.test") = AccountCredentials(
         server = server.url("/").toString().removeSuffix("/"),
-        username = "alex@example.test",
+        username = username,
         password = "secret",
         id = "account-1",
         protocol = protocol,
@@ -807,6 +810,101 @@ class MailSenderDeliversOnBothProtocolsTest {
         val submission = argsOf("EmailSubmission/set")["create"]!!.jsonObject
         assertEquals("identity-7", submissionIdentity(submission))
         assertNull(sub(submission)["envelope"])
+    }
+
+    // ---- the Message-ID of a send: minted on the phone, in the `From:` domain, on all three branches
+
+    /**
+     * The `messageId` of the one message created, null where the create left it to the server.
+     * Creates only: a delegated send's `Email/copy` is followed by an `Email/set` that destroys.
+     */
+    private fun createdMessageId(): List<String>? =
+        received.filter { it.first == "Email/set" }
+            .mapNotNull { (_, args) -> args["create"]?.jsonObject?.get("draft")?.jsonObject }
+            .single()["messageId"]?.jsonArray?.map { it.jsonPrimitive.content }
+
+    /** The `Message-ID:` line of the last message imported whole, brackets and all. */
+    private fun lastImportedMessageIdLine(): String =
+        uploaded.last().lines().single { it.startsWith("Message-ID:") }
+
+    /** The login's address and an alias of it, both identities the server lists. */
+    private val loginAndAlias =
+        """{"id":"identity-7","name":"Alex","email":"alex@example.test"},""" +
+            """{"id":"identity-8","name":"Alex","email":"alex@alias.test"}"""
+
+    /**
+     * A message created without a `messageId` is stamped by the server, by Stalwart and Cyrus in the
+     * server's own name, which is then copied into the `References` of every reply the thread goes
+     * on to get. The setup shows up both wrong answers: left to the server, the create carries no
+     * id; taken from the login, as the SMTP path once did, the domain would be `localhost` (#246).
+     */
+    @Test fun `a jmap message carries a Message-ID of its own, in the From address's domain`() {
+        serveJmap(loginAndAlias)
+        runBlocking {
+            sender(host = RecordingHost(jmapSession()))
+                .performSend(credentials(MailProtocol.JMAP, username = "alex"), item(fromEmail = "alex@alias.test"))
+        }
+        val submission = argsOf("EmailSubmission/set")["create"]!!.jsonObject
+        assertEquals("sent as the alias identity", "identity-8", submissionIdentity(submission))
+        val ids = createdMessageId()
+        assertNotNull("the create left the stamp to the server", ids)
+        assertEquals("one id, no brackets: $ids", 1, ids!!.size)
+        assertTrue("$ids", Regex("""[0-9a-f-]{36}@alias\.test""").matches(ids.single()))
+    }
+
+    /**
+     * A delegated send (#31): created on the login's account under the login's identity, with the
+     * shared address in `From:`. The one case where `From:` and the submitting identity differ, so
+     * the one where an id that followed the identity would show.
+     */
+    @Test fun `a delegated send names the shared address's domain, not the submitting identity's`() {
+        serveJmap("""{"id":"identity-login","name":"Alex","email":"alex@example.test"}""")
+        runBlocking {
+            sender(host = RecordingHost(jmapSession(accountId = "shared")))
+                .performSend(credentials(MailProtocol.JMAP), item(fromEmail = "team@shared.test"))
+        }
+        val ids = createdMessageId()
+        assertNotNull("the create left the stamp to the server", ids)
+        assertTrue("$ids", ids!!.single().endsWith("@shared.test"))
+    }
+
+    /**
+     * The pre-built branch writes its own header through `outgoing`, the SMTP path's builder, and
+     * follows the same rule: or one account sends its plain mail as `@alias.test` and its signed
+     * mail as `@localhost`.
+     */
+    @Test fun `a pre-built jmap message names the From domain too`() {
+        serveJmap(loginAndAlias)
+        runBlocking {
+            sender(host = RecordingHost(jmapSession())).performSend(
+                credentials(MailProtocol.JMAP, username = "alex"),
+                item(fromEmail = "alex@alias.test", pgpEntityPath = prebuiltEntityFile()),
+            )
+        }
+        val line = lastImportedMessageIdLine()
+        assertTrue(line, Regex("""Message-ID: <[0-9a-f-]{36}@alias\.test>""").matches(line))
+    }
+
+    /** A server identity without an address, and no `From:` of the draft's own: the login names the domain. */
+    @Test fun `a jmap identity without an address falls back on the login's domain, not localhost`() {
+        serveJmap("""{"id":"identity-blank","name":"Alex","email":""}""")
+        runBlocking {
+            sender(host = RecordingHost(jmapSession())).performSend(credentials(MailProtocol.JMAP), item(fromEmail = null))
+        }
+        val ids = createdMessageId()
+        assertNotNull("the create left the stamp to the server", ids)
+        assertTrue("$ids", Regex("""[0-9a-f-]{36}@example\.test""").matches(ids!!.single()))
+    }
+
+    /** The IMAP branch, the same rule: the id handed to the SMTP server names the `From:` domain. */
+    @Test fun `an imap message names the From domain too`() {
+        val imap = RecordingImap(store)
+        val sender = sender(imap = imap, mailboxDao = mailboxDaoAnswering("sent", "Sent Items", mutableListOf()))
+        runBlocking {
+            sender.performSend(credentials(MailProtocol.IMAP, username = "alex"), item(fromEmail = "alex@alias.test"))
+        }
+        val id = imap.sends.single().message.messageId
+        assertTrue(id, Regex("""[0-9a-f-]{36}@alias\.test""").matches(id))
     }
 
     // ---- the date of a JMAP send, under the quoted-dates-in-UTC switch (#120)

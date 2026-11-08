@@ -1780,6 +1780,7 @@ class JmapClient internal constructor(
                  *  announce its key at all is decided in core/data, never here. */
         autocryptHeader: String? = null,
         sentAt: OffsetDateTime = OffsetDateTime.now(),
+        messageId: String? = null,
     ): String? = withContext(Dispatchers.IO) {
         val sentAtValue = sentAt.truncatedTo(ChronoUnit.SECONDS).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
         withAutocryptHeaderFallback(session, autocryptHeader != null) { withAutocryptHeader, point ->
@@ -1807,6 +1808,7 @@ class JmapClient internal constructor(
                                     put("subject", subject)
                                         // Without `sentAt` the server writes `Date:` in its own account zone.
                                     put("sentAt", sentAtValue)
+                                    if (messageId != null) putJsonArray("messageId") { add(messageId) }
                                     if (inReplyTo.isNotEmpty()) {
                                         putJsonArray("inReplyTo") { inReplyTo.forEach { add(it) } }
                                     }

@@ -159,7 +159,7 @@ class MailSender(
             html = html,
             inReplyTo = inReplyTo.firstOrNull(),
             references = references.joinToString(" ").ifBlank { null },
-            messageId = newMessageId(credentials.username),
+            messageId = newMessageId(messageIdAddress(fromEmail, credentials.username)),
             dateMillis = System.currentTimeMillis(),
             requestReceipt = requestReceipt,
         )
@@ -685,6 +685,8 @@ class MailSender(
                 autocryptHeader = autocryptHeaderValue(sendingAccount, from.email),
                 envelope = envelope,
                 sentAt = OffsetDateTime.now(dateZone),
+                // Left to the server, the id names its host, which links every address it serves.
+                messageId = newMessageId(messageIdAddress(from.email, credentials.username)),
             )
         }
 
