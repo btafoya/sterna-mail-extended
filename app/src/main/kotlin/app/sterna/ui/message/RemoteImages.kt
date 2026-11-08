@@ -45,15 +45,15 @@ internal fun imagesStripPresent(
 /**
  * What the images strip says, and whether it can still be pressed.
  */
-internal enum class ImagesStripBody(@StringRes val label: Int) {
-    /** The pictures are held back: the button is live and offers to fetch them. */
-    ACTION(R.string.message_show_images),
+internal enum class ImagesStripBody(@StringRes val line: Int, @StringRes val action: Int?) {
+    /** The pictures are held back: the line is live and offers to fetch them. */
+    ACTION(R.string.message_images_hidden, R.string.message_show),
 
-    /** They are there: the same button, in the same place, greyed and saying so. */
-    SHOWN(R.string.message_images_shown),
+    /** They are there: the same line, saying so, with nothing left to offer. */
+    SHOWN(R.string.message_images_shown, null),
     ;
 
-    /** Whether the strip still has something to unblock, the button's `enabled`. */
+    /** Whether the line still has something to unblock, its `enabled`. */
     val acts: Boolean get() = this == ACTION
 }
 

@@ -28,7 +28,7 @@ class SignatureSheetHostLintTest {
                 "Lines found:",
             listOf(
                 ".clickable(role = Role.Button) { signatureSheet.open(msg.id, msg.header.accountId) },",
-                "PgpStatusCard(crypto, onCryptoAction, onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) })",
+                "onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) },",
             ),
             lines.filter { "signatureSheet.open(" in it },
         )

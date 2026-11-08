@@ -41,7 +41,10 @@ Three principles:
 ### Shape & spacing
 
 - Moderate corner radii (12–16dp). **No card per message row**: use airy rows
-  separated by whitespace. Reserve a card for the opened message only.
+  separated by whitespace. Reserve a card for the opened message only: there,
+  one tonal card under the header gathers the strips above the body (encryption,
+  remote images, mailing list, read receipt, unverified sender), one 48dp line
+  each, and is absent when none has anything to say.
 - 8dp grid, generous 16dp margins. Sobriety comes from the whitespace.
 
 ### Avatars (privacy)

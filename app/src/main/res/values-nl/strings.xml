@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Dit bericht vraagt te veel afbeeldingen op om weer te geven; het wordt als tekst getoond.</string>
     <string name="message_show_images">Afbeeldingen tonen</string>
     <string name="message_images_shown">Afbeeldingen weergegeven</string>
+    <string name="message_images_hidden">Externe afbeeldingen verborgen</string>
+    <string name="message_show">Tonen</string>
+    <string name="message_mailing_list">Mailinglijst</string>
     <string name="message_images_always_sender">Afbeeldingen van deze afzender altijd tonen</string>
     <string name="message_images_stop_sender">Afbeeldingen van deze afzender niet automatisch tonen</string>
     <string name="message_open_link_title">Deze link openen?</string>
@@ -750,7 +753,7 @@
     <string name="message_smime_choose_other">Ander certificaat kiezen</string>
     <string name="message_smime_not_decrypted">Dit bericht kon niet worden ontsleuteld</string>
     <string name="message_sig_verified">Afzender geverifieerd: %1$s</string>
-    <string name="message_sig_unconfirmed">Ondertekend door %1$s, maar de afzender kon niet worden geverifieerd</string>
+    <string name="message_sig_unconfirmed">Ondertekend door %1$s · afzender niet bevestigd</string>
     <string name="message_sig_mismatch">Ondertekend voor %1$s, niet voor de afzender</string>
     <string name="message_sig_missing">Handtekening kan niet worden gecontroleerd</string>
     <string name="message_sig_invalid">Ongeldige handtekening: vertrouw dit bericht niet</string>

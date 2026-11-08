@@ -40,7 +40,7 @@ private fun pendingLook(kind: CryptoKind): PgpLook =
  *  armour is counted sealed because an inline signed message cannot be told from an encrypted one here. */
 private fun wearsLock(kind: CryptoKind): Boolean = kind != CryptoKind.PGP_SIGNED
 
-/** Drawn by the screen as `VerifiedUser`, `GppMaybe` and `GppBad`. */
+/** Drawn by the screen as the filled `VerifiedUser`, the outlined `GppMaybe` and the filled `GppBad`. */
 internal enum class SignatureIcon { VERIFIED, MAYBE, BAD }
 
 /** Drawn by the screen as `primary`, `tertiary`, `onSurfaceVariant` and `error`. */
@@ -53,14 +53,16 @@ internal data class SignatureLook(@StringRes val line: Int, val icon: SignatureI
  * One table for OpenPGP and S/MIME alike: the header seal and the status card both read it, so they cannot
  * disagree. The first line never names a key or a certificate, which is what lets the two systems share it;
  * the mechanism is named once, in [signatureExplanation]'s technical line. The tones are a public promise:
- * only a confirmed sender gets the verified seal and the primary tone.
+ * only a confirmed sender gets the verified seal and the primary tone. An intact signature from a key that
+ * is not confirmed is muted like a missing key, not tertiary like a sender mismatch: it says nothing wrong,
+ * only nothing more, and the warm tone stays for a signer who is not the sender.
  */
 internal fun signatureLook(state: PgpSignatureState): SignatureLook? = when (state) {
     PgpSignatureState.NONE -> null
     PgpSignatureState.VALID_CONFIRMED ->
         SignatureLook(R.string.message_sig_verified, SignatureIcon.VERIFIED, SignatureTone.PRIMARY)
     PgpSignatureState.VALID_UNCONFIRMED ->
-        SignatureLook(R.string.message_sig_unconfirmed, SignatureIcon.MAYBE, SignatureTone.TERTIARY)
+        SignatureLook(R.string.message_sig_unconfirmed, SignatureIcon.MAYBE, SignatureTone.MUTED)
     PgpSignatureState.SENDER_MISMATCH ->
         SignatureLook(R.string.message_sig_mismatch, SignatureIcon.MAYBE, SignatureTone.TERTIARY)
     PgpSignatureState.KEY_MISSING ->

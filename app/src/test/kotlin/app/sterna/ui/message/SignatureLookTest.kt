@@ -31,7 +31,7 @@ class SignatureLookTest {
     @Test fun `every verdict has its line, its icon and its tone`() {
         val expected = mapOf(
             PgpSignatureState.VALID_CONFIRMED to Triple("message_sig_verified", SignatureIcon.VERIFIED, SignatureTone.PRIMARY),
-            PgpSignatureState.VALID_UNCONFIRMED to Triple("message_sig_unconfirmed", SignatureIcon.MAYBE, SignatureTone.TERTIARY),
+            PgpSignatureState.VALID_UNCONFIRMED to Triple("message_sig_unconfirmed", SignatureIcon.MAYBE, SignatureTone.MUTED),
             PgpSignatureState.SENDER_MISMATCH to Triple("message_sig_mismatch", SignatureIcon.MAYBE, SignatureTone.TERTIARY),
             PgpSignatureState.KEY_MISSING to Triple("message_sig_missing", SignatureIcon.MAYBE, SignatureTone.MUTED),
             PgpSignatureState.INVALID to Triple("message_sig_invalid", SignatureIcon.BAD, SignatureTone.ERROR),

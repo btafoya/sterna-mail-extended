@@ -4,11 +4,11 @@ import app.sterna.BuildConfig
 import app.sterna.appLocale
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.GppBad
-import androidx.compose.material.icons.filled.GppMaybe
+import androidx.compose.material.icons.outlined.GppMaybe
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.filled.VerifiedUser
 import app.sterna.core.data.mail.UnsubscribeAction
 import app.sterna.core.data.mail.UnsubscribeOptions
-import app.sterna.core.data.mail.preferredAction
 import app.sterna.core.data.text.attachmentFileName
 import app.sterna.core.data.text.safeFileName
 import app.sterna.core.data.mail.MessageCrypto
@@ -57,6 +57,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -96,6 +97,8 @@ import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
@@ -2247,10 +2250,28 @@ private fun MessageHeader(
                 )
             }
         }
-        // OpenPGP status card: locked/unlock prompt, progress, verdict, or failure.
-        if (crypto != CryptoUiState.None) {
-            HorizontalDivider()
-            PgpStatusCard(crypto, onCryptoAction, onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) })
+        val cardRows = headerCardRows(
+            crypto = crypto,
+            imagesStrip = imagesStrip,
+            unsubscribe = unsubscribe,
+            readReceipt = readReceiptStrip(readReceiptOffer, readReceiptState),
+            senderUnverified = senderUnverified,
+        )
+        if (cardRows.isNotEmpty()) {
+            HeaderCard(
+                rows = cardRows,
+                onCryptoAction = onCryptoAction,
+                onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) },
+                imagesBlocked = imagesBlocked,
+                onShowImages = onShowImages,
+                unsubscribeState = unsubscribeState,
+                onUnsubscribe = onUnsubscribe,
+                // Named, both of them: the two lambdas have the same type, so passed positionally a
+                // swap in the callee's signature compiles and makes the refusal queue a receipt.
+                onSendReadReceipt = onSendReadReceipt,
+                onDeclineReadReceipt = onDeclineReadReceipt,
+                onViewHeaders = onViewHeaders,
+            )
         }
         if (full != null) {
             val attachments = full.fileAttachmentParts()
@@ -2277,37 +2298,6 @@ private fun MessageHeader(
                     },
                 )
             }
-        }
-        // The pictures this message wanted from someone else's server, and did not get (#153). Until
-        // this, nothing on screen said so: the only way through was an overflow entry no one opens for
-        // a message that simply looks broken. The entry stays, it is the way out when detection misses.
-        if (imagesStrip) {
-            HorizontalDivider()
-            ImagesStrip(imagesBlocked, onShowImages)
-        }
-        // The way out of a mailing list, when the sender offers one. Last of the strips, so it never
-        // pushes the crypto verdict or a meeting invitation below the fold.
-        unsubscribe?.let { options ->
-            HorizontalDivider()
-            UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)
-        }
-        // The answer to a sender who asked to be told this was displayed (#148). Last of the strips,
-        // for the unsubscribe strip's reason. Its own presence is `readReceiptStrip`'s decision, null
-        // for very nearly every message, so the divider goes with it rather than framing an empty row.
-        readReceiptStrip(readReceiptOffer, readReceiptState)?.let { strip ->
-            HorizontalDivider()
-            // Named, both of them, and not as a matter of style: the two lambdas have the same type,
-            // so passed positionally a swap in the callee's signature compiles and makes the refusal
-            // queue a receipt while the button does nothing.
-            ReadReceiptStrip(
-                strip,
-                onSendReadReceipt = onSendReadReceipt,
-                onDeclineReadReceipt = onDeclineReadReceipt,
-            )
-        }
-        senderUnverified?.let { methods ->
-            HorizontalDivider()
-            SenderUnverifiedStrip(methods, onViewHeaders)
         }
         HorizontalDivider()
     }
@@ -2748,7 +2738,7 @@ private fun AttachmentSection(
 
 private fun SignatureIcon.vector(): ImageVector = when (this) {
     SignatureIcon.VERIFIED -> Icons.Filled.VerifiedUser
-    SignatureIcon.MAYBE -> Icons.Filled.GppMaybe
+    SignatureIcon.MAYBE -> Icons.Outlined.GppMaybe
     SignatureIcon.BAD -> Icons.Filled.GppBad
 }
 
@@ -2809,310 +2799,343 @@ private fun SignatureParagraph(@StringRes label: Int, @StringRes body: Int) {
 }
 
 /**
- * The OpenPGP status strip above the body: unlock prompt / progress while decrypting, then the verdict
- * or the failure with a retry. Compact, one row plus an optional action button.
+ * The card under the message header (#291): every line with something to say about this message
+ * before it is read, in [headerCardRows]'s order. The lines are parted by the page showing through
+ * rather than by a divider, so the card reads as one object. It draws what it is handed and decides
+ * nothing. R8 once inlined a short @Composable into drawing nothing in a release build: the card and
+ * its lines stay in this file.
  */
 @Composable
-private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit, onExplainSignature: () -> Unit) {
-    val verdict = (crypto as? CryptoUiState.Decrypted)?.result?.signature?.let(::signatureLook)
-    Row(
+private fun HeaderCard(
+    rows: List<HeaderCardRow>,
+    onCryptoAction: () -> Unit,
+    onExplainSignature: () -> Unit,
+    imagesBlocked: Boolean,
+    onShowImages: () -> Unit,
+    unsubscribeState: UnsubscribeState,
+    onUnsubscribe: () -> Unit,
+    onSendReadReceipt: () -> Unit,
+    onDeclineReadReceipt: () -> Unit,
+    onViewHeaders: () -> Unit,
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (verdict != null) Modifier.clickable(role = Role.Button, onClick = onExplainSignature) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        val look = pgpLook(crypto)
-        when (crypto) {
-            is CryptoUiState.Locked -> {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
+        rows.forEachIndexed { index, row ->
+            if (index > 0) Spacer(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.surface))
+            when (row) {
+                is HeaderCardRow.Crypto -> PgpStatusCard(row.state, onCryptoAction, onExplainSignature)
+                HeaderCardRow.Images -> ImagesStrip(imagesBlocked, onShowImages)
+                is HeaderCardRow.Unsubscribe -> UnsubscribeStrip(row.action, unsubscribeState, onUnsubscribe)
+                is HeaderCardRow.ReadReceipt -> ReadReceiptStrip(
+                    row.strip,
+                    onSendReadReceipt = onSendReadReceipt,
+                    onDeclineReadReceipt = onDeclineReadReceipt,
                 )
-                Text(
-                    text = look.title?.let { stringResource(it) }.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (crypto.decrypting) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    OutlinedButton(onClick = onAction) {
-                        Text(look.action?.let { stringResource(it) }.orEmpty())
-                    }
-                }
+                is HeaderCardRow.SenderUnverified -> SenderUnverifiedStrip(row.methods, onViewHeaders)
             }
-            is CryptoUiState.NeedsInteraction -> {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = look.title?.let { stringResource(it) }.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Button(onClick = onAction) {
-                    Text(look.action?.let { stringResource(it) }.orEmpty())
-                }
-            }
-            is CryptoUiState.Decrypted -> {
-                if (crypto.result.wasEncrypted) {
-                    Icon(
-                        Icons.Filled.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                } else if (verdict != null) {
-                    Icon(
-                        verdict.icon.vector(),
-                        contentDescription = null,
-                        tint = verdict.tone.color(),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    if (crypto.result.wasEncrypted) {
-                        Text(
-                            text = stringResource(R.string.message_pgp_decrypted),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    if (verdict != null) {
-                        Text(
-                            text = stringResource(verdict.line, crypto.result.signatureUserId ?: "?"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = verdict.tone.color(),
-                        )
-                    }
-                }
-            }
-            CryptoUiState.SmimeNotForCertificate, CryptoUiState.SmimeFailed -> {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = look.title?.let { stringResource(it) }.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedButton(onClick = onAction) {
-                    Text(look.action?.let { stringResource(it) }.orEmpty())
-                }
-            }
-            is CryptoUiState.Failed -> {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    text = crypto.message
-                        ?: stringResource(R.string.message_pgp_no_provider),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f),
-                )
-                if (crypto.message != null) {
-                    OutlinedButton(onClick = onAction) {
-                        Text(stringResource(R.string.message_retry))
-                    }
-                }
-            }
-            CryptoUiState.None -> Unit
         }
     }
 }
 
 /**
- * The blocked-images strip above the body: one button, offering to fetch the pictures and then,
- * once they are there, saying so, greyed out (#153). A button, no icon, no sentence: the grammar of
- * the frequent strips (see [UnsubscribeStrip]'s KDoc, the reference for all of this).
- *
+ * One line of [HeaderCard]. A tappable line is one TalkBack target: the Row is the button and merges
+ * what it holds, so its action is drawn as text by [HeaderCardAction], never as a nested button.
+ * `onClick = null` is a question with more than one answer, whose own buttons stay buttons, or a
+ * line that has a gesture in none of its states. `enabled = false`, read by TalkBack as a disabled
+ * button, marks a line whose gesture belongs to another of its states.
+ * The floor is the height rule of every line: the header's measured height keys the body document,
+ * so a line that changes height between two of its states reloads the body under the reader.
+ */
+@Composable
+private fun HeaderCardLine(
+    onClick: (() -> Unit)?,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                        .semantics(mergeDescendants = true) {}
+                } else {
+                    Modifier
+                },
+            )
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+/** The leading icon of a [HeaderCardLine] and the gap after it, the same on every line so the
+ *  sentences start at one edge. */
+@Composable
+private fun HeaderCardIcon(
+    icon: ImageVector,
+    contentDescription: String? = null,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Icon(
+        icon,
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(20.dp),
+    )
+    Spacer(Modifier.width(14.dp))
+}
+
+/**
+ * The action at the right of a [HeaderCardLine]. `labelLarge` shares `bodyMedium`'s 20 sp line
+ * height, which is what lets a state that drops its action keep the line's height at any font
+ * scale; a taller style here would make the line grow in the states that draw it.
+ */
+@Composable
+private fun HeaderCardAction(
+    text: String,
+    color: Color = MaterialTheme.colorScheme.primary,
+) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 8.dp),
+    )
+}
+
+/**
+ * The crypto line of [HeaderCard]: the unlock prompt and its progress, the verdict, or the failure
+ * with a retry. The verdict opens the signature sheet; a line with nothing to offer takes no touch.
+ */
+@Composable
+private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit, onExplainSignature: () -> Unit) {
+    val verdict = (crypto as? CryptoUiState.Decrypted)?.result?.signature?.let(::signatureLook)
+    val look = pgpLook(crypto)
+    when (crypto) {
+        is CryptoUiState.Locked -> HeaderCardLine(onClick = onAction, enabled = !crypto.decrypting) {
+            HeaderCardIcon(Icons.Filled.Lock)
+            Text(
+                text = look.title?.let { stringResource(it) }.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (crypto.decrypting) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                HeaderCardAction(look.action?.let { stringResource(it) }.orEmpty())
+            }
+        }
+        is CryptoUiState.NeedsInteraction -> HeaderCardLine(onClick = onAction) {
+            HeaderCardIcon(Icons.Filled.Lock)
+            Text(
+                text = look.title?.let { stringResource(it) }.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            HeaderCardAction(look.action?.let { stringResource(it) }.orEmpty())
+        }
+        is CryptoUiState.Decrypted -> HeaderCardLine(onClick = if (verdict != null) onExplainSignature else null) {
+            when {
+                // The seal keeps the verdict's tone: only a confirmed sender gets the primary one.
+                verdict != null -> HeaderCardIcon(verdict.icon.vector(), tint = verdict.tone.color())
+                crypto.result.wasEncrypted -> HeaderCardIcon(Icons.Filled.Lock)
+            }
+            Column(Modifier.weight(1f)) {
+                if (crypto.result.wasEncrypted) {
+                    Text(
+                        text = stringResource(R.string.message_pgp_decrypted),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (verdict != null) {
+                    Text(
+                        text = stringResource(verdict.line, crypto.result.signatureUserId ?: "?"),
+                        style = if (crypto.result.wasEncrypted) {
+                            MaterialTheme.typography.bodySmall
+                        } else {
+                            MaterialTheme.typography.bodyMedium
+                        },
+                        color = verdict.tone.color(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (verdict != null) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        CryptoUiState.SmimeNotForCertificate, CryptoUiState.SmimeFailed -> HeaderCardLine(onClick = onAction) {
+            HeaderCardIcon(Icons.Filled.Lock)
+            Text(
+                text = look.title?.let { stringResource(it) }.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            HeaderCardAction(look.action?.let { stringResource(it) }.orEmpty())
+        }
+        is CryptoUiState.Failed -> HeaderCardLine(onClick = onAction, enabled = crypto.message != null) {
+            HeaderCardIcon(Icons.Filled.Lock)
+            Text(
+                text = crypto.message ?: stringResource(R.string.message_pgp_no_provider),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
+            )
+            if (crypto.message != null) {
+                HeaderCardAction(stringResource(R.string.message_retry))
+            }
+        }
+        CryptoUiState.None -> Unit
+    }
+}
+
+/**
+ * The remote-images line of [HeaderCard] (#153): the pictures were held back and the whole line
+ * fetches them; once they are shown, the same line says so and takes no touch.
  * One shape in both states, and that is the whole risk of the feature: the header's measured height
- * keys the `remember` that builds the body's HTML document, so a strip that changes size cancels the
- * body load in flight. Two composables under one `heightIn` do not hold, that is a floor. Hence
- * `maxLines = 1` too, checked on the bench since nothing in the JVM lays Compose out.
+ * keys the `remember` that builds the body's HTML document, so a line that changes size cancels the
+ * body load in flight. Hence `maxLines = 1`: the two sentences differ in length in every language,
+ * and a clipped word costs less than the reader's place in the message.
  */
 @Composable
 private fun ImagesStrip(blocked: Boolean, onShowImages: () -> Unit) {
     // Asked, never re-decided from the boolean: a second copy of the rule here is a rule no test can
     // hold, because the test would be measuring the copy that does not ship.
     val body = imagesStripBody(blocked)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // No padding of its own along the height: the button's own minimum IS the strip's height.
-            // See the KDoc, a strip that changes height reloads the body underneath it.
-            .heightIn(min = ButtonDefaults.MinHeight)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Done is done: the same button, in the same place, at the same size. Nothing else is drawn
-        // here, a second shape is a second height.
-        TextButton(
-            onClick = onShowImages,
-            enabled = body.acts,
-            // A disabled TextButton otherwise takes onSurface at 38 % alpha, and the only confirmation
-            // that the pictures arrived would be the palest thing in the header.
-            colors = ButtonDefaults.textButtonColors(
-                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        ) {
-            Text(
-                stringResource(body.label),
-                // One line whatever the language, and this is a height rule, not typography: heightIn
-                // is a floor, so a wrapped label makes the strip a whole line taller, and the two
-                // strings differ in length in every locale. A clipped German word costs legibility; a
-                // wrap costs the body reload and the reader's place in the message.
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+    HeaderCardLine(onClick = onShowImages, enabled = body.acts) {
+        HeaderCardIcon(Icons.Filled.Image)
+        Text(
+            text = stringResource(body.line),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        body.action?.let { HeaderCardAction(stringResource(it)) }
     }
 }
 
 /**
- * The unsubscribe strip above the body: one button to leave the list, or, once left, one line
- * saying what happened.
- * A button, not a sentence, and the reason is frequency: the two RARE strips are an icon plus a
- * sentence plus an [OutlinedButton], because those are decisions being asked for, while
- * `List-Unsubscribe` now marks commercial mail in general and there is no honest filter to add.
- * The constant height is not tidiness: the header's height keys the body document's `remember`, and
- * the header is where an unsubscribe happens. Only the failure shape grows. R8 once inlined a short
- * @Composable into drawing nothing in a release build; do not move this into a file of its own.
+ * The mailing-list line of [HeaderCard]: the way out of a list, or, once left, where the request
+ * got to. The whole line is the gesture, and the gesture is [onUnsubscribe], which opens the
+ * confirmation: a wider target must never mean a request sent on a stray touch.
+ * The ordinary states keep one height, because the header is where an unsubscribe happens and its
+ * height keys the body document; only the failure may grow, and its action comes back as a retry.
  */
 @Composable
 private fun UnsubscribeStrip(
-    options: UnsubscribeOptions,
+    action: UnsubscribeAction,
     state: UnsubscribeState,
     onUnsubscribe: () -> Unit,
 ) {
-    // The label of the button, when there is one to draw, the same decision the overflow entry and the
-    // action itself take. `preferredAction` alone would answer for a gesture already made.
-    val action = options.preferredAction() ?: return
     val body = unsubscribeStripBody(state)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // No vertical padding of its own: the button's own minimum IS the strip's height, and it
-            // is the floor for the two states that draw less.
-            .heightIn(min = ButtonDefaults.MinHeight)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (body == UnsubscribeStripBody.DONE) {
-            // Done is done: no button left to press, and nothing that could be pressed twice.
-            Text(
-                text = stringResource(
-                    if (state == UnsubscribeState.Queued) {
+    HeaderCardLine(onClick = onUnsubscribe, enabled = body.acts) {
+        if (body == UnsubscribeStripBody.SENDING) {
+            // In the icon's box, so the sentence does not move sideways while the request is out.
+            Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            }
+            Spacer(Modifier.width(14.dp))
+        } else {
+            HeaderCardIcon(Icons.Filled.Mail)
+        }
+        Text(
+            text = stringResource(
+                when (body) {
+                    UnsubscribeStripBody.ACTION, UnsubscribeStripBody.SENDING -> R.string.message_mailing_list
+                    UnsubscribeStripBody.DONE -> if (state == UnsubscribeState.Queued) {
                         R.string.message_unsubscribe_queued
                     } else {
                         R.string.message_unsubscribe_sent
-                    },
-                ),
-                style = MaterialTheme.typography.bodyMedium,
+                    }
+                    UnsubscribeStripBody.FAILED -> when ((state as? UnsubscribeState.Failed)?.reason) {
+                        UnsubscribeFailure.REDIRECT -> R.string.message_unsubscribe_failed_redirect
+                        UnsubscribeFailure.OFFLINE -> R.string.message_unsubscribe_failed_offline
+                        UnsubscribeFailure.UNREACHABLE -> R.string.message_unsubscribe_failed_unreachable
+                        UnsubscribeFailure.REFUSED, null -> R.string.message_unsubscribe_failed
+                    }
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (body == UnsubscribeStripBody.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            maxLines = if (body == UnsubscribeStripBody.FAILED) Int.MAX_VALUE else 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        when (body) {
+            UnsubscribeStripBody.SENDING -> HeaderCardAction(
+                stringResource(R.string.message_unsubscribe_sending),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        } else {
-            val failed = state as? UnsubscribeState.Failed
-            if (failed != null) {
-                // The one shape allowed to grow: a refusal has to say what happened, and a failure is
-                // a retry rather than a dead end, the button comes back beside it.
-                Text(
-                    text = stringResource(
-                        when (failed.reason) {
-                            UnsubscribeFailure.REDIRECT -> R.string.message_unsubscribe_failed_redirect
-                            UnsubscribeFailure.OFFLINE -> R.string.message_unsubscribe_failed_offline
-                            UnsubscribeFailure.UNREACHABLE ->
-                                R.string.message_unsubscribe_failed_unreachable
-                            UnsubscribeFailure.REFUSED -> R.string.message_unsubscribe_failed
-                        },
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                )
-            }
-            TextButton(onClick = onUnsubscribe, enabled = body.acts) {
-                if (body == UnsubscribeStripBody.SENDING) {
-                    // In the icon's place, at the icon's size: the button keeps its height, so the
-                    // header does, so the body underneath is not reloaded mid-gesture.
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(
-                        Icons.Filled.Unsubscribe,
-                        // The strip's sentence, recycled where it costs no height, so the icon is
-                        // announced as something rather than nothing.
-                        contentDescription = stringResource(R.string.message_unsubscribe_banner),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(
-                        when {
-                            body == UnsubscribeStripBody.SENDING -> R.string.message_unsubscribe_sending
-                            action == UnsubscribeAction.OPEN_PAGE -> R.string.message_unsubscribe_via_page
-                            else -> R.string.message_unsubscribe
-                        },
-                    ),
-                    // The label may not wrap: heightIn is a floor, and a taller header reloads the body.
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            // Done is done: nothing left that could be pressed twice.
+            UnsubscribeStripBody.DONE -> Unit
+            UnsubscribeStripBody.ACTION, UnsubscribeStripBody.FAILED -> HeaderCardAction(
+                stringResource(
+                    if (action == UnsubscribeAction.OPEN_PAGE) R.string.message_unsubscribe_via_page else R.string.message_unsubscribe,
+                ),
+            )
         }
     }
 }
 
 /**
- * The read-receipt strip above the body (#148): the question a sender's `Disposition-Notification-To`
+ * The read-receipt line of [HeaderCard] (#148): the question a sender's `Disposition-Notification-To`
  * raises, and, once answered, where the answer got to.
  * It asks, and it is the only thing in this app that can send a receipt. The refusal sends nothing
  * and is written nowhere. The line names who would be told, and says *displayed* rather than *read*.
  * There is no "sent" state under any wording, and once queued the line names the subject
  * `sendReadReceipt` handed back.
  * The height does not move between the states, and only the failure may grow. That does not claim
- * the strip appearing or leaving leaves the header alone.
+ * the line appearing or leaving leaves the header alone.
  */
 @Composable
 private fun ReadReceiptStrip(
     // What [readReceiptStrip] decided, handed in: the caller ran the decision once, to know whether to
-    // draw this row and its divider at all. Not the offer and the state again, a second reading of
-    // the same rule is a rule no test can hold.
+    // draw this line at all. Not the offer and the state again, a second reading of the same rule is
+    // a rule no test can hold.
     strip: ReadReceiptStrip,
     onSendReadReceipt: () -> Unit,
     onDeclineReadReceipt: () -> Unit,
 ) {
     val body = strip.body
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // No vertical padding of its own: the button's own minimum IS the strip's height.
-            .heightIn(min = ButtonDefaults.MinHeight)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    // A question with two answers: the line itself takes no touch, or a touch beside the cross would
+    // answer for the reader.
+    HeaderCardLine(onClick = null) {
+        HeaderCardIcon(Icons.Filled.MarkEmailRead)
         Text(
             text = if (body.names) stringResource(body.line, strip.named) else stringResource(body.line),
             style = MaterialTheme.typography.bodyMedium,
             color = if (body == ReadReceiptStripBody.FAILED) {
                 MaterialTheme.colorScheme.error
             } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
+                MaterialTheme.colorScheme.onSurface
             },
             // One line in the three ordinary states, and this is a height rule, not typography.
             maxLines = if (body.shape == ReadReceiptStripShape.BUTTON_ROW) 1 else Int.MAX_VALUE,
@@ -3120,7 +3143,7 @@ private fun ReadReceiptStrip(
             modifier = Modifier.weight(1f).padding(end = 8.dp),
         )
         if (body.declines) {
-            // Saying no: the strip goes, and nothing leaves. Offered only while the question stands
+            // Saying no: the line goes, and nothing leaves. Offered only while the question stands
             // untouched, once a receipt is queued there is nothing left to refuse.
             IconButton(onClick = onDeclineReadReceipt) {
                 Icon(
@@ -3158,29 +3181,23 @@ private fun ReadReceiptStrip(
     }
 }
 
-/** The account's own server failed a check on the sender (#276). Last of the strips: a warning never
- *  pushes an action down. The text wraps, never at less than the button's height: the failed methods
- *  are the message. The header's height keys the document; it holds once the strip is drawn, its text
- *  never being rewritten before the next message. Opened normally, the strip is decided before the
- *  body is published; a prefetched page shows the body first and sees the strip arrive under it. */
+/** The account's own server failed a check on the sender (#276). Last line of the card: a warning
+ *  never pushes an action down. The whole line opens the headers, which commits nothing. The text
+ *  wraps: the failed methods are the message. The header's height keys the document; it holds once
+ *  the line is drawn, its text never being rewritten before the next message. Opened normally, the
+ *  line is decided before the body is published; a prefetched page shows the body first and sees
+ *  the line arrive under it. */
 @Composable
 private fun SenderUnverifiedStrip(methods: String, onViewHeaders: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = ButtonDefaults.MinHeight)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    HeaderCardLine(onClick = onViewHeaders) {
+        HeaderCardIcon(Icons.Outlined.Warning)
         Text(
             text = stringResource(R.string.message_sender_unverified, methods),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.weight(1f).padding(end = 8.dp),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = onViewHeaders) {
-            Text(stringResource(R.string.message_view_headers), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+        HeaderCardAction(stringResource(R.string.message_view_headers))
     }
 }
 

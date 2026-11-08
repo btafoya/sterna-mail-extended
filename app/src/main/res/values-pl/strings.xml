@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Ta wiadomość żąda zbyt wielu obrazów, by ją wyświetlić; pokazano ją jako tekst.</string>
     <string name="message_show_images">Pokaż obrazy</string>
     <string name="message_images_shown">Obrazy wyświetlone</string>
+    <string name="message_images_hidden">Zdalne obrazy ukryte</string>
+    <string name="message_show">Pokaż</string>
+    <string name="message_mailing_list">Lista mailingowa</string>
     <string name="message_images_always_sender">Zawsze pokazuj obrazy od tego nadawcy</string>
     <string name="message_images_stop_sender">Nie pokazuj automatycznie obrazów od tego nadawcy</string>
     <string name="message_open_link_title">Otworzyć ten link?</string>
@@ -760,7 +763,7 @@
     <string name="message_smime_choose_other">Wybierz inny certyfikat</string>
     <string name="message_smime_not_decrypted">Nie udało się odszyfrować tej wiadomości</string>
     <string name="message_sig_verified">Nadawca zweryfikowany: %1$s</string>
-    <string name="message_sig_unconfirmed">Podpisane przez %1$s, ale nie udało się zweryfikować nadawcy</string>
+    <string name="message_sig_unconfirmed">Podpisane przez %1$s · nadawca niepotwierdzony</string>
     <string name="message_sig_mismatch">Podpisane dla %1$s, nie dla nadawcy</string>
     <string name="message_sig_missing">Nie można sprawdzić podpisu</string>
     <string name="message_sig_invalid">Nieprawidłowy podpis: nie ufaj tej wiadomości</string>

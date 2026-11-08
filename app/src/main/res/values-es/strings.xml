@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Este mensaje pide demasiadas imágenes para mostrarse; se muestra como texto.</string>
     <string name="message_show_images">Mostrar imágenes</string>
     <string name="message_images_shown">Imágenes mostradas</string>
+    <string name="message_images_hidden">Imágenes remotas ocultas</string>
+    <string name="message_show">Mostrar</string>
+    <string name="message_mailing_list">Lista de correo</string>
     <string name="message_images_always_sender">Mostrar siempre las imágenes de este remitente</string>
     <string name="message_images_stop_sender">No mostrar automáticamente las imágenes de este remitente</string>
     <string name="message_open_link_title">¿Abrir este enlace?</string>
@@ -754,7 +757,7 @@
     <string name="message_smime_choose_other">Elegir otro certificado</string>
     <string name="message_smime_not_decrypted">No se pudo descifrar este mensaje</string>
     <string name="message_sig_verified">Remitente verificado: %1$s</string>
-    <string name="message_sig_unconfirmed">Firmado por %1$s, pero no se ha podido verificar el remitente</string>
+    <string name="message_sig_unconfirmed">Firmado por %1$s · remitente no confirmado</string>
     <string name="message_sig_mismatch">Firmado para %1$s, no para el remitente</string>
     <string name="message_sig_missing">No se puede comprobar la firma</string>
     <string name="message_sig_invalid">Firma no válida: no te fíes de este mensaje</string>

@@ -351,6 +351,9 @@
     <string name="message_too_many_resources">This message asks for too many images to display; shown as text.</string>
     <string name="message_show_images">Show images</string>
     <string name="message_images_shown">Images shown</string>
+    <string name="message_images_hidden">Remote images hidden</string>
+    <string name="message_show">Show</string>
+    <string name="message_mailing_list">Mailing list</string>
     <string name="message_images_always_sender">Always show images from this sender</string>
     <string name="message_images_stop_sender">Don\'t auto-show images from this sender</string>
     <string name="message_open_link_title">Open this link?</string>
@@ -943,7 +946,7 @@
     <string name="message_smime_choose_other">Choose another certificate</string>
     <string name="message_smime_not_decrypted">Could not decrypt this message</string>
     <string name="message_sig_verified">Sender verified: %1$s</string>
-    <string name="message_sig_unconfirmed">Signed by %1$s, but the sender couldn\'t be verified</string>
+    <string name="message_sig_unconfirmed">Signed by %1$s · sender not confirmed</string>
     <string name="message_sig_mismatch">Signed for %1$s, not the sender</string>
     <string name="message_sig_missing">Signature can\'t be checked</string>
     <string name="message_sig_invalid">Invalid signature: don\'t trust this message</string>

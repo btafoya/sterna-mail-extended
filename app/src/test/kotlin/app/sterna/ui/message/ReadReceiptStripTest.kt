@@ -220,16 +220,34 @@ class ReadReceiptStripTest {
     /**
      * Source lint, not a measurement. Compose is not run here; these rules read the strip as text
      */
-    @Test fun `the strip stands on a button, with a height floor and no padding of its own`() {
+    @Test fun `the strip adds no geometry to the card's line`() {
         val strip = stripLines()
         assertEquals(
-            "the strip must stand on the button's own minimum height and carry no vertical " +
-                "padding of its own, so the states that draw less cannot shrink the header and " +
-                "reload the body under it. Geometry found in the strip:\n" +
+            "the strip's floor and inset are HeaderCardLine's; anything added here can make one " +
+                "state taller than another and reload the body under it. Geometry found in the strip:\n" +
                 strip.filter { line -> GEOMETRY_WORDS.any { it in line.lowercase() } }
                     .joinToString("\n"),
             ALLOWED_GEOMETRY,
             strip.filter { line -> GEOMETRY_WORDS.any { it in line.lowercase() } }.toSet(),
+        )
+    }
+
+    /** A question with two answers: the line takes no touch, only its two buttons do. */
+    @Test fun `the line takes no touch, only its two buttons do`() {
+        val strip = stripLines()
+        assertEquals(
+            "the strip must stand on HeaderCardLine(onClick = null): no clickable on the row",
+            listOf("HeaderCardLine(onClick = null) {"),
+            strip.filter { it.startsWith("HeaderCardLine(") },
+        )
+        assertEquals(
+            "the only touches in the strip are the cross and the button. Lines found:",
+            listOf(
+                "HeaderCardLine(onClick = null) {",
+                "IconButton(onClick = onDeclineReadReceipt) {",
+                "onClick = onSendReadReceipt,",
+            ),
+            strip.filter { "onClick" in it || "clickable" in it },
         )
     }
 
@@ -239,7 +257,7 @@ class ReadReceiptStripTest {
     @Test fun `the strip draws these composables and no others`() {
         val drawn = stripLines().mapNotNull { line -> DRAW_CALL.find(line)?.value }
         assertEquals(
-            "the strip's composables changed. It is one Row: the line, the refusal (a cross), and " +
+            "the strip's composables changed. It is one card line: the icon, the sentence, the refusal (a cross), and " +
                 "the one button — with the spinner INSIDE that button, in the icon's place. " +
                 "Anything added here is a second shape, and a second shape is a body reload.",
             ALLOWED_DRAWS,
@@ -324,31 +342,28 @@ class ReadReceiptStripTest {
     /**
      * The presence of the row reads the offer, and its divider goes with it.
      */
-    @Test fun `the header draws the strip on the decision, last, with its own divider`() {
+    @Test fun `the header draws the strip on the decision, and the card hands both gestures by name`() {
         val header = headerLines().filterNot { it.startsWith("//") }
         assertEquals(
-            "MessageHeader must open the strip with exactly these lines: the decision, run once, " +
-                "deciding the divider AND the row — and the two callbacks handed over BY NAME. " +
-                "Lines mentioning readReceiptStrip / ReadReceiptStrip:\n" +
+            "MessageHeader must run the decision once and hand it to headerCardRows, which decides " +
+                "whether the line is drawn. Lines mentioning readReceiptStrip / ReadReceiptStrip:\n" +
                 header.filter { "eadReceiptStrip" in it }.joinToString("\n"),
+            listOf("readReceipt = readReceiptStrip(readReceiptOffer, readReceiptState),"),
+            header.filter { "eadReceiptStrip" in it },
+        )
+        val card = block("private fun HeaderCard(").lines().map { it.trim() }.filterNot { it.startsWith("//") }
+        assertEquals(
+            "the card must draw the line with the decided strip and the two callbacks BY NAME, and " +
+                "only the unverified-sender warning may follow it",
             listOf(
-                "readReceiptStrip(readReceiptOffer, readReceiptState)?.let { strip ->",
-                "HorizontalDivider()",
-                "ReadReceiptStrip(",
-                "strip,",
+                "is HeaderCardRow.ReadReceipt -> ReadReceiptStrip(",
+                "row.strip,",
                 "onSendReadReceipt = onSendReadReceipt,",
                 "onDeclineReadReceipt = onDeclineReadReceipt,",
                 ")",
+                "is HeaderCardRow.SenderUnverified -> SenderUnverifiedStrip(row.methods, onViewHeaders)",
             ),
-            header.dropWhile { !it.startsWith("readReceiptStrip(") }.take(7),
-        )
-        val strips = header.filter { STRIP_CALL.containsMatchIn(it) }
-        assertEquals(
-            "the read-receipt strip is the last ACTION strip in the header, followed only by the " +
-                "unverified-sender warning (#276): it must never push the crypto verdict or a " +
-                "meeting invitation below the fold. Strips found: $strips",
-            listOf("ReadReceiptStrip(", "SenderUnverifiedStrip(methods, onViewHeaders)"),
-            strips.takeLast(2),
+            card.dropWhile { !it.startsWith("is HeaderCardRow.ReadReceipt ->") }.take(6),
         )
     }
 
@@ -368,8 +383,8 @@ class ReadReceiptStripTest {
         }
         NAMED_HANDOVERS.forEach { (line, times) ->
             assertEquals(
-                "the two lambdas are handed over BY NAME at both levels — ConversationBody → " +
-                    "MessageHeader → ReadReceiptStrip. This line must appear exactly $times " +
+                "the two lambdas are handed over BY NAME at every level — ConversationBody → " +
+                    "MessageHeader → HeaderCard → ReadReceiptStrip. This line must appear exactly $times " +
                     "times:\n  $line\nAnything positional there compiles with the two swapped, " +
                     "and then the cross that says 'do not answer' queues the receipt.",
                 times,
@@ -421,10 +436,8 @@ class ReadReceiptStripTest {
     }
 
     private companion object {
-        /** The only two lines of the strip allowed to carry any geometry at all. */
+        /** The only lines of the strip allowed to carry any geometry at all. */
         val ALLOWED_GEOMETRY = setOf(
-            ".heightIn(min = ButtonDefaults.MinHeight)",
-            ".padding(horizontal = 16.dp),",
             "modifier = Modifier.weight(1f).padding(end = 8.dp),",
             "CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)",
             "Spacer(Modifier.width(8.dp))",
@@ -438,7 +451,8 @@ class ReadReceiptStripTest {
 
         /** Every composable the strip may draw, by its opening call, in order. */
         val ALLOWED_DRAWS = listOf(
-            "Row(",
+            "HeaderCardLine(",
+            "HeaderCardIcon(",
             "Text(",
             "IconButton(",
             "Icon(",
@@ -452,14 +466,12 @@ class ReadReceiptStripTest {
          *  with a name. */
         val DRAW_CALL = Regex("""^[A-Z]\w*\(""")
 
-        /** A strip being drawn: a line that starts with `FooStrip(`. */
-        val STRIP_CALL = Regex("""^[A-Z]\w*Strip\(""")
-
         /** The line beside the button: one line in the ordinary states, error-coloured on failure. */
         val LINE_RULES = listOf(
             "text = if (body.names) stringResource(body.line, strip.named) else stringResource(body.line),",
             "color = if (body == ReadReceiptStripBody.FAILED) {",
             "MaterialTheme.colorScheme.error",
+            "MaterialTheme.colorScheme.onSurface",
             "maxLines = if (body.shape == ReadReceiptStripShape.BUTTON_ROW) 1 else Int.MAX_VALUE,",
         )
 
@@ -492,8 +504,8 @@ class ReadReceiptStripTest {
          * `MessageHeader`'s.
          */
         val NAMED_HANDOVERS = mapOf(
-            "onSendReadReceipt = onSendReadReceipt," to 2,
-            "onDeclineReadReceipt = onDeclineReadReceipt," to 2,
+            "onSendReadReceipt = onSendReadReceipt," to 3,
+            "onDeclineReadReceipt = onDeclineReadReceipt," to 3,
             "readReceiptOffer = readReceiptOffer," to 2,
             "readReceiptState = readReceiptState," to 2,
         )

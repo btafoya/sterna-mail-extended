@@ -69,75 +69,114 @@ class UnsubscribeStripTest {
         }
     }
 
-    /**
-     * Source lint, not a measurement. Compose is not run here; these rules read the strip as text
-     */
-    @Test fun `the strip is a button with a height floor, and no sentence at rest`() {
-        val strip = stripSource()
-        assertTrue(
-            "the strip must stand on the button's own minimum height — 'heightIn(min = " +
-                "ButtonDefaults.MinHeight)' — so the shapes that draw less do not shrink the " +
-                "header and reload the body under it. Strip was:\n$strip",
-            "heightIn(min = ButtonDefaults.MinHeight)" in strip,
+    /** Source lint from here: Compose and an `AndroidViewModel` do not run in a JVM test. Holes open, of
+     *  the four in `CONTRIBUTING.md`: an argument name says nothing of its binding (1), hence every
+     *  hand-over of `onUnsubscribe` pinned; nothing of the control structure around a line (3); nor
+     *  of the value a composable collects (4). */
+    @Test fun `a touch anywhere on the line opens the confirmation and nothing else`() {
+        val strip = codeLines(stripSource())
+        assertEquals(
+            "the whole line is the gesture, live exactly where unsubscribeStripBody says so. Lines " +
+                "naming onUnsubscribe in the strip:",
+            listOf("onUnsubscribe: () -> Unit,", "HeaderCardLine(onClick = onUnsubscribe, enabled = body.acts) {"),
+            strip.filter { "onUnsubscribe" in it },
         )
-        assertTrue(
-            "…and carry no vertical padding of its own on top of that floor",
-            ".padding(horizontal = 16.dp)" in strip && "vertical = 10.dp" !in strip,
+        val screen = codeLines(SOURCE.readText())
+        assertEquals(
+            "onUnsubscribe must reach the line from askUnsubscribe, through hand-overs by name only: " +
+                "handed viewModel::unsubscribe, a stray touch on a line that now spans the screen " +
+                "sends the POST with no dialog. Lines found:",
+            listOf(
+                "onUnsubscribe = viewModel::askUnsubscribe,",
+                "onUnsubscribe = onUnsubscribe,",
+                "onUnsubscribe = onUnsubscribe,",
+            ),
+            screen.filter { it.startsWith("onUnsubscribe =") },
         )
-        assertTrue(
-            "the resting strip is a TextButton — the house vocabulary for a secondary action — " +
-                "and no longer an OutlinedButton, which is what the two RARE strips use",
-            "TextButton(onClick = onUnsubscribe, enabled = body.acts)" in strip &&
-                "OutlinedButton" !in strip,
+        assertEquals(
+            "the card hands the line the same callback",
+            listOf("is HeaderCardRow.Unsubscribe -> UnsubscribeStrip(row.action, unsubscribeState, onUnsubscribe)"),
+            screen.filter { "UnsubscribeStrip(" in it && !it.startsWith("private fun") },
         )
+        val requests = screen.filter { "viewModel.unsubscribe()" in it || "viewModel::unsubscribe" in it }
+        assertEquals("the request is started from one place in the screen", listOf("viewModel.unsubscribe()"), requests)
         assertTrue(
-            "R.string.message_unsubscribe_banner may no longer be drawn as a line of text: the " +
-                "sentence IS the weight this correction removes. It is recycled as the icon's " +
-                "contentDescription, where it costs no height",
-            "contentDescription = stringResource(R.string.message_unsubscribe_banner)," in strip,
+            "…and that place is the confirmation's own button. Confirmation was:\n${confirmDialogSource()}",
+            "viewModel.unsubscribe()" in confirmDialogSource(),
         )
-        assertTrue(
-            "the icon must be 18 dp and muted (onSurfaceVariant), not 20 dp and primary: a " +
-                "tinted icon is how the two rare strips ask for a decision",
-            "tint = MaterialTheme.colorScheme.onSurfaceVariant," in strip &&
-                "modifier = Modifier.size(18.dp)," in strip,
+        assertEquals(
+            "askUnsubscribe opens the confirmation and sends nothing",
+            listOf(
+                "fun askUnsubscribe() {",
+                "val options = _unsubscribe.value ?: return",
+                "val action = offeredUnsubscribeAction(options, _unsubscribeState.value) ?: return",
+                "_unsubscribeConfirm.value = PendingUnsubscribe(action, options)",
+                "}",
+            ),
+            codeLines(VIEW_MODEL.readText()).dropWhile { it != "fun askUnsubscribe() {" }.take(5),
         )
-        assertTrue(
-            "the spinner must sit INSIDE the button, in the icon's place and at the icon's size",
-            "CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)" in strip,
+    }
+
+    @Test fun `the line keeps its height in the ordinary states and only a failure grows`() {
+        val strip = codeLines(stripSource())
+        listOf(
+            "val body = unsubscribeStripBody(state)",
+            "if (body == UnsubscribeStripBody.SENDING) {",
+            "CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)",
+            "HeaderCardIcon(Icons.Filled.Mail)",
+            "style = MaterialTheme.typography.bodyMedium,",
+            "color = if (body == UnsubscribeStripBody.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,",
+            "maxLines = if (body == UnsubscribeStripBody.FAILED) Int.MAX_VALUE else 1,",
+            "overflow = TextOverflow.Ellipsis,",
+            "UnsubscribeStripBody.ACTION, UnsubscribeStripBody.SENDING -> R.string.message_mailing_list",
+            "UnsubscribeStripBody.DONE -> Unit",
+        ).forEach { rule ->
+            assertEquals("the strip must carry, once and whole:\n  $rule\nStrip was:\n${strip.joinToString("\n")}", 1, strip.count { it == rule })
+        }
+        assertEquals(
+            "the strip draws no button of its own and no row of its own: its geometry is HeaderCardLine's",
+            emptyList<String>(),
+            strip.filter { it.startsWith("Row(") || "Button(" in it || "heightIn" in it || "padding" in it },
         )
-        assertTrue(
-            "the finished states draw the terminal line in onSurfaceVariant and no button",
-            "if (body == UnsubscribeStripBody.DONE) {" in strip &&
-                "color = MaterialTheme.colorScheme.onSurfaceVariant," in strip,
+        assertEquals(
+            "in flight, the action is greyed, never at 38 % alpha: onSurfaceVariant, named",
+            listOf("color = MaterialTheme.colorScheme.onSurfaceVariant,"),
+            strip.filter { "onSurfaceVariant" in it },
         )
-        assertTrue(
-            "the strip must ask unsubscribeStripBody(state) rather than re-decide from the state",
-            "val body = unsubscribeStripBody(state)" in strip,
+    }
+
+    /** The line is merged into one TalkBack target: a label on its icon is a sentence read before
+     *  the line's own, and once the request is done it still says "unsubscribe". */
+    @Test fun `the icon says nothing to TalkBack`() {
+        val strip = codeLines(stripSource())
+        assertEquals(
+            "no contentDescription other than null in the strip. Lines found:",
+            emptyList<String>(),
+            strip.filter { "contentDescription" in it && "contentDescription = null" !in it },
         )
-        // Written after watching its mutation survive the whole campaign: swap the failure's
-        // colour for onSurfaceVariant and everything above still passes. The failure is the one
-        // shape allowed to take more room and to say more, and the colour is what tells it apart
-        // from the terminal line, which is drawn in onSurfaceVariant three lines away.
-        assertTrue(
-            "a failure must be drawn in the error colour: it is the only thing distinguishing " +
-                "'the sender's server refused' from 'the request went out', and the two sit in " +
-                "the same place in the same strip. Strip was:\n$strip",
-            "color = MaterialTheme.colorScheme.error," in strip,
+        assertEquals(emptyList<String>(), strip.filter { "message_unsubscribe_banner" in it })
+    }
+
+    /** A failure is a retry: the action is drawn again, the same label as before the first try. Without
+     *  it the line stays tappable with nothing on it saying so. */
+    @Test fun `a failure draws the action again`() {
+        val strip = codeLines(stripSource())
+        val at = strip.indexOf("UnsubscribeStripBody.ACTION, UnsubscribeStripBody.FAILED -> HeaderCardAction(")
+        assertTrue("the failure no longer shares the action's branch. Strip was:\n${strip.joinToString("\n")}", at >= 0)
+        assertEquals(
+            listOf(
+                "UnsubscribeStripBody.ACTION, UnsubscribeStripBody.FAILED -> HeaderCardAction(",
+                "stringResource(",
+                "if (action == UnsubscribeAction.OPEN_PAGE) R.string.message_unsubscribe_via_page else R.string.message_unsubscribe,",
+                "),",
+                ")",
+            ),
+            strip.subList(at, minOf(at + 5, strip.size)),
         )
     }
 
     @Test fun `nothing else in the reader was moved`() {
-        // The lot's scope, held by a rule rather than by good intentions: the overflow entry, the
-        // confirmation dialog (decision D7) and the strip's place in the header, last, so it
-        // never pushes a crypto verdict or a meeting invitation below the fold, are all
-        // deliberate and none of them is this correction's business.
         val screen = SOURCE.readText()
-        assertTrue(
-            "the strip must stay the LAST thing in the header, after the attachments and the " +
-                "calendar card",
-            "UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)" in screen,
-        )
         assertTrue(
             "the overflow entry must still gate on offeredUnsubscribeAction",
             "offeredUnsubscribeAction(unsubscribe, unsubscribeState)?.let { action ->" in screen,
@@ -148,36 +187,17 @@ class UnsubscribeStripTest {
         )
     }
 
-    @Test fun `the fallback label names its subject in both places, and cannot grow the strip`() {
+    @Test fun `the fallback label names its subject in both places`() {
         val strip = stripSource()
-        val button = stripButtonSource()
-        val buttonLines = button.lines().map { it.trim() }
-        assertTrue(
-            "the clamp must sit on the BUTTON's own label, which is why it is read on the slice " +
-                "starting at TextButton(onClick = onUnsubscribe) and not on the whole strip: the " +
-                "failure line above the button is the one shape allowed to wrap, and read as part " +
-                "of the strip it would answer this rule for a button that grows freely. Checked " +
-                "as a whole line rather than with a contains, since 'maxLines = 1, softWrap = " +
-                "false' also contains 'maxLines = 1,' and is another rule entirely. Button was:" +
-                "\n$button",
-            buttonLines.any { it == "maxLines = 1," },
-        )
-        assertTrue(
-            "…and that same button must overflow to an ellipsis rather than to a second line: " +
-                "heightIn is a floor, so a label that wraps grows the strip, grows the header, and " +
-                "the header's height keys the remember of the body document underneath",
-            buttonLines.any { it == "overflow = TextOverflow.Ellipsis," },
-        )
         val openPage = strip.lines()
             .map { it.trim() }
             .filter { "UnsubscribeAction.OPEN_PAGE" in it && "R.string." in it }
         assertEquals("exactly one OPEN_PAGE label branch in the strip", 1, openPage.size)
         assertTrue(
-            "the button must name what the gesture is ABOUT and not only what it does: " +
+            "the action must name what the gesture is ABOUT and not only what it does: " +
                 "message_unsubscribe_via_page puts the subject first and the page in brackets, so " +
-                "an ellipsis eats the gesture and never the word 'unsubscribe' — which today is " +
-                "nowhere on the screen for the commonest sender of all, the one publishing no " +
-                "List-Unsubscribe-Post. Branch read:\n${openPage.single()}",
+                "an ellipsis eats the gesture and never the word 'unsubscribe'. Branch read:\n" +
+                openPage.single(),
             "R.string.message_unsubscribe_via_page" in openPage.single(),
         )
         val entry = overflowEntrySource()
@@ -209,14 +229,6 @@ class UnsubscribeStripTest {
         )
     }
 
-    private fun stripButtonSource(): String {
-        val strip = stripSource()
-        val at = strip.indexOf("TextButton(onClick = onUnsubscribe")
-        check(at >= 0) {
-            "UnsubscribeStrip no longer draws its gesture as a TextButton(onClick = onUnsubscribe)"
-        }
-        return strip.substring(at)
-    }
 
     private fun overflowEntrySource(): String {
         val text = SOURCE.readText()
@@ -234,6 +246,10 @@ class UnsubscribeStripTest {
         val end = text.indexOf("R.string.settings_cancel", at)
         check(end > at) { "the confirmation no longer ends on its cancel button" }
         return text.substring(at, end)
+    }
+
+    private fun codeLines(text: String): List<String> = text.lines().map { it.trim() }.filterNot {
+        it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*")
     }
 
     private fun stripSource(): String {
@@ -254,5 +270,7 @@ class UnsubscribeStripTest {
                 )
             File(root, "app/src/main/kotlin/app/sterna/ui/message/MessageScreen.kt")
         }
+
+        val VIEW_MODEL: File by lazy { File(SOURCE.parentFile, "MessageViewModel.kt") }
     }
 }

@@ -2,6 +2,7 @@ package app.sterna.ui.message
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -105,29 +106,30 @@ class RemoteImagesTest {
         )
     }
 
-    /**
-     * The state → label correspondence, run. The strip now draws one single shape whose only
-     */
-    @Test fun `the held-back state wears the show-images label`() {
+    /** The state → words correspondence, run: what the line says and what it offers. */
+    @Test fun `the held-back state says the pictures are hidden and offers to show them`() {
+        val body = imagesStripBody(blocked = true)
         assertEquals(
-            "blocked pictures must offer R.string.message_show_images — the label the overflow " +
-                "entry already uses, translated in all ten languages. Any other id here and the " +
-                "one thing the strip exists to say is wrong",
-            app.sterna.R.string.message_show_images,
-            imagesStripBody(blocked = true).label,
+            "held-back pictures must read R.string.message_images_hidden",
+            app.sterna.R.string.message_images_hidden,
+            body.line,
+        )
+        assertEquals(
+            "…and offer R.string.message_show at the right of the line",
+            app.sterna.R.string.message_show,
+            body.action,
         )
     }
 
-    @Test fun `the shown state wears the images-shown label`() {
+    @Test fun `the shown state says so and offers nothing`() {
+        val body = imagesStripBody(blocked = false)
         assertEquals(
-            "once the pictures are there the same button must read " +
-                "R.string.message_images_shown. Swapped with the other id, the strip says " +
-                "\"Images shown\" over held-back pictures and offers \"Show images\" once they " +
-                "are already on screen — and the two states are otherwise identical, so nothing " +
-                "else would notice",
+            "once the pictures are there the line must read R.string.message_images_shown; " +
+                "swapped with the other id it says they are shown over held-back pictures",
             app.sterna.R.string.message_images_shown,
-            imagesStripBody(blocked = false).label,
+            body.line,
         )
+        assertNull("nothing left to offer once they are shown", body.action)
     }
 
     // ── imagesStripPresent, executed ───────────────────────────────────────────────────────────
@@ -238,138 +240,27 @@ class RemoteImagesTest {
     }
 
     /**
-     * Source lint, not a measurement, Compose is not run here, so these rules would still pass on
-     * a strip that laid out wrong. What they hold is the one property no reviewer can see in a
-     * diff: the strip draws one shape in both states, so its height cannot diverge between them,
-     * and its presence cannot change either.
+     * Source lint, not a measurement: Compose is not run here, so this would still pass on a line
+     * that laid out wrong. What it holds is that both states are one call to `HeaderCardLine`, whose
+     * floor and inset `HeaderCardTest` pins, with one sentence held to one line.
      */
-    @Test fun `the strip is one shape, wearing one label or the other`() {
-        val strip = stripLines()
-        assertTrue(
-            "the row's height contract is the line '.heightIn(min = ButtonDefaults.MinHeight)'. " +
-                "HONEST ABOUT WHAT IT DOES: with a single child that is itself a TextButton, this " +
-                "floor never bites — the button already stands above 40 dp, more so as the font " +
-                "grows. It is kept as the contract for the day something shorter is put in this " +
-                "row, and because removing it is a silent change of the strip's height on a " +
-                "header whose measured height keys the remember() that builds the body's HTML. " +
-                "What holds the two STATES level is the single shape, not this line. Strip " +
-                "was:\n${strip.joinToString("\n")}",
-            hasLine(strip, ".heightIn(min = ButtonDefaults.MinHeight)"),
-        )
-        assertTrue(
-            "…and its horizontal inset must be the line '.padding(horizontal = 16.dp)'",
-            hasLine(strip, ".padding(horizontal = 16.dp)"),
-        )
+    @Test fun `the line is one shape, tappable only while the pictures are held back`() {
+        val body = codeLines(stripSource()).drop(1)
         assertEquals(
-            "no vertical padding of its own, anywhere in the strip: it is added to the height " +
-                "floor rather than absorbed by it, so the strip becomes taller than the button " +
-                "and the body under it is reloaded",
-            emptyList<String>(),
-            strip.filter { "vertical =" in it },
-        )
-        assertEquals(
-            "BOTH states are ONE TextButton, and these are its lines, verbatim (one whole line " +
-                "each): ${BUTTON_LINES.joinToString(" · ")}. `enabled = body.acts` is the whole " +
-                "difference in behaviour; a second composable for the 'shown' state is what made " +
-                "the header change height at the tap, because heightIn() is a FLOOR the button " +
-                "overshoots and a bare Text does not. NOTE this goes further than the house " +
-                "pattern: [UnsubscribeStrip] keeps its button only while an unsubscribe is IN " +
-                "FLIGHT (SENDING) and drops to a bare Text once DONE — which is exactly the " +
-                "divergence measured here, and is not to be copied back. Strip " +
-                "was:\n${strip.joinToString("\n")}",
-            emptyList<String>(),
-            BUTTON_LINES.filterNot { hasLine(strip, it) },
-        )
-        assertEquals(
-            "…and the label is the enum's own, on one line whatever the language, verbatim: " +
-                "${LABEL_LINES.joinToString(" · ")}. `stringResource(body.label)` keeps the " +
-                "state → string correspondence in ImagesStripBody where a JVM test can RUN it. " +
-                "`maxLines = 1` + the ellipsis are the height rule, not typography: heightIn is a " +
-                "FLOOR, so a label that WRAPS makes the strip a whole line taller — and the two " +
-                "strings differ in length in every language (de 15 → 23 chars, nl 18 → 24, fr 19 " +
-                "→ 16), so at font_scale 2.0 on a 360 dp screen one state wraps and the other " +
-                "does not. That is the same defect this lot closes, an order of magnitude bigger: " +
-                "the header changes by a LINE at the tap, the body's HTML is re-keyed, the load " +
-                "in flight is cancelled. Truncating a German label is the cost that was chosen " +
-                "over that. Strip was:\n${strip.joinToString("\n")}",
-            emptyList<String>(),
-            LABEL_LINES.filterNot { hasLine(strip, it) },
-        )
-        assertTrue(
-            "the disabled state must name its own colour, verbatim '$DISABLED_COLOUR_LINE' " +
-                "inside a ButtonDefaults.textButtonColors(. Without it a disabled TextButton " +
-                "falls back to Material3's onSurface at 38 % alpha, and the ONE confirmation the " +
-                "app gives that the pictures were fetched becomes the palest thing in the header " +
-                "— fainter than the muted line it replaced (onSurfaceVariant). Strip " +
-                "was:\n${strip.joinToString("\n")}",
-            hasLine(strip, DISABLED_COLOUR_LINE) &&
-                hasLine(strip, "colors = ButtonDefaults.textButtonColors("),
-        )
-        assertTrue(
-            "the strip must ASK imagesStripBody(blocked) rather than re-decide from the boolean: " +
-                "a strip that re-decides is a second copy of the rule, and the tests above then " +
-                "measure nothing that ships",
-            hasLine(strip, "val body = imagesStripBody(blocked)"),
-        )
-        assertEquals(
-            "…and must not branch on `blocked` itself anywhere",
-            emptyList<String>(),
-            strip.filter { "if (blocked" in it || "blocked ->" in it || "!blocked" in it },
+            "ImagesStrip must be exactly these lines. `enabled = body.acts` is the whole difference " +
+                "in behaviour: the whole line answers the touch while the pictures are held back and " +
+                "is inert once they are shown. `maxLines = 1` with the ellipsis is the height rule: " +
+                "the two sentences differ in length in every language, and one that wraps in one " +
+                "state makes the header a line taller at the tap, which reloads the body. The words " +
+                "come from imagesStripBody, the line never branches on `blocked` itself. Strip " +
+                "was:\n${body.joinToString("\n")}",
+            STRIP_LINES,
+            body,
         )
     }
 
     /**
-     * The rule that keeps the two states one shape, the defect that was measured, stated the only
-     */
-    @Test fun `the strip draws one thing and nothing beside it`() {
-        val strip = stripLines()
-        val drawn = strip
-            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
-            .filter { DRAW_CALL.containsMatchIn(it) }
-        assertEquals(
-            "the strip must open exactly these three composables, in this order, and nothing " +
-                "else: ${ALLOWED_DRAWS.joinToString(" / ")} — their arguments are pinned as whole " +
-                "lines by the rule above. Anything else here is a second shape, and " +
-                "two shapes cannot be held to one height — heightIn() is a FLOOR, the TextButton " +
-                "overshoots it (minimumInteractiveComponentSize, plus a vertical inset that grows " +
-                "with the font scale) and anything smaller sits back down on it. The header then " +
-                "changes height at the tap, which re-keys the body's HTML document: the reader " +
-                "either waits behind the spinner for the failsafe (before the first reveal) or " +
-                "watches the message reload and lose her scroll position (after it). Strip " +
-                "was:\n${strip.joinToString("\n")}",
-            ALLOWED_DRAWS,
-            drawn.map { it.removeSuffix(",") },
-        )
-    }
-
-    /**
-     * The rules above protect the lines they enumerate. They cannot protect the file from a line
-     */
-    @Test fun `no geometry is added to the strip, ever`() {
-        val strip = stripLines()
-        val offenders = strip
-            // Prose carries no layout: the strip's own comments talk about padding and height.
-            .filterNot { it.startsWith("//") || it.startsWith("*") || it.startsWith("/*") }
-            // The two known lines, matched whole (the height rule above pins their exact text).
-            .filterNot { it.removeSuffix(",") in ALLOWED_GEOMETRY }
-            .filter { line -> GEOMETRY_WORDS.any { it in line.lowercase() } }
-        assertEquals(
-            "the strip may carry NO geometry beyond ${ALLOWED_GEOMETRY.joinToString(" and ")}. " +
-                "Each line below adds size to the row or to what it holds, so the strip stops " +
-                "being the height the header was measured at — and a line added on ONE state's " +
-                "side (were the two states ever split again) makes the header change size at the " +
-                "moment of the tap, which re-keys the " +
-                "body's HTML document — the reader either waits behind the spinner for the " +
-                "failsafe (before the first reveal) or watches the message reload and lose her " +
-                "scroll position (after it). That is the whole risk of this feature. Strip " +
-                "was:\n${strip.joinToString("\n")}",
-            emptyList<String>(),
-            offenders,
-        )
-    }
-
-    /**
-     * The call site, which no other rule in this class reads: [stripLines] is the body of
+     * The call site, which no other rule in this class reads: `stripSource` is the body of
      * `ImagesStrip`, [headerSource] the body of `MessageHeader`, and the call lives in
      * `ConversationBody`, in neither.
      */
@@ -391,14 +282,11 @@ class RemoteImagesTest {
             HEADER_WIRING.filterNot { hasLine(call, it) },
         )
         assertTrue(
-            "…and MessageHeader must hand the strip its LIVE argument, verbatim " +
-                "'ImagesStrip(imagesBlocked, onShowImages)'. Handed `imagesStrip` instead — the " +
-                "frozen presence flag, which is true for every message that draws a strip — the " +
-                "row would keep offering \"Show images\" after the pictures are on screen, and " +
-                "the button would do nothing. MessageHeader's ImagesStrip lines were:\n" +
-                headerSource().lines().map { it.trim() }
-                    .filter { "ImagesStrip(" in it }.joinToString("\n"),
-            hasLine(headerSource().lines().map { it.trim() }, "ImagesStrip(imagesBlocked, onShowImages)"),
+            "…and the card must hand the line its LIVE argument, verbatim " +
+                "'HeaderCardRow.Images -> ImagesStrip(imagesBlocked, onShowImages)'. Handed " +
+                "`imagesStrip` instead, the frozen presence flag, the line would keep offering to " +
+                "show the pictures once they are on screen. Card was:\n${block("private fun HeaderCard(")}",
+            hasLine(block("private fun HeaderCard(").lines().map { it.trim() }, "HeaderCardRow.Images -> ImagesStrip(imagesBlocked, onShowImages)"),
         )
     }
 
@@ -464,22 +352,24 @@ class RemoteImagesTest {
     }
 
     /**
-     * Whether the row is drawn at all, the condition no other rule in this class reads, and the
-     * cheapest way left to bring the whole defect back.
+     * Whether the line is drawn at all, the condition no other rule in this class reads, and the
+     * cheapest way left to bring the whole defect back: `headerCardRows` takes the frozen presence,
+     * and the live state only reaches the line itself.
      */
     @Test fun `the row is drawn on presence alone, never on the live blocking state`() {
-        val header = headerSource().lines().map { it.trim() }
-        assertTrue(
-            "MessageHeader must draw the images strip under the whole line 'if (imagesStrip) {' " +
-                "— `imagesStrip` is the frozen presence flag, decided once per page in " +
-                "ConversationBody. Anded with anything live (`&& imagesBlocked`, `&& blocked`, …) " +
-                "the row and its HorizontalDivider() VANISH at the tap: the header loses about " +
-                "49 dp at once, which re-keys the remember() that builds the body's HTML — the " +
-                "reader waits behind the spinner for the failsafe (before the first reveal) or " +
-                "watches the message reload and lose her scroll position (after it). That is the " +
-                "same damage as a resize, at its maximum. MessageHeader's `imagesStrip` lines " +
-                "were:\n" + header.filter { "imagesStrip" in it }.joinToString("\n"),
-            hasLine(header, "if (imagesStrip) {"),
+        val header = codeLines(headerSource())
+        assertEquals(
+            "MessageHeader must hand headerCardRows the frozen presence flag and nothing live. Anded " +
+                "with `imagesBlocked`, the line VANISHES at the tap: the header loses about 49 dp at " +
+                "once, which re-keys the remember() that builds the body's HTML, and the reader " +
+                "waits behind the spinner or loses her place in the message. Lines found:",
+            listOf("imagesStrip: Boolean = false,", "imagesStrip = imagesStrip,"),
+            header.filter { "imagesStrip" in it },
+        )
+        assertEquals(
+            "…and the live state goes to the card, to be handed to the line, nowhere else",
+            listOf("imagesBlocked: Boolean = true,", "imagesBlocked = imagesBlocked,"),
+            header.filter { "imagesBlocked" in it },
         )
     }
 
@@ -512,24 +402,10 @@ class RemoteImagesTest {
                 "false negative is the case where the reader has no strip to tap",
             hasLine(screenLines(), "text = { Text(stringResource(R.string.message_show_images)) },"),
         )
-        val header = headerSource()
-        val calls = STRIP_CALL.findAll(header).map { it.value }.toList()
         assertTrue(
-            "MessageHeader draws no ImagesStrip at all — strips found: $calls",
-            calls.any { it.startsWith("ImagesStrip(") },
-        )
-        assertEquals(
-            "the unsubscribe strip must stay the LAST strip in the header — that placement is " +
-                "deliberate and tested (it must never push a crypto verdict or a meeting " +
-                "invitation below the fold), so the images strip goes BEFORE it. Only the " +
-                "unverified-sender warning (#276) follows it; `ReadReceiptStrip(` spans lines and " +
-                "is not matched here",
-            listOf("UnsubscribeStrip(options, unsubscribeState, onUnsubscribe)", "SenderUnverifiedStrip(methods, onViewHeaders)"),
-            calls.takeLast(2),
-        )
-        assertTrue(
-            "the images strip must come before the unsubscribe one — order was: $calls",
-            calls.indexOfFirst { it.startsWith("ImagesStrip(") } < calls.lastIndex,
+            "the card draws the images line on its own row kind; the order of the card's lines is " +
+                "held by HeaderCardTest. Card was:\n${block("private fun HeaderCard(")}",
+            hasLine(block("private fun HeaderCard(").lines().map { it.trim() }, "HeaderCardRow.Images -> ImagesStrip(imagesBlocked, onShowImages)"),
         )
     }
 
@@ -545,7 +421,11 @@ class RemoteImagesTest {
 
     private fun screenLines(): List<String> = SOURCE.readText().lines().map { it.trim() }
 
-    private fun stripLines(): List<String> = block("private fun ImagesStrip(").lines().map { it.trim() }
+    private fun stripSource(): String = block("private fun ImagesStrip(")
+
+    private fun codeLines(text: String): List<String> = text.lines().map { it.trim() }.filterNot {
+        it.isEmpty() || it.startsWith("//") || it.startsWith("*") || it.startsWith("/*")
+    }
 
     private fun headerSource(): String = block("private fun MessageHeader(")
 
@@ -574,42 +454,27 @@ class RemoteImagesTest {
     }
 
     private companion object {
-        /** The only two lines of the strip allowed to carry any geometry at all. */
-        val ALLOWED_GEOMETRY = setOf(
-            ".heightIn(min = ButtonDefaults.MinHeight)",
-            ".padding(horizontal = 16.dp)",
-        )
-
-        /** Anything that can make a row taller (or add a second thing to it), matched lowercased. */
-        val GEOMETRY_WORDS = listOf(
-            "padding", "spacer", "height", "size", "offset", ".dp", "weight", "aspectratio",
-        )
-
-        /** The one button, drawn in both states; only `enabled` and the label change. */
-        val BUTTON_LINES = listOf(
-            "onClick = onShowImages",
-            "enabled = body.acts",
-        )
-
-        /** Its label: the enum's string, and the guarantee that it stays on one line. */
-        val LABEL_LINES = listOf(
-            "stringResource(body.label)",
-            "maxLines = 1",
-            "overflow = TextOverflow.Ellipsis",
-        )
-
-        /** What a disabled TextButton must be told, or it goes to onSurface at 38 %. */
-        const val DISABLED_COLOUR_LINE =
-            "disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant"
-
         /**
-         * Every composable the strip is allowed to draw, by its opening line, in order. A fourth
+         * The images line, whole, after its signature. Both states are this one call, so the line
+         * cannot be of two heights; only `enabled` and the words change, and both come from
+         * [imagesStripBody].
          */
-        val ALLOWED_DRAWS = listOf("Row(", "TextButton(", "Text(")
-
-        /** A composable call opening a line: `Foo(`. Modifier chains start with `.`, arguments
-         *  with a name. */
-        val DRAW_CALL = Regex("""^[A-Z]\w*\(""")
+        val STRIP_LINES = listOf(
+            "val body = imagesStripBody(blocked)",
+            "HeaderCardLine(onClick = onShowImages, enabled = body.acts) {",
+            "HeaderCardIcon(Icons.Filled.Image)",
+            "Text(",
+            "text = stringResource(body.line),",
+            "style = MaterialTheme.typography.bodyMedium,",
+            "color = MaterialTheme.colorScheme.onSurface,",
+            "maxLines = 1,",
+            "overflow = TextOverflow.Ellipsis,",
+            "modifier = Modifier.weight(1f),",
+            ")",
+            "body.action?.let { HeaderCardAction(stringResource(it)) }",
+            "}",
+            "}",
+        )
 
         /** The three arguments the images strip needs, as they must appear at the call site. */
         val HEADER_WIRING = listOf(
@@ -643,7 +508,6 @@ class RemoteImagesTest {
             "imagesStripPresent(plainText, tooManyResources, senderAllowed, full?.htmlContent())",
         )
 
-        val STRIP_CALL = Regex("""\b[A-Z]\w*Strip\([^)\n]*\)""")
 
         val SOURCE: File by lazy {
             val root = generateSequence(File("").absoluteFile) { it.parentFile }

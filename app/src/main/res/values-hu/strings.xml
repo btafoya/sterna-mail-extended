@@ -343,6 +343,9 @@
     <string name="message_too_many_resources">Ez az üzenet túl sok képet kér a megjelenítéshez; szövegként jelenik meg.</string>
     <string name="message_show_images">Képek megjelenítése</string>
     <string name="message_images_shown">Képek megjelenítve</string>
+    <string name="message_images_hidden">Távoli képek elrejtve</string>
+    <string name="message_show">Megjelenítés</string>
+    <string name="message_mailing_list">Levelezőlista</string>
     <string name="message_images_always_sender">Mindig jelenjenek meg a képek ettől a feladótól</string>
     <string name="message_images_stop_sender">Ne jelenjenek meg automatikusan a képek ettől a feladótól</string>
     <string name="message_open_link_title">Megnyitja ezt a hivatkozást?</string>
@@ -932,7 +935,7 @@
     <string name="message_smime_choose_other">Másik tanúsítvány kiválasztása</string>
     <string name="message_smime_not_decrypted">Nem sikerült visszafejteni ezt az üzenetet</string>
     <string name="message_sig_verified">Feladó ellenőrizve: %1$s</string>
-    <string name="message_sig_unconfirmed">Aláírta: %1$s, de a feladót nem sikerült ellenőrizni</string>
+    <string name="message_sig_unconfirmed">Aláírta: %1$s · a feladó nincs megerősítve</string>
     <string name="message_sig_mismatch">Az aláírás nem a feladó nevében készült, hanem: %1$s</string>
     <string name="message_sig_missing">Az aláírás nem ellenőrizhető</string>
     <string name="message_sig_invalid">Érvénytelen aláírás: ne bízzon ebben az üzenetben</string>

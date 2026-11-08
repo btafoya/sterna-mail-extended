@@ -344,6 +344,9 @@
     <string name="message_too_many_resources">此邮件请求的图片过多，无法显示；已以文本形式显示。</string>
     <string name="message_show_images">显示图片</string>
     <string name="message_images_shown">已显示图片</string>
+    <string name="message_images_hidden">已隐藏远程图片</string>
+    <string name="message_show">显示</string>
+    <string name="message_mailing_list">邮件列表</string>
     <string name="message_images_always_sender">始终显示此发件人的图片</string>
     <string name="message_images_stop_sender">不自动显示此发件人的图片</string>
     <string name="message_open_link_title">打开此链接？</string>
@@ -928,7 +931,7 @@
     <string name="message_smime_choose_other">选择其他证书</string>
     <string name="message_smime_not_decrypted">无法解密此邮件</string>
     <string name="message_sig_verified">发件人已验证：%1$s</string>
-    <string name="message_sig_unconfirmed">由 %1$s 签名，但无法验证发件人</string>
+    <string name="message_sig_unconfirmed">由 %1$s 签名 · 发件人未确认</string>
     <string name="message_sig_mismatch">签名对象是 %1$s，而不是发件人</string>
     <string name="message_sig_missing">无法检查签名</string>
     <string name="message_sig_invalid">签名无效：请勿信任此邮件</string>

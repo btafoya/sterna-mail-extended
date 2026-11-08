@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Это письмо запрашивает слишком много изображений для показа; оно показано как текст.</string>
     <string name="message_show_images">Показать изображения</string>
     <string name="message_images_shown">Изображения показаны</string>
+    <string name="message_images_hidden">Внешние изображения скрыты</string>
+    <string name="message_show">Показать</string>
+    <string name="message_mailing_list">Список рассылки</string>
     <string name="message_images_always_sender">Всегда показывать изображения от этого отправителя</string>
     <string name="message_images_stop_sender">Не показывать изображения от этого отправителя автоматически</string>
     <string name="message_open_link_title">Открыть эту ссылку?</string>
@@ -760,7 +763,7 @@
     <string name="message_smime_choose_other">Выбрать другой сертификат</string>
     <string name="message_smime_not_decrypted">Не удалось расшифровать это письмо</string>
     <string name="message_sig_verified">Отправитель подтверждён: %1$s</string>
-    <string name="message_sig_unconfirmed">Подписано %1$s, но подтвердить отправителя не удалось</string>
+    <string name="message_sig_unconfirmed">Подписано %1$s · отправитель не подтверждён</string>
     <string name="message_sig_mismatch">Подписано для %1$s, а не для отправителя</string>
     <string name="message_sig_missing">Подпись невозможно проверить</string>
     <string name="message_sig_invalid">Недействительная подпись: не доверяйте этому письму</string>

@@ -21,8 +21,15 @@ class SignatureSheetWiringTest {
                 ".clickable(role = Role.Button) { signatureSheet.open(msg.id, msg.header.accountId) },",
                 "contentDescription = stringResource(seal.line, decrypted.signatureUserId ?: \"?\"),",
                 "tint = seal.tone.color(),",
-                "PgpStatusCard(crypto, onCryptoAction, onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) })",
+                "onExplainSignature = { signatureSheet.open(msg.id, msg.header.accountId) },",
                 "SignatureSheet(explained, onDismiss = signatureSheet::close)",
+            ),
+        )
+        assertEquals(
+            emptyList<String>(),
+            missing(
+                block("private fun HeaderCard("),
+                "is HeaderCardRow.Crypto -> PgpStatusCard(row.state, onCryptoAction, onExplainSignature)",
             ),
         )
     }
@@ -33,7 +40,7 @@ class SignatureSheetWiringTest {
             missing(
                 block("private fun PgpStatusCard("),
                 "val verdict = (crypto as? CryptoUiState.Decrypted)?.result?.signature?.let(::signatureLook)",
-                ".then(if (verdict != null) Modifier.clickable(role = Role.Button, onClick = onExplainSignature) else Modifier)",
+                "is CryptoUiState.Decrypted -> HeaderCardLine(onClick = if (verdict != null) onExplainSignature else null) {",
             ),
         )
     }

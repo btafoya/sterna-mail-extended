@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Diese Nachricht fordert zu viele Bilder an, um angezeigt zu werden; sie wird als Text dargestellt.</string>
     <string name="message_show_images">Bilder anzeigen</string>
     <string name="message_images_shown">Bilder werden angezeigt</string>
+    <string name="message_images_hidden">Externe Bilder ausgeblendet</string>
+    <string name="message_show">Anzeigen</string>
+    <string name="message_mailing_list">Mailingliste</string>
     <string name="message_images_always_sender">Bilder von diesem Absender immer anzeigen</string>
     <string name="message_images_stop_sender">Bilder von diesem Absender nicht mehr automatisch anzeigen</string>
     <string name="message_open_link_title">Diesen Link öffnen?</string>
@@ -750,7 +753,7 @@
     <string name="message_smime_choose_other">Anderes Zertifikat wählen</string>
     <string name="message_smime_not_decrypted">Nachricht konnte nicht entschlüsselt werden</string>
     <string name="message_sig_verified">Absender bestätigt: %1$s</string>
-    <string name="message_sig_unconfirmed">Signiert von %1$s, aber der Absender konnte nicht bestätigt werden</string>
+    <string name="message_sig_unconfirmed">Signiert von %1$s · Absender nicht bestätigt</string>
     <string name="message_sig_mismatch">Signiert für %1$s, nicht für den Absender</string>
     <string name="message_sig_missing">Signatur kann nicht geprüft werden</string>
     <string name="message_sig_invalid">Ungültige Signatur: Vertrauen Sie dieser Nachricht nicht</string>

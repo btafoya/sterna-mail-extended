@@ -197,6 +197,9 @@
     <string name="message_too_many_resources">Ce message demande trop d\'images pour être affiché ; il est présenté en texte.</string>
     <string name="message_show_images">Afficher les images</string>
     <string name="message_images_shown">Images affichées</string>
+    <string name="message_images_hidden">Images distantes masquées</string>
+    <string name="message_show">Afficher</string>
+    <string name="message_mailing_list">Liste de diffusion</string>
     <string name="message_images_always_sender">Toujours afficher les images de cet expéditeur</string>
     <string name="message_images_stop_sender">Ne plus afficher automatiquement les images de cet expéditeur</string>
     <string name="message_open_link_title">Ouvrir ce lien ?</string>
@@ -754,7 +757,7 @@
     <string name="message_smime_choose_other">Choisir un autre certificat</string>
     <string name="message_smime_not_decrypted">Impossible de déchiffrer ce message</string>
     <string name="message_sig_verified">Expéditeur vérifié : %1$s</string>
-    <string name="message_sig_unconfirmed">Signé par %1$s, mais l\'expéditeur n\'a pas pu être vérifié</string>
+    <string name="message_sig_unconfirmed">Signé par %1$s · expéditeur non confirmé</string>
     <string name="message_sig_mismatch">Signé pour %1$s, pas pour l\'expéditeur</string>
     <string name="message_sig_missing">Signature impossible à contrôler</string>
     <string name="message_sig_invalid">Signature invalide : ne vous fiez pas à ce message</string>

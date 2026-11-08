@@ -160,13 +160,14 @@ body you will see the result:
 - a **padlock** if the message was encrypted, and
 - a **signature badge** coloured by trust:
   - 🟢 **green**: valid signature from a confirmed key.
-  - 🟡 **yellow**: valid, but from a key you have not confirmed, or the signer
-    does not match the sender address.
+  - 🟡 **yellow**: valid, but the signer does not match the sender address.
   - 🔴 **red**: the signature does not verify: the content may have been
     altered, or the key is revoked / expired / insecure.
-  - ⚪ **grey**: the signer's public key is not in your OpenPGP app, so the
-    signature cannot be checked. Import their key to verify it, if it has not
-    arrived on its own already.
+  - ⚪ **grey**: Sterna cannot tell who signed. Either the signature is valid
+    but from a key you have not confirmed, or the signer's public key is not in
+    your OpenPGP app, so the signature cannot be checked. The line says which.
+    Import their key to check it, if it has not arrived on its own already, and
+    confirm it in your OpenPGP app to turn it green.
 
 Sterna also reads legacy **inline PGP** messages, not just modern PGP/MIME.
 
@@ -204,8 +205,9 @@ signature badge keeps telling you whether you have done it.
   turns up on its own or when you open a message that is neither signed nor
   encrypted (see above). Failing that, import it (from a file they sent, or a
   key server) and try again.
-- **Grey signature badge.** You don't have the sender's public key. Import it to
-  turn the check green (or yellow until you confirm it).
+- **Grey signature badge.** You don't have the sender's public key, or you have
+  not confirmed it. Import it, then confirm it in your OpenPGP app, to turn the
+  check green.
 - **No passphrase prompt / it stopped asking.** OpenKeychain caches your
   passphrase for a configurable time. Adjust or clear that in OpenKeychain's
   settings.

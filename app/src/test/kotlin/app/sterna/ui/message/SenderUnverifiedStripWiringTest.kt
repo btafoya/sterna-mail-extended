@@ -19,24 +19,28 @@ import java.io.File
  */
 class SenderUnverifiedStripWiringTest {
 
-    /** Last of the strips, after the read receipt and before the header's closing divider. */
-    @Test fun `the header column draws the strip last, right before its closing divider`() {
-        val body = codeLines(messageHeaderSource())
-        val receipt = body.indexOf("ReadReceiptStrip(")
-        val strip = body.indexOf("senderUnverified?.let { methods ->")
+    /** Last line of the header card, after the read receipt; `HeaderCardTest` runs the order. */
+    @Test fun `the header card draws the strip last`() {
+        val card = codeLines(topLevelSource("private fun HeaderCard("))
+        val receipt = card.indexOf("is HeaderCardRow.ReadReceipt -> ReadReceiptStrip(")
+        val strip = card.indexOf("is HeaderCardRow.SenderUnverified -> SenderUnverifiedStrip(row.methods, onViewHeaders)")
 
-        assertTrue("MessageHeader no longer draws ReadReceiptStrip; re-read this test", receipt >= 0)
-        assertTrue("MessageHeader does not draw the unverified-sender strip any more", strip > receipt)
+        assertTrue("HeaderCard no longer draws ReadReceiptStrip; re-read this test", receipt >= 0)
+        assertTrue("HeaderCard does not draw the unverified-sender strip after the read receipt", strip > receipt)
         assertEquals(
+            "the warning is the last branch of the card's `when`",
             listOf(
-                "senderUnverified?.let { methods ->",
-                "HorizontalDivider()",
-                "SenderUnverifiedStrip(methods, onViewHeaders)",
+                "is HeaderCardRow.SenderUnverified -> SenderUnverifiedStrip(row.methods, onViewHeaders)",
                 "}",
-                "HorizontalDivider()",
+                "}",
+                "}",
                 "}",
             ),
-            body.subList(strip, minOf(strip + 6, body.size)),
+            card.subList(strip, minOf(strip + 5, card.size)),
+        )
+        assertTrue(
+            "MessageHeader hands the decided text to headerCardRows",
+            "senderUnverified = senderUnverified," in codeLines(messageHeaderSource()),
         )
     }
 
@@ -54,11 +58,13 @@ class SenderUnverifiedStripWiringTest {
                 "onViewHeaders = onViewHeaders,",
                 "senderUnverified: String? = null,",
                 "onViewHeaders: () -> Unit = {},",
-                "senderUnverified?.let { methods ->",
-                "SenderUnverifiedStrip(methods, onViewHeaders)",
+                "senderUnverified = senderUnverified,",
+                "onViewHeaders = onViewHeaders,",
+                "onViewHeaders: () -> Unit,",
+                "is HeaderCardRow.SenderUnverified -> SenderUnverifiedStrip(row.methods, onViewHeaders)",
                 "private fun SenderUnverifiedStrip(methods: String, onViewHeaders: () -> Unit) {",
+                "HeaderCardLine(onClick = onViewHeaders) {",
                 "text = stringResource(R.string.message_sender_unverified, methods),",
-                "TextButton(onClick = onViewHeaders) {",
             ),
             codeLines(screen().readText()).filter {
                 "senderUnverified" in it || "SenderUnverified" in it || "onViewHeaders" in it ||
@@ -95,56 +101,57 @@ class SenderUnverifiedStripWiringTest {
         assertTrue("the strip must be decided before the body is published (set=$set, published=$published)", set in 0 until published)
     }
 
-    /** A floor the button sets: the strip is never shorter than the button, however short the text.
-     *  Centred vertically, so a message on two lines keeps the button beside it, not at its top. */
-    @Test fun `the strip keeps the button's height as its floor`() {
+    /** Opening the headers commits nothing, so the whole line is the gesture: a line of the card like
+     *  the others, its geometry `HeaderCardLine`'s, its action text and never a nested button. */
+    @Test fun `the whole line opens the headers`() {
         val body = codeLines(stripSource())
-        val modifier = body.indexOf("modifier = Modifier")
-
-        assertTrue("SenderUnverifiedStrip has no modifier chain any more", modifier >= 0)
         assertEquals(
+            "the strip's one gesture is its line's, handed onViewHeaders. Lines naming onViewHeaders:",
             listOf(
-                "modifier = Modifier",
-                ".fillMaxWidth()",
-                ".heightIn(min = ButtonDefaults.MinHeight)",
-                ".padding(horizontal = 16.dp),",
-                "verticalAlignment = Alignment.CenterVertically,",
-                ") {",
+                "private fun SenderUnverifiedStrip(methods: String, onViewHeaders: () -> Unit) {",
+                "HeaderCardLine(onClick = onViewHeaders) {",
             ),
-            body.subList(modifier, minOf(modifier + 6, body.size)),
+            body.filter { "onViewHeaders" in it },
+        )
+        assertEquals(
+            "no row, floor, padding, button or clickable of its own: those are HeaderCardLine's",
+            emptyList<String>(),
+            body.filter {
+                it.startsWith("Row(") || "Button" in it || "heightIn" in it || "padding" in it || "clickable" in it
+            },
+        )
+        assertEquals(
+            "the action is drawn as text, in the card's primary",
+            listOf("HeaderCardAction(stringResource(R.string.message_view_headers))"),
+            body.filter { "message_view_headers" in it },
         )
     }
 
     /**
      * The message wraps: the failed methods are what it says, and an ellipsis cut them off in every
-     * language. Pinned whole, so a `maxLines` slipped back in reddens it. The button stays one line.
+     * language. Pinned whole, so a `maxLines` or an `error` colour slipped back in reddens it. The
+     * icon is the card's muted one and says nothing to TalkBack: the sentence does.
      */
-    @Test fun `the strip's text wraps in the error colour, its button stays on one line`() {
+    @Test fun `the strip's text wraps in the sentence colour, after a muted warning icon`() {
         val body = codeLines(stripSource())
         val text = body.indexOf("text = stringResource(R.string.message_sender_unverified, methods),")
-        val button = body.indexOf("TextButton(onClick = onViewHeaders) {")
 
-        assertTrue("SenderUnverifiedStrip no longer shows message_sender_unverified", text >= 1)
+        assertTrue("SenderUnverifiedStrip no longer shows message_sender_unverified", text >= 2)
         assertEquals(
             listOf(
+                "HeaderCardIcon(Icons.Outlined.Warning)",
                 "Text(",
                 "text = stringResource(R.string.message_sender_unverified, methods),",
                 "style = MaterialTheme.typography.bodyMedium,",
-                "color = MaterialTheme.colorScheme.error,",
-                "modifier = Modifier.weight(1f).padding(end = 8.dp),",
+                "color = MaterialTheme.colorScheme.onSurface,",
+                "modifier = Modifier.weight(1f),",
                 ")",
-            ),
-            body.subList(text - 1, minOf(text + 5, body.size)),
-        )
-        assertTrue("SenderUnverifiedStrip no longer offers View headers", button >= 0)
-        assertEquals(
-            listOf(
-                "TextButton(onClick = onViewHeaders) {",
-                "Text(stringResource(R.string.message_view_headers), maxLines = 1, overflow = TextOverflow.Ellipsis)",
+                "HeaderCardAction(stringResource(R.string.message_view_headers))",
                 "}",
             ),
-            body.subList(button, minOf(button + 3, body.size)),
+            body.subList(text - 2, minOf(text + 7, body.size)),
         )
+        assertEquals("no error colour anywhere in the strip", emptyList<String>(), body.filter { "error" in it })
     }
 
     /** The text of `fun SenderUnverifiedStrip(…)`, up to the next top-level declaration. */
