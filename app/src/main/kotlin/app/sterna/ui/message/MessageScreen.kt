@@ -2000,6 +2000,16 @@ private fun ConversationBody(
                 LoadingRing(Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
+        // The body is still being fetched. Kept a separate site from the layout ring above, which
+        // `LoadingRingTest` pins as it is; the same box, so the ring does not move when the body lands.
+        if (BodyFetchRing.shown(hasBody = full != null, spinnerDue = spinnerDue)) {
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(24.dp).align(Alignment.Center),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingRing(Modifier.size(24.dp), strokeWidth = 2.dp)
+            }
+        }
         // No visible Reply/Forward bar here: it is rendered once, fixed, by MessagePager (#62).
     }
 }

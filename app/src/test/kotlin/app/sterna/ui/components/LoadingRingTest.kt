@@ -88,14 +88,14 @@ class LoadingRingTest {
         )
     }
 
-    // -- 3. the reader's two indicators ------------------------------------------------------------
+    // -- 3. the reader's three indicators ----------------------------------------------------------
 
     /**
-     * One tap on a message shows these two in turn: the whole-screen one while the message is
-     * fetched, then the 24 dp one over the header while the body lays out. Either one left as a
-     * raw `CircularProgressIndicator` puts the unreadable fragment back on the very screen the
-     * reporter photographed, so both are pinned whole, never with `in`, which is blind to
-     * anything appended to the line.
+     * One tap on a message shows these three in turn: the whole-screen one while the message is
+     * fetched, then a 24 dp one while the body is fetched under the header, then while it lays out.
+     * Any one left as a raw `CircularProgressIndicator` puts the unreadable fragment back on the
+     * very screen the reporter photographed, so all are pinned whole, never with `in`, which is
+     * blind to anything appended to the line.
      */
     @Test fun `the reader's fetch indicator is the app's ring`() {
         assertBlock(
@@ -127,6 +127,28 @@ class LoadingRingTest {
                 "(its size and stroke are its own, not the default 40 dp), and it must still be " +
                 "gated on `full != null && !bodyReady && spinnerDue`: that 500 ms delay is what " +
                 "keeps cached mail from flashing a spinner it does not need.",
+        )
+    }
+
+    @Test fun `the reader's body-fetch indicator is the app's ring, where the layout ring sits`() {
+        assertBlock(
+            MESSAGE_SCREEN,
+            "if (BodyFetchRing.shown(",
+            listOf(
+                "if (BodyFetchRing.shown(hasBody = full != null, spinnerDue = spinnerDue)) {",
+                "Box(",
+                "Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(24.dp).align(Alignment.Center),",
+                "contentAlignment = Alignment.Center,",
+                ") {",
+                "LoadingRing(Modifier.size(24.dp), strokeWidth = 2.dp)",
+                "}",
+            ),
+            "the ring shown while the body is fetched changed. The header is painted from the " +
+                "cache before the fetch, so neither the whole-screen ring nor the layout ring is " +
+                "drawn then: this one is the only sign the body is coming. It must ask " +
+                "BodyFetchRing.shown with the body's presence and the same 500 ms `spinnerDue` gate, " +
+                "and keep the layout ring's box, size and stroke, or the ring jumps when the body " +
+                "arrives.",
         )
     }
 
