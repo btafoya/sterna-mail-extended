@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object MailDates {
 
-    /** "4 Jul 2026, 09:12" in the app's language. */
+    /** "4 Jul 2026, 09:12"; its locale is a placeholder, [formatFull] reapplies the language per call. */
     private val fullFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", appLocale)
 
     /** "09:12", a message from today is placed by its clock time. */
@@ -61,8 +61,11 @@ object MailDates {
     }
 
     /** [iso] as a full local date + time, or "" when it is missing or unparseable. */
-    fun formatFull(iso: String?, zone: ZoneId = ZoneId.systemDefault()): String =
-        formatWith(iso, fullFormatter, zone)
+    fun formatFull(
+        iso: String?,
+        zone: ZoneId = ZoneId.systemDefault(),
+        locale: Locale = appLocale,
+    ): String = formatWith(iso, fullFormatter.withLocale(locale), zone)
 
     /**
      * The stamp a list row carries, in three steps: today shows the time, an earlier day of the

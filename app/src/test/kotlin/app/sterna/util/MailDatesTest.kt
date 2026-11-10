@@ -31,6 +31,27 @@ class MailDatesTest {
         )
     }
 
+    @Test fun theFullDateFollowsALanguageChangedWithoutRestartingTheProcess() {
+        val june = "2026-06-04T09:12:33Z"
+        val restore = Locale.getDefault()
+        val (french, english) = try {
+            Locale.setDefault(Locale.FRENCH)
+            val fr = MailDates.formatFull(june, paris)
+            Locale.setDefault(Locale.ENGLISH)
+            fr to MailDates.formatFull(june, paris)
+        } finally {
+            Locale.setDefault(restore)
+        }
+        assertEquals("4 juin 2026, 11:12", french)
+        assertEquals("4 Jun 2026, 11:12", english)
+    }
+
+    @Test fun theFullDateIsWrittenInTheLanguageItIsGiven() {
+        val june = "2026-06-04T09:12:33Z"
+        assertEquals("4 juin 2026, 11:12", MailDates.formatFull(june, paris, Locale.FRENCH))
+        assertEquals("4 Jun 2026, 11:12", MailDates.formatFull(june, paris, Locale.ENGLISH))
+    }
+
     @Test fun missingOrUnparseableDatesRenderEmptyRatherThanThrowing() {
         assertEquals("", MailDates.formatFull(null, paris))
         assertEquals("", MailDates.formatFull("", paris))
