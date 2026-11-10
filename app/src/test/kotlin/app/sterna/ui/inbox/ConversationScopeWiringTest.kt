@@ -350,7 +350,7 @@ class ConversationScopeWiringTest {
                 "writeTicks(SelectionTicks(setOf(rep.emailKey()), carried = setOf(rep.emailKey())))",
                 "writeTicks(currentTicks().carrying(members))",
                 "writeTicks(currentTicks().toggledConversation(rep.emailKey(), members))",
-                "writeTicks(SelectionTicks(all))",
+                "tick = { writeTicks(SelectionTicks(it)) },",
                 "writeTicks(SelectionTicks(emptySet()))",
                 "private fun currentTicks(): SelectionTicks = SelectionTicks(_selectedKeys.value, carriedKeys)",
                 "private fun writeTicks(next: SelectionTicks) {",

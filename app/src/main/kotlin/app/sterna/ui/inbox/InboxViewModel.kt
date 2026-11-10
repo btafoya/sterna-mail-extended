@@ -2474,16 +2474,21 @@ class InboxViewModel(
         val filtered = listFilter(selection.value, filterToggles.value)
         val hidden = localDraftRows.value.replacedServerIds
         viewModelScope.launch {
-            val all = selectAllKeys(
-                searching = search.active,
-                criteria = search.criteria,
-                results = search.results?.map { it.emailKey() },
-                loading = search.loading,
-                complete = search.complete,
-                folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered, settings.conversationView.first()), hidden),
-            )
             // All by hand: a folder read holds only the viewed folders, which no rule spares, nor a search.
-            writeTicks(SelectionTicks(all))
+            tickAllOrReport(
+                read = {
+                    selectAllKeys(
+                        searching = search.active,
+                        criteria = search.criteria,
+                        results = search.results?.map { it.emailKey() },
+                        loading = search.loading,
+                        complete = search.complete,
+                        folderKeys = selectableKeysMinusHidden(repo.selectableIds(currentScopes(), filtered, settings.conversationView.first()), hidden),
+                    )
+                },
+                tick = { writeTicks(SelectionTicks(it)) },
+                report = { reportActionFailed("selectAll", it) },
+            )
         }
     }
 

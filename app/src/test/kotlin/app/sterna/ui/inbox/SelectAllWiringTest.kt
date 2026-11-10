@@ -55,6 +55,26 @@ class SelectAllWiringTest {
         )
     }
 
+    @Test fun `the read goes through the guard, which reports and ticks what it read`() {
+        // TickAllOrReportTest executes the guard; this rule pins what selectAll hands it, the
+        // decision included, so a `report = { }` cannot swallow the failure without a word.
+        val call = callArguments(body(INBOX_VIEW_MODEL, "selectAll"), "tickAllOrReport").singleOrNull()
+        checkNotNull(call) { "selectAll() must read through exactly one tickAllOrReport(...) call" }
+        val args = arguments(call)
+        assertEquals("tickAllOrReport(...) takes read, tick and report. Arguments were:\n$call", 3, args.size)
+        assertTrue(
+            "the read handed to tickAllOrReport must be the selectAllKeys(...) decision. Arguments were:\n$call",
+            args[0].startsWith("read = { selectAllKeys(") && args[0].endsWith(") }"),
+        )
+        assertEquals(
+            listOf(
+                "tick = { writeTicks(SelectionTicks(it)) }",
+                "report = { reportActionFailed(\"selectAll\", it) }",
+            ),
+            args.drop(1),
+        )
+    }
+
     @Test fun `the folder branch is read through the list's own filter`() {
         // The second half of #126: the navigation list is filtered in SQL, so the selection must
         // be too, or a filter plus Select all plus delete moves mail that was never on screen to
