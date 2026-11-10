@@ -1,0 +1,5 @@
+An open message gathers its encryption, remote images, mailing list, read receipt and unverified sender lines in one card under the header. A valid signature from a key you have not confirmed is now grey.
+
+A ring shows while a message body is still loading. The full date of an open message, a reply or a forward follows the language chosen in Settings without a restart.
+
+IMAP: the notification of a message deleted or moved from another client goes away.

@@ -163,9 +163,9 @@ body you will see the result:
   - 🟡 **yellow**: valid, but the signer does not match the sender address.
   - 🔴 **red**: the signature does not verify: the content may have been
     altered, or the key is revoked / expired / insecure.
-  - ⚪ **grey**: Sterna cannot tell who signed. Either the signature is valid
-    but from a key you have not confirmed, or the signer's public key is not in
-    your OpenPGP app, so the signature cannot be checked. The line says which.
+  - ⚪ **grey**: the signature is not trusted yet. Either it is valid but from
+    a key you have not confirmed, or the signer's public key is not in your
+    OpenPGP app, so the signature cannot be checked. The line says which.
     Import their key to check it, if it has not arrived on its own already, and
     confirm it in your OpenPGP app to turn it green.
 

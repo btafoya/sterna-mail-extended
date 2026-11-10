@@ -1,0 +1,5 @@
+Un message ouvert réunit ses lignes de chiffrement, d'images distantes, de liste de diffusion, d'accusé de lecture et d'expéditeur non vérifié dans une carte sous l'en-tête. Une signature valide d'une clé non confirmée passe au gris.
+
+Un anneau s'affiche tant que le corps se charge. La date d'un message ouvert, des réponses et transferts suit la langue choisie dans les réglages sans redémarrage.
+
+IMAP : la notification d'un message supprimé ou déplacé depuis un autre client disparaît.
