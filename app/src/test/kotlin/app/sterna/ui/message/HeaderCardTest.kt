@@ -18,6 +18,11 @@ import java.io.File
  * about what it is bound to (1), which is why the `headerCardRows` call is pinned whole; a pinned line
  * says nothing about execution order beyond the line order this file checks (3); nothing here holds
  * the value a composable collects (4), nor measures a line's height on a screen.
+ *
+ * The signature verdict is held the same way: its icon and its text are tinted by the verdict's tone,
+ * its text wraps, and it prints the identity through `cardSignerIdentity`. Those lines are pinned
+ * whole, which leaves hole 1 on `verdict` itself, hole 3 on where the lines sit inside their `Text`,
+ * and hole 4 on the colour `color()` resolves to and the height the wrapped text takes.
  */
 class HeaderCardTest {
 
@@ -244,6 +249,60 @@ class HeaderCardTest {
             crypto.dropWhile { !it.startsWith("is CryptoUiState.Failed ->") }
                 .filter { "crypto.message != null" in it || "message_retry" in it }.drop(1),
         )
+    }
+
+    @Test fun `the seal of a verdict is tinted by its tone`() {
+        val crypto = codeLines(block("private fun PgpStatusCard("))
+        assertEquals(
+            "an icon without the verdict's tone draws a bad signature in the neutral grey of a good one",
+            1,
+            crypto.count { it == "verdict != null -> HeaderCardIcon(verdict.icon.vector(), tint = verdict.tone.color())" },
+        )
+    }
+
+    @Test fun `the verdict's text wraps in its tone`() {
+        val text = verdictText()
+        assertEquals(
+            "the verdict's text without its tone draws a bad signature in the neutral grey of a good one",
+            1,
+            text.count { it == "color = verdict.tone.color()," },
+        )
+        assertEquals(
+            "the verdict's warning comes after the signer: cut to one line, it disappears",
+            emptyList<String>(),
+            text.filter { it.startsWith("maxLines") || it.startsWith("overflow") },
+        )
+    }
+
+    @Test fun `the verdict prints the signer bounded by cardSignerIdentity`() {
+        assertEquals(
+            "an unbounded signer identity pushes the verdict's warning out of view",
+            1,
+            verdictText().count {
+                it == "text = stringResource(verdict.line, crypto.result.signatureUserId?.let(::cardSignerIdentity) ?: \"?\"),"
+            },
+        )
+    }
+
+    /** The verdict's `Text(` call, from its `(` line to its `)` line: inside the `Decrypted` branch,
+     *  the first `if (verdict != null) {`, which must open a `Text(` on its next code line. The branch
+     *  ends at the next `CryptoUiState` case; the chevron's `if (verdict != null) {` comes later. */
+    private fun verdictText(): List<String> {
+        val crypto = codeLines(block("private fun PgpStatusCard("))
+        val start = crypto.indexOfFirst { it.startsWith("is CryptoUiState.Decrypted ->") }
+        assertTrue("PgpStatusCard has no Decrypted branch", start >= 0)
+        val after = crypto.drop(start + 1)
+        val branch = after.take(after.indexOfFirst { it.startsWith("is CryptoUiState.") || it.startsWith("CryptoUiState.") }
+            .let { if (it < 0) after.size else it })
+        val open = branch.indexOf("if (verdict != null) {")
+        assertTrue(
+            "the Decrypted branch no longer opens its verdict with `if (verdict != null) {` then `Text(`. Was:\n" +
+                branch.joinToString("\n"),
+            open >= 0 && branch.getOrNull(open + 1) == "Text(",
+        )
+        val close = branch.withIndex().indexOfFirst { (i, line) -> i > open + 1 && line == ")" }
+        assertTrue("the verdict's Text( is never closed by a `)` line", close >= 0)
+        return branch.subList(open + 1, close + 1)
     }
 
     @Test fun `the action is primary text on one line, of the sentence's line height`() {

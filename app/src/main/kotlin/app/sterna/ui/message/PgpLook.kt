@@ -186,3 +186,36 @@ private fun smimeExplanation(state: PgpSignatureState): SignatureExplanation? = 
         R.string.signature_tech_smime_expired,
     )
 }
+
+/** Longest signer identity, ellipsis included, that the status card prints inside its verdict line. */
+internal const val CARD_SIGNER_IDENTITY_MAX = 64
+
+private const val DIRECTION_CONTROLS = "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C"
+
+/**
+ * The signer's identity as the status card prints it, or null when nothing printable is left. The signer
+ * picks it, and the verdict line prints it before its warning, so it is cleaned before it is bounded: a
+ * control character or a line or paragraph separator becomes a space, since a run of line breaks would push
+ * the warning off the screen; a direction control is dropped, since it could flip the warning that follows;
+ * runs of whitespace fold into one space and the edges are trimmed. Past [CARD_SIGNER_IDENTITY_MAX] the
+ * middle gives way, the tail one character longer than the head, so the address's domain stays. A cut never
+ * falls inside a surrogate pair, which can leave the result one or two characters short of the bound. The
+ * signature sheet and the seal's description keep the whole identity.
+ */
+internal fun cardSignerIdentity(rawIdentity: String): String? {
+    val identity = buildString(rawIdentity.length) {
+        for (c in rawIdentity) when {
+            c in DIRECTION_CONTROLS -> Unit
+            Character.isISOControl(c) || c.isWhitespace() -> if (isNotEmpty() && last() != ' ') append(' ')
+            else -> append(c)
+        }
+    }.trimEnd()
+    if (identity.isEmpty()) return null
+    if (identity.length <= CARD_SIGNER_IDENTITY_MAX) return identity
+    val kept = CARD_SIGNER_IDENTITY_MAX - 1
+    var headEnd = kept / 2
+    if (Character.isHighSurrogate(identity[headEnd - 1])) headEnd--
+    var tailStart = identity.length - (kept - kept / 2)
+    if (Character.isLowSurrogate(identity[tailStart])) tailStart++
+    return identity.substring(0, headEnd) + "…" + identity.substring(tailStart)
+}

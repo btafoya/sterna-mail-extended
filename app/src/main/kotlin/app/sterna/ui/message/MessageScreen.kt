@@ -2977,16 +2977,19 @@ private fun PgpStatusCard(crypto: CryptoUiState, onAction: () -> Unit, onExplain
                     )
                 }
                 if (verdict != null) {
+                    // The text wraps: a verdict is the message, and its warning comes after the
+                    // signer's identity, which [cardSignerIdentity] cleans and bounds. The header's
+                    // height keys the document, but this line does not change height once shown:
+                    // `Decrypted` is set once per open message and nothing rewrites it. Its arrival
+                    // is the card's own, a transition that predates the wrap.
                     Text(
-                        text = stringResource(verdict.line, crypto.result.signatureUserId ?: "?"),
+                        text = stringResource(verdict.line, crypto.result.signatureUserId?.let(::cardSignerIdentity) ?: "?"),
                         style = if (crypto.result.wasEncrypted) {
                             MaterialTheme.typography.bodySmall
                         } else {
                             MaterialTheme.typography.bodyMedium
                         },
                         color = verdict.tone.color(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
