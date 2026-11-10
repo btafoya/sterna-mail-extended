@@ -8,13 +8,25 @@ import app.sterna.core.imap.ImapClient
 import app.sterna.core.imap.MailSecurity
 import app.sterna.core.imap.MailServerConfig
 import app.sterna.core.imap.SmtpClient
+import app.sterna.core.imap.ImapSession
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.SocketTimeoutException
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The server sees no more of an account's sessions than it has lanes in use (#157): neither a session
@@ -63,8 +75,120 @@ class SessionsDoNotOutliveAPasswordChangeTest {
         }
     }
 
-    private fun assertOpenSettlesTo(expected: Int, server: ScriptedImapServer, what: String) {
-        val settledBy = System.currentTimeMillis() + SETTLE_MS
+    @Test(timeout = 30_000)
+    fun `a sync cancelled during its LOGIN leaves no connection open`() {
+        assertCancelledDuringLoginLeavesNothingOpen { service, credentials -> service.testConnection(credentials) }
+    }
+
+    @Test(timeout = 30_000)
+    fun `an open cancelled during its LOGIN leaves no connection open`() {
+        assertCancelledDuringLoginLeavesNothingOpen { service, credentials -> service.fetchSource(credentials, INBOX, UID) }
+    }
+
+    /**
+     * The caller is cancelled once the session has been opened and before its resumption runs: the caller's
+     * only thread is held until the resumption sits in its queue, so the cancel lands after the block returned.
+     */
+    @Test(timeout = 30_000)
+    fun `a connect cancelled after its session was opened leaves no connection open`() {
+        val release = CountDownLatch(1)
+        val loginSeen = CountDownLatch(1)
+        ScriptedImapServer.perConnection { _, tag, line ->
+            if (line.startsWith("LOGIN")) {
+                loginSeen.countDown()
+                release.await(10, TimeUnit.SECONDS)
+            }
+            scripted(tag, line)
+        }.use { server ->
+            val config = MailServerConfig(server.host, server.port, MailSecurity.NONE, "alex@example.org", GOOD)
+            val callerThread = ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+            try {
+                val outcome = AtomicReference<Result<ImapSession>?>(null)
+                val job = CoroutineScope(callerThread.asCoroutineDispatcher() + Job())
+                    .launch { outcome.set(runCatching { ImapClient().connect(config) }) }
+                assertTrue("precondition: the LOGIN reached the server", loginSeen.await(10, TimeUnit.SECONDS))
+                val resumptionQueued = AtomicBoolean(false)
+                callerThread.execute {
+                    release.countDown()
+                    val queuedBy = System.currentTimeMillis() + 10_000
+                    while (callerThread.queue.isEmpty() && System.currentTimeMillis() < queuedBy) Thread.sleep(5)
+                    resumptionQueued.set(callerThread.queue.isNotEmpty())
+                    job.cancel()
+                }
+                runBlocking { withTimeout(10_000) { job.join() } }
+                assertTrue(
+                    "precondition: the connect's resumption was queued before the cancel, else the cancel landed during the LOGIN",
+                    resumptionQueued.get(),
+                )
+                assertTrue(
+                    "precondition: the connect ended cancelled, got ${outcome.get()}",
+                    outcome.get()?.exceptionOrNull() is CancellationException,
+                )
+                assertOpenSettlesTo(0, server, "none: the caller was gone when its session came back")
+            } finally {
+                callerThread.shutdownNow()
+            }
+        }
+    }
+
+    @Test(timeout = 30_000)
+    fun `a connect cancelled during its LOGIN does not wait for a LOGOUT the server never answers`() {
+        val release = CountDownLatch(1)
+        val loginSeen = CountDownLatch(1)
+        ScriptedImapServer.perConnection { _, tag, line ->
+            if (line.startsWith("LOGIN")) {
+                loginSeen.countDown()
+                release.await(10, TimeUnit.SECONDS)
+            }
+            if (line.startsWith("LOGOUT")) "" else scripted(tag, line)
+        }.use { server ->
+            val config = MailServerConfig(server.host, server.port, MailSecurity.NONE, "alex@example.org", GOOD)
+            val elapsedMs = runBlocking {
+                val job = launch(Dispatchers.IO) { ImapClient().connect(config) }
+                assertTrue("precondition: the LOGIN reached the server", loginSeen.await(10, TimeUnit.SECONDS))
+                job.cancel()
+                val releasedAt = System.currentTimeMillis()
+                release.countDown()
+                withTimeout(10_000) { job.join() }
+                assertTrue("precondition: the connect ended cancelled", job.isCancelled)
+                System.currentTimeMillis() - releasedAt
+            }
+            assertTrue(
+                "the cancelled caller took $elapsedMs ms to return once its LOGIN was answered, " +
+                    "expected under $CALLER_GONE_MS: it waited for the LOGOUT of the session it gave up",
+                elapsedMs < CALLER_GONE_MS,
+            )
+            assertOpenSettlesTo(0, server, "none: the LOGOUT bound runs out off the caller's path", LOGOUT_SETTLE_MS)
+        }
+    }
+
+    /** Cancelled while the server holds the LOGIN answer, which it gives only afterwards. */
+    private fun assertCancelledDuringLoginLeavesNothingOpen(call: suspend (ImapMailService, AccountCredentials) -> Unit) {
+        val release = CountDownLatch(1)
+        val loginSeen = CountDownLatch(1)
+        ScriptedImapServer.perConnection { _, tag, line ->
+            if (line.startsWith("LOGIN")) {
+                loginSeen.countDown()
+                release.await(10, TimeUnit.SECONDS)
+            }
+            scripted(tag, line)
+        }.use { server ->
+            val service = ImapMailService(ImapClient(), SmtpClient(), unusedTokenRefresher())
+            val credentials = credentials(server, GOOD)
+            runBlocking {
+                val job = launch(Dispatchers.IO) { call(service, credentials) }
+                assertTrue("precondition: the LOGIN reached the server", loginSeen.await(10, TimeUnit.SECONDS))
+                job.cancel()
+                release.countDown()
+                withTimeout(10_000) { job.join() }
+                assertTrue("precondition: the call ended cancelled", job.isCancelled)
+            }
+            assertOpenSettlesTo(0, server, "none: the caller was gone when its session came back")
+        }
+    }
+
+    private fun assertOpenSettlesTo(expected: Int, server: ScriptedImapServer, what: String, withinMs: Long = SETTLE_MS) {
+        val settledBy = System.currentTimeMillis() + withinMs
         while (server.openSockets.get() > expected && System.currentTimeMillis() < settledBy) Thread.sleep(20)
         assertEquals(
             "connections still open on the server after ${server.connections.get()} accepted, expected $what. " +
@@ -104,6 +228,12 @@ class SessionsDoNotOutliveAPasswordChangeTest {
 
         /** Covers the LOGOUT answered by a server thread that has not yet returned, and [closeAside]'s thread. */
         const val SETTLE_MS = 2_000L
+
+        /** Under half of `LOGOUT_READ_BUDGET_MS` (5 s, private to `core/imap`), which a caller waiting on the LOGOUT pays whole. */
+        const val CALLER_GONE_MS = 2_000L
+
+        /** `LOGOUT_READ_BUDGET_MS`, then the socket closed by `closeAside`'s thread. */
+        const val LOGOUT_SETTLE_MS = 9_000L
 
         fun unusedTokenRefresher(): OAuthTokenRefresher {
             val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")

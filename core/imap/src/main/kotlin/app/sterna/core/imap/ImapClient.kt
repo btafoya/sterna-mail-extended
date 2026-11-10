@@ -1,5 +1,6 @@
 package app.sterna.core.imap
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
@@ -7,6 +8,7 @@ import java.io.Closeable
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -53,8 +55,16 @@ class ImapClient(
     private val readFloorMs: Int = IMAP_READ_FLOOR_MS,
     private val connectFloorMs: Int = IMAP_CONNECT_FLOOR_MS,
 ) {
-    suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession =
-        withContext(Dispatchers.IO) { openSession(config, connectTimeoutMs) }
+    suspend fun connect(config: MailServerConfig, connectTimeoutMs: Int = 0): ImapSession {
+        // `withContext` drops a session opened for a cancelled caller; close it, keyed on opened-not-handed-over, not `isActive`.
+        val opened = AtomicReference<ImapSession?>(null)
+        try {
+            return withContext(Dispatchers.IO) { openSession(config, connectTimeoutMs).also { opened.set(it) } }
+        } catch (cancelled: CancellationException) {
+            opened.get()?.let { closeAside(it) }
+            throw cancelled
+        }
+    }
 
     /**
      * Blocking connect + login, for a caller already on an IO thread (e.g. IDLE). [connectTimeoutMs] bounds
@@ -97,6 +107,10 @@ class ImapClient(
     private companion object {
         val tlsFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
     }
+}
+
+fun closeAside(session: ImapSession) {
+    Thread({ runCatching { session.close() } }, "imap-close-aside").apply { isDaemon = true }.start()
 }
 
 /**
@@ -209,8 +223,7 @@ class ImapSession(
          * `ID ("name" "Sterna Mail" "version" "…")`, RFC 2971. NetEase (163/126/188/yeah.net) refuses
          * every SELECT with `NO SELECT Unsafe Login` unless the client names itself (#173); RFC 2971 §3
          * forbids sending ID unadvertised, so a server that published no list at login pays a
-         * `CAPABILITY` whose answer is thrown away. Best effort inside one `runCatching`:
-         * [ImapClient.openSession] has no `try/finally`, so a throw leaks the socket.
+         * `CAPABILITY` whose answer is thrown away. Best effort inside one `runCatching`.
          */
     internal fun identify(clientVersion: String?) {
         runCatching {

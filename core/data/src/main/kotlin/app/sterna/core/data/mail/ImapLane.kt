@@ -23,8 +23,3 @@ internal fun ImapSession.answersWithin(ms: Int): Boolean =
     } catch (_: Exception) {
         false
     }
-
-/** Off the caller's path: on a peer that has just failed a NOOP, the LOGOUT would wait out its own bound. */
-internal fun closeAside(session: ImapSession) {
-    Thread({ runCatching { session.close() } }, "imap-close-aside").apply { isDaemon = true }.start()
-}

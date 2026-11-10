@@ -33,6 +33,7 @@ import app.sterna.core.imap.OutgoingMessage
 import app.sterna.core.imap.OutgoingMime
 import app.sterna.core.imap.SmtpClient
 import app.sterna.core.imap.buildImapSearch
+import app.sterna.core.imap.closeAside
 import app.sterna.core.imap.departedOf
 import app.sterna.core.imap.fetchUidsPaged
 import app.sterna.core.imap.readForDisplay
