@@ -88,7 +88,7 @@ data class OutgoingMessage(
     val bcc: List<String> = emptyList(),
     val subject: String,
     val body: String,
-    /** Optional HTML body; when set the message is sent as text/html. */
+    /** Optional HTML body. When set, the message carries it as a multipart/alternative after [body] as text/plain. */
     val html: String? = null,
     val inReplyTo: String? = null,
     val references: String? = null,
@@ -357,57 +357,84 @@ object OutgoingMime {
              */
     fun buildBodyEntity(m: OutgoingMessage, protectedSubject: String? = null): String {
         return buildString {
-            val bodyContent = m.html ?: m.body
-            val bodyType = if (m.html != null) "text/html" else "text/plain"
+            val html = m.html
             val inlineParts = m.attachments.filter { it.inline }
             val fileParts = m.attachments.filter { !it.inline }
-                // Both empty when there is no protected subject, so the four branches below emit
-                // exactly the bytes they always did. [encodeHeader] is the same door the envelope
-                // subject goes through, so no header line of this block can be split in two.
+                // Both empty when there is no protected subject, so they add nothing to any branch.
+                // [encodeHeader] is the same door the envelope subject goes through, so no header
+                // line of this block can be split in two.
             val subjectField = protectedSubject?.let { "Subject: ${encodeHeader(it)}\r\n" }.orEmpty()
             val protectedParam = if (protectedSubject != null) "; protected-headers=\"v1\"" else ""
+                // With an HTML body, `m.body` still goes out as a text/plain alternative ahead of it:
+                // a list that strips the HTML would otherwise redistribute an empty message.
+                // Only the outermost entity carries `protectedParam`, never a nested part.
             when {
-                    // Plain body, nothing carried, single part.
-                inlineParts.isEmpty() && fileParts.isEmpty() -> {
+                inlineParts.isEmpty() && fileParts.isEmpty() && html == null -> {
                     append(subjectField)
-                    append("Content-Type: $bodyType; charset=utf-8$protectedParam\r\n")
+                    append("Content-Type: text/plain; charset=utf-8$protectedParam\r\n")
                     append("Content-Transfer-Encoding: base64\r\n")
                     append("\r\n")
-                    append(base64(bodyContent.toByteArray(Charsets.UTF_8)))
+                    append(base64(m.body.toByteArray(Charsets.UTF_8)))
                 }
-                    // File attachments only, multipart/mixed.
-                inlineParts.isEmpty() -> {
-                    val boundary = boundary(m, "mixed")
+                inlineParts.isEmpty() && fileParts.isEmpty() -> {
+                    val alternative = boundary(m, "alternative")
                     append(subjectField)
-                    append("Content-Type: multipart/mixed; boundary=\"$boundary\"$protectedParam\r\n\r\n")
-                    append("--$boundary\r\n")
-                    appendBodyPart(bodyType, bodyContent)
+                    append("Content-Type: multipart/alternative; boundary=\"$alternative\"$protectedParam\r\n\r\n")
+                    appendAlternativeParts(alternative, m.body) { appendBodyPart("text/html", html!!) }
+                }
+                inlineParts.isEmpty() -> {
+                    val mixed = boundary(m, "mixed")
+                    append(subjectField)
+                    append("Content-Type: multipart/mixed; boundary=\"$mixed\"$protectedParam\r\n\r\n")
+                    append("--$mixed\r\n")
+                    if (html == null) {
+                        appendBodyPart("text/plain", m.body)
+                    } else {
+                        val alternative = boundary(m, "alternative")
+                        append("Content-Type: multipart/alternative; boundary=\"$alternative\"\r\n\r\n")
+                        appendAlternativeParts(alternative, m.body) { appendBodyPart("text/html", html) }
+                    }
                     for (att in fileParts) {
-                        append("--$boundary\r\n")
+                        append("--$mixed\r\n")
                         appendAttachmentPart(att)
                     }
-                    append("--$boundary--\r\n")
+                    append("--$mixed--\r\n")
                 }
-                // Inline images, no files, the message body is a multipart/related.
                 fileParts.isEmpty() -> {
                     val related = boundary(m, "related")
                     append(subjectField)
-                    append(
-                        "Content-Type: multipart/related; type=\"$bodyType\"; " +
-                            "boundary=\"$related\"$protectedParam\r\n\r\n",
-                    )
-                    appendRelatedParts(related, bodyType, bodyContent, inlineParts)
+                    if (html == null) {
+                        append(
+                            "Content-Type: multipart/related; type=\"text/plain\"; " +
+                                "boundary=\"$related\"$protectedParam\r\n\r\n",
+                        )
+                        appendRelatedParts(related, "text/plain", m.body, inlineParts)
+                    } else {
+                        val alternative = boundary(m, "alternative")
+                        append("Content-Type: multipart/alternative; boundary=\"$alternative\"$protectedParam\r\n\r\n")
+                        appendAlternativeParts(alternative, m.body) {
+                            append("Content-Type: multipart/related; type=\"text/html\"; boundary=\"$related\"\r\n\r\n")
+                            appendRelatedParts(related, "text/html", html, inlineParts)
+                        }
+                    }
                 }
-                // Inline images and files, multipart/mixed( multipart/related(html, images), files ).
                 else -> {
                     val mixed = boundary(m, "mixed")
                     val related = boundary(m, "related")
                     append(subjectField)
                     append("Content-Type: multipart/mixed; boundary=\"$mixed\"$protectedParam\r\n\r\n")
                     append("--$mixed\r\n")
-                    // The nested related is a sub-part: no protected-headers parameter here.
-                    append("Content-Type: multipart/related; type=\"$bodyType\"; boundary=\"$related\"\r\n\r\n")
-                    appendRelatedParts(related, bodyType, bodyContent, inlineParts)
+                    if (html == null) {
+                        append("Content-Type: multipart/related; type=\"text/plain\"; boundary=\"$related\"\r\n\r\n")
+                        appendRelatedParts(related, "text/plain", m.body, inlineParts)
+                    } else {
+                        val alternative = boundary(m, "alternative")
+                        append("Content-Type: multipart/alternative; boundary=\"$alternative\"\r\n\r\n")
+                        appendAlternativeParts(alternative, m.body) {
+                            append("Content-Type: multipart/related; type=\"text/html\"; boundary=\"$related\"\r\n\r\n")
+                            appendRelatedParts(related, "text/html", html, inlineParts)
+                        }
+                    }
                     for (att in fileParts) {
                         append("--$mixed\r\n")
                         appendAttachmentPart(att)
@@ -418,7 +445,21 @@ object OutgoingMime {
         }
     }
 
-    /** Unique-per-message boundary, tagged so a nested mixed/related pair never collide. */
+    /** The parts of a multipart/alternative, the text/plain [text] first and [appendRich] last (RFC 2046 § 5.1.4). */
+    private fun StringBuilder.appendAlternativeParts(
+        alternative: String,
+        text: String,
+        appendRich: StringBuilder.() -> Unit,
+    ) {
+        append("--$alternative\r\n")
+        appendBodyPart("text/plain", text)
+        append("--$alternative\r\n")
+        appendRich()
+        append("--$alternative--\r\n")
+    }
+
+    /** Unique-per-message boundary, tagged so nested mixed/alternative/related entities never collide.
+     *  No tag may be a prefix of another: `MimeParser.splitMultipart` finds a delimiter by `indexOf`. */
     private fun boundary(m: OutgoingMessage, tag: String): String =
         "----sterna_${tag}_${m.messageId.filter { it.isLetterOrDigit() }.take(24)}"
 

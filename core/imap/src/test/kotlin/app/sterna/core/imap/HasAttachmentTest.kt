@@ -21,6 +21,11 @@ class HasAttachmentTest {
         const val PLAIN = """("text" "plain" ("charset" "utf-8") NIL NIL "7bit" 100 5)"""
         const val PDF = """("application" "pdf" ("name" "a.pdf") NIL NIL "base64" 900 NIL """ +
             """("attachment" ("filename" "a.pdf")) NIL)"""
+        const val HTML = """("text" "html" ("charset" "utf-8") NIL NIL "base64" 200 3)"""
+
+        /** As `OutgoingMime` writes an inline image: a filename, a Content-ID, an `inline` disposition. */
+        const val INLINE_PNG = """("image" "png" ("name" "logo.png") "<logo@x>" NIL "base64" 4 NIL """ +
+            """("inline" ("filename" "logo.png")) NIL)"""
 
         const val ENVELOPE = """("Tue, 15 Sep 2026 10:00:00 +0200" "Weekly notes" """ +
             """(("Ann" NIL "ann" "example.test")) (("Ann" NIL "ann" "example.test")) """ +
@@ -52,6 +57,18 @@ class HasAttachmentTest {
 
     @Test fun `a plain text message gets no paperclip`() {
         assertFalse(hasAttachment(structure(PLAIN)))
+    }
+
+    @Test fun `a styled message, text beside its html, gets no paperclip`() {
+        assertFalse(hasAttachment(structure("""($PLAIN$HTML "alternative")""")))
+    }
+
+    @Test fun `a styled message with an inline image and no file gets no paperclip`() {
+        assertFalse(hasAttachment(structure("""($PLAIN($HTML$INLINE_PNG "related") "alternative")""")))
+    }
+
+    @Test fun `a styled message with an inline image and a file gets a paperclip`() {
+        assertTrue(hasAttachment(structure("""(($PLAIN($HTML$INLINE_PNG "related") "alternative")$PDF "mixed")""")))
     }
 
     @Test fun `a part with an attachment disposition gets a paperclip`() {

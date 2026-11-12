@@ -166,10 +166,20 @@ class OutgoingMimeTest {
     )
 
     @Test
-    fun noAttachmentsStaysSinglePart() {
+    fun noAttachmentsIsAlternativeOfTextAndHtml() {
         val mime = OutgoingMime.build(htmlMsg(emptyList()))
-        assertFalse("no multipart", mime.contains("multipart/"))
+        assertTrue("alternative is the top-level body", mime.contains("Content-Type: multipart/alternative;"))
+        assertFalse("no mixed", mime.contains("multipart/mixed"))
+        assertFalse("no related", mime.contains("multipart/related"))
+        assertTrue("text content type", mime.contains("Content-Type: text/plain; charset=utf-8"))
         assertTrue("html content type", mime.contains("Content-Type: text/html; charset=utf-8"))
+    }
+
+    @Test
+    fun aTextOnlyMessageStaysSinglePart() {
+        val mime = OutgoingMime.build(msg())
+        assertFalse("no multipart", mime.contains("multipart/"))
+        assertTrue(mime.endsWith("Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8="))
     }
 
     @Test
@@ -184,7 +194,13 @@ class OutgoingMimeTest {
     @Test
     fun inlineOnlyEmitsMultipartRelatedWithContentIdAndInlineDisposition() {
         val mime = OutgoingMime.build(htmlMsg(listOf(image)))
-        assertTrue("related is the top-level body", mime.contains("Content-Type: multipart/related;"))
+        assertTrue("alternative is the top-level body", mime.contains("Content-Type: multipart/alternative;"))
+        assertTrue("related nested", mime.contains("Content-Type: multipart/related;"))
+        assertTrue(
+            "the related is the rich alternative, after the text",
+            mime.indexOf("Content-Type: text/plain") in mime.indexOf("multipart/alternative") until
+                mime.indexOf("Content-Type: multipart/related;"),
+        )
         assertFalse("no mixed wrapper", mime.contains("multipart/mixed"))
         assertTrue("html part present", mime.contains("Content-Type: text/html; charset=utf-8"))
         assertTrue("Content-ID with angle brackets", mime.contains("Content-ID: <logo@x>"))

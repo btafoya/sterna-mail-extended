@@ -34,9 +34,15 @@ class ProtectedHeadersEntityTest {
         name = "doc.pdf", type = "application/pdf", bytes = byteArrayOf(4, 5, 6),
     )
 
-    /** The two `--boundary` delimiters this fixture's Message-ID produces, written out. */
+    /** The three `--boundary` delimiters this fixture's Message-ID produces, written out. */
     private val mixed = "------sterna_mixed_id1examplecom"
     private val related = "------sterna_related_id1examplecom"
+    private val alternative = "------sterna_alternative_id1examplecom"
+
+    private val plainPart =
+        "Content-Type: text/plain; charset=utf-8\r\n" +
+            "Content-Transfer-Encoding: base64\r\n\r\n" +
+            "aGVsbG8=\r\n"
 
     private val htmlPart =
         "Content-Type: text/html; charset=utf-8\r\n" +
@@ -57,16 +63,31 @@ class ProtectedHeadersEntityTest {
     /** The inside of a multipart/related: body part, inline image, closing delimiter. */
     private val relatedParts = "$related\r\n" + htmlPart + "$related\r\n" + logoPart + "$related--\r\n"
 
-    /** The inside of the outer multipart/mixed of the fourth branch (related + the file). */
-    private val nestedRelated =
-        "$mixed\r\n" +
-            "Content-Type: multipart/related; type=\"text/html\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n" +
-            relatedParts +
+    private val textRelatedParts = "$related\r\n" + plainPart + "$related\r\n" + logoPart + "$related--\r\n"
+
+    private val nestedRelatedHeader =
+        "Content-Type: multipart/related; type=\"text/html\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n"
+    private val nestedAlternativeHeader =
+        "Content-Type: multipart/alternative; boundary=\"----sterna_alternative_id1examplecom\"\r\n\r\n"
+
+    private val alternativeOfHtml =
+        "$alternative\r\n" + plainPart + "$alternative\r\n" + htmlPart + "$alternative--\r\n"
+
+    private val alternativeOfRelated =
+        "$alternative\r\n" + plainPart + "$alternative\r\n" + nestedRelatedHeader + relatedParts + "$alternative--\r\n"
+
+    /** The inside of the outer multipart/mixed of the fourth branch (alternative + the file). */
+    private val nestedAlternative =
+        "$mixed\r\n" + nestedAlternativeHeader + alternativeOfRelated +
             "$mixed\r\n" + pdfPart + "$mixed--\r\n"
+
+    private val everyShape =
+        listOf(plain, html(emptyList()), html(listOf(file)), html(listOf(image)), html(listOf(image, file))) +
+            listOf(listOf(file), listOf(image), listOf(image, file)).map { plain.copy(attachments = it) }
 
     private val topic = "Quarterly report"
 
-    // --- no protected subject: the bytes of before, in all four branches --------------------------
+    // --- no protected subject --------------------------------------------------------------------
 
     @Test fun singlePartWithoutAProtectedSubjectIsWhatItAlwaysWas() {
         assertEquals(
@@ -78,33 +99,67 @@ class ProtectedHeadersEntityTest {
         )
     }
 
-    @Test fun mixedWithoutAProtectedSubjectIsWhatItAlwaysWas() {
+    @Test fun aTextOnlyMessageWithAFileIsMixedOfTheTextAndTheFile() {
         assertEquals(
             "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"\r\n\r\n" +
-                "$mixed\r\n" + htmlPart + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+                "$mixed\r\n" + plainPart + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(file))),
+        )
+    }
+
+    @Test fun aTextOnlyMessageWithAnInlineImageIsRelatedOfTheText() {
+        assertEquals(
+            "Content-Type: multipart/related; type=\"text/plain\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n" +
+                textRelatedParts,
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(image))),
+        )
+    }
+
+    @Test fun aTextOnlyMessageWithAnInlineImageAndAFileIsMixedOfRelatedOfTheText() {
+        assertEquals(
+            "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"\r\n\r\n" +
+                "$mixed\r\n" +
+                "Content-Type: multipart/related; type=\"text/plain\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n" +
+                textRelatedParts + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(image, file))),
+        )
+    }
+
+    @Test fun htmlWithoutAttachmentsIsAlternativeOfTextThenHtml() {
+        assertEquals(
+            "Content-Type: multipart/alternative; boundary=\"----sterna_alternative_id1examplecom\"\r\n\r\n" +
+                alternativeOfHtml,
+            OutgoingMime.buildBodyEntity(html(emptyList())),
+        )
+    }
+
+    @Test fun htmlWithAFileIsMixedOfTheAlternativeAndTheFile() {
+        assertEquals(
+            "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"\r\n\r\n" +
+                "$mixed\r\n" + nestedAlternativeHeader + alternativeOfHtml + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
             OutgoingMime.buildBodyEntity(html(listOf(file))),
         )
     }
 
-    @Test fun relatedWithoutAProtectedSubjectIsWhatItAlwaysWas() {
+    @Test fun htmlWithAnInlineImageIsAlternativeOfTextThenRelated() {
         assertEquals(
-            "Content-Type: multipart/related; type=\"text/html\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n" +
-                relatedParts,
+            "Content-Type: multipart/alternative; boundary=\"----sterna_alternative_id1examplecom\"\r\n\r\n" +
+                alternativeOfRelated,
             OutgoingMime.buildBodyEntity(html(listOf(image))),
         )
     }
 
-    @Test fun mixedRelatedWithoutAProtectedSubjectIsWhatItAlwaysWas() {
+    @Test fun htmlWithAnInlineImageAndAFileIsMixedOfAlternativeOfRelated() {
         assertEquals(
-            "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"\r\n\r\n" + nestedRelated,
+            "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"\r\n\r\n" + nestedAlternative,
             OutgoingMime.buildBodyEntity(html(listOf(image, file))),
         )
     }
 
     @Test fun theNullPathWritesNeitherASubjectNorTheParameter() {
-        // The absence half, over all four branches at once: a header line reaching an ordinary
+        // The absence half, over every branch at once: a header line reaching an ordinary
         // send is the failure this whole default argument exists to make impossible.
-        for (m in listOf(plain, html(listOf(file)), html(listOf(image)), html(listOf(image, file)))) {
+        for (m in everyShape) {
             val entity = OutgoingMime.buildBodyEntity(m)
             assertFalse("no Subject: field in <$entity>", entity.contains("Subject:"))
             assertFalse("no protected-headers in <$entity>", entity.contains("protected-headers"))
@@ -124,33 +179,75 @@ class ProtectedHeadersEntityTest {
         )
     }
 
-    @Test fun mixedCarriesTheSubjectAboveAMarkedContentType() {
+    @Test fun aTextOnlyMixedCarriesTheSubjectAboveAMarkedContentType() {
         assertEquals(
             "Subject: Quarterly report\r\n" +
                 "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"; " +
                 "protected-headers=\"v1\"\r\n\r\n" +
-                "$mixed\r\n" + htmlPart + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+                "$mixed\r\n" + plainPart + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(file)), topic),
+        )
+    }
+
+    @Test fun aTextOnlyRelatedCarriesTheSubjectAboveAMarkedContentType() {
+        assertEquals(
+            "Subject: Quarterly report\r\n" +
+                "Content-Type: multipart/related; type=\"text/plain\"; boundary=\"----sterna_related_id1examplecom\"; " +
+                "protected-headers=\"v1\"\r\n\r\n" +
+                textRelatedParts,
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(image)), topic),
+        )
+    }
+
+    @Test fun aTextOnlyMixedOfRelatedMarksTheMixedAndLeavesTheRelatedAlone() {
+        assertEquals(
+            "Subject: Quarterly report\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"; " +
+                "protected-headers=\"v1\"\r\n\r\n" +
+                "$mixed\r\n" +
+                "Content-Type: multipart/related; type=\"text/plain\"; boundary=\"----sterna_related_id1examplecom\"\r\n\r\n" +
+                textRelatedParts + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
+            OutgoingMime.buildBodyEntity(plain.copy(attachments = listOf(image, file)), topic),
+        )
+    }
+
+    @Test fun alternativeCarriesTheSubjectAboveAMarkedContentType() {
+        assertEquals(
+            "Subject: Quarterly report\r\n" +
+                "Content-Type: multipart/alternative; boundary=\"----sterna_alternative_id1examplecom\"; " +
+                "protected-headers=\"v1\"\r\n\r\n" +
+                alternativeOfHtml,
+            OutgoingMime.buildBodyEntity(html(emptyList()), topic),
+        )
+    }
+
+    @Test fun mixedCarriesTheSubjectAboveAMarkedContentTypeAndLeavesTheAlternativeAlone() {
+        assertEquals(
+            "Subject: Quarterly report\r\n" +
+                "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"; " +
+                "protected-headers=\"v1\"\r\n\r\n" +
+                "$mixed\r\n" + nestedAlternativeHeader + alternativeOfHtml + "$mixed\r\n" + pdfPart + "$mixed--\r\n",
             OutgoingMime.buildBodyEntity(html(listOf(file)), topic),
         )
     }
 
-    @Test fun relatedCarriesTheSubjectAboveAMarkedContentType() {
+    @Test fun alternativeOfRelatedMarksTheAlternativeAndLeavesTheRelatedAlone() {
         assertEquals(
             "Subject: Quarterly report\r\n" +
-                "Content-Type: multipart/related; type=\"text/html\"; " +
-                "boundary=\"----sterna_related_id1examplecom\"; protected-headers=\"v1\"\r\n\r\n" +
-                relatedParts,
+                "Content-Type: multipart/alternative; boundary=\"----sterna_alternative_id1examplecom\"; " +
+                "protected-headers=\"v1\"\r\n\r\n" +
+                alternativeOfRelated,
             OutgoingMime.buildBodyEntity(html(listOf(image)), topic),
         )
     }
 
-    @Test fun mixedRelatedMarksTheOuterContentTypeAndLeavesTheNestedOneAlone() {
-        // The nested multipart/related is a sub-part. Marked, it would claim a second protected
-        // header block inside the first, and the entity would describe two.
+    @Test fun mixedOfAlternativeMarksTheOuterContentTypeAndLeavesTheNestedOnesAlone() {
+        // The nested alternative and related are sub-parts. Marked, either would claim a second
+        // protected header block inside the first, and the entity would describe two.
         assertEquals(
             "Subject: Quarterly report\r\n" +
                 "Content-Type: multipart/mixed; boundary=\"----sterna_mixed_id1examplecom\"; " +
-                "protected-headers=\"v1\"\r\n\r\n" + nestedRelated,
+                "protected-headers=\"v1\"\r\n\r\n" + nestedAlternative,
             OutgoingMime.buildBodyEntity(html(listOf(image, file)), topic),
         )
     }
@@ -158,7 +255,7 @@ class ProtectedHeadersEntityTest {
     @Test fun exactlyOneContentTypeIsMarkedInEveryBranch() {
         // Counts, so it catches the parameter appended by a shared helper to every part, which
         // the whole-entity expectations above catch too, but only for these fixtures' part lists.
-        for (m in listOf(plain, html(listOf(file)), html(listOf(image)), html(listOf(image, file)))) {
+        for (m in everyShape) {
             val entity = OutgoingMime.buildBodyEntity(m, topic)
             assertEquals(
                 "exactly one protected-headers parameter in <$entity>",
