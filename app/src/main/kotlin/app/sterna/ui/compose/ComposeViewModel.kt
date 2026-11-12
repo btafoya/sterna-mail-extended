@@ -2323,7 +2323,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         if (quoteLeftOut) return ""
         val app = getApplication<Application>()
         val sender = o.from.firstOrNull()?.display() ?: app.getString(R.string.compose_quote_someone)
-        val date = MailDates.formatFull(o.receivedAt, zone)
+        val date = MailDates.formatFull(o.receivedAt, zone, is24Hour = true)
         val attribution = app.getString(R.string.compose_quote_attribution, date, sender)
         val quoted = quotedOriginalText(o).lineSequence().joinToString("\n") { deepenQuote(it) }
         return "\n\n$attribution\n$quoted"
@@ -2367,7 +2367,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         return buildForwardedBlocks(
             from = o.from.joinToString { it.display() },
             subject = o.subject.orEmpty(),
-            date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc)),
+            date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc), is24Hour = true),
             to = o.to.joinToString { it.display() },
             // The whole original is forwarded, signature included: it is the message being passed on,
             // not a quote of it.

@@ -52,6 +52,19 @@ class MailDatesTest {
         assertEquals("4 Jun 2026, 11:12", MailDates.formatFull(june, paris, Locale.ENGLISH))
     }
 
+    @Test fun theClockFollowsTheDevicesTwelveOrTwentyFourHourSetting() {
+        val iso = "2026-07-04T13:05:00Z"
+        assertEquals("4 Jul 2026, 15:05", MailDates.formatFull(iso, paris, Locale.ENGLISH, is24Hour = true))
+        assertEquals("4 Jul 2026, 3:05 PM", MailDates.formatFull(iso, paris, Locale.ENGLISH, is24Hour = false))
+        val today = LocalDate.of(2026, 7, 4)
+        assertEquals("15:05", MailDates.formatListDate(iso, paris, today, Locale.ENGLISH, is24Hour = true))
+        assertEquals("3:05 PM", MailDates.formatListDate(iso, paris, today, Locale.ENGLISH, is24Hour = false))
+    }
+
+    @Test fun withoutADeviceContextTheClockStaysTwentyFourHour() {
+        assertTrue(MailDates.is24Hour())
+    }
+
     @Test fun missingOrUnparseableDatesRenderEmptyRatherThanThrowing() {
         assertEquals("", MailDates.formatFull(null, paris))
         assertEquals("", MailDates.formatFull("", paris))

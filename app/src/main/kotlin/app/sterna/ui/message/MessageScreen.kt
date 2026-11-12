@@ -1,7 +1,6 @@
 package app.sterna.ui.message
 
 import app.sterna.BuildConfig
-import app.sterna.appLocale
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.outlined.GppMaybe
@@ -201,6 +200,7 @@ import app.sterna.ui.attachmentMeta
 import app.sterna.ui.canSnoozeIn
 import app.sterna.ui.components.Monogram
 import app.sterna.ui.components.LocalSenderNames
+import app.sterna.ui.components.LocalIs24Hour
 import app.sterna.ui.components.withAddressBookName
 import app.sterna.ui.compose.EditAsNewReader
 import app.sterna.ui.compose.SnoozePreset
@@ -225,9 +225,7 @@ import app.sterna.util.MailDates
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.ByteArrayInputStream
-import java.time.Instant
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -2110,6 +2108,10 @@ private fun MessageHeader(
     // Read from pointer and placement callbacks only, so writing them recomposes nothing.
     val headerAt = remember { mutableStateOf<LayoutCoordinates?>(null) }
     val subjectAt = remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val is24Hour = LocalIs24Hour.current
+    // Shadows the file's `formatFull` so the date line, pinned whole by
+    // `DeliveredToInHeaderCallSiteTest`, is formed with the provided clock setting.
+    fun formatFull(iso: String?) = MailDates.formatFull(iso, is24Hour = is24Hour)
     Column(
         Modifier
             .fillMaxWidth()
@@ -3229,6 +3231,7 @@ private fun CalendarEventCard(
     // "Add to calendar" CREATES something too: the event editor takes a moment to appear, and until
     // this guard a second tap put the same meeting in the calendar twice.
     val leaveOnce = rememberLeaveOnce()
+    val is24Hour = LocalIs24Hour.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -3264,7 +3267,7 @@ private fun CalendarEventCard(
                     )
                 }
                 Text(
-                    text = formatEventWhen(event),
+                    text = formatEventWhen(event, is24Hour),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -3414,23 +3417,8 @@ private fun addToCalendar(context: Context, event: ParsedEvent): Boolean = try {
     false
 }
 
-private val eventDateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM yyyy, HH:mm z", appLocale)
-private val eventDateFormatter = DateTimeFormatter.ofPattern("EEE d MMM yyyy", appLocale)
-private val eventTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", appLocale)
-
-/** "When" line for the event card: date for all-day, else start–end in the device zone. */
-private fun formatEventWhen(event: ParsedEvent): String {
-    val zone = ZoneId.systemDefault()
-    val start = Instant.ofEpochMilli(event.startMillis).atZone(zone)
-    if (event.allDay) return start.format(eventDateFormatter)
-    val startStr = start.format(eventDateTimeFormatter)
-    val end = event.endMillis?.let { Instant.ofEpochMilli(it).atZone(zone) } ?: return startStr
-    val endStr = if (start.toLocalDate() == end.toLocalDate()) {
-        end.format(eventTimeFormatter)
-    } else {
-        end.format(eventDateTimeFormatter)
-    }
-    return "$startStr – $endStr"
+private fun formatEventWhen(event: ParsedEvent, is24Hour: Boolean): String {
+    return MailDates.formatEventSpan(event.startMillis, event.endMillis, event.allDay, is24Hour = is24Hour)
 }
 
 /**
@@ -4985,8 +4973,8 @@ internal fun reflowFormatFlowed(text: String): String {
     return sb.toString()
 }
 
-// Date formatting lives in [MailDates], the composer writes the same formatted date into a reply's
-// attribution and a forward's header, and the two must not drift.
+// Shown and printed dates follow the phone's 12/24-hour setting; the composer's quoted dates pass
+// `is24Hour = true` instead, so the sender's setting is never written into a sent message.
 private fun formatFull(iso: String?): String = MailDates.formatFull(iso)
 
 private fun formatWith(iso: String?, formatter: DateTimeFormatter): String =

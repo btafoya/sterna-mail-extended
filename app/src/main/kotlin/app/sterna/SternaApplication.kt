@@ -299,6 +299,7 @@ class SternaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        app.sterna.util.MailDates.deviceContext = applicationContext
         container = AppContainer(this)
     }
 }

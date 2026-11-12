@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.size
 import app.sterna.ui.components.AccountPalette
+import app.sterna.ui.components.LocalIs24Hour
 import app.sterna.ui.inbox.OPEN_ON_INBOX
 import app.sterna.ui.inbox.OPEN_ON_UNIFIED
 import app.sterna.ui.inbox.OPEN_ON_UNREAD
@@ -164,6 +165,7 @@ import app.sterna.ui.components.AppPasswordHelpLink
 import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.PendingImportAccountsSection
+import app.sterna.util.MailDates
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.mail.OAuthProvider
 import android.widget.Toast
@@ -879,12 +881,18 @@ private fun NotificationsScreen(viewModel: SettingsViewModel, onBack: () -> Unit
     }
 }
 
-private fun formatMinutes(minutes: Int): String = "%02d:%02d".format(minutes / 60, minutes % 60)
+private fun formatMinutes(minutes: Int, is24Hour: Boolean): String =
+    if (is24Hour) {
+        MailDates.formatClock(minutes, true)
+    } else {
+        MailDates.formatClock(minutes, false)
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimePickerRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
     var show by remember { mutableStateOf(false) }
+    val is24Hour = LocalIs24Hour.current
     SettingSpotlightTarget(label) {
         Row(
             modifier = Modifier
@@ -895,7 +903,7 @@ private fun TimePickerRow(label: String, minutes: Int, onChange: (Int) -> Unit) 
         ) {
             Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             Text(
-                formatMinutes(minutes),
+                formatMinutes(minutes, is24Hour),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -905,7 +913,7 @@ private fun TimePickerRow(label: String, minutes: Int, onChange: (Int) -> Unit) 
         val state = rememberTimePickerState(
             initialHour = minutes / 60,
             initialMinute = minutes % 60,
-            is24Hour = true,
+            is24Hour = is24Hour,
         )
         AlertDialog(
             onDismissRequest = { show = false },

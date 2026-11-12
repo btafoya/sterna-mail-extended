@@ -14,12 +14,14 @@ import org.junit.Test
  */
 class OutgoingDateWiringTest {
 
-    @Test fun `the attribution date is formatted in the zone quote() was handed`() {
+    @Test fun `the attribution date is formatted in the zone quote() was handed, on a 24-hour clock`() {
         assertTrue(
-            "quote() must format through its zone parameter: 'val date = " +
-                "MailDates.formatFull(o.receivedAt, zone)'. Without the argument the default " +
-                "(the device zone) answers, and the switch is inert on every reply.",
-            "val date = MailDates.formatFull(o.receivedAt, zone)" in lines(COMPOSE_VIEW_MODEL),
+            "quote() must format through its zone parameter on a 24-hour clock: 'val date = " +
+                "MailDates.formatFull(o.receivedAt, zone, is24Hour = true)'. Without the zone the " +
+                "default (the device zone) answers, and the switch is inert on every reply; " +
+                "without is24Hour = true the sender's phone setting is written into every reply " +
+                "it sends, 3:05 PM or 下午3:05 instead of 15:05.",
+            "val date = MailDates.formatFull(o.receivedAt, zone, is24Hour = true)" in lines(COMPOSE_VIEW_MODEL),
         )
     }
 
@@ -32,12 +34,15 @@ class OutgoingDateWiringTest {
         )
     }
 
-    @Test fun `the forwarded header's date resolves the setting`() {
+    @Test fun `the forwarded header's date resolves the setting, on a 24-hour clock`() {
         assertTrue(
-            "buildForwarded must pass the resolved zone: 'date = MailDates.formatFull(" +
-                "o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc)),'. Without it " +
-                "every forward keeps giving away the device's time zone.",
-            "date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc))," in
+            "buildForwarded must pass the resolved zone on a 24-hour clock: 'date = " +
+                "MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(" +
+                "settings.quotedDatesUtc), is24Hour = true),'. Without the zone every forward " +
+                "keeps giving away the device's time zone; without is24Hour = true the sender's " +
+                "phone setting is written into every forwarded header, 3:05 PM or 下午3:05 " +
+                "instead of 15:05.",
+            "date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc), is24Hour = true)," in
                 lines(COMPOSE_VIEW_MODEL),
         )
     }
@@ -73,11 +78,11 @@ class OutgoingDateWiringTest {
         // would reopen the leak while every pinned line stays present.
         val calls = lines(COMPOSE_VIEW_MODEL).filter { "MailDates.formatFull(" in it }
         assertEquals(
-            "ComposeViewModel must format outgoing dates in exactly two places, both zoned; " +
-                "found: $calls",
+            "ComposeViewModel must format outgoing dates in exactly two places, both zoned " +
+                "and on a 24-hour clock; found: $calls",
             listOf(
-                "val date = MailDates.formatFull(o.receivedAt, zone)",
-                "date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc)),",
+                "val date = MailDates.formatFull(o.receivedAt, zone, is24Hour = true)",
+                "date = MailDates.formatFull(o.receivedAt, resolveOutgoingDateZone(settings.quotedDatesUtc), is24Hour = true),",
             ).sorted(),
             calls.sorted(),
         )

@@ -1,6 +1,9 @@
 package app.sterna
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Resources
 import android.net.MailTo
 import android.net.Uri
@@ -14,6 +17,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
 import app.sterna.core.data.settings.STARRED_IN_DRAWER_DEFAULT
@@ -37,7 +41,9 @@ import app.sterna.ui.components.LocalListMonogram
 import app.sterna.ui.components.LocalSenderNames
 import app.sterna.ui.components.LocalPreviewLines
 import app.sterna.ui.components.LocalUnreadTint
+import app.sterna.ui.components.LocalIs24Hour
 import app.sterna.ui.theme.SternaTheme
+import app.sterna.util.MailDates
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
@@ -57,6 +63,12 @@ class MainActivity : AppCompatActivity() {
     private val pendingUnreadOpen = androidx.compose.runtime.mutableStateOf(false)
 
     private val volumeTextSizeRelay = VolumeTextSizeRelay()
+
+    private val is24Hour = androidx.compose.runtime.mutableStateOf(MailDates.is24Hour())
+
+    private val timeChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { is24Hour.value = MailDates.is24Hour() }
+    }
 
     private var volumeTextSize = VOLUME_TEXT_SIZE_DEFAULT
 
@@ -113,6 +125,7 @@ class MainActivity : AppCompatActivity() {
                     LocalBoldUnreadFolders provides boldUnreadFolders,
                     LocalStarredInDrawer provides starredInDrawer,
                     LocalVolumeTextSizeRelay provides volumeTextSizeRelay,
+                    LocalIs24Hour provides is24Hour.value,
                 ) {
                     SternaApp(
                         pendingMailto = pendingMailto.value,
@@ -266,8 +279,14 @@ class MainActivity : AppCompatActivity() {
         return MailtoDraft(to = "", cc = "", bcc = "", subject = subject, body = text)
     }
 
+    override fun onResume() {
+        super.onResume()
+        is24Hour.value = MailDates.is24Hour()
+    }
+
     override fun onStop() {
         super.onStop()
+        unregisterReceiver(timeChangedReceiver)
         application.container.appLock.onAppBackgrounded(System.currentTimeMillis())
         // A stopped activity draws no frames, so the reader's GL functor cannot draw, and a process kill
         // while backgrounded must not count as a fade-window crash.
@@ -276,6 +295,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        ContextCompat.registerReceiver(
+            this,
+            timeChangedReceiver,
+            IntentFilter(Intent.ACTION_TIME_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         application.container.appLock.onAppForegrounded(System.currentTimeMillis())
         NavFadeGuard.onActivityStart(this)
         applySecureFlag()

@@ -213,7 +213,8 @@ fun EmailListItem(
     // Today gives the time, this year the day and month, any other year a short numeric date, so a
     // 2019 row and a 2026 one cannot read the same. Numeric on that last step to keep the stamp
     // narrow: it shares this line with the sender's name.
-    val receivedLabel = remember(email.receivedAt) { MailDates.formatListDate(email.receivedAt) }
+    val is24Hour = LocalIs24Hour.current
+    val receivedLabel = remember(email.receivedAt, is24Hour) { MailDates.formatListDate(email.receivedAt, is24Hour = is24Hour) }
     val motionOn = rememberMotionEnabled()
     // Return-from-message emphasis: a soft accent tint that rises then fades, so the eye lands on
     // the row just left. Skipped, and consumed at once, under reduced motion.
