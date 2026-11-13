@@ -1704,8 +1704,8 @@ class LocalDraftSaveTest {
 
     /**
      * The witness, and the one that matters most: a real address goes out untouched. `a@b` is
-     * here on purpose, `isValidEmail` (the composer's typo-catcher) rejects it, RFC 5322 does not,
-     * and judging with that function would send `a@b:;` to the server and destroy a real address.
+     * here on purpose: RFC 5322 takes it, and judging with any rule stricter than that grammar
+     * would send `a@b:;` to the server and destroy a real address.
      */
     @Test fun `a real address is appended unchanged`() {
         val row = row(

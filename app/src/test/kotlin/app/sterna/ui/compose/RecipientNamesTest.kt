@@ -21,9 +21,9 @@ class RecipientNamesTest {
     }
 
     @Test fun `an invalid chip shows what was typed, even when the book holds it`() {
-        val typo = mapOf("jeanne" to "Jeanne Dupont", "j.dupont@exemple" to "Jeanne Dupont")
+        val typo = mapOf("jeanne" to "Jeanne Dupont", "j.dupont@exemple." to "Jeanne Dupont")
         assertEquals("jeanne", chipLabel("jeanne", typo))
-        assertEquals("j.dupont@exemple", chipLabel("j.dupont@exemple", typo))
+        assertEquals("j.dupont@exemple.", chipLabel("j.dupont@exemple.", typo))
     }
 
     @Test fun `the address is matched whatever its case and surrounding spaces`() {

@@ -1006,8 +1006,8 @@ private fun EmailField(
 ) {
     val focusManager = LocalFocusManager.current
     var hadFocus by remember { mutableStateOf(false) }
-    // Flag an obviously malformed email (missing @ or a too-short/absent extension) as the user
-    // types, without hard-blocking: some IMAP servers accept a non-email username.
+    // Flag a value [isValidEmail] refuses as the user types, without hard-blocking: some IMAP
+    // servers accept a non-email username.
     val emailLooksInvalid = value.isNotBlank() && !isValidEmail(value)
     OutlinedTextField(
         value = value,

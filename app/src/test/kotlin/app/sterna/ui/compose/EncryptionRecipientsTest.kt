@@ -51,7 +51,22 @@ class EncryptionRecipientsTest {
 
     @Test fun aCommittedButMalformedTokenIsNotARecipient() {
         // Blocked at the send gate as an invalid address; it must not make the lock claim anything.
-        assertEquals(listOf("alex@x.com"), encryptionRecipients("alex@x.com, nonsense", "", ""))
+        assertEquals(
+            listOf("alex@x.com"),
+            encryptionRecipients("nonsense, bob@example., alex@x.com, ", "", ""),
+        )
+    }
+
+    @Test fun aCommittedOneLabelAddressCounts() {
+        assertEquals(listOf("leo@yggmail"), encryptionRecipients("leo@yggmail, ", "", ""))
+    }
+
+    @Test fun aOneLabelAddressStillBeingTypedDoesNotCount() {
+        assertEquals(emptyList<String>(), encryptionRecipients("leo@yggmail", "", ""))
+    }
+
+    @Test fun aOneLabelTokenBeingTypedLeavesTheCommittedAddressesAlone() {
+        assertEquals(listOf("iris@x.test"), encryptionRecipients("iris@x.test, leo@yggm", "", ""))
     }
 
     // --- When to recompute ------------------------------------------------------------------

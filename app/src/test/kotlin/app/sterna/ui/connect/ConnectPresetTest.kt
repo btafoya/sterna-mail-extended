@@ -245,8 +245,10 @@ class ConnectPresetTest {
         assertTrue("the shared rule trims; so must this one", canLeaveAddressStep("  alex@example.org  "))
         assertFalse("nothing typed yet", canLeaveAddressStep(""))
         assertFalse("no @ — there is no domain to probe", canLeaveAddressStep("alex"))
-        assertFalse(
-            "a one-label domain: the shared isValidEmail rejects it, and a rule written a second " +
+        listOf("alex@", "@example", "alex@@example", "alex @example", "alex@example.", "alex@.org", "alex@a..org")
+            .forEach { assertFalse("the shared rule refuses \"$it\"; so must this one", canLeaveAddressStep(it)) }
+        assertTrue(
+            "a one-label domain (#294): the shared isValidEmail takes it, and a rule written a second " +
                 "time here would drift from the one the address field flags errors with.",
             canLeaveAddressStep("alex@example"),
         )

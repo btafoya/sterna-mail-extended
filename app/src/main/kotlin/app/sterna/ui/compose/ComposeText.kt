@@ -592,14 +592,19 @@ private fun recipientFieldOf(addresses: List<EmailAddress>): String =
 internal fun parseAddrs(s: String): List<String> =
     s.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
 
-/**
- * The recipients the encryption state is derived from (#35): the addressing tokens that already are
- * addresses, deduplicated. A token still being typed has no key by construction, so counting it would
- * have the lock announce "not encrypted" about an unfinished address. Judged by [isValidEmail], the
- * rule the send gate and the per-chip warning also use.
- */
+/** The recipients the encryption state is derived from (#35), deduplicated: in each field the committed
+ *  addresses that pass [isValidEmail], then the token still being typed once [TYPED_ADDRESS] takes it. A
+ *  token on its way has no key by construction, and counting it would have the lock announce "not
+ *  encrypted" about an unfinished address. */
 internal fun encryptionRecipients(to: String, cc: String, bcc: String): List<String> =
-    (parseAddrs(to) + parseAddrs(cc) + parseAddrs(bcc)).filter(::isValidEmail).distinct()
+    listOf(to, cc, bcc).flatMap { field ->
+        val (chips, input) = splitRecipients(field)
+        chips.filter(::isValidEmail) + listOfNotNull(input.trim().takeIf { TYPED_ADDRESS.matches(it) })
+    }.distinct()
+
+/** `leo@y` already passes [isValidEmail] on its way to `leo@yggmail`, so a token still being typed waits
+ *  for a dotted domain ending in two characters before the lock looks it up (#294). */
+private val TYPED_ADDRESS = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s.]{2,}$")
 
 /**
  * Whether the encryption state has to be recomputed: [previous] is the set it was last computed for.

@@ -166,6 +166,7 @@ import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.components.MinTouchTarget
 import app.sterna.ui.components.PendingImportAccountsSection
 import app.sterna.util.MailDates
+import app.sterna.util.isValidEmail
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.mail.OAuthProvider
 import android.widget.Toast
@@ -2116,10 +2117,9 @@ private fun AccountDetailScreen(
                         markEdited()
                     }
                     val trimmedEmail = identity.email.trim()
-                    // Local-only checks: malformed address (blocking) and a soft hint when the
-                    // server did not advertise it.
-                    val emailInvalid = trimmedEmail.isNotBlank() &&
-                        !android.util.Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()
+                    // Local-only checks, both advisory (`canSaveAccount` reads neither): a
+                    // malformed address and a hint when the server did not advertise it.
+                    val emailInvalid = trimmedEmail.isNotBlank() && !isValidEmail(trimmedEmail)
                     val notOnServer = trimmedEmail.isNotBlank() && !emailInvalid &&
                         serverEmails.isNotEmpty() && trimmedEmail.lowercase() !in serverEmails
                     val expanded = identity.id in expandedRows

@@ -12,7 +12,7 @@ class RecipientChipFaultTest {
     private val hasKey: (String) -> Boolean = { keyLookups += it; false }
 
     @Test fun `a chip that is not an address is an invalid address`() {
-        assertEquals(RecipientChipFault.INVALID_ADDRESS, recipientChipFault("iris@example", hasKey))
+        assertEquals(RecipientChipFault.INVALID_ADDRESS, recipientChipFault("iris@", hasKey))
     }
 
     @Test fun `a valid address with no key to encrypt to is a missing key`() {
@@ -25,7 +25,7 @@ class RecipientChipFaultTest {
     }
 
     @Test fun `an invalid address is said invalid even where no key would be found, and no key is looked up`() {
-        assertEquals(RecipientChipFault.INVALID_ADDRESS, recipientChipFault("iris@example", noKey))
+        assertEquals(RecipientChipFault.INVALID_ADDRESS, recipientChipFault("iris@", noKey))
         assertEquals(
             "a typo is what has to be fixed first: once it is, the key lookup has an address to run on",
             emptyList<String>(),
