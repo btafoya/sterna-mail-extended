@@ -94,6 +94,7 @@
     <string name="compose_forgot_attachment_send">仍然发送</string>
     <string name="compose_forgot_attachment_back">返回</string>
     <string name="schedule_in_1_hour">1 小时后</string>
+    <string name="schedule_this_morning">今早 %1$s</string>
     <string name="schedule_this_evening">今晚 %1$s</string>
     <string name="schedule_tomorrow_morning">明早 %1$s</string>
     <string name="schedule_tomorrow_evening">明晚 %1$s</string>

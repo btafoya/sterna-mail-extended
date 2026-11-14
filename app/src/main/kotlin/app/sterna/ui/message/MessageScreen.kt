@@ -4989,6 +4989,7 @@ internal fun snoozePresets(context: android.content.Context): List<Pair<String, 
             val hour = time.format(java.util.Date(millis))
             val label = when (preset) {
                 SnoozePreset.IN_1_HOUR -> context.getString(R.string.schedule_in_1_hour)
+                SnoozePreset.THIS_MORNING -> context.getString(R.string.schedule_this_morning, hour)
                 SnoozePreset.THIS_EVENING -> context.getString(R.string.schedule_this_evening, hour)
                 SnoozePreset.TOMORROW_MORNING -> context.getString(R.string.schedule_tomorrow_morning, hour)
                 SnoozePreset.NEXT_WEEK -> context.getString(R.string.snooze_next_week, hour)

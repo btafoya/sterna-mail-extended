@@ -665,11 +665,11 @@ internal fun scheduledHoldLabel(
 )
 
 /** The quick "send later" choices in menu order; [LAST_PICKED] comes from [lastPickedPresetMillis]. */
-internal enum class SchedulePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING, LAST_PICKED }
+internal enum class SchedulePreset { IN_1_HOUR, THIS_MORNING, THIS_EVENING, TOMORROW_MORNING, TOMORROW_EVENING, LAST_PICKED }
 
 /**
  * The presets still offerable at [nowMillis], read in [zone], in menu order, those strictly in the
- * future. Pure, so the 6 PM boundary can be played without moving the bench's clock.
+ * future. Pure, so the 8 AM and 6 PM boundaries can be played without moving the bench's clock.
  *
  * A lapsed candidate is dropped, never folded to the next day: folding corrected the instant and
  * left the label, so past 6 PM "This evening, 6 PM" scheduled TOMORROW and duplicated the entry below.
@@ -679,6 +679,7 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
     fun at(day: ZonedDateTime, hour: Int) = day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
     return listOf(
         SchedulePreset.IN_1_HOUR to now.plusHours(1),
+        SchedulePreset.THIS_MORNING to at(now, 8),
         SchedulePreset.THIS_EVENING to at(now, 18),
         SchedulePreset.TOMORROW_MORNING to at(now.plusDays(1), 8),
         SchedulePreset.TOMORROW_EVENING to at(now.plusDays(1), 18),
@@ -686,13 +687,14 @@ internal fun schedulePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<Schedul
         .map { (preset, time) -> preset to time.toInstant().toEpochMilli() }
 }
 
-internal enum class SnoozePreset { IN_1_HOUR, THIS_EVENING, TOMORROW_MORNING, NEXT_WEEK }
+internal enum class SnoozePreset { IN_1_HOUR, THIS_MORNING, THIS_EVENING, TOMORROW_MORNING, NEXT_WEEK }
 
 internal fun snoozePresetsAt(nowMillis: Long, zone: ZoneId): List<Pair<SnoozePreset, Long>> {
     val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
     fun at(day: ZonedDateTime, hour: Int) = day.withHour(hour).withMinute(0).withSecond(0).withNano(0)
     return listOf(
         SnoozePreset.IN_1_HOUR to now.plusHours(1),
+        SnoozePreset.THIS_MORNING to at(now, 8),
         SnoozePreset.THIS_EVENING to at(now, 18),
         SnoozePreset.TOMORROW_MORNING to at(now.plusDays(1), 8),
         SnoozePreset.NEXT_WEEK to at(now.with(DayOfWeek.MONDAY).plusWeeks(1), 8),
@@ -721,7 +723,7 @@ internal fun presetMillisAtTap(
         schedulePresetsAt(nowMillis, zone).firstOrNull { it.first == preset }?.second
     // Named one by one rather than an `else`: a new preset must not be swallowed into "carry what
     // was drawn" in silence, the compiler has to ask which of the two kinds it is.
-    SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING ->
+    SchedulePreset.THIS_MORNING, SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING ->
         drawnMillis.takeIf { it > nowMillis }
     SchedulePreset.LAST_PICKED -> drawnMillis.takeIf { it > nowMillis }
 }

@@ -22,6 +22,7 @@ class SchedulePresetLabelTest {
     private val words: (Int, String?) -> String = { res, arg ->
         val name = when (res) {
             R.string.schedule_in_1_hour -> "in1h"
+            R.string.schedule_this_morning -> "morning"
             R.string.schedule_this_evening -> "evening"
             R.string.schedule_tomorrow_morning -> "tomorrowMorning"
             R.string.schedule_tomorrow_evening -> "tomorrowEvening"
@@ -53,6 +54,14 @@ class SchedulePresetLabelTest {
         assertEquals(
             "lastUsed(18 Aug 14:30)",
             schedulePresetLabel(SchedulePreset.LAST_PICKED, at, format("HH:mm"), format("d MMM HH:mm"), words),
+        )
+    }
+
+    @Test fun `before 8 AM the list opens with this morning at today's hour`() {
+        val early = ZonedDateTime.of(2026, 8, 18, 5, 0, 0, 0, utc).toInstant().toEpochMilli()
+        assertEquals(
+            listOf("in1h", "morning(08:00)", "evening(18:00)", "tomorrowMorning(08:00)", "tomorrowEvening(18:00)"),
+            schedulePresetsAt(early, utc).map { (preset, millis) -> schedulePresetLabel(preset, millis, format("HH:mm"), format("d MMM HH:mm"), words) },
         )
     }
 }

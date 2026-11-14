@@ -94,6 +94,7 @@
     <string name="compose_forgot_attachment_send">Send anyway</string>
     <string name="compose_forgot_attachment_back">Go back</string>
     <string name="schedule_in_1_hour">In 1 hour</string>
+    <string name="schedule_this_morning">This morning, %1$s</string>
     <string name="schedule_this_evening">This evening, %1$s</string>
     <string name="schedule_tomorrow_morning">Tomorrow, %1$s</string>
     <string name="schedule_tomorrow_evening">Tomorrow, %1$s</string>

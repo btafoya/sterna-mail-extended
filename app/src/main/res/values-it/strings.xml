@@ -85,6 +85,7 @@
     <string name="compose_discard_discard">Elimina</string>
     <string name="compose_discard_cancel">Annulla</string>
     <string name="schedule_in_1_hour">Tra 1 ora</string>
+    <string name="schedule_this_morning">Stamattina, %1$s</string>
     <string name="schedule_this_evening">Stasera, %1$s</string>
     <string name="schedule_tomorrow_morning">Domani, %1$s</string>
     <string name="schedule_tomorrow_evening">Domani, %1$s</string>

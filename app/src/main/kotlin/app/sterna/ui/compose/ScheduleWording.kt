@@ -35,6 +35,7 @@ internal fun schedulePresetLabel(
     words: (res: Int, arg: String?) -> String,
 ): String = when (preset) {
     SchedulePreset.IN_1_HOUR -> words(R.string.schedule_in_1_hour, null)
+    SchedulePreset.THIS_MORNING -> words(R.string.schedule_this_morning, time(millis))
     SchedulePreset.THIS_EVENING -> words(R.string.schedule_this_evening, time(millis))
     SchedulePreset.TOMORROW_MORNING -> words(R.string.schedule_tomorrow_morning, time(millis))
     SchedulePreset.TOMORROW_EVENING -> words(R.string.schedule_tomorrow_evening, time(millis))

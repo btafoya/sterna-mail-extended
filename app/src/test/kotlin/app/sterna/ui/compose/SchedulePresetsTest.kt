@@ -89,4 +89,48 @@ class SchedulePresetsTest {
         assertEquals(millis(paris, 18), parisMorning.first { it.first == SchedulePreset.THIS_EVENING }.second)
         assertEquals(millis(utc, 16), parisMorning.first { it.first == SchedulePreset.THIS_EVENING }.second)
     }
+
+    @Test fun `one minute past midnight offers this morning between in 1 hour and this evening`() {
+        val got = presets(utc, millis(utc, 0, 1))
+        assertEquals(
+            listOf(
+                SchedulePreset.IN_1_HOUR,
+                SchedulePreset.THIS_MORNING,
+                SchedulePreset.THIS_EVENING,
+                SchedulePreset.TOMORROW_MORNING,
+                SchedulePreset.TOMORROW_EVENING,
+            ),
+            got.map { it.first },
+        )
+        assertEquals(millis(utc, 1, 1), got[0].second)
+        assertEquals("this morning is today 8 AM, not tomorrow's", millis(utc, 8), got[1].second)
+        assertEquals(millis(utc, 18), got[2].second)
+        assertEquals(millis(utc, 8, day = 19), got[3].second)
+        assertEquals(millis(utc, 18, day = 19), got[4].second)
+    }
+
+    @Test fun `one milli before 8 AM still offers this morning`() {
+        val got = presets(utc, millis(utc, 7, 59, 59, 999_000_000))
+        assertEquals(millis(utc, 8), got.first { it.first == SchedulePreset.THIS_MORNING }.second)
+        assertEquals(5, got.size)
+    }
+
+    @Test fun `exactly 8 AM drops this morning, removed and not folded`() {
+        val got = presets(utc, millis(utc, 8, 0, 0, 0))
+        assertFalse(
+            "08:00:00.000 is not STRICTLY after 08:00:00.000, so the entry goes",
+            got.any { it.first == SchedulePreset.THIS_MORNING },
+        )
+        assertEquals(
+            listOf(SchedulePreset.IN_1_HOUR, SchedulePreset.THIS_EVENING, SchedulePreset.TOMORROW_MORNING, SchedulePreset.TOMORROW_EVENING),
+            got.map { it.first },
+        )
+    }
+
+    @Test fun `this morning is 8 AM of the zone handed in`() {
+        val tokyo = ZoneId.of("Asia/Tokyo")
+        val instant = millis(tokyo, 5)
+        assertEquals(millis(utc, 23, day = 17), presets(tokyo, instant).first { it.first == SchedulePreset.THIS_MORNING }.second)
+        assertFalse(presets(utc, instant).any { it.first == SchedulePreset.THIS_MORNING })
+    }
 }

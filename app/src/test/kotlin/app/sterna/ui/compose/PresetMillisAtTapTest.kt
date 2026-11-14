@@ -131,4 +131,28 @@ class PresetMillisAtTapTest {
             presetMillisAtTap(SchedulePreset.LAST_PICKED, millis(utc, 14, 30), millis(utc, 14, 30), utc),
         )
     }
+
+    @Test fun `this morning drawn at 7_55 AM and tapped at 8_05 AM is refused`() {
+        assertEquals("at 7:55 AM the menu draws This morning = today 8 AM", millis(utc, 8), drawn(SchedulePreset.THIS_MORNING, millis(utc, 7, 55)))
+        assertNull(
+            "ten minutes later 8 AM is behind the finger: refused, not folded to tomorrow, not sent at once",
+            presetMillisAtTap(SchedulePreset.THIS_MORNING, millis(utc, 8), millis(utc, 8, 5), utc),
+        )
+    }
+
+    @Test fun `this morning tapped before 8 AM carries the drawn instant`() {
+        val drawnAt = drawn(SchedulePreset.THIS_MORNING, millis(utc, 7, 55))
+        assertEquals(drawnAt, presetMillisAtTap(SchedulePreset.THIS_MORNING, drawnAt, millis(utc, 7, 58), utc))
+        val odd = millis(utc, 12, 34, 56, day = 19)
+        assertEquals(
+            "an absolute entry hands back what was drawn, never re-reads the rule",
+            odd,
+            presetMillisAtTap(SchedulePreset.THIS_MORNING, odd, millis(utc, 7, 58), utc),
+        )
+    }
+
+    @Test fun `at 11_50 PM this morning is not offered`() {
+        val got = schedulePresetsAt(millis(utc, 23, 50), utc)
+        assertNull(got.firstOrNull { it.first == SchedulePreset.THIS_MORNING })
+    }
 }

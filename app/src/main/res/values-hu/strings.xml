@@ -94,6 +94,7 @@
     <string name="compose_forgot_attachment_send">Küldés mindenképpen</string>
     <string name="compose_forgot_attachment_back">Vissza</string>
     <string name="schedule_in_1_hour">1 óra múlva</string>
+    <string name="schedule_this_morning">Ma reggel, %1$s</string>
     <string name="schedule_this_evening">Ma este, %1$s</string>
     <string name="schedule_tomorrow_morning">Holnap, %1$s</string>
     <string name="schedule_tomorrow_evening">Holnap, %1$s</string>

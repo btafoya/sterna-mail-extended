@@ -97,4 +97,9 @@ class LastPickedPresetTest {
     @Test fun `no time kept, no fifth entry`() {
         assertNull(project(null, paris(8, 18, 9)))
     }
+
+    @Test fun `8 AM opened at 5 AM is hidden, This morning already says it`() {
+        val now = paris(8, 18, 5)
+        assertNull(project(8 * 60, now))
+    }
 }

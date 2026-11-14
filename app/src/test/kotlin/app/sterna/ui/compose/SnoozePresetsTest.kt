@@ -12,8 +12,9 @@ import org.junit.Test
  * reading the clock, so 6 PM, Sunday and the clock changes are playable on the JVM.
  *
  * Its rule: the candidates strictly in the future, less any whose instant an entry above already
- * offers (at 5 PM sharp the hour is 6 PM; on Sunday next Monday is tomorrow). A lapsed evening is
- * dropped, never folded to tomorrow, since its label names today. "Next week" is the Monday of the
+ * offers (at 7 AM sharp the hour is 8 AM, at 5 PM sharp it is 6 PM; on Sunday next Monday is
+ * tomorrow). A lapsed morning or evening is dropped, never folded to tomorrow, since its label
+ * names today. "Next week" is the Monday of the
  * following ISO week, so on a Monday it is seven days away.
  */
 class SnoozePresetsTest {
@@ -37,6 +38,43 @@ class SnoozePresetsTest {
         // Both are the clock-change days in Paris: 23 and 25 hours long.
         assertEquals(23 * hour, millis(paris, 3, 30, 0) - millis(paris, 3, 29, 0))
         assertEquals(25 * hour, millis(paris, 10, 26, 0) - millis(paris, 10, 25, 0))
+    }
+
+    @Test fun beforeEightAmOnMondayOffersThisMorningAndTheFollowingMonday() {
+        assertEquals(
+            listOf(
+                SnoozePreset.IN_1_HOUR to aug(24, 7),
+                SnoozePreset.THIS_MORNING to aug(24, 8),
+                SnoozePreset.THIS_EVENING to aug(24, 18),
+                SnoozePreset.TOMORROW_MORNING to aug(25, 8),
+                SnoozePreset.NEXT_WEEK to aug(31, 8),
+            ),
+            presets(utc, aug(24, 6)),
+        )
+    }
+
+    @Test fun atSevenAmTheHourIsEightAmSoThisMorningGoesAsADuplicate() {
+        assertEquals(
+            listOf(
+                SnoozePreset.IN_1_HOUR to aug(18, 8),
+                SnoozePreset.THIS_EVENING to aug(18, 18),
+                SnoozePreset.TOMORROW_MORNING to aug(19, 8),
+                SnoozePreset.NEXT_WEEK to aug(24, 8),
+            ),
+            presets(utc, aug(18, 7)),
+        )
+    }
+
+    @Test fun exactlyEightAmIsNotStrictlyFutureSoThisMorningGoes() {
+        assertEquals(
+            listOf(
+                SnoozePreset.IN_1_HOUR to aug(18, 9),
+                SnoozePreset.THIS_EVENING to aug(18, 18),
+                SnoozePreset.TOMORROW_MORNING to aug(19, 8),
+                SnoozePreset.NEXT_WEEK to aug(24, 8),
+            ),
+            presets(utc, aug(18, 8)),
+        )
     }
 
     @Test fun beforeFivePmOffersAllFourInOrder() {
@@ -127,6 +165,7 @@ class SnoozePresetsTest {
         assertEquals(
             listOf(
                 SnoozePreset.IN_1_HOUR to now + hour,
+                SnoozePreset.THIS_MORNING to millis(paris, 3, 29, 8),
                 SnoozePreset.THIS_EVENING to millis(paris, 3, 29, 18),
                 SnoozePreset.TOMORROW_MORNING to millis(paris, 3, 30, 8),
             ),
@@ -147,6 +186,7 @@ class SnoozePresetsTest {
         assertEquals(
             listOf(
                 SnoozePreset.IN_1_HOUR to now + hour,
+                SnoozePreset.THIS_MORNING to millis(paris, 10, 25, 8),
                 SnoozePreset.THIS_EVENING to millis(paris, 10, 25, 18),
                 SnoozePreset.TOMORROW_MORNING to millis(paris, 10, 26, 8),
             ),

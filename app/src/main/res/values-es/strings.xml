@@ -85,6 +85,7 @@
     <string name="compose_discard_discard">Descartar</string>
     <string name="compose_discard_cancel">Cancelar</string>
     <string name="schedule_in_1_hour">En 1 hora</string>
+    <string name="schedule_this_morning">Esta mañana, %1$s</string>
     <string name="schedule_this_evening">Esta tarde, %1$s</string>
     <string name="schedule_tomorrow_morning">Mañana, %1$s</string>
     <string name="schedule_tomorrow_evening">Mañana, %1$s</string>

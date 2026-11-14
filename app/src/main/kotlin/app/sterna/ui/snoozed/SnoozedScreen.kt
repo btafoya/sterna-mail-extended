@@ -116,7 +116,7 @@ fun SnoozedScreen(
                     }
                     // Move the deadline: the very same presets the Snooze action offers, headed
                     // by the deadline in force, so the menu says when it currently comes back
-                    // instead of listing four mute delays.
+                    // instead of a bare list of mute delays.
                     var presetsOpen by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { presetsOpen = true }) {

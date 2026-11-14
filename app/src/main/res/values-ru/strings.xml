@@ -85,6 +85,7 @@
     <string name="compose_discard_discard">Удалить</string>
     <string name="compose_discard_cancel">Отмена</string>
     <string name="schedule_in_1_hour">Через 1 час</string>
+    <string name="schedule_this_morning">Сегодня утром, %1$s</string>
     <string name="schedule_this_evening">Сегодня вечером, %1$s</string>
     <string name="schedule_tomorrow_morning">Завтра, %1$s</string>
     <string name="schedule_tomorrow_evening">Завтра, %1$s</string>
