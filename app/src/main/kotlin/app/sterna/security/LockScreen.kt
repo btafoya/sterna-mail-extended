@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
@@ -40,9 +41,12 @@ import app.sterna.R
 /** The combined authenticators we prompt with: biometric, falling back to pin/pattern/password. */
 private const val AUTHENTICATORS = BIOMETRIC_STRONG or DEVICE_CREDENTIAL
 
+internal fun appLockCheckAuthenticators(sdkInt: Int): Int =
+    if (sdkInt >= Build.VERSION_CODES.R) AUTHENTICATORS else BIOMETRIC_WEAK or DEVICE_CREDENTIAL
+
 /** Whether the device can satisfy an app-lock prompt (a biometric or a screen lock is set up). */
 fun canAuthenticate(context: Context): Boolean =
-    BiometricManager.from(context).canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
+    BiometricManager.from(context).canAuthenticate(appLockCheckAuthenticators(Build.VERSION.SDK_INT)) == BiometricManager.BIOMETRIC_SUCCESS
 
 /**
  * Full-screen lock shown over the app while [AppLock] reports locked. Prompts the
