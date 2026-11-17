@@ -1,6 +1,7 @@
 package app.sterna.ui.inbox
 
 import app.sterna.core.data.account.AccountStore
+import app.sterna.core.data.account.StoredAccount
 import app.sterna.core.jmap.model.Mailbox
 import app.sterna.widget.AllInboxesView
 
@@ -86,6 +87,9 @@ internal fun restoredSelection(store: AccountStore): Sel? = restoreSelection(
 
 /** What the top bar shows: account line, mailbox name, badge count. */
 internal data class Meta(val accountName: String, val mailboxName: String, val unread: Int)
+
+internal fun refreshedAccountLine(refreshed: StoredAccount?, fromServer: String): String =
+    refreshed?.label() ?: fromServer
 
 /** The internal label the unified inbox's [Meta] carries. Never shown as it stands: `InboxScreen`
  *  swaps it for the translated string (`UnifiedTitleWiringLintTest`), so a copy of this literal

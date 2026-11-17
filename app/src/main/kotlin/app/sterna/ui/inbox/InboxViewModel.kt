@@ -1435,7 +1435,7 @@ class InboxViewModel(
             runCatching { FetchAndNotify.onInboxRefreshed(getApplication(), credentials, updated.mailboxId) }
         }
         selection.value = Sel.Folder(updated.mailboxId)
-        meta.value = Meta(updated.accountName, updated.mailboxName, updated.unreadCount)
+        meta.value = Meta(refreshedAccountLine(store.account(credentials.id), updated.accountName), updated.mailboxName, updated.unreadCount)
     }
 
     /**
