@@ -566,8 +566,17 @@ internal fun openedImapEmail(
         // occurrence wins, which for a relay header names the outermost alias, not the hop.
         originalSender = originalSenderHeaderOf(headers),
         authenticationFailures = AuthenticationResults.failuresOf(headers, authservNames),
+        // Off the source only, never a JMAP property nor a Room column, so a list row leaves them null.
+        // The higher of the two names wins: the server prepends its own above any the sender wrote.
+        deliveredAddress = firstHeaderOf(headers, "X-Original-To", "Delivered-To"),
+        listId = firstHeaderOf(headers, "List-Id"),
     )
 }
+
+/** The first occurrence of any of [names]: each relay prepends its own `Delivered-To`, so the first
+ *  is the last hop, the mailbox itself, where `MimeParser.headerOf` would keep the earliest hop. */
+internal fun firstHeaderOf(headers: List<Pair<String, String>>, vararg names: String): String? =
+    headers.firstOrNull { (name, _) -> names.any { name.equals(it, ignoreCase = true) } }?.second?.trim()
 
 private fun headerIds(value: String?): List<String> {
     if (value.isNullOrBlank()) return emptyList()

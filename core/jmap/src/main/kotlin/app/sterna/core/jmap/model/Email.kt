@@ -120,6 +120,8 @@ data class Email(
          */
     val originalSender: String? = null,
     val authenticationFailures: List<String>? = null,
+    val deliveredAddress: String? = null,
+    val listId: String? = null,
 ) {
     /** Whether the message has been read ($seen keyword). */
     val isSeen: Boolean get() = keywords["\$seen"] == true

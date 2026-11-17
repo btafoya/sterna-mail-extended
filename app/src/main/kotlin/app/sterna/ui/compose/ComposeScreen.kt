@@ -207,6 +207,7 @@ fun ComposeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val prefill by viewModel.prefill.collectAsStateWithLifecycle()
     val replyQuote by viewModel.replyQuote.collectAsStateWithLifecycle()
+    val droppedRecipient by viewModel.droppedRecipient.collectAsStateWithLifecycle()
     val forwardedPreview by viewModel.forwardedPreview.collectAsStateWithLifecycle()
     val attachments by viewModel.attachments.collectAsStateWithLifecycle()
     val attachmentStatus by viewModel.attachmentStatus.collectAsStateWithLifecycle()
@@ -635,6 +636,16 @@ fun ComposeScreen(
         }
         // No consume on the third way out (the quote came back before the header prefill landed):
         // nothing has posted it and nothing has announced it, so retiring it there would lose it.
+    }
+
+    LaunchedEffect(droppedRecipient, applied) {
+        val address = droppedRecipient ?: return@LaunchedEffect
+        if (!applied) return@LaunchedEffect
+        to = recipientsWithout(to, address)
+        cc = recipientsWithout(cc, address)
+        initialTo = recipientsWithout(initialTo, address)
+        initialCc = recipientsWithout(initialCc, address)
+        viewModel.consumeDroppedRecipient()
     }
 
     // Which of the three screens a reopened draft gets. Taken here because it needs `applied`: once

@@ -219,6 +219,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
     private val _replyQuote = MutableStateFlow<String?>(null)
     val replyQuote: StateFlow<String?> = _replyQuote.asStateFlow()
 
+    private val _droppedRecipient = MutableStateFlow<String?>(null)
+    val droppedRecipient: StateFlow<String?> = _droppedRecipient.asStateFlow()
+
     private val _attachments = MutableStateFlow<List<EmailBodyPart>>(emptyList())
     val attachments: StateFlow<List<EmailBodyPart>> = _attachments.asStateFlow()
 
@@ -428,6 +431,10 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
      */
     fun consumeReplyQuote() {
         _replyQuote.value = null
+    }
+
+    fun consumeDroppedRecipient() {
+        _droppedRecipient.value = null
     }
 
     /** The identity's plain-text signature, with a legacy raw-HTML one flattened first. */
@@ -846,19 +853,17 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         (_selectedFrom.value?.accountId ?: accountId)?.let { store.credentials(it) } ?: store.load()
 
     /**
-     * Every address that IS the user on this account: the login plus each of its identities.
+     * Every address that IS the user on this account: the login, its identities, a passing From.
      */
     private fun selves(credentials: AccountCredentials): Set<String> =
-        (listOf(credentials.username) + store.identities(credentials.id).map { it.email })
-            .map { it.trim().lowercase() }
-            .filter { it.isNotEmpty() }
-            .toSet()
+        replyingSelves(credentials.username, store.identities(credentials.id), _fromOptions.value, credentials.id)
 
     /**
      * Reply/forward from the address the original was addressed to (#81): pre-select [accountId]'s
      */
     private fun preselectReceivingIdentity(accountId: String, original: Email) {
-        receivingFromOption(_fromOptions.value, accountId, original)?.let { option ->
+        receivingOrPassingFromOption(_fromOptions.value, store.account(accountId), original)?.let { option ->
+            _fromOptions.value = withFromOption(_fromOptions.value, option)
             if (option != _selectedFrom.value) {
                 _selectedFrom.value = option
                 refreshPgp()
@@ -1069,10 +1074,11 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             forwarded = ForwardedBlocks(d.forwardedText, d.forwardedHtml)
         }
         _forwardedPreview.value = forwardedPreview(opening = null, forwarded, failed = false)
-        val match = options.firstOrNull {
-            it.accountId == d.fromAccountId && it.identity.email == d.fromIdentityEmail
-        } ?: options.firstOrNull { it.accountId == d.fromAccountId }
-        if (match != null) _selectedFrom.value = match
+        val match = reopenedQueuedRowFrom(options, d.fromAccountId, d.fromAccountId?.let { store.account(it) }, d.fromIdentityEmail)
+        if (match != null) {
+            _fromOptions.value = withFromOption(_fromOptions.value, match)
+            _selectedFrom.value = match
+        }
         editingDraftId = d.draftEmailId
         // …with the numbering that id was frozen under, carried by the outbox row through the queue
         // and back (#99). Restored rather than re-read: looking it up again would answer the number a
@@ -1390,6 +1396,8 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
 
+            val fromAtCache = _selectedFrom.value
+
             // Then, in the background, fetch the full original, only to enrich the body. This is the
             // call that stalls offline, which is why the headers above did not wait on it.
             val fetched = runCatching { repo.fetchEmail(credentials, replyToId) }.getOrNull()
@@ -1412,6 +1420,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // The fetched original has the complete To and Cc, so it can settle the sending identity
             // the cached row could not (#81). Still before any body is rebuilt below.
             preselectReceivingIdentity(credentials.id, original)
+            _droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value)
 
             if (opening.carriesOriginal) {
                 // A forward's editable body stays empty; the original is carried at send time. Its
@@ -1547,10 +1556,9 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         // The address the draft was written as, so a delegated sub-account's draft reopens under the
         // identity it will send as and not under the login's (#31).
         fields.fromEmail?.let { written ->
-            _fromOptions.value.firstOrNull {
-                it.accountId == credentials.id && it.identity.email.equals(written, ignoreCase = true)
-            }
+            reopenedLocalDraftFrom(_fromOptions.value, credentials.id, store.account(credentials.id), written)
         }?.let {
+            _fromOptions.value = withFromOption(_fromOptions.value, it)
             _selectedFrom.value = it
             refreshPgp()
         }
