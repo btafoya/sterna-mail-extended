@@ -4718,7 +4718,9 @@ internal fun buildHtmlDocument(
     // painted by us, in the app's own colours, and inverting that page would give dark text on a
     // light band, the "white band in dark theme" bug seen from the other side.
     val richHtml = body.richHtml
-    if (theme.dark && richHtml) {
+    // On the message's own fragment, not `inner`: the spacers and the quote fold are ours.
+    val darkPage = if (theme.dark && richHtml) declaredDarkPageBackground(body.fragment) else null
+    if (theme.dark && richHtml && darkPage == null) {
         // Rich HTML carries its own (usually white) backgrounds we cannot restyle reliably, so render
         // it light and invert the whole page. The filter must sit on the root <html>: marketing emails
         // are full documents and the parser hoists their <body> out of any wrapper <div>, so a div
@@ -4765,13 +4767,14 @@ internal fun buildHtmlDocument(
             </style></head><body>${wrapEmoji(inner)}</body></html>
         """.trimIndent()
     }
-    // Plain/simple text (or light mode): paint with the resolved theme colours directly,
-    // so the body's background matches the app surface (no seam below the message).
-    val bg = theme.background
-    val fg = theme.text
-    val link = theme.link
-    // Rich HTML reaches here only in light theme: pin it to its light design, so a
-    // prefers-color-scheme:dark email does not render dark on a dark-mode device.
+    // Plain text, light mode, or a page dark by its own design (#302): the theme colours, so no seam
+    // shows below the message, or the page's own colour, so the bottom spacer cuts no band under it.
+    val bg = darkPage?.let(::cssHex) ?: theme.background
+    val bodyColours = darkPage?.let { declaredBodyColours(body.fragment) }
+    val fg = bodyColours?.text?.let(::cssHex) ?: theme.text
+    val link = bodyColours?.link?.let(::cssHex) ?: theme.link
+    // Rich HTML is pinned to its light design, so a prefers-color-scheme:dark email does not render
+    // its dark variant on a dark-mode device; a page dark by its own design is that light design.
     val colorScheme = if (richHtml) "only light" else if (theme.dark) "dark" else "light"
     return """
         <!DOCTYPE html><html><head>
