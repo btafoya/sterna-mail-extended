@@ -5,13 +5,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Source lint on `ManageSieveClient.converse`. No JVM test reaches its TLS branch, having no
- * certificate, so what happens around the handshake is proved by the text: the hostname check
- * before `startHandshake`, `AUTHENTICATE` after it, and the capabilities that decide `PLAIN` read
- * after it too. The rest of the dialogue runs for real in [ManageSieveClientTest], through the test
- * transport, which sends and answers `STARTTLS` and skips only the handshake.
+ * Source lint on `ManageSieveClient.converse`. Its TLS branch is executed by
+ * [ManageSieveTlsTest], against a test certificate passed through the `internal` `tlsFactory`
+ * seam. That test proves only that the public constructor's factory refuses the fixture, which
+ * any factory but the fixture's would; so this lint requires the class's only factory value to be
+ * `SSLSocketFactory.getDefault()` and the public constructor to pass none. What an executed
+ * handshake does not prove is still pinned by the text: the clear response dropped before the
+ * socket is wrapped, the hostname check before `startHandshake`, `AUTHENTICATE` after it, and the
+ * capabilities that decide `PLAIN` asked for after it too, by `requestCapabilities`. The rest of the dialogue runs for real in
+ * [ManageSieveClientTest], through the test transport, which sends and answers `STARTTLS` and skips
+ * only the handshake, and drops nothing written in the clear.
  *
- * The opening of the connection, from the socket to the capabilities re-read after the handshake, is
+ * The opening of the connection, from the socket to the capabilities asked for after the handshake, is
  * pinned as an exact list of consecutive lines: nothing can be inserted into it, a line that loosens
  * the socket's `sslParameters` between the hostname check and the handshake included. Other rules
  * find their candidate lines by a fragment, then require those lines, whole, to be exactly the
@@ -20,18 +25,20 @@ import org.junit.Test
  * What it does not cover:
  * - Textual order is not execution order. A pinned line moved into a `catch`, a lambda or a branch
  *   keeps its position in the file; the rules read positions.
- * - It proves the TLS branch is written, never that it works: a handshake against a real certificate
- *   is a device test.
+ * - A handshake against a server's real certificate chain and the platform's trust store is a
+ *   device test: the JVM test trusts its fixture alone.
  * - `verifyingHostname` is `ImapClient`'s, and its body is not read here. Neither are the values of
- *   the two delay constants, only where they go.
+ *   the three delay constants, only where they go; nor is the body of `discardClearResponse`, whose
+ *   first-octet delay is executed by [ManageSieveTlsTest]. Nor is `requestCapabilities`: what it
+ *   sends and when it stops reading are executed by `ManageSieveClientTest`.
  * - Lines starting with `//` are dropped before the exact list is compared, so a comment may change
  *   freely; a commented-out statement still fails, being missing.
  * - The `AUTHENTICATE` rule looks for the verb in one string literal of `ManageSieveClient.kt`; the
  *   verb assembled from pieces escapes it. The `authenticatePlain` rule reads every shipped file of
  *   `core:imap` (the wire class is `internal`, no other module can reach it) and looks for the name
  *   followed by `(`: a callable reference `SieveWire::authenticatePlain` escapes it.
- * - Whether the public constructor picks the handshake is not read here: `ManageSieveClientTest`
- *   executes it.
+ * - The public constructor is pinned as `constructor() : this(SieveTransport.STARTTLS)`, a text:
+ *   that it reaches the handshake at run time is executed by `ManageSieveClientTest`.
  */
 class ManageSieveStartTlsLintTest {
 
@@ -74,6 +81,7 @@ class ManageSieveStartTlsLintTest {
             "if (!clearCapabilities.startTls) throw insecure(\"the server does not offer STARTTLS\")",
             "wire.command(\"STARTTLS\").requireOk(\"STARTTLS\")",
             "if (transport == SieveTransport.STARTTLS) {",
+            "wire.discardClearResponse(MANAGESIEVE_CLEAR_AFTER_STARTTLS_MS, commandTimeout)",
             "val secure = tlsFactory.createSocket(plain, host, port, true) as SSLSocket",
             "secure.verifyingHostname()",
             "secure.soTimeout = commandTimeout",
@@ -81,7 +89,7 @@ class ManageSieveStartTlsLintTest {
             "socket = secure",
             "wire = SieveWire(secure)",
             "}",
-            "val tlsCapabilities = readCapabilities(wire)",
+            "val tlsCapabilities = requestCapabilities(wire)",
         )
         val code = body.filterNot { it.startsWith("//") }
 
@@ -132,12 +140,17 @@ class ManageSieveStartTlsLintTest {
         )
         assertEquals(
             listOf(
+                "internal val tlsFactory: SSLSocketFactory = platformTlsFactory,",
                 "val secure = tlsFactory.createSocket(plain, host, port, true) as SSLSocket",
-                "val tlsFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory",
+                "val platformTlsFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory",
             ),
             ImapSource.fileLines("ManageSieveClient").filter {
-                ("tlsFactory" in it || "SSLSocketFactory" in it) && !it.startsWith("import ")
+                ("tlsFactory" in it || "TlsFactory" in it || "SSLSocketFactory" in it) && !it.startsWith("import ")
             },
+        )
+        assertEquals(
+            listOf("constructor() : this(SieveTransport.STARTTLS)"),
+            ImapSource.fileLines("ManageSieveClient").filter { it.startsWith("constructor(") },
         )
     }
 
@@ -172,20 +185,21 @@ class ManageSieveStartTlsLintTest {
     }
 
     @Test
-    fun `PLAIN is decided on the capabilities re-read after STARTTLS, and the clear ones decide only STARTTLS`() {
+    fun `PLAIN is decided on the capabilities asked for after STARTTLS, and the clear ones decide only STARTTLS`() {
         val clearRead = onlyIndexOf("val clearCapabilities = readCapabilities(wire)")
         val startTlsCheck = onlyIndexOf("if (!clearCapabilities.startTls) throw insecure(\"the server does not offer STARTTLS\")")
-        val tlsRead = onlyIndexOf("val tlsCapabilities = readCapabilities(wire)")
+        val tlsRead = onlyIndexOf("val tlsCapabilities = requestCapabilities(wire)")
         val plainCheck = onlyIndexOf("if (!tlsCapabilities.offersPlain) throw insecure(\"the server does not offer PLAIN over TLS\")")
         val session = onlyIndexOf("val session = ManageSieveSession(wire, tlsCapabilities)")
 
         assertOnlyLines("clearCapabilities", clearRead, startTlsCheck)
         assertOnlyLines("tlsCapabilities", tlsRead, plainCheck, session)
-        assertOnlyLines("readCapabilities", clearRead, tlsRead)
+        assertOnlyLines("readCapabilities", clearRead)
+        assertOnlyLines("requestCapabilities", tlsRead)
         assertOnlyLines("offersPlain", plainCheck)
         val order = listOf(clearRead, startTlsCheck, startTlsCommand, handshake, rebind, tlsRead, plainCheck, authenticate, session)
         assertEquals(
-            "not in the order clear read, STARTTLS check, STARTTLS, handshake, new wire, re-read, PLAIN check, " +
+            "not in the order clear read, STARTTLS check, STARTTLS, handshake, new wire, capabilities asked, PLAIN check, " +
                 "AUTHENTICATE, session: $order\n" + dump(),
             order.sorted(),
             order,

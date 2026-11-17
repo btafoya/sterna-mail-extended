@@ -5,11 +5,18 @@ import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.KeyStore
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.TrustManagerFactory
 
 /** One command as the fake server received it: its text with each literal header left in place, and each literal's octets. */
 internal class SieveCommand(val line: String, val literals: List<ByteArray>) {
@@ -27,8 +34,12 @@ internal class SieveCommand(val line: String, val literals: List<ByteArray>) {
 /**
  * A one-connection, scripted ManageSieve server on loopback, the sibling of [FakeSmtpServer]. The
  * client under test runs [SieveTransport.STARTTLS_WITHOUT_HANDSHAKE_FOR_TESTS]: `STARTTLS` is
- * offered, sent and answered, then both sides carry on in the clear, and the capabilities are
- * re-issued as RFC 5804 §2.2 has a server do after its handshake.
+ * offered, sent and answered, then both sides carry on in the clear. By default the capabilities
+ * are re-issued as RFC 5804 §2.2 has a server do after its handshake, and `NOOP` answers with the
+ * `TAG` of its argument; [reissueAfterStartTls] and [answersNoop] turn each off.
+ *
+ * With [tls], it does the handshake for real after its `OK` to `STARTTLS`, as the server side, on
+ * [SieveTestCertificate], and the client under test runs [SieveTransport.STARTTLS] through [tlsSession].
  *
  * It reads a literal exactly as announced, `n` octets, and requires what follows them to end the
  * command or start another argument. A length counted in characters leaves octets over, and the
@@ -45,6 +56,19 @@ internal class FakeSieveServer(
     private val respond: (SieveCommand) -> List<String>? = { null },
     /** Accept the connection and never send the greeting. */
     private val mute: Boolean = false,
+    /** `false`: after its `OK` to STARTTLS the server says nothing until the next command, as Apache ManageSieve does. */
+    private val reissueAfterStartTls: Boolean = true,
+    /** `false`: `NOOP` is an unknown command, answered `NO`. */
+    private val answersNoop: Boolean = true,
+    /** The tag of a `NOOP` sent back as a literal, `OK (TAG {6}` CRLF `sterna) "DONE"`, as Apache ManageSieve does. */
+    private val tagAsLiteral: Boolean = false,
+    /** After its `OK` to `STARTTLS`, wrap the connection in TLS as the server side. */
+    private val tls: Boolean = false,
+    /**
+     * With [tls], written in the clear after the `OK` to `STARTTLS` and before the handshake: each
+     * entry is a pause in milliseconds, then lines sent in their own write and flush.
+     */
+    private val clearAfterStartTls: List<Pair<Long, List<String>>> = emptyList(),
 ) : Closeable {
 
     private val server = ServerSocket(0, 1, InetAddress.getLoopbackAddress())
@@ -73,8 +97,8 @@ internal class FakeSieveServer(
         runCatching {
             server.accept().use { socket ->
                 accepted = socket
-                val input = BufferedInputStream(socket.inputStream)
-                val output = socket.outputStream
+                var input: InputStream = BufferedInputStream(socket.inputStream)
+                var output: OutputStream = socket.outputStream
                 fun reply(lines: List<String>) {
                     lines.forEach { output.write("$it\r\n".toByteArray(Charsets.UTF_8)) }
                     output.flush()
@@ -99,7 +123,36 @@ internal class FakeSieveServer(
                     }
                     val names = command.quotedArguments
                     when (command.verb) {
-                        "STARTTLS" -> reply(listOf("OK \"begin TLS negotiation now\"") + tlsCapabilities + "OK \"TLS negotiated\"")
+                        "STARTTLS" -> if (tls) {
+                            reply(listOf("OK \"begin TLS negotiation now\""))
+                            for ((pauseMs, lines) in clearAfterStartTls) {
+                                Thread.sleep(pauseMs)
+                                reply(lines)
+                            }
+                            val secure = SieveTestCertificate.serverContext.socketFactory
+                                .createSocket(socket, null, true) as SSLSocket
+                            secure.useClientMode = false
+                            secure.startHandshake()
+                            input = BufferedInputStream(secure.inputStream)
+                            output = secure.outputStream
+                            if (reissueAfterStartTls) reply(tlsCapabilities + "OK \"TLS negotiated\"")
+                        } else {
+                            reply(
+                                listOf("OK \"begin TLS negotiation now\"") +
+                                    if (reissueAfterStartTls) tlsCapabilities + "OK \"TLS negotiated\"" else emptyList(),
+                            )
+                        }
+                        "NOOP" -> {
+                            val tag = names.firstOrNull()
+                            reply(
+                                when {
+                                    !answersNoop -> listOf("NO \"unknown command\"")
+                                    tag == null -> listOf("OK \"NOOP completed\"")
+                                    tagAsLiteral -> listOf("OK (TAG {${tag.toByteArray(Charsets.UTF_8).size}}", "$tag) \"DONE\"")
+                                    else -> listOf("OK (TAG \"$tag\") \"DONE\"")
+                                },
+                            )
+                        }
                         "CAPABILITY" -> reply(tlsCapabilities + "OK")
                         "AUTHENTICATE" -> reply(listOf("OK \"logged in\""))
                         "LISTSCRIPTS" -> reply(
@@ -180,9 +233,15 @@ internal class FakeSieveServer(
     }
 
     /** Runs [block] in a session against this server, through the test transport. */
-    fun <T> session(block: ManageSieveSession.() -> T): T = runBlocking {
+    fun <T> session(commandTimeoutMs: Int = MANAGESIEVE_COMMAND_TIMEOUT_MS, block: ManageSieveSession.() -> T): T = runBlocking {
         ManageSieveClient(SieveTransport.STARTTLS_WITHOUT_HANDSHAKE_FOR_TESTS)
-            .session(host, port, USER, PASSWORD, block = block)
+            .session(host, port, USER, PASSWORD, commandTimeoutMs = commandTimeoutMs, block = block)
+    }
+
+    /** Runs [block] in a session against this server over real TLS, trusting [SieveTestCertificate] only. */
+    fun <T> tlsSession(commandTimeoutMs: Int = MANAGESIEVE_COMMAND_TIMEOUT_MS, block: ManageSieveSession.() -> T): T = runBlocking {
+        ManageSieveClient(SieveTransport.STARTTLS, SieveTestCertificate.clientFactory)
+            .session(host, port, USER, PASSWORD, commandTimeoutMs = commandTimeoutMs, block = block)
     }
 
     override fun close() {
@@ -213,5 +272,35 @@ internal class FakeSieveServer(
 
         private const val MISMATCH = "<literal-mismatch>"
         private val LITERAL_HEADER = Regex("""\{(\d+)\+?}$""")
+    }
+}
+
+/**
+ * A self-signed certificate for `localhost` and `127.0.0.1`, valid until 2126. It is a test
+ * fixture and not a secret: its key protects nothing.
+ */
+internal object SieveTestCertificate {
+    private const val RESOURCE = "/managesieve-localhost.p12"
+    private val PASSWORD = "fixture".toCharArray()
+
+    private val keyStore: KeyStore by lazy {
+        KeyStore.getInstance("PKCS12").apply {
+            load(checkNotNull(SieveTestCertificate::class.java.getResourceAsStream(RESOURCE)) { "missing $RESOURCE" }, PASSWORD)
+        }
+    }
+
+    val serverContext: SSLContext by lazy {
+        val keys = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()).apply { init(keyStore, PASSWORD) }
+        SSLContext.getInstance("TLS").apply { init(keys.keyManagers, null, null) }
+    }
+
+    /** Trusts this certificate and nothing else, the platform's authorities included. */
+    val clientFactory: SSLSocketFactory by lazy {
+        val trusted = KeyStore.getInstance("PKCS12").apply {
+            load(null, null)
+            setCertificateEntry("fixture", keyStore.getCertificate("localhost"))
+        }
+        val trust = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()).apply { init(trusted) }
+        SSLContext.getInstance("TLS").apply { init(null, trust.trustManagers, null) }.socketFactory
     }
 }

@@ -129,7 +129,7 @@ class ManageSieveClientTest {
             server.awaitDone()
 
             assertEquals(ManageSieveException.Kind.INSECURE, error.kind)
-            assertEquals(listOf("STARTTLS"), server.verbs())
+            assertEquals(listOf("STARTTLS", "CAPABILITY", "NOOP"), server.verbs())
         }
     }
 
@@ -139,7 +139,7 @@ class ManageSieveClientTest {
             val capabilities = server.session { capabilities }
             server.awaitDone()
 
-            assertEquals(listOf("STARTTLS", "AUTHENTICATE", "LOGOUT"), server.verbs())
+            assertEquals(listOf("STARTTLS", "CAPABILITY", "NOOP", "AUTHENTICATE", "LOGOUT"), server.verbs())
             assertEquals(listOf("PLAIN"), capabilities.saslMechanisms)
             assertFalse("the capabilities kept are the clear ones", capabilities.startTls)
             val (mechanism, payload) = server.commands.single { it.verb == "AUTHENTICATE" }.quotedArguments
@@ -149,6 +149,124 @@ class ManageSieveClientTest {
                 "$nul${FakeSieveServer.USER}$nul${FakeSieveServer.PASSWORD}",
                 String(Base64.getDecoder().decode(payload), Charsets.UTF_8),
             )
+        }
+    }
+
+    @Test
+    fun `a server silent after STARTTLS until asked, as Apache ManageSieve is, opens the session`() {
+        FakeSieveServer(scripts = mapOf("sterna" to "keep;"), active = "sterna", reissueAfterStartTls = false).use { server ->
+            val listed = server.session(commandTimeoutMs = 1_000) { listScripts() }
+            server.awaitDone()
+
+            assertEquals(listOf(SieveScriptInfo("sterna", true)), listed)
+            assertEquals(listOf("STARTTLS", "CAPABILITY", "NOOP", "AUTHENTICATE", "LISTSCRIPTS", "LOGOUT"), server.verbs())
+        }
+    }
+
+    @Test
+    fun `CAPABILITY and the tagged NOOP leave in one write, the NOOP carrying the tag the client waits for`() {
+        FakeSieveServer(reissueAfterStartTls = false).use { server ->
+            server.session(commandTimeoutMs = 1_000) { capabilities }
+            server.awaitDone()
+
+            val noop = server.commands.single { it.verb == "NOOP" }
+            assertEquals(listOf("sterna"), noop.quotedArguments)
+        }
+    }
+
+    @Test
+    fun `against a server that re-issues and answers both commands, AUTHENTICATE reads its own answer`() {
+        FakeSieveServer(
+            respond = { if (it.verb == "AUTHENTICATE") listOf("NO \"Authentication failed\"") else null },
+        ).use { server ->
+            val error = assertThrows(ManageSieveException::class.java) { server.session { listScripts() } }
+            server.awaitDone()
+
+            assertEquals("a stale OK was read as the answer to AUTHENTICATE", ManageSieveException.Kind.REFUSED, error.kind)
+            assertEquals("Authentication failed", error.serverText)
+            assertEquals(1, server.verbs().count { it == "AUTHENTICATE" })
+        }
+        FakeSieveServer(scripts = mapOf("sterna" to "keep;", "vacation" to "keep;"), active = "vacation").use { server ->
+            val listed = server.session { listScripts() }
+
+            assertEquals(listOf(SieveScriptInfo("sterna", false), SieveScriptInfo("vacation", true)), listed)
+            assertEquals(1, server.verbs().count { it == "AUTHENTICATE" })
+        }
+    }
+
+    @Test
+    fun `a server without NOOP refuses it, and the refusal ends the wait`() {
+        for (reissues in listOf(true, false)) {
+            FakeSieveServer(scripts = mapOf("sterna" to "keep;"), answersNoop = false, reissueAfterStartTls = reissues).use { server ->
+                val listed = server.session(commandTimeoutMs = 1_000) { listScripts() }
+
+                assertEquals("re-issues: $reissues", listOf(SieveScriptInfo("sterna", false)), listed)
+            }
+        }
+    }
+
+    @Test
+    fun `the NOOP tag sent back as a literal is recognised`() {
+        for (reissues in listOf(true, false)) {
+            FakeSieveServer(scripts = mapOf("sterna" to "keep;"), tagAsLiteral = true, reissueAfterStartTls = reissues).use { server ->
+                val listed = server.session(commandTimeoutMs = 1_000) { listScripts() }
+
+                assertEquals("re-issues: $reissues", listOf(SieveScriptInfo("sterna", false)), listed)
+            }
+        }
+    }
+
+    @Test
+    fun `an OK tagged with another tag does not end the wait`() {
+        FakeSieveServer(
+            reissueAfterStartTls = false,
+            respond = { if (it.verb == "NOOP") listOf("OK (TAG \"other\") \"DONE\"") else null },
+        ).use { server ->
+            val error = assertThrows(ManageSieveException::class.java) { server.session(commandTimeoutMs = 1_000) { listScripts() } }
+
+            assertEquals(ManageSieveException.Kind.UNREACHABLE, error.kind)
+            assertFalse("AUTHENTICATE went out on a wrong tag: ${server.commands}", "AUTHENTICATE" in server.verbs())
+        }
+    }
+
+    @Test
+    fun `PLAIN is decided on the last capability block, not on the re-issue before it`() {
+        val tlsWithoutPlain = FakeSieveServer.TLS_CAPABILITIES.map { if (it.startsWith("\"SASL\"")) "\"SASL\" \"SCRAM-SHA-256\"" else it }
+        FakeSieveServer(
+            respond = { if (it.verb == "CAPABILITY") tlsWithoutPlain + "OK" else null },
+        ).use { server ->
+            val error = assertThrows(ManageSieveException::class.java) { server.session { listScripts() } }
+            server.awaitDone()
+
+            assertEquals(ManageSieveException.Kind.INSECURE, error.kind)
+            assertFalse("AUTHENTICATE reached the server: ${server.commands}", "AUTHENTICATE" in server.verbs())
+        }
+    }
+
+    @Test
+    fun `a BYE while waiting for the capabilities is unreachable`() {
+        FakeSieveServer(
+            reissueAfterStartTls = false,
+            respond = { if (it.verb == "CAPABILITY") listOf("BYE \"going away\"") else null },
+        ).use { server ->
+            val error = assertThrows(ManageSieveException::class.java) { server.session(commandTimeoutMs = 1_000) { listScripts() } }
+
+            assertEquals(ManageSieveException.Kind.UNREACHABLE, error.kind)
+            assertTrue("not stopped as a protocol error: ${error.message}", "not a ManageSieve response" in error.message.orEmpty())
+            assertFalse("AUTHENTICATE went out after a BYE: ${server.commands}", "AUTHENTICATE" in server.verbs())
+        }
+    }
+
+    @Test
+    fun `more than three responses without the NOOP's is unreachable`() {
+        FakeSieveServer(
+            respond = { if (it.verb == "NOOP") listOf("OK", "OK", "OK (TAG \"sterna\") \"DONE\"") else null },
+        ).use { server ->
+            val error = assertThrows(ManageSieveException::class.java) { server.session(commandTimeoutMs = 1_000) { listScripts() } }
+
+            assertEquals(ManageSieveException.Kind.UNREACHABLE, error.kind)
+            assertTrue("not stopped as a protocol error: ${error.message}", "not a ManageSieve response" in error.message.orEmpty())
+            assertFalse("AUTHENTICATE went out without the NOOP's answer: ${server.commands}", "AUTHENTICATE" in server.verbs())
         }
     }
 

@@ -10,6 +10,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -21,6 +22,13 @@ internal const val MANAGESIEVE_CONNECT_TIMEOUT_MS = 5_000
 
 /** One command's answer. The slowest is `PUTSCRIPT`, where the server compiles the script. */
 internal const val MANAGESIEVE_COMMAND_TIMEOUT_MS = 15_000
+
+/**
+ * How long the first octet of a response written in the clear after the `OK` to `STARTTLS` is
+ * waited for, as Apache ManageSieve writes one. Every handshake on a server that writes nothing pays
+ * this once.
+ */
+internal const val MANAGESIEVE_CLEAR_AFTER_STARTTLS_MS = 300
 
 /**
  * Above this a literal is not a Sieve script but a server (or something else on port 4190) about to
@@ -85,7 +93,11 @@ internal enum class SieveTransport {
 }
 
 /** A ManageSieve (RFC 5804) client. One connection per [session] call, closed before it returns. */
-class ManageSieveClient internal constructor(internal val transport: SieveTransport) {
+class ManageSieveClient internal constructor(
+    internal val transport: SieveTransport,
+    /** A test seam: a factory that trusts the test certificate. `internal`, so no other module can pass one. */
+    internal val tlsFactory: SSLSocketFactory = platformTlsFactory,
+) {
 
     constructor() : this(SieveTransport.STARTTLS)
 
@@ -110,8 +122,8 @@ class ManageSieveClient internal constructor(internal val transport: SieveTransp
     /**
      * Credentials leave only over TLS, and only to a server that offered `PLAIN` over TLS. The
      * capabilities read in the clear are used for one thing, whether `STARTTLS` exists, and are then
-     * dropped: RFC 5804 §2.2 has the server re-issue them after the handshake, and anything a
-     * man-in-the-middle stripped or added before it must not decide what happens next.
+     * dropped: those that decide what happens next are read again over TLS, since anything a
+     * man-in-the-middle stripped or added before the handshake must not decide it.
      */
     private fun <T> converse(
         host: String,
@@ -132,6 +144,7 @@ class ManageSieveClient internal constructor(internal val transport: SieveTransp
             if (!clearCapabilities.startTls) throw insecure("the server does not offer STARTTLS")
             wire.command("STARTTLS").requireOk("STARTTLS")
             if (transport == SieveTransport.STARTTLS) {
+                wire.discardClearResponse(MANAGESIEVE_CLEAR_AFTER_STARTTLS_MS, commandTimeout)
                 val secure = tlsFactory.createSocket(plain, host, port, true) as SSLSocket
                 secure.verifyingHostname()
                 // A socket option does not travel to the wrapping socket, and the handshake reads.
@@ -140,7 +153,7 @@ class ManageSieveClient internal constructor(internal val transport: SieveTransp
                 socket = secure
                 wire = SieveWire(secure)
             }
-            val tlsCapabilities = readCapabilities(wire)
+            val tlsCapabilities = requestCapabilities(wire)
             if (!tlsCapabilities.offersPlain) throw insecure("the server does not offer PLAIN over TLS")
             wire.authenticatePlain(username, password)
             val session = ManageSieveSession(wire, tlsCapabilities)
@@ -157,10 +170,42 @@ class ManageSieveClient internal constructor(internal val transport: SieveTransp
     private fun readCapabilities(wire: SieveWire): SieveCapabilities =
         parseSieveCapabilities(wire.readResponse().requireOk("capabilities").lines)
 
+    /**
+     * RFC 5804 §2.2 has the server re-issue its capabilities after the handshake; Apache ManageSieve
+     * stays silent until the next command. So both `CAPABILITY` and a tagged `NOOP` go out, and the
+     * responses are read up to the `NOOP`'s. Without that end marker, a server that both re-issues
+     * and answers `CAPABILITY` leaves a second `OK` in the stream, which `AUTHENTICATE` would read as
+     * its own success. A `NO` also ends the wait: a server without `NOOP` refuses it, and nothing
+     * refuses `CAPABILITY`. The capabilities kept are the last block that carries any; the answer to
+     * `NOOP` carries none.
+     */
+    private fun requestCapabilities(wire: SieveWire): SieveCapabilities {
+        wire.send(commandLine("CAPABILITY"), commandLine("NOOP", sieveQuoted(RESUME_TAG)))
+        var latest: List<List<SieveToken>> = emptyList()
+        repeat(MAX_RESUME_RESPONSES) {
+            val response = wire.readResponse()
+            if (response.status == "BYE") throw protocolError("BYE while waiting for the capabilities after STARTTLS")
+            if (response.status == "OK" && response.code == "TAG $RESUME_TAG") return parseSieveCapabilities(latest)
+            if (response.status == "NO") return parseSieveCapabilities(latest)
+            if (response.lines.isNotEmpty()) latest = response.lines
+        }
+        throw protocolError("no answer to NOOP after $MAX_RESUME_RESPONSES responses")
+    }
+
     private fun insecure(message: String) = ManageSieveException(message, ManageSieveException.Kind.INSECURE)
 
     private companion object {
-        val tlsFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
+        val platformTlsFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
+
+        /**
+         * Fixed rather than drawn per connection: the responses read after STARTTLS come only from
+         * the encrypted stream, and the sole thing the tag must not collide with is another answer
+         * of that same exchange.
+         */
+        const val RESUME_TAG = "sterna"
+
+        /** A server that re-issues, then answers `CAPABILITY` and `NOOP`: three responses. */
+        const val MAX_RESUME_RESPONSES = 3
     }
 }
 
@@ -230,21 +275,19 @@ internal class SieveResponse(
     }
 }
 
-internal class SieveWire(socket: Socket) {
+internal class SieveWire(private val socket: Socket) {
     private val reader = SieveReader(BufferedInputStream(socket.inputStream))
     private val output: OutputStream = socket.outputStream
 
     fun command(verb: String, vararg arguments: ByteArray): SieveResponse {
-        val line = ByteArrayOutputStream()
-        line.write(verb.toByteArray(Charsets.US_ASCII))
-        for (argument in arguments) {
-            line.write(' '.code)
-            line.write(argument)
-        }
-        line.write(CRLF)
-        output.write(line.toByteArray())
-        output.flush()
+        send(commandLine(verb, *arguments))
         return readResponse()
+    }
+
+    /** Every line in one write and one flush; the caller reads the responses. */
+    fun send(vararg lines: ByteArray) {
+        lines.forEach(output::write)
+        output.flush()
     }
 
     fun authenticatePlain(username: String, password: String) {
@@ -253,9 +296,31 @@ internal class SieveWire(socket: Socket) {
 
     fun readResponse(): SieveResponse = reader.readResponse()
 
-    private companion object {
-        val CRLF = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte())
+    /**
+     * Reads and drops at most one response, so that its octets are not taken for the server's
+     * handshake. It is never interpreted: it arrives in the clear, where anyone on the path can
+     * write it. Only its first octet waits [firstOctetMs]; the rest of it waits [commandTimeout], so
+     * a response cut across two segments is read whole. Whatever this leaves, the socket is back on
+     * [commandTimeout].
+     */
+    fun discardClearResponse(firstOctetMs: Int, commandTimeout: Int) {
+        socket.soTimeout = firstOctetMs
+        val arrived = reader.octetArrives()
+        socket.soTimeout = commandTimeout
+        if (arrived) reader.readResponse()
     }
+}
+
+internal fun commandLine(verb: String, vararg arguments: ByteArray): ByteArray {
+    val line = ByteArrayOutputStream()
+    line.write(verb.toByteArray(Charsets.US_ASCII))
+    for (argument in arguments) {
+        line.write(' '.code)
+        line.write(argument)
+    }
+    line.write('\r'.code)
+    line.write('\n'.code)
+    return line.toByteArray()
 }
 
 /**
@@ -296,6 +361,23 @@ internal class SieveReader(private val input: InputStream) {
         }
         val text = rest.drop(i).firstNotNullOfOrNull { (it as? SieveToken.Text)?.text }
         return SieveResponse(lines, status, code, text)
+    }
+
+    /**
+     * Whether an octet comes within the socket's read delay. One that comes is kept for the next
+     * read. A `SocketTimeoutException` on a socket's read consumes nothing, so the stream stays
+     * usable after a `false`.
+     */
+    fun octetArrives(): Boolean {
+        if (pending >= 0) return true
+        val b = try {
+            input.read()
+        } catch (e: SocketTimeoutException) {
+            return false
+        }
+        if (b < 0) throw EOFException("connection closed")
+        pending = b
+        return true
     }
 
     fun readLine(): List<SieveToken> {
