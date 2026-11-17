@@ -16,19 +16,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,16 +48,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.sterna.R
 import app.sterna.core.data.account.MailProtocol
 import app.sterna.core.data.account.showOnlySubscribedFoldersOf
+import app.sterna.core.jmap.model.Mailbox
+import app.sterna.folders.FolderDeletion
+import app.sterna.folders.folderDeletion
+import app.sterna.folders.folderNameMayBeSubmitted
 import app.sterna.ui.components.ReorderableColumn
 import app.sterna.ui.inbox.mailboxDisplayName
 import app.sterna.ui.inbox.mailboxLabel
@@ -80,9 +99,38 @@ internal fun FolderManagementScreen(
     val rows = rowsFor(account.folderOrder)
     val context = LocalContext.current
     BackHandler(enabled = reordering) { reordering = false }
+    // Saveable, like the special-folder pickers: an open dialog is the middle of a gesture. Folder
+    // ids are saved, never the Mailbox, which is looked up again in the list of this account.
+    var creatingFolder by rememberSaveable(accountId) { mutableStateOf(false) }
+    var subfolderOf by rememberSaveable(accountId) { mutableStateOf<String?>(null) }
+    var renaming by rememberSaveable(accountId) { mutableStateOf<String?>(null) }
+    var deleting by rememberSaveable(accountId) { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val folderMessage by viewModel.folderMessage.collectAsStateWithLifecycle()
+    val pendingFolderDelete by viewModel.pendingFolderDelete.collectAsStateWithLifecycle()
+    val undoLabel = stringResource(R.string.inbox_undo)
+    LaunchedEffect(folderMessage) {
+        val m = folderMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(m)
+        viewModel.clearFolderMessage()
+    }
+    // Indefinite: the ViewModel clears the pending delete when its hold-back ends, which cancels
+    // this effect and takes the snackbar down with it. The window is timed on the ViewModel's own
+    // scope, so leaving the screen lets the delete go, as the snackbar running out does: it was
+    // confirmed, and the work is already scheduled.
+    LaunchedEffect(pendingFolderDelete) {
+        val pending = pendingFolderDelete ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = pending.label,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoDeleteFolder()
+    }
     DetailScaffold(
         title = stringResource(R.string.folders_manage_title),
         onBack = onBack,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         actions = {
             TextButton(onClick = { reordering = !reordering }) {
                 Text(stringResource(if (reordering) R.string.folders_reorder_done else R.string.folders_reorder_start))
@@ -135,9 +183,25 @@ internal fun FolderManagementScreen(
                         )
                     }
                 }
+                NewFolderRow(onClick = { creatingFolder = true })
                 rows.forEach { row ->
                     Column(Modifier.padding(start = (row.depth * 16).dp)) {
-                        SettingsSection(mailboxDisplayName(row.mailbox.role, row.mailbox.name)) {
+                        val name = mailboxDisplayName(row.mailbox.role, row.mailbox.name)
+                        SettingsSection(
+                            title = name,
+                            trailing = if (row.mayManage) {
+                                {
+                                    FolderOptionsButton(
+                                        name = name,
+                                        onAddSubfolder = { subfolderOf = row.mailbox.id },
+                                        onRename = { renaming = row.mailbox.id },
+                                        onDelete = { deleting = row.mailbox.id },
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        ) {
                             SettingSwitch(
                                 title = stringResource(R.string.folders_manage_show_title),
                                 subtitle = stringResource(R.string.folders_manage_show_subtitle),
@@ -159,6 +223,135 @@ internal fun FolderManagementScreen(
             }
         }
     }
+    val byId = { id: String? -> id?.let { wanted -> folders.firstOrNull { it.id == wanted } } }
+    if (creatingFolder) {
+        FolderNameDialog(
+            title = stringResource(R.string.inbox_new_folder),
+            initial = "",
+            confirmLabel = stringResource(R.string.inbox_create),
+            onConfirm = { viewModel.createFolder(accountId, it, null); creatingFolder = false },
+            onDismiss = { creatingFolder = false },
+        )
+    }
+    byId(subfolderOf)?.let { parent ->
+        FolderNameDialog(
+            title = stringResource(R.string.inbox_new_subfolder_in, mailboxDisplayName(parent.role, parent.name)),
+            initial = "",
+            confirmLabel = stringResource(R.string.inbox_create),
+            onConfirm = { viewModel.createFolder(accountId, it, parent.id); subfolderOf = null },
+            onDismiss = { subfolderOf = null },
+        )
+    }
+    byId(renaming)?.let { folder ->
+        FolderNameDialog(
+            title = stringResource(R.string.inbox_rename_folder),
+            initial = folder.name,
+            confirmLabel = stringResource(R.string.inbox_rename),
+            onConfirm = { viewModel.renameFolder(accountId, folder.id, it); renaming = null },
+            onDismiss = { renaming = null },
+        )
+    }
+    byId(deleting)?.let { folder ->
+        FolderDeleteDialog(
+            folder = folder,
+            folders = folders,
+            onConfirm = { viewModel.deleteFolder(accountId, it); deleting = null },
+            onDismiss = { deleting = null },
+        )
+    }
+}
+
+/** "New folder", at the top of the folder list: the only way to create one at the root. */
+@Composable
+private fun NewFolderRow(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.CreateNewFolder, contentDescription = null)
+        Spacer(Modifier.width(16.dp))
+        Text(stringResource(R.string.inbox_new_folder), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** The folder's own menu, on the line of its name: New subfolder, Rename, Delete. */
+@Composable
+private fun FolderOptionsButton(name: String, onAddSubfolder: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    Box {
+        var open by remember { mutableStateOf(false) }
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options_for, name))
+        }
+        DropdownMenu(open, onDismissRequest = { open = false }, shape = MaterialTheme.shapes.medium) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.inbox_new_subfolder)) },
+                onClick = { open = false; onAddSubfolder() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.inbox_rename)) },
+                onClick = { open = false; onRename() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.inbox_delete)) },
+                onClick = { open = false; onDelete() },
+            )
+        }
+    }
+}
+
+/** A name to create or rename a folder with. The typed name is saveable: a rotation must not
+ *  throw away what the user wrote. The trim is `FolderActions`'s. */
+@Composable
+private fun FolderNameDialog(title: String, initial: String, confirmLabel: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by rememberSaveable { mutableStateOf(initial) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val submit = { if (folderNameMayBeSubmitted(name)) onConfirm(name) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.inbox_folder_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                modifier = Modifier.focusRequester(focusRequester),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = submit, enabled = folderNameMayBeSubmitted(name)) { Text(confirmLabel) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.inbox_cancel)) } },
+    )
+}
+
+/** One confirmation: "Also delete subfolders?" when [folderDeletion] finds any in [folders], the
+ *  list of the account this screen manages, the plain one otherwise. */
+@Composable
+private fun FolderDeleteDialog(folder: Mailbox, folders: List<Mailbox>, onConfirm: (FolderDeletion) -> Unit, onDismiss: () -> Unit) {
+    val deletion = folderDeletion(folder, folders)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(if (deletion.asksAboutSubfolders) R.string.inbox_delete_folder_recursive_title else R.string.inbox_delete_folder_title))
+        },
+        text = {
+            Text(stringResource(if (deletion.asksAboutSubfolders) R.string.inbox_delete_folder_recursive_body else R.string.inbox_delete_folder_body, folder.name))
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(deletion) }) {
+                Text(stringResource(R.string.inbox_delete), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.inbox_cancel)) } },
+    )
 }
 
 /** One folder in the reorder mode: the handle to drag it by, its name at its depth, and the Up and

@@ -3048,11 +3048,13 @@ internal fun DetailScaffold(
     title: String,
     onBack: () -> Unit,
     actions: (@Composable RowScope.() -> Unit)? = null,
+    snackbarHost: (@Composable () -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { snackbarHost?.invoke() },
         topBar = {
             LargeTopAppBar(
                 title = {

@@ -348,8 +348,8 @@
     <string name="settings_search_hint">Cerca nelle impostazioni</string>
     <string name="settings_search_no_result">Nessuna impostazione corrisponde</string>
     <string name="settings_folders_title">Cartelle</string>
-    <string name="settings_folders_summary">Ordina, mostra o nascondi le tue cartelle</string>
-    <string name="settings_folders_keywords">ordine, ordinare, mostrare, nascondere, riordinare, cartelle</string>
+    <string name="settings_folders_summary">Crea, rinomina, elimina, ordina, mostra o nascondi le tue cartelle</string>
+    <string name="settings_folders_keywords">creare, nuova, rinominare, eliminare, sottocartella, ordine, ordinare, mostrare, nascondere, riordinare, cartelle</string>
     <string name="settings_back">Indietro</string>
     <string name="settings_cancel">Annulla</string>
     <string name="settings_clear">Cancella</string>

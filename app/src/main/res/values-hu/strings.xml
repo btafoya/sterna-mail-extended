@@ -500,8 +500,8 @@
     <string name="settings_search_hint">Keresés a beállításokban</string>
     <string name="settings_search_no_result">Nincs ilyen beállítás</string>
     <string name="settings_folders_title">Mappák</string>
-    <string name="settings_folders_summary">A mappák sorrendje, megjelenítése vagy elrejtése</string>
-    <string name="settings_folders_keywords">sorrend, megjelenítés, elrejtés, átrendezés, mappák</string>
+    <string name="settings_folders_summary">A mappák létrehozása, átnevezése, törlése, sorrendje, megjelenítése vagy elrejtése</string>
+    <string name="settings_folders_keywords">létrehozás, új, átnevezés, törlés, almappa, sorrend, megjelenítés, elrejtés, átrendezés, mappák</string>
     <string name="settings_group_app">Alkalmazás</string>
     <string name="settings_group_current_account">Ez a fiók · %1$s</string>
     <string name="settings_group_current_account_generic">Ez a fiók</string>

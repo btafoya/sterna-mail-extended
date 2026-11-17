@@ -346,8 +346,8 @@
     <string name="settings_search_hint">Instellingen doorzoeken</string>
     <string name="settings_search_no_result">Geen instelling komt overeen</string>
     <string name="settings_folders_title">Mappen</string>
-    <string name="settings_folders_summary">Je mappen ordenen, tonen of verbergen</string>
-    <string name="settings_folders_keywords">volgorde, ordenen, tonen, verbergen, herschikken, mappen</string>
+    <string name="settings_folders_summary">Je mappen aanmaken, hernoemen, verwijderen, ordenen, tonen of verbergen</string>
+    <string name="settings_folders_keywords">aanmaken, nieuw, hernoemen, verwijderen, submap, volgorde, ordenen, tonen, verbergen, herschikken, mappen</string>
     <string name="settings_back">Terug</string>
     <string name="settings_cancel">Annuleren</string>
     <string name="settings_clear">Wissen</string>

@@ -348,8 +348,8 @@
     <string name="settings_search_hint">Rechercher dans les paramètres</string>
     <string name="settings_search_no_result">Aucun paramètre ne correspond</string>
     <string name="settings_folders_title">Dossiers</string>
-    <string name="settings_folders_summary">Ordonnez, affichez ou masquez vos dossiers</string>
-    <string name="settings_folders_keywords">ordre, ordonner, afficher, masquer, réordonner, dossiers</string>
+    <string name="settings_folders_summary">Créez, renommez, supprimez, ordonnez, affichez ou masquez vos dossiers</string>
+    <string name="settings_folders_keywords">créer, nouveau, renommer, supprimer, sous-dossier, ordre, ordonner, afficher, masquer, réordonner, dossiers</string>
     <string name="settings_back">Retour</string>
     <string name="settings_cancel">Annuler</string>
     <string name="settings_clear">Effacer</string>

@@ -71,6 +71,36 @@ class DrawerListsWiringLintTest {
         }
     }
 
+    /** The overflow test above filters the menus it finds; this one says the drawer has none, so a
+     *  menu reappearing on a folder row cannot hide behind a filter that only looks for list openers. */
+    @Test
+    fun `the drawer draws no menu at all`() {
+        val text = codeText(INBOX_SCREEN)
+        val start = text.indexOf("private fun DrawerContent(")
+        val end = text.indexOf("fun countedDrawerLabel(", start)
+        check(start >= 0 && end > start) {
+            "InboxScreen.kt no longer declares DrawerContent followed by countedDrawerLabel; teach this lint the new shape"
+        }
+        assertEquals(
+            "DrawerContent opens a DropdownMenu again. Its folder menu (New subfolder, Rename, " +
+                "Delete) moved to the folder screen with #302, where the rows it may appear on are " +
+                "decided by folderManagementRows; drawn here it is a second door, guarded by a rule " +
+                "of its own. Menus found in the drawer:\n" +
+                Regex("""\bDropdownMenu(Item)?\s*\(""").findAll(text.substring(start, end))
+                    .map { callAt(text, start + it.range.first) }.joinToString("\n"),
+            0,
+            Regex("""\bDropdownMenu(Item)?\s*\(""").findAll(text.substring(start, end)).count(),
+        )
+        val leftovers = Regex("""\bbadge\s*=|\bMoreVert\b""").findAll(text.substring(start, end))
+            .map { it.value }.toList()
+        assertEquals(
+            "DrawerContent draws a folder row badge or a MoreVert icon again: the button that " +
+                "opened the folder menu, which #302 moved to the folder screen. Found: $leftovers",
+            emptyList<String>(),
+            leftovers,
+        )
+    }
+
     @Test
     fun `the Scheduled and Snoozed counts are counted off the observed queries`() {
         val vm = codeLines(INBOX_VIEW_MODEL).map { it.trim() }.filter { it.isNotEmpty() }

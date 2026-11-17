@@ -346,8 +346,8 @@
     <string name="settings_search_hint">Einstellungen durchsuchen</string>
     <string name="settings_search_no_result">Keine Einstellung passt</string>
     <string name="settings_folders_title">Ordner</string>
-    <string name="settings_folders_summary">Ordner sortieren, anzeigen oder ausblenden</string>
-    <string name="settings_folders_keywords">Reihenfolge, sortieren, anzeigen, ausblenden, umsortieren, Ordner</string>
+    <string name="settings_folders_summary">Ordner erstellen, umbenennen, löschen, sortieren, anzeigen oder ausblenden</string>
+    <string name="settings_folders_keywords">erstellen, neu, umbenennen, löschen, Unterordner, Reihenfolge, sortieren, anzeigen, ausblenden, umsortieren, Ordner</string>
     <string name="settings_back">Zurück</string>
     <string name="settings_cancel">Abbrechen</string>
     <string name="settings_clear">Löschen</string>

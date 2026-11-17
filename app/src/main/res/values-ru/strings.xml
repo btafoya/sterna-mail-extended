@@ -350,8 +350,8 @@
     <string name="settings_search_hint">Поиск по настройкам</string>
     <string name="settings_search_no_result">Нет подходящих настроек</string>
     <string name="settings_folders_title">Папки</string>
-    <string name="settings_folders_summary">Порядок, показ и скрытие папок</string>
-    <string name="settings_folders_keywords">порядок, упорядочить, показать, скрыть, переупорядочить, папки</string>
+    <string name="settings_folders_summary">Создание, переименование, удаление, порядок, показ и скрытие папок</string>
+    <string name="settings_folders_keywords">создать, новая, переименовать, удалить, вложенная папка, порядок, упорядочить, показать, скрыть, переупорядочить, папки</string>
     <string name="settings_back">Назад</string>
     <string name="settings_cancel">Отмена</string>
     <string name="settings_clear">Очистить</string>

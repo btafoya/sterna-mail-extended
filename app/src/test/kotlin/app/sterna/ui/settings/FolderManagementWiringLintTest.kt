@@ -8,7 +8,7 @@ import org.junit.Test
  * Source lint, and a last resort: what the folder screen DECIDES is executed next door
  * ([FolderManagementRowsTest]), and nothing in this module composes ([CONTRIBUTING.md]). What only
  * this can see is that the screen is reachable, that it is handed the account it manages, and that
- * the drawer's overflow button stopped offering a menu it no longer fills.
+ * the drawer no longer creates, renames or deletes a folder: those are this screen's (#302).
  *
  * Whole trimmed lines, by equality, never `contains`, which is blind to every mutation that
  * lengthens a line.
@@ -17,8 +17,8 @@ class FolderManagementWiringLintTest {
 
     @Test fun `the drawer opens the screen for the account it is showing`() {
         assertEquals(
-            "the drawer's entry into the folder screen changed shape. It must sit after 'New " +
-                "folder' and carry the CURRENT account: with no argument the screen opens on " +
+            "the drawer's entry into the folder screen changed shape. It must carry the CURRENT " +
+                "account: with no argument the screen opens on " +
                 "whatever the store answers, and on a second account that is the wrong folder list " +
                 "with the wrong registry (#92/#121).",
             listOf("onManageFolders = { entry.navigateOnce { nav.navigate(\"folders?accountId=\${Uri.encode(currentAccountId)}\") } },"),
@@ -26,17 +26,17 @@ class FolderManagementWiringLintTest {
         )
         assertEquals(
             "the drawer's row moved, changed shape, or stopped closing the drawer behind it. Its " +
-                "PLACE is pinned with it: right after 'New folder', which is where the reader was " +
-                "shown it, and above the divider that separates the folder actions from Settings. " +
-                "Pinned as one run of lines, because the six lines of the row alone are the same " +
-                "six wherever the block is moved to.",
+                "PLACE is pinned with it: right after the folder tree closes, the last folder row " +
+                "being the one that selects a mailbox, and above the divider that separates the " +
+                "folders from Settings. Pinned as one run of lines, because the lines of the row " +
+                "alone are the same wherever the block is moved to.",
             listOf(
-                "icon = { Icon(Icons.Filled.CreateNewFolder, contentDescription = null) },",
-                "label = { Text(stringResource(R.string.inbox_new_folder)) },",
-                "selected = false,",
-                "onClick = onCreateFolder,",
+                "viewModel.select(mailbox)",
+                "scope.launch { drawerState.close() }",
+                "},",
                 "modifier = Modifier.padding(horizontal = 12.dp),",
                 ")",
+                "}",
                 "NavigationDrawerItem(",
                 "icon = { Icon(Icons.Filled.Tune, contentDescription = null) },",
                 "label = { Text(stringResource(R.string.folders_manage_title)) },",
@@ -49,7 +49,7 @@ class FolderManagementWiringLintTest {
                 ")",
                 "HorizontalDivider()",
             ),
-            block(INBOX_SCREEN, "icon = { Icon(Icons.Filled.CreateNewFolder,", 17),
+            block(INBOX_SCREEN, "viewModel.select(mailbox)", 17),
         )
     }
 
@@ -81,46 +81,85 @@ class FolderManagementWiringLintTest {
     }
 
     /**
-     * The overflow button's guard, the one piece of the drawer that had no test at all. Its three
-     * remaining items are all `role == null`, so the guard and the items must say the same thing
-     * once: on an Archive, an All, or any JMAP role nobody normalised, the old role list opened an
-     * empty menu.
+     * Where a folder is created, renamed and deleted: on this screen alone. The drawer's menu, its
+     * "New folder" row, its five dialogs and its Undo snackbar are gone (#302); every token below is
+     * one of them, so a piece brought back to the drawer reddens this whatever line it sits on.
+     * Which folders the menu is offered on is executed in [FolderManagementEligibilityTest].
      */
-    @Test fun `the overflow button is offered on a user folder alone, and its items are not guarded twice`() {
-        assertEquals(
-            "the drawer's overflow button no longer asks the question its three items answer. " +
-                "Written as a list of roles it opens an EMPTY menu on Archive, on All, and on every " +
-                "JMAP role RFC 8621 allows and nothing normalises.",
-            listOf("badge = if (mailbox.role == null) {"),
-            block(INBOX_SCREEN, "badge = if (", 1),
+    @Test fun `the folder actions live on the screen, and none is left in the drawer`() {
+        val drawerTokens = listOf(
+            "R.string.inbox_new_folder", "Icons.Filled.CreateNewFolder", "R.string.inbox_folder_options_for",
+            "R.string.inbox_new_subfolder", "R.string.inbox_rename_folder", "R.string.inbox_delete_folder",
+            "createFolder(", "renameFolder(", "deleteFolder(", "subfolderIdsOf(", "pendingFolderDelete",
+            "onCreateFolder", "onAddSubfolder", "onRenameFolder", "onDeleteFolder", "folderMenu",
         )
         assertEquals(
-            "the folder menu must hold exactly its three management items: the watch checkbox moved " +
-                "to the folder screen (#207), where the roles it must not appear on are decided by " +
-                "folderManagementRows and executed.",
+            "the drawer creates, renames or deletes a folder again. Those actions are the folder " +
+                "screen's, which acts on the account it was opened for and decides where its menu " +
+                "may appear; a second door in the drawer acts on the current account under a rule " +
+                "of its own.",
+            emptyList<String>(),
+            codeLines(INBOX_SCREEN).filter { line -> drawerTokens.any { it in line } },
+        )
+        assertEquals(
+            "the Inbox ViewModel creates, renames or deletes a folder again. The logic moved to " +
+                "FolderActions, reached from the folder screen; a copy here is the one the next " +
+                "fix forgets.",
+            emptyList<String>(),
+            codeLines(INBOX_VIEW_MODEL).filter { line ->
+                listOf("FolderActions", "FolderDeletion", "folderDescendantIds", "fun createFolder(",
+                    "fun renameFolder(", "fun deleteFolder(", "fun undoDeleteFolder(", "pendingFolderDelete").any { it in line }
+            },
+        )
+        assertEquals(
+            "the folder menu must hold exactly its three management items, each calling its own " +
+                "action: the watch checkbox lives in the folder's section (#207).",
             listOf(
-                "DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {",
+                "DropdownMenu(open, onDismissRequest = { open = false }, shape = MaterialTheme.shapes.medium) {",
                 "DropdownMenuItem(",
                 "text = { Text(stringResource(R.string.inbox_new_subfolder)) },",
-                "onClick = { folderMenu = false; onAddSubfolder(mailbox) },",
+                "onClick = { open = false; onAddSubfolder() },",
                 ")",
                 "DropdownMenuItem(",
                 "text = { Text(stringResource(R.string.inbox_rename)) },",
-                "onClick = { folderMenu = false; onRenameFolder(mailbox) },",
+                "onClick = { open = false; onRename() },",
                 ")",
                 "DropdownMenuItem(",
                 "text = { Text(stringResource(R.string.inbox_delete)) },",
-                "onClick = { folderMenu = false; onDeleteFolder(mailbox) },",
+                "onClick = { open = false; onDelete() },",
                 ")",
                 "}",
             ),
-            block(INBOX_SCREEN, "DropdownMenu(folderMenu,", 14),
+            block(SCREEN, "DropdownMenu(open,", 14),
         )
         assertEquals(
             "the drawer must not read the watch registry any more, and no folder row may write it: " +
                 "the switch lives on the folder screen, which writes it per account.",
             emptyList<String>(),
             codeLines(INBOX_SCREEN).filter { "watchedFolders" in it || "setFolderWatched(" in it },
+        )
+    }
+
+    /**
+     * The delete dialog's question. [FolderDeletion.asksAboutSubfolders] is executed in
+     * `FolderActionsTest`; what only this can see is that the dialog reads it the right way round.
+     */
+    @Test fun `the delete dialog asks about subfolders exactly when the deletion takes some`() {
+        assertEquals(
+            "the delete dialog no longer prints the recursive warning when asksAboutSubfolders is " +
+                "true and the plain one otherwise, for its title and its body alike. Inverted, a " +
+                "folder with subfolders is confirmed as if it had none and they go down unannounced.",
+            listOf(
+                "Text(stringResource(if (deletion.asksAboutSubfolders) R.string.inbox_delete_folder_recursive_title else R.string.inbox_delete_folder_title))",
+                "Text(stringResource(if (deletion.asksAboutSubfolders) R.string.inbox_delete_folder_recursive_body else R.string.inbox_delete_folder_body, folder.name))",
+            ),
+            codeLines(SCREEN).filter { "asksAboutSubfolders" in it },
+        )
+        assertEquals(
+            "the dialog no longer hands its confirmation the deletion it judged: a deletion rebuilt " +
+                "at the confirm can take other subfolders than the ones it announced.",
+            listOf("TextButton(onClick = { onConfirm(deletion) }) {"),
+            block(SCREEN, "TextButton(onClick = { onConfirm(", 1),
         )
     }
 
@@ -406,6 +445,113 @@ class FolderManagementWiringLintTest {
         )
     }
 
+    /**
+     * Create, rename and delete on this screen (#302). What they decide is executed in
+     * `FolderActionsTest` and [FolderManagementEligibilityTest]; what only this can see is that every
+     * dialog hands the ViewModel the account of the ROUTE, that the subfolders a delete announces
+     * are found in that account's own list, and that the app's own door moves the baseline. Hole 2
+     * of `CONTRIBUTING.md` applies: nothing here sees an expression wrapped around a call.
+     */
+    @Test fun `the folder actions act on the account the screen was opened for`() {
+        assertEquals(
+            "the folder list the delete looks for subfolders in is no longer the managed account's. " +
+                "Read from the current account and on IMAP, where ids are paths, a namesake tree on " +
+                "the other account decides whether the subfolders are announced.",
+            listOf(
+                "val folders by remember(accountId) { viewModel.folders(accountId) }",
+                ".collectAsStateWithLifecycle(emptyList())",
+            ),
+            block(SCREEN, "val folders by remember(", 2),
+        )
+        assertEquals(
+            "a dialog no longer hands the ViewModel the account the screen manages: the folder is " +
+                "born, renamed or deleted on another account.",
+            listOf(
+                "onConfirm = { viewModel.createFolder(accountId, it, null); creatingFolder = false },",
+                "onConfirm = { viewModel.createFolder(accountId, it, parent.id); subfolderOf = null },",
+                "onConfirm = { viewModel.renameFolder(accountId, folder.id, it); renaming = null },",
+                "onConfirm = { viewModel.deleteFolder(accountId, it); deleting = null },",
+            ),
+            codeLines(SCREEN).filter { it.startsWith("onConfirm = { viewModel.") },
+        )
+        assertEquals(
+            "the delete dialog no longer judges the subfolders on this screen's own folder list.",
+            listOf("folder = folder,", "folders = folders,"),
+            block(SCREEN, "folder = folder,", 2),
+        )
+        assertEquals(
+            "the delete dialog no longer decides its question on folderDeletion, the rule executed " +
+                "in FolderActionsTest: a folder with subfolders must be confirmed as such.",
+            listOf("val deletion = folderDeletion(folder, folders)"),
+            block(SCREEN, "val deletion =", 1),
+        )
+        assertEquals(
+            "the ViewModel no longer passes the account it is handed down to FolderActions, or a " +
+                "create or rename left appScope: the back gesture after the dialog cancels it.",
+            listOf(
+                "fun createFolder(id: String, name: String, parentId: String?) = folderOp { folderActions.create(id, name, parentId) }",
+                "fun renameFolder(id: String, folderId: String, newName: String) = folderOp { folderActions.rename(id, folderId, newName) }",
+                "private fun folderOp(op: suspend () -> Unit) {",
+                "appScope.launch {",
+            ),
+            codeLines(ACCOUNTS_VIEW_MODEL).let { lines ->
+                val at = lines.indexOfFirst { it.startsWith("fun createFolder(") }
+                listOf(lines[at], lines[at + 1], lines[at + 2], lines[at + 3])
+            },
+        )
+        assertEquals(
+            "the delete no longer reaches FolderActions with the account handed down and " +
+                "PURGE_HOLD_BACK_MS as its hold-back.",
+            listOf("if (!folderActions.delete(id, deletion, PURGE_HOLD_BACK_MS)) return@launch"),
+            block(ACCOUNTS_VIEW_MODEL, "if (!folderActions.delete(", 1),
+        )
+        assertEquals(
+            "the app's FolderActions no longer reads the credentials of the account it is handed, " +
+                "or no longer moves the new-mail baseline through NewMailNotifier.rename with the " +
+                "old and the new id: a renamed IMAP folder then notifies all its mail again. Or " +
+                "it no longer hands the store the collapsed flag it is given: a literal there " +
+                "folds the parent of a freshly created subfolder over it.",
+            listOf(
+                "override fun credentials(accountId: String) = store.credentials(accountId)",
+                "NewMailNotifier.rename(context, accountId, oldMailboxId, newMailboxId)",
+                "store.setFolderCollapsed(accountId, mailboxId, collapsed)",
+            ),
+            listOf(
+                block(FOLDER_ACTIONS, "override fun credentials(", 1).single(),
+                block(FOLDER_ACTIONS, "NewMailNotifier.rename(", 1).single(),
+                block(FOLDER_ACTIONS, "store.setFolderCollapsed(", 1).single(),
+            ),
+        )
+    }
+
+    @Test fun `the new folder row and the folder menu belong to the list mode, the menu on eligible rows`() {
+        assertEquals(
+            "'New folder' left its place under the special folders, at the top of the folder list, " +
+                "or the folder menu is no longer drawn on the rule's own flag: on a role folder it " +
+                "offers Delete on the Inbox.",
+            listOf(
+                "NewFolderRow(onClick = { creatingFolder = true })",
+                "rows.forEach { row ->",
+                "Column(Modifier.padding(start = (row.depth * 16).dp)) {",
+                "val name = mailboxDisplayName(row.mailbox.role, row.mailbox.name)",
+                "SettingsSection(",
+                "title = name,",
+                "trailing = if (row.mayManage) {",
+            ),
+            block(SCREEN, "NewFolderRow(onClick", 7),
+        )
+        val lines = codeLines(SCREEN)
+        val reorderBranch = lines.indexOf("if (reordering) {")
+        val listBranch = (reorderBranch + 1 until lines.size).first { lines[it] == "} else {" }
+        assertEquals(
+            "'New folder' or the folder menu is drawn in the reorder mode, which shows no control " +
+                "but the moves: the first branch must open on the reorder hint, and the row must " +
+                "come after the list branch opens.",
+            listOf("Column(Modifier.fillMaxSize().padding(padding)) {", "Text(", "stringResource(R.string.folders_reorder_hint),", true),
+            listOf(lines[reorderBranch + 1], lines[reorderBranch + 2], lines[reorderBranch + 3], lines.indexOf("NewFolderRow(onClick = { creatingFolder = true })") > listBranch),
+        )
+    }
+
     // ── instrument (copied from SubscribedFoldersSurfaceWiringTest) ──────────────────────────────
 
     /** [count] consecutive code lines from the one line starting with [prefix]. */
@@ -439,11 +585,17 @@ class FolderManagementWiringLintTest {
         val INBOX_SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxScreen.kt")
         }
+        val INBOX_VIEW_MODEL: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
+        }
         val ACCOUNTS_VIEW_MODEL: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/settings/AccountsViewModel.kt")
         }
         val SCREEN: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/settings/FolderManagementScreen.kt")
+        }
+        val FOLDER_ACTIONS: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/folders/FolderActions.kt")
         }
     }
 }

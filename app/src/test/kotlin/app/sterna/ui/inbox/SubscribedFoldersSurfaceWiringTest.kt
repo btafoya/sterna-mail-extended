@@ -294,8 +294,8 @@ class SubscribedFoldersSurfaceWiringTest {
     @Test fun `the state carries BOTH lists, and the whole one is still the whole one`() {
         assertEquals(
             "the filtered list must be a SECOND field. Replacing MailUi.mailboxes with it breaks " +
-                "subfolderIdsOf (which reads state.value.mailboxes): a folder deleted with a hidden " +
-                "child leaves that child's mail behind, unreachable — data loss.",
+                "the Inbox fallback, which must tell a deleted folder from a hidden one (#89), and " +
+                "the folder and role a row names.",
             listOf(NEW_BASE_COPY),
             block(INBOX_VIEW_MODEL, "base.copy(", 1),
         )
@@ -323,10 +323,11 @@ class SubscribedFoldersSurfaceWiringTest {
             lines.count { it == "visibleMailboxes = base.visibleMailboxes," },
         )
         assertEquals(
-            "subfolderIdsOf must keep reading the WHOLE list, or a folder delete misses its hidden " +
-                "children and orphans their mail.",
-            listOf("val all = state.value.mailboxes"),
-            block(INBOX_VIEW_MODEL, "val all = state.value.mailboxes", 1),
+            "the folder screen's delete must keep judging the subfolders on the WHOLE list of its " +
+                "account, the one it collects, never the rows it draws: a folder deleted with a " +
+                "hidden child leaves that child's mail behind, unreachable, data loss.",
+            listOf("folder = folder,", "folders = folders,"),
+            block(FOLDER_SCREEN, "folder = folder,", 2),
         )
     }
 
@@ -337,7 +338,7 @@ class SubscribedFoldersSurfaceWiringTest {
         assertEquals(
             "the subscription filter moved. It belongs to the six files below and nowhere else — " +
                 "in the repository or in the folder cache it would take with it every reader of the " +
-                "list: subfolderIdsOf (a delete that misses hidden children), the reader's parent " +
+                "list: the folder delete (a delete that misses hidden children), the reader's parent " +
                 "paths, the rule editor, the watched folders. All six are screen rules; " +
                 "EveryAccountUnread.kt is the unread view of every account, each account filtered " +
                 "by its own setting (#235); the last two are the folder screen's own, its switches (#207) and the folder each role is " +
@@ -365,7 +366,7 @@ class SubscribedFoldersSurfaceWiringTest {
                 "screen's reorder mode, which must draw exactly what the drawer draws, and the " +
                 "unread view of every account, each account by its own registry (#235). In the " +
                 "repository or in the folder cache it would take with it every reader of the list, " +
-                "exactly as the guard above forbids for the subscription filter: subfolderIdsOf (a " +
+                "exactly as the guard above forbids for the subscription filter: the folder delete (a " +
                 "delete that misses hidden children), the reader's parent paths, the rule editor, " +
                 "the watched folders.",
             listOf("EveryAccountUnread.kt", "FolderManagementRows.kt", "FolderSelection.kt", "HiddenFolders.kt", "InboxViewModel.kt"),
@@ -416,6 +417,9 @@ class SubscribedFoldersSurfaceWiringTest {
 
         val INBOX_SCREEN: File by lazy { File(root, INBOX_SCREEN_PATH) }
         val MOVE_SHEET: File by lazy { File(root, "app/src/main/kotlin/app/sterna/ui/inbox/MoveFolderSheet.kt") }
+        val FOLDER_SCREEN: File by lazy {
+            File(root, "app/src/main/kotlin/app/sterna/ui/settings/FolderManagementScreen.kt")
+        }
         val INBOX_VIEW_MODEL: File by lazy {
             File(root, "app/src/main/kotlin/app/sterna/ui/inbox/InboxViewModel.kt")
         }

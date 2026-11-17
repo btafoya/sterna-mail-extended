@@ -11,7 +11,6 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.sterna.container
 import app.sterna.R
-import app.sterna.folders.FolderDeleteWorker
 import app.sterna.mail.MessageDestroyWorker
 import app.sterna.net.ConnectivityWatcher
 import app.sterna.net.hasUsableNetwork
@@ -138,8 +137,8 @@ data class MailUi(
     val mailboxes: List<Mailbox>,
     /** The same list minus what the subscription setting (#174) and the hide registry (#207) leave
      * out, what the drawer draws, and nothing else. A second field, never a
-     *  replacement for [mailboxes], which is read for subfolder deletes ([InboxViewModel.subfolderIdsOf]),
-     *  to tell a deleted folder from a hidden one (#89), and to name a row's folder and role. */
+     *  replacement for [mailboxes], which is read to tell a deleted folder from a hidden one (#89),
+     *  and to name a row's folder and role. */
     val visibleMailboxes: List<Mailbox> = emptyList(),
     val folderOrder: List<String> = emptyList(),
     val refreshing: Boolean,
@@ -203,6 +202,10 @@ private const val SERVER_SEARCH_LIMIT = 200
  * drift ends with Undo pressed after the banner was already cancelled. Not a setting.
  */
 private const val UNDO_BANNER_DISMISS_MS = 6_000L
+
+/** How long a delete waits, undoable, before its persisted work runs. Shared with the folder
+ *  screen, whose folder deletes hold back exactly as the deletes of this one do. */
+internal const val PURGE_HOLD_BACK_MS = 5_000L
 
 /**
  * How many recent messages the "unread" view's pull-to-refresh looks at per folder
@@ -3061,89 +3064,6 @@ class InboxViewModel(
         Snoozes.enqueue(getApplication(), id, c.id, until)
     }
 
-    // ---- folder management ----
-
-    fun createFolder(name: String, parentId: String? = null) = folderOp { c -> repo.folders.createFolder(c, name, parentId) }
-
-    fun renameFolder(mailboxId: String, newName: String) = folderOp { c ->
-        val newId = repo.folders.renameFolder(c, mailboxId, newName)
-        // IMAP ids are paths: MailFolders re-keyed the watch flags; follow with the baseline.
-        if (newId != mailboxId) NewMailNotifier.rename(getApplication(), c.id, mailboxId, newId)
-        // The fold registry IS re-read here, because MailFolders re-keys it exactly like the watch
-        // flags (IMAP ids are paths). Without it the flow holds the old key, the renamed folder
-        // reads as "nobody decided" and the default folds it on the spot (#185).
-        refreshWatchedFolders()
-        refreshCollapsedFolders()
-    }
-
-    /**
-     * Subfolders (recursive) of a folder, from the cached drawer list, JMAP `parentId`
-     * or the IMAP path prefix, mirroring the drawer's own tree building.
-     */
-    fun subfolderIdsOf(mailboxId: String): List<String> {
-        val all = state.value.mailboxes
-        val result = mutableListOf<String>()
-        fun childrenOf(id: String): List<Mailbox> = all.filter { m ->
-            if (m.id == id) return@filter false
-            if (m.parentId != null) return@filter m.parentId == id
-            val delim = when {
-                m.id.contains('/') -> "/"
-                m.id.contains('.') -> "."
-                else -> return@filter false
-            }
-            m.id.substringBeforeLast(delim, "") == id
-        }
-        fun visit(id: String) {
-            childrenOf(id).forEach { child ->
-                if (result.add(child.id)) visit(child.id)
-            }
-        }
-        visit(mailboxId)
-        return result
-    }
-
-    private var folderDeleteJob: Job? = null
-    /** (accountId, mailboxId) of the folder whose held-back delete is undoable. */
-    private var pendingDeleteMailboxId: Pair<String, String>? = null
-    private val _pendingFolderDelete = MutableStateFlow<String?>(null)
-
-    /** Snackbar label while a folder delete waits out its undo window; null = none. */
-    val pendingFolderDelete: StateFlow<String?> = _pendingFolderDelete.asStateFlow()
-
-    /**
-     * Delete a folder (and its subfolders) with an undo window: the folder leaves the drawer
-     * immediately, and the server delete is persisted WorkManager work with an initial delay, so a
-     * confirmed delete cannot be silently dropped. The coroutine below only times the snackbar.
-     */
-    fun deleteFolder(mailboxId: String, folderName: String) {
-        val credentials = store.load() ?: return
-        val ids = listOf(mailboxId) + subfolderIdsOf(mailboxId)
-        viewModelScope.launch { repo.folders.hideMailboxesLocally(credentials.id, ids) }
-        _pendingFolderDelete.value =
-            getApplication<Application>().getString(R.string.inbox_folder_deleted, folderName)
-        FolderDeleteWorker.schedule(getApplication(), credentials.id, mailboxId, PURGE_HOLD_BACK_MS)
-        pendingDeleteMailboxId = credentials.id to mailboxId
-        folderDeleteJob?.cancel()
-        folderDeleteJob = viewModelScope.launch {
-            delay(PURGE_HOLD_BACK_MS)
-            if (pendingDeleteMailboxId == credentials.id to mailboxId) {
-                pendingDeleteMailboxId = null
-                _pendingFolderDelete.value = null
-                refreshWatchedFolders()
-            }
-        }
-    }
-
-    /** Cancel a held-back folder delete (nothing was destroyed yet) and restore the drawer. */
-    fun undoDeleteFolder() {
-        pendingDeleteMailboxId?.let { (accountId, mailboxId) -> FolderDeleteWorker.cancel(getApplication(), accountId, mailboxId) }
-        pendingDeleteMailboxId = null
-        folderDeleteJob?.cancel()
-        folderDeleteJob = null
-        _pendingFolderDelete.value = null
-        refresh()
-    }
-
     // ---- folder watch (multi-folder push, issue #16) ----
 
     // Initialised inline, not from the init block: init runs before this declaration's
@@ -3188,6 +3108,15 @@ class InboxViewModel(
      */
     val folderRowsBadgeUnread: StateFlow<Boolean> = _folderRowsBadgeUnread
 
+    // After the three flows above, initialisers run in text order. The folder screen re-keys both
+    // registries on an IMAP rename, and unfolds a new subfolder's parent, under this ViewModel.
+    private val registriesFollowTheStore = store.accountsFlow.drop(1)
+        .onEach {
+            refreshWatchedFolders()
+            refreshCollapsedFolders()
+        }
+        .launchIn(viewModelScope)
+
     /**
      * Re-read everything the fold decision needs for the current account: the explicit registry and
      * whether this account's rows can badge unread at all. One function, because both must move
@@ -3220,14 +3149,6 @@ class InboxViewModel(
         if (!watched) NewMailNotifier.clear(getApplication(), accountId, mailboxId)
         refreshWatchedFolders()
         PushController.apply(getApplication(), userInitiated = true)
-    }
-
-    private fun folderOp(op: suspend (AccountCredentials) -> Unit) {
-        viewModelScope.launch {
-            val credentials = store.load() ?: return@launch
-            runCatching { op(credentials) }
-                .onFailure { _message.value = it.message ?: getApplication<Application>().getString(R.string.status_folder_op_failed) }
-        }
     }
 
     /**
@@ -3476,8 +3397,6 @@ class InboxViewModel(
     private data class Status(val refreshing: Boolean, val error: String?)
 
     private companion object {
-        const val PURGE_HOLD_BACK_MS = 5_000L
-
         /** Most threads re-completed per action, bounds the Thread/get fan-out on a select-all. */
         const val MAX_THREAD_COMPLETIONS = 10
     }

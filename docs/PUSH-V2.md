@@ -271,19 +271,21 @@ reconnect) is unchanged.
 
 ## A7. Folder UI: the watch switch
 
-Navigation drawer, `InboxScreen.kt`. The existing per-folder overflow
-`DropdownMenu` (currently gated `role == null`) is un-gated to **every folder
+The navigation drawer, `InboxScreen.kt`, has no per-folder menu: folder
+actions live on the Manage folders screen, `FolderManagementScreen.kt`, opened
+for the account the drawer shows. The watch toggle is offered on **every folder
 except inbox, sent, drafts, trash and junk**:
 
-- New first menu item: a toggle **"Notify about new mail"** (checkbox reflecting
-  the watch state) → `viewModel.setFolderWatched(mailbox.id, !watched)`.
+- A switch **"Notify about new mail"** in each folder's section of the Manage
+  folders screen → `AccountsViewModel.setFolderWatched(accountId, mailbox.id, watched)`.
   Outcome-framed wording; no "push"/"transport" vocabulary.
-- The existing New subfolder / Rename / Delete items keep their `role == null`
-  gate inside the menu.
+- New subfolder / Rename / Delete sit in each folder's overflow menu on the
+  Manage folders screen, with the same `role == null` gate
+  (`folderMayBeManaged`).
 - The Inbox shows no switch (implicitly always on).
-- `InboxViewModel`: expose `watchedFolders: StateFlow<Set<String>>`;
-  `setFolderWatched` persists via `AccountStore` then re-arms
-  `PushService.start(...)`.
+- `AccountsViewModel.setFolderWatched` persists the choice via `AccountStore`,
+  clears the folder's new-mail baseline when it is unwatched, then re-arms push
+  through `PushController.apply(context, userInitiated = true)`.
 
 ## A8. Lifecycle edge cases
 

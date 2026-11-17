@@ -144,16 +144,13 @@ class PermanentDrawerWiringLintTest {
             "onOpenSnoozed = onOpenSnoozed,",
             "onOpenOutbox = onOpenOutbox,",
             "onManageFolders = onManageFolders,",
-            "onCreateFolder = { showCreateFolder = true },",
-            "onAddSubfolder = { folderToAddChild = it },",
-            "onRenameFolder = { folderToRename = it },",
-            "onDeleteFolder = { folderToDelete = it },",
             ")",
         )
         assertEquals(
             "the two DrawerContent calls no longer hand the sheet the same state. Both envelopes " +
-                "(permanent from 1 200 dp, modal below) must pass these nineteen arguments, whole " +
-                "and in this order. A single one rewritten in a single branch compiles and is " +
+                "(permanent from 1 200 dp, modal below) must pass these fifteen arguments, whole " +
+                "and in this order, and nothing after them: the folder actions are the folder " +
+                "screen's, and a callback back in either branch is a dialog the drawer opens again. A single one rewritten in a single branch compiles and is " +
                 "invisible to every other rule here: `folderRowsBadgeUnread = true` folds by " +
                 "default with no current account, where a folder folds itself and the mail " +
                 "under it is badged nowhere. Nothing in this " +

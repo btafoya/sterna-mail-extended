@@ -59,7 +59,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Delete
@@ -83,7 +82,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -103,7 +101,6 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarDuration
@@ -111,7 +108,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -291,11 +287,6 @@ fun InboxScreen(
     // Saveable, so a rotation does not close the picker.
     var showMoveSheet by rememberSaveable { mutableStateOf(false) }
     var showSearchFilters by rememberSaveable { mutableStateOf(false) }
-    var showCreateFolder by remember { mutableStateOf(false) }
-    var folderToRename by remember { mutableStateOf<Mailbox?>(null) }
-    var folderToDelete by remember { mutableStateOf<Mailbox?>(null) }
-    var folderToDeleteRecursive by remember { mutableStateOf<Mailbox?>(null) }
-    var folderToAddChild by remember { mutableStateOf<Mailbox?>(null) }
     val undo by viewModel.undo.collectAsStateWithLifecycle()
     // The current account's explicit fold/unfold choice per folder, persisted. A folder with no
     // key in here is one nobody decided anything about.
@@ -305,7 +296,6 @@ fun InboxScreen(
     val folderRowsBadgeUnread by viewModel.folderRowsBadgeUnread.collectAsStateWithLifecycle()
     val pendingPurge by viewModel.pendingPurge.collectAsStateWithLifecycle()
     val pendingDelete by viewModel.pendingDelete.collectAsStateWithLifecycle()
-    val pendingFolderDelete by viewModel.pendingFolderDelete.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val outboxPending by viewModel.outboxPending.collectAsStateWithLifecycle()
     val restoredDraft by viewModel.restoredDraft.collectAsStateWithLifecycle()
@@ -421,142 +411,6 @@ fun InboxScreen(
         SearchFilterSheet(ui.searchCriteria, ui.searchNames, viewModel, onDismiss = { showSearchFilters = false })
     }
 
-    // Create folder.
-    if (showCreateFolder) {
-        var name by remember { mutableStateOf("") }
-        val focusRequester = remember { FocusRequester() }
-        LaunchedEffect(Unit) { focusRequester.requestFocus() }
-        fun submit() { if (name.isNotBlank()) { viewModel.createFolder(name); showCreateFolder = false } }
-        AlertDialog(
-            onDismissRequest = { showCreateFolder = false },
-            title = { Text(stringResource(R.string.inbox_new_folder)) },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.inbox_folder_name)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier.focusRequester(focusRequester),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { submit() },
-                    enabled = name.isNotBlank(),
-                ) { Text(stringResource(R.string.inbox_create)) }
-            },
-            dismissButton = { TextButton(onClick = { showCreateFolder = false }) { Text(stringResource(R.string.inbox_cancel)) } },
-        )
-    }
-
-    // Create a subfolder under the chosen parent.
-    folderToAddChild?.let { parent ->
-        var name by remember { mutableStateOf("") }
-        val focusRequester = remember { FocusRequester() }
-        LaunchedEffect(Unit) { focusRequester.requestFocus() }
-        fun submit() {
-            if (name.isNotBlank()) {
-                viewModel.createFolder(name, parentId = parent.id)
-                viewModel.setFolderCollapsed(parent.id, false) // reveal the new child
-                folderToAddChild = null
-            }
-        }
-        AlertDialog(
-            onDismissRequest = { folderToAddChild = null },
-            title = { Text(stringResource(R.string.inbox_new_subfolder_in, mailboxDisplayName(parent.role, parent.name))) },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.inbox_folder_name)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier.focusRequester(focusRequester),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { submit() },
-                    enabled = name.isNotBlank(),
-                ) { Text(stringResource(R.string.inbox_create)) }
-            },
-            dismissButton = { TextButton(onClick = { folderToAddChild = null }) { Text(stringResource(R.string.inbox_cancel)) } },
-        )
-    }
-
-    // Rename folder.
-    folderToRename?.let { folder ->
-        var name by remember(folder.id) { mutableStateOf(folder.name) }
-        val focusRequester = remember { FocusRequester() }
-        LaunchedEffect(Unit) { focusRequester.requestFocus() }
-        fun submit() { if (name.isNotBlank()) { viewModel.renameFolder(folder.id, name); folderToRename = null } }
-        AlertDialog(
-            onDismissRequest = { folderToRename = null },
-            title = { Text(stringResource(R.string.inbox_rename_folder)) },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.inbox_folder_name)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier.focusRequester(focusRequester),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { submit() },
-                    enabled = name.isNotBlank(),
-                ) { Text(stringResource(R.string.inbox_rename)) }
-            },
-            dismissButton = { TextButton(onClick = { folderToRename = null }) { Text(stringResource(R.string.inbox_cancel)) } },
-        )
-    }
-
-    // Delete folder. A folder with subfolders gets a second, recursive-delete warning.
-    folderToDelete?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { folderToDelete = null },
-            title = { Text(stringResource(R.string.inbox_delete_folder_title)) },
-            text = { Text(stringResource(R.string.inbox_delete_folder_body, folder.name)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (viewModel.subfolderIdsOf(folder.id).isNotEmpty()) {
-                        folderToDeleteRecursive = folder
-                    } else {
-                        viewModel.deleteFolder(folder.id, folder.name)
-                    }
-                    folderToDelete = null
-                }) {
-                    Text(stringResource(R.string.inbox_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { folderToDelete = null }) { Text(stringResource(R.string.inbox_cancel)) } },
-        )
-    }
-
-    // Second confirmation: the folder has subfolders, which go down with it.
-    folderToDeleteRecursive?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { folderToDeleteRecursive = null },
-            title = { Text(stringResource(R.string.inbox_delete_folder_recursive_title)) },
-            text = { Text(stringResource(R.string.inbox_delete_folder_recursive_body, folder.name)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteFolder(folder.id, folder.name)
-                    folderToDeleteRecursive = null
-                }) {
-                    Text(stringResource(R.string.inbox_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { folderToDeleteRecursive = null }) { Text(stringResource(R.string.inbox_cancel)) } },
-        )
-    }
-
     // Bumped by an Undo that restores a message, to reveal it if it lands back at the very top
     // of the list (LazyColumn otherwise anchors to the old first row, hiding it, Codeberg #23).
     var revealTopSignal by remember { mutableIntStateOf(0) }
@@ -629,19 +483,6 @@ fun InboxScreen(
             viewModel.undoDelete()
             revealTopSignal++
         }
-    }
-    // Folder-delete hold-back: same pattern (pending clears when the delete fires).
-    LaunchedEffect(pendingFolderDelete) {
-        val label = pendingFolderDelete ?: return@LaunchedEffect
-        // The delete is triggered from the drawer, which would cover the snackbar:
-        // close it so the Undo is actually visible during its window.
-        if (drawerState.isOpen) drawerState.close()
-        val result = snackbarHostState.showSnackbar(
-            message = label,
-            actionLabel = undoLabel,
-            duration = SnackbarDuration.Indefinite,
-        )
-        if (result == SnackbarResult.ActionPerformed) viewModel.undoDeleteFolder()
     }
     val scope = rememberCoroutineScope()
     // Make sure the drawer is shut whenever the inbox returns to the foreground: a drawer item
@@ -1591,10 +1432,6 @@ fun InboxScreen(
                         onOpenSnoozed = onOpenSnoozed,
                         onOpenOutbox = onOpenOutbox,
                         onManageFolders = onManageFolders,
-                        onCreateFolder = { showCreateFolder = true },
-                        onAddSubfolder = { folderToAddChild = it },
-                        onRenameFolder = { folderToRename = it },
-                        onDeleteFolder = { folderToDelete = it },
                     )
                 }
             },
@@ -1621,10 +1458,6 @@ fun InboxScreen(
                         onOpenSnoozed = onOpenSnoozed,
                         onOpenOutbox = onOpenOutbox,
                         onManageFolders = onManageFolders,
-                        onCreateFolder = { showCreateFolder = true },
-                        onAddSubfolder = { folderToAddChild = it },
-                        onRenameFolder = { folderToRename = it },
-                        onDeleteFolder = { folderToDelete = it },
                     )
                 }
             },
@@ -1653,12 +1486,6 @@ private fun DrawerContent(
     onOpenSnoozed: () -> Unit,
     onOpenOutbox: () -> Unit,
     onManageFolders: () -> Unit,
-    /** The four dialogs the drawer opens live with the screen, not with the sheet: hoisted as
-     *  callbacks so a dialog outlives the modal sheet closing under it. */
-    onCreateFolder: () -> Unit,
-    onAddSubfolder: (Mailbox) -> Unit,
-    onRenameFolder: (Mailbox) -> Unit,
-    onDeleteFolder: (Mailbox) -> Unit,
 ) {
               val boldUnreadFolders = LocalBoldUnreadFolders.current
               val starredInDrawer = LocalStarredInDrawer.current
@@ -1927,34 +1754,6 @@ private fun DrawerContent(
                             }
                         },
                         label = { Text(label, fontWeight = if (folderLabelBold(unread, boldUnreadFolders)) FontWeight.Bold else null) },
-                        // The question its three items answer, asked once: a role list here opens
-                        // an empty menu on every role they refuse.
-                        badge = if (mailbox.role == null) {
-                            {
-                                Box {
-                                    var folderMenu by remember { mutableStateOf(false) }
-                                    IconButton(onClick = { folderMenu = true }) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options_for, displayName))
-                                    }
-                                    DropdownMenu(folderMenu, onDismissRequest = { folderMenu = false }, shape = MaterialTheme.shapes.medium) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_new_subfolder)) },
-                                            onClick = { folderMenu = false; onAddSubfolder(mailbox) },
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_rename)) },
-                                            onClick = { folderMenu = false; onRenameFolder(mailbox) },
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.inbox_delete)) },
-                                            onClick = { folderMenu = false; onDeleteFolder(mailbox) },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            null
-                        },
                         selected = mailbox.id == ui.selectedMailboxId,
                         onClick = {
                             viewModel.select(mailbox)
@@ -1963,13 +1762,6 @@ private fun DrawerContent(
                         modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 }
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.CreateNewFolder, contentDescription = null) },
-                    label = { Text(stringResource(R.string.inbox_new_folder)) },
-                    selected = false,
-                    onClick = onCreateFolder,
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Tune, contentDescription = null) },
                     label = { Text(stringResource(R.string.folders_manage_title)) },

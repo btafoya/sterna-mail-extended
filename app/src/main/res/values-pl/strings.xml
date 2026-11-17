@@ -350,8 +350,8 @@
     <string name="settings_search_hint">Szukaj w ustawieniach</string>
     <string name="settings_search_no_result">Brak pasujących ustawień</string>
     <string name="settings_folders_title">Foldery</string>
-    <string name="settings_folders_summary">Porządkuj, pokazuj lub ukrywaj swoje foldery</string>
-    <string name="settings_folders_keywords">kolejność, porządkuj, pokaż, ukryj, zmień kolejność, foldery</string>
+    <string name="settings_folders_summary">Twórz, zmieniaj nazwy, usuwaj, porządkuj, pokazuj lub ukrywaj swoje foldery</string>
+    <string name="settings_folders_keywords">utwórz, nowy, zmień nazwę, usuń, podfolder, kolejność, porządkuj, pokaż, ukryj, zmień kolejność, foldery</string>
     <string name="settings_back">Wstecz</string>
     <string name="settings_cancel">Anuluj</string>
     <string name="settings_clear">Wyczyść</string>

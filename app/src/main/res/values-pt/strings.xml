@@ -348,8 +348,8 @@
     <string name="settings_search_hint">Pesquisar configurações</string>
     <string name="settings_search_no_result">Nenhuma configuração corresponde</string>
     <string name="settings_folders_title">Pastas</string>
-    <string name="settings_folders_summary">Ordene, mostre ou oculte as suas pastas</string>
-    <string name="settings_folders_keywords">ordem, ordenar, mostrar, ocultar, reordenar, pastas</string>
+    <string name="settings_folders_summary">Crie, renomeie, exclua, ordene, mostre ou oculte as suas pastas</string>
+    <string name="settings_folders_keywords">criar, nova, renomear, excluir, subpasta, ordem, ordenar, mostrar, ocultar, reordenar, pastas</string>
     <string name="settings_back">Voltar</string>
     <string name="settings_cancel">Cancelar</string>
     <string name="settings_clear">Limpar</string>

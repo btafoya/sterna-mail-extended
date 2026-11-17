@@ -35,6 +35,8 @@ internal data class FolderManagementRow(
     val watched: Boolean,
     /** The move buttons the reorder mode gives this row, none on a folder with no place to trade. */
     val moves: FolderMoves? = null,
+    /** Whether the row carries the folder's own menu: New subfolder, Rename, Delete ([folderMayBeManaged]). */
+    val mayManage: Boolean = false,
 )
 
 /** The Up and Down buttons of one row: the fratrie a tap reorders, and which of the two it takes. */
@@ -76,9 +78,17 @@ internal fun folderManagementRows(
             mayWatch = mayHide && mailbox.role !in WATCH_SILENT_ROLES,
             watched = mailbox.id in watched,
             moves = folderMovesOf(mailbox, fratrieOf(mailbox, drawnById, fratries)),
+            mayManage = folderMayBeManaged(mailbox),
         )
     }
 }
+
+/**
+ * Whether a folder may be renamed, deleted or given a subfolder here: one no role claims, the same
+ * rule as the drawer's menu. A hidden folder qualifies, since this screen is where it is still listed;
+ * an Inbox, a Sent or a Trash never does, whatever the server would accept.
+ */
+internal fun folderMayBeManaged(mailbox: Mailbox): Boolean = mailbox.role == null
 
 /** Whether [mailbox] has a place in the user's folder order. A folder [folderRank] pins ahead of the
  *  rest has none: `siblingsInDrawerOrder` draws it by rank whatever the order holds, so a button on

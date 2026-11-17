@@ -91,18 +91,15 @@ class CollapsedFoldersSurfaceWiringTest {
     }
 
     /**
-     * The two writes, pinned with their arguments and in source order.
+     * The parent a new subfolder unfolds is written by `FolderActions.create`, executed in `FolderActionsTest`.
      */
-    @Test fun `both writes go through the ViewModel, with the argument each one owes`() {
+    @Test fun `the chevron is the drawer's only write, with the argument it owes`() {
         assertEquals(
-            "the drawer's writes changed. Creating a subfolder must UNFOLD its parent " +
-                "(`false`, never `true`, and never a key removal), and the chevron must write the " +
-                "opposite of what it currently shows. Swap either argument and the drawer folds " +
-                "what the user opened, with every behavioural test still green.",
-            listOf(
-                "viewModel.setFolderCollapsed(parent.id, false) // reveal the new child",
-                "viewModel.setFolderCollapsed(mailbox.id, !collapsed)",
-            ),
+            "the drawer's writes changed. The chevron must write the opposite of what it " +
+                "currently shows; swapped, the drawer folds what the user opened, with every " +
+                "behavioural test still green. A second write here is a folder action back in the " +
+                "drawer: creating a subfolder belongs to the folder screen (#302).",
+            listOf("viewModel.setFolderCollapsed(mailbox.id, !collapsed)"),
             codeLines(INBOX_SCREEN).filter { it.startsWith("viewModel.setFolderCollapsed(") },
         )
     }
@@ -177,15 +174,32 @@ class CollapsedFoldersSurfaceWiringTest {
             "the registry is re-read from somewhere new, or no longer from all of the places it " +
                 "must be. THREE call sites, pinned as a number and not as a count taken from the " +
                 "file itself: the account switch above, setFolderCollapsed's own re-read, and the " +
-                "folder RENAME — on IMAP the id is the path, MailFolders.renameFolder re-keys " +
-                "the stored registry (AccountStore.replaceCollapsedFolder) beside the watch flags, " +
-                "and without this re-read the flow keeps the OLD key: the renamed folder reads as " +
-                "'nobody decided' and the default folds it on the spot, closing the folder the " +
-                "user had opened by hand. ⛔ Still NOT the folder delete — nothing prunes the " +
-                "registry, so a re-read there answers the same thing and only looks like a " +
-                "cleanup that does not exist (#185, arbitration A7).",
+                "collector of every account write. The folder screen renames and creates folders " +
+                "while the Inbox sits under it: on IMAP the id is the path, MailFolders.renameFolder " +
+                "re-keys the stored registry (AccountStore.replaceCollapsedFolder) beside the watch " +
+                "flags, and a new subfolder unfolds its parent; without that collector the flow keeps " +
+                "the OLD key, the renamed folder reads as 'nobody decided' and the default folds it " +
+                "on the spot, closing the folder the user had opened by hand (#185, #302). Not the " +
+                "folder delete: nothing prunes the registry, so a re-read there answers the same " +
+                "thing and only looks like a cleanup that does not exist (#185, arbitration A7).",
             3,
             codeLines(INBOX_VIEW_MODEL).count { it == "refreshCollapsedFolders()" },
+        )
+        assertEquals(
+            "the collector that follows the store is no longer collected, or no longer re-reads " +
+                "both registries. A cold flow that nothing launches counts as one more call site " +
+                "above and runs never: back from the folder screen, a folder renamed there on IMAP " +
+                "is folded by the default and a parent that gained a subfolder stays folded over it. " +
+                "drop(1) skips the value the store answers at once, which the inline seeds already read.",
+            listOf(
+                "private val registriesFollowTheStore = store.accountsFlow.drop(1)",
+                ".onEach {",
+                "refreshWatchedFolders()",
+                "refreshCollapsedFolders()",
+                "}",
+                ".launchIn(viewModelScope)",
+            ),
+            block(INBOX_VIEW_MODEL, "private val registriesFollowTheStore", 6),
         )
     }
 

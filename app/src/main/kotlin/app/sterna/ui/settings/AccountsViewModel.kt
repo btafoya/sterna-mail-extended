@@ -5,7 +5,10 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.sterna.R
 import app.sterna.container
+import app.sterna.folders.FolderActions
+import app.sterna.folders.FolderDeletion
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.ConnectionSecurity
@@ -32,11 +35,13 @@ import app.sterna.push.NewMailNotifier
 import app.sterna.push.Notifications
 import app.sterna.push.PushController
 import app.sterna.ui.connect.oauthFailureMessage
+import app.sterna.ui.inbox.PURGE_HOLD_BACK_MS
 import app.sterna.ui.inbox.prunedFreshness
 import app.sterna.ui.inbox.prunedView
 import app.sterna.widget.RecentMailWidgetDraw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -198,6 +203,59 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         appScope.launch {
             runCatching { mail.folders.setSpecialFolder(id, write.role, write.folderId) }
                 .onFailure { android.util.Log.w("SternaAccounts", "the folder choice did not reach the folder cache; the drawer and the delete still name the old one", it) }
+        }
+    }
+
+    private val folderActions = FolderActions.of(application, store, mail.folders)
+
+    private val _folderMessage = MutableStateFlow<String?>(null)
+
+    val folderMessage: StateFlow<String?> = _folderMessage.asStateFlow()
+
+    fun clearFolderMessage() { _folderMessage.value = null }
+
+    fun createFolder(id: String, name: String, parentId: String?) = folderOp { folderActions.create(id, name, parentId) }
+
+    fun renameFolder(id: String, folderId: String, newName: String) = folderOp { folderActions.rename(id, folderId, newName) }
+
+    private fun folderOp(op: suspend () -> Unit) {
+        appScope.launch {
+            runCatching { op() }.onFailure {
+                _folderMessage.value = it.message ?: getApplication<Application>().getString(R.string.status_folder_op_failed)
+            }
+        }
+    }
+
+    data class PendingFolderDelete(val accountId: String, val mailboxId: String, val label: String)
+
+    private val _pendingFolderDelete = MutableStateFlow<PendingFolderDelete?>(null)
+    val pendingFolderDelete: StateFlow<PendingFolderDelete?> = _pendingFolderDelete.asStateFlow()
+    private var folderDeleteJob: Job? = null
+
+    internal fun deleteFolder(id: String, deletion: FolderDeletion) {
+        val label = getApplication<Application>().getString(R.string.inbox_folder_deleted, deletion.name)
+        appScope.launch {
+            if (!folderActions.delete(id, deletion, PURGE_HOLD_BACK_MS)) return@launch
+            withContext(Dispatchers.Main) {
+                val pending = PendingFolderDelete(id, deletion.mailboxId, label)
+                _pendingFolderDelete.value = pending
+                folderDeleteJob?.cancel()
+                folderDeleteJob = viewModelScope.launch {
+                    delay(PURGE_HOLD_BACK_MS)
+                    _pendingFolderDelete.compareAndSet(pending, null)
+                }
+            }
+        }
+    }
+
+    fun undoDeleteFolder() {
+        val pending = _pendingFolderDelete.value ?: return
+        _pendingFolderDelete.value = null
+        folderDeleteJob?.cancel()
+        folderDeleteJob = null
+        appScope.launch {
+            runCatching { folderActions.undoDelete(pending.accountId, pending.mailboxId) }
+                .onFailure { android.util.Log.w("SternaAccounts", "the delete was cancelled, but the folder list could not be fetched again; the folder comes back at the next sync", it) }
         }
     }
 

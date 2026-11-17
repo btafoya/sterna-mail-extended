@@ -17,7 +17,7 @@ import java.io.File
  * Holes (`CONTRIBUTING.md` § Tests) that apply here:
  *  1. `attachmentName`, `subject`, `senderName`, `displayName`, `removeName` and the three
  *     outbox names are names. Their declarations are pinned next to their uses where this change
- *     wrote them; `displayName` (drawer) and `addr.display()` (participants) are older code,
+ *     wrote them; `name` (folder screen) and `addr.display()` (participants) are older code,
  *     trusted as the text their rows show.
  *  3. A pinned line says nothing about where it sits: that the outbox `semantics` modifier is on
  *     the button of the same verb is held by writing action and name on one line; that
@@ -42,11 +42,18 @@ class RowActionNamesLintTest {
         )
     }
 
-    @Test fun `the options of a drawer folder name the folder`() {
+    @Test fun `the options of a folder name the folder`() {
         assertEquals(
-            "the folder name without its unread count: `label` carries the count on a busy folder",
-            listOf("Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options_for, displayName))"),
-            linesOf(INBOX) { it.names("inbox_folder_options", "inbox_folder_options_for") },
+            "the folder screen's menu button must be spoken with the name its section shows, the " +
+                "same `name` the section takes as its title",
+            listOf(
+                "title = name,",
+                "name = name,",
+                "Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.inbox_folder_options_for, name))",
+            ),
+            linesOf(FOLDERS) {
+                it == "title = name," || it == "name = name," || it.names("inbox_folder_options", "inbox_folder_options_for")
+            },
         )
     }
 
@@ -197,7 +204,7 @@ class RowActionNamesLintTest {
     private companion object {
         const val UI = "app/src/main/kotlin/app/sterna/ui"
         const val COMPOSE = "$UI/compose/ComposeScreen.kt"
-        const val INBOX = "$UI/inbox/InboxScreen.kt"
+        const val FOLDERS = "$UI/settings/FolderManagementScreen.kt"
         const val SNOOZED = "$UI/snoozed/SnoozedScreen.kt"
         const val OUTBOX = "$UI/outbox/OutboxScreen.kt"
         const val BY_SENDER = "$UI/sender/MailBySenderScreen.kt"

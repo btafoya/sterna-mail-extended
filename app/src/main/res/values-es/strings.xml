@@ -348,8 +348,8 @@
     <string name="settings_search_hint">Buscar en los ajustes</string>
     <string name="settings_search_no_result">Ningún ajuste coincide</string>
     <string name="settings_folders_title">Carpetas</string>
-    <string name="settings_folders_summary">Ordena, muestra u oculta tus carpetas</string>
-    <string name="settings_folders_keywords">orden, ordenar, mostrar, ocultar, reordenar, carpetas</string>
+    <string name="settings_folders_summary">Crea, renombra, elimina, ordena, muestra u oculta tus carpetas</string>
+    <string name="settings_folders_keywords">crear, nueva, renombrar, eliminar, subcarpeta, orden, ordenar, mostrar, ocultar, reordenar, carpetas</string>
     <string name="settings_back">Atrás</string>
     <string name="settings_cancel">Cancelar</string>
     <string name="settings_clear">Borrar</string>
