@@ -195,37 +195,109 @@ class PassingFromOptionTest {
         assertEquals(options + option, withFromOption(options + option, option))
     }
 
-    @Test fun `reply-all leaves out the passing address it answers from`() {
+    private fun selvesOf(o: Email, account: StoredAccount, opts: List<FromOption> = options): Set<String> {
+        val option = chosen(account, o, opts)
+        return replyingSelves("me@example.com", listOf(me, work), option?.let { withFromOption(opts, it) } ?: opts, "acc")
+    }
+
+    @Test fun `reply-all keeps among its recipients an alias of the domain the server delivered to`() {
         val o = mail(to = listOf("sales@example.com", "bob@example.net"), delivered = "sales@example.com")
-        val option = chosen(imap, o)!!
-        val selves = replyingSelves("me@example.com", listOf(me, work), withFromOption(options, option), "acc")
-        assertEquals(ReplyAllRecipients(to = listOf("alice@example.net", "bob@example.net"), cc = emptyList()), replyAllRecipients(o, selves))
+        assertEquals(passing("sales@example.com", me), chosen(imap, o))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.net", "sales@example.com", "bob@example.net"), cc = emptyList()),
+            replyAllRecipients(o, selvesOf(o, imap)),
+        )
+    }
+
+    @Test fun `reply-all keeps the group address an X-Original-To named above the account's own Delivered-To`() {
+        // `deliveredAddress` is what `firstHeaderOf` kept of `X-Original-To: team@` over `Delivered-To: me@`.
+        val o = mail(to = listOf("team@example.com"), delivered = "team@example.com")
+        assertEquals(passing("team@example.com", me), chosen(imap, o))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.net", "team@example.com"), cc = emptyList()),
+            replyAllRecipients(o, selvesOf(o, imap)),
+        )
+    }
+
+    @Test fun `reply-all keeps in Cc the colleague a sender's own X-Original-To named`() {
+        val o = mail(to = listOf("me@example.com"), cc = listOf("colleague@example.com"), delivered = "colleague@example.com")
+        val opts = listOf(FromOption("acc", work), FromOption("acc", me))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.net"), cc = listOf("colleague@example.com")),
+            replyAllRecipients(o, selvesOf(o, imap, opts)),
+        )
+        val noIdentityInTo = mail(to = listOf("bob@example.net"), cc = listOf("colleague@example.com"), delivered = "colleague@example.com")
+        assertEquals(passing("colleague@example.com", me), chosen(imap, noIdentityInTo))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.net", "bob@example.net"), cc = listOf("colleague@example.com")),
+            replyAllRecipients(noIdentityInTo, selvesOf(noIdentityInTo, imap)),
+        )
+    }
+
+    @Test fun `reply-all keeps a tagged address whose base is no identity`() {
+        val o = mail(to = listOf("team+dev@example.com", "bob@example.net"), delivered = "team+dev@example.com")
+        assertEquals(passing("team+dev@example.com", me), chosen(imap, o))
+        assertEquals(
+            ReplyAllRecipients(to = listOf("alice@example.net", "team+dev@example.com", "bob@example.net"), cc = emptyList()),
+            replyAllRecipients(o, selvesOf(o, imap)),
+        )
+    }
+
+    @Test fun `reply-all leaves out the sub-address of an identity it answers from, on JMAP and on IMAP`() {
+        val onJmap = mail(to = listOf("me+shop@example.com", "bob@example.net"))
+        assertEquals(passing("me+shop@example.com", me), chosen(jmap, onJmap))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.net", "bob@example.net"), cc = emptyList()), replyAllRecipients(onJmap, selvesOf(onJmap, jmap)))
+        val onImap = mail(to = listOf("Me+Shop@example.com", "bob@example.net"), delivered = "me+shop@example.com")
+        assertEquals(passing("me+shop@example.com", me), chosen(imap, onImap))
+        assertEquals(ReplyAllRecipients(to = listOf("alice@example.net", "bob@example.net"), cc = emptyList()), replyAllRecipients(onImap, selvesOf(onImap, imap)))
+    }
+
+    @Test fun `reply-all's selves read the replying account alone`() {
         assertEquals(
             setOf("me@example.com", "work@corp.org"),
             replyingSelves("me@example.com", listOf(me, work), listOf(FromOption("other", identity("sales@example.com"))), "acc"),
+        )
+        val shop = passing("me+shop@example.com", me)
+        assertEquals(
+            "a sub-address is self only on the account whose identity is its base",
+            setOf("me@example.com", "work@corp.org"),
+            replyingSelves("me@example.com", listOf(me, work), listOf(FromOption("acc", work), FromOption("other", me), shop), "acc"),
+        )
+        assertEquals(
+            setOf("me@example.com", "work@corp.org", "me+shop@example.com"),
+            replyingSelves("me@example.com", listOf(me, work), options + shop + FromOption("other", identity("x@y.org")), "acc"),
         )
     }
 
     // --- Reply-all opened from the cache, settled by the fetched original ---
 
+    private val shop = passing("me+shop@example.com", me)
     private val sales = passing("sales@example.com", me)
 
-    @Test fun `a reply-all from the cache drops the passing address the original settles on`() {
-        assertEquals("sales@example.com", recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), sales))
-        assertEquals("sales@example.com", recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, null, sales))
+    @Test fun `a reply-all from the cache drops the sub-address of an identity the original settles on`() {
+        assertEquals("me+shop@example.com", recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), shop, options + shop))
+        assertEquals("me+shop@example.com", recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, null, shop, options + shop))
+    }
+
+    @Test fun `a reply-all from the cache drops no alias, nor a tagged address whose base is no identity`() {
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), sales, options + sales))
+        val teamDev = passing("team+dev@example.com", me)
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), teamDev, options + teamDev))
+        val onlyElsewhere = listOf(FromOption("acc", work), FromOption("other", me), shop)
+        assertEquals("the base is an identity of another account", null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", work), shop, onlyElsewhere))
     }
 
     @Test fun `a reply or a forward drops nothing`() {
         for (opening in listOf(ComposeOpening.REPLY, ComposeOpening.FORWARD, ComposeOpening.FORWARD_ATTACHMENT)) {
-            assertEquals("$opening dropped a recipient", null, recipientDroppedOnceSettled(opening, true, FromOption("acc", me), sales))
+            assertEquals("$opening dropped a recipient", null, recipientDroppedOnceSettled(opening, true, FromOption("acc", me), shop, options + shop))
         }
     }
 
     @Test fun `nothing is dropped when the cache already knew the From, or nothing came from the cache`() {
-        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, sales, sales))
-        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, false, FromOption("acc", me), sales))
-        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), FromOption("acc", work)))
-        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), null))
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, shop, shop, options + shop))
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, false, FromOption("acc", me), shop, options + shop))
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), FromOption("acc", work), options))
+        assertEquals(null, recipientDroppedOnceSettled(ComposeOpening.REPLY_ALL, true, FromOption("acc", me), null, options))
     }
 
     @Test fun `the dropped address leaves the chips whatever its case or display name`() {
@@ -252,7 +324,7 @@ class PassingFromOptionTest {
             .filter { it.isNotEmpty() && !it.startsWith("//") && !it.startsWith("*") && !it.startsWith("/*") }
         val settle = code.indices.single { code[it] == "preselectReceivingIdentity(credentials.id, original)" }
         assertEquals(
-            "_droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value)",
+            "_droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value, _fromOptions.value)",
             code[settle + 1],
         )
         val atCache = code.indices.single { code[it] == "val fromAtCache = _selectedFrom.value" }
@@ -263,7 +335,7 @@ class PassingFromOptionTest {
                 "private val _droppedRecipient = MutableStateFlow<String?>(null)",
                 "val droppedRecipient: StateFlow<String?> = _droppedRecipient.asStateFlow()",
                 "_droppedRecipient.value = null",
-                "_droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value)",
+                "_droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value, _fromOptions.value)",
             ),
             code.filter { "_droppedRecipient" in it },
         )

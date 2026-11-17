@@ -69,7 +69,10 @@ internal fun passingFromByForm(
 }
 
 private fun identitiesOf(options: List<FromOption>, account: StoredAccount): List<StoredIdentity> =
-    options.filter { it.accountId == account.id && !isPassingIdentity(it.identity) }.map { it.identity }
+    identitiesOf(options, account.id)
+
+private fun identitiesOf(options: List<FromOption>, accountId: String): List<StoredIdentity> =
+    options.filter { it.accountId == accountId && !isPassingIdentity(it.identity) }.map { it.identity }
 
 private fun identityAddressesOf(identities: List<StoredIdentity>): Set<String> =
     identities.map { it.email.trim().lowercase() }.toSet()
@@ -112,14 +115,26 @@ private fun domainOf(address: String): String =
 internal fun withFromOption(options: List<FromOption>, option: FromOption): List<FromOption> =
     if (option in options) options else options + option
 
-/** [options] count: a passing From left out of a reply-all's selves re-addresses the alias it answers from. */
+/**
+ * Whether the passing From [option] is the user, so that a reply-all answering from it leaves
+ * it out of To and Cc: only a `+tag` sub-address whose base is an identity of [option]'s account in
+ * [options]. Any other passing address, an alias or a group on an identity's domain, or an
+ * `X-Original-To` a sender wrote, may be someone else and stays a recipient.
+ */
+internal fun isPassingSelf(option: FromOption, options: List<FromOption>): Boolean {
+    if (!isPassingIdentity(option.identity)) return false
+    val base = subAddressBase(option.identity.email.trim())?.lowercase() ?: return false
+    return base in identityAddressesOf(identitiesOf(options, option.accountId))
+}
+
+/** [accountId]'s options count, a passing From among them only when [isPassingSelf]. */
 internal fun replyingSelves(
     username: String,
     identities: List<StoredIdentity>,
     options: List<FromOption>,
     accountId: String,
 ): Set<String> =
-    (listOf(username) + identities.map { it.email } + options.filter { it.accountId == accountId }.map { it.identity.email })
+    (listOf(username) + identities.map { it.email } + options.filter { it.accountId == accountId && (!isPassingIdentity(it.identity) || isPassingSelf(it, options)) }.map { it.identity.email })
         .map { it.trim().lowercase() }
         .filter { it.isNotEmpty() }
         .toSet()
@@ -127,16 +142,18 @@ internal fun replyingSelves(
 /**
  * The address a reply-all opened from the cache must drop from its recipients once the fetched
  * original settles the From on [settled]: the cached prefill left out only the selves known then,
- * and a passing From is learnt from the original's delivery headers alone.
+ * and a passing From is learnt from the original's delivery headers alone. Only one that
+ * [isPassingSelf] in [options] is dropped, as [replyingSelves] leaves out only that one.
  */
 internal fun recipientDroppedOnceSettled(
     opening: ComposeOpening,
     prefilledFromCache: Boolean,
     atCache: FromOption?,
     settled: FromOption?,
+    options: List<FromOption>,
 ): String? =
     settled
-        ?.takeIf { prefilledFromCache && opening == ComposeOpening.REPLY_ALL && it != atCache && isPassingIdentity(it.identity) }
+        ?.takeIf { prefilledFromCache && opening == ComposeOpening.REPLY_ALL && it != atCache && isPassingSelf(it, options) }
         ?.identity?.email
 
 /**

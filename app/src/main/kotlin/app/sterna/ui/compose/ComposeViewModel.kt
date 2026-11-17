@@ -853,7 +853,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
         (_selectedFrom.value?.accountId ?: accountId)?.let { store.credentials(it) } ?: store.load()
 
     /**
-     * Every address that IS the user on this account: the login, its identities, a passing From.
+     * Every address that IS the user on this account: the login, its identities, a passing From that `isPassingSelf`.
      */
     private fun selves(credentials: AccountCredentials): Set<String> =
         replyingSelves(credentials.username, store.identities(credentials.id), _fromOptions.value, credentials.id)
@@ -1420,7 +1420,7 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
             // The fetched original has the complete To and Cc, so it can settle the sending identity
             // the cached row could not (#81). Still before any body is rebuilt below.
             preselectReceivingIdentity(credentials.id, original)
-            _droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value)
+            _droppedRecipient.value = recipientDroppedOnceSettled(opening, cached != null, fromAtCache, _selectedFrom.value, _fromOptions.value)
 
             if (opening.carriesOriginal) {
                 // A forward's editable body stays empty; the original is carried at send time. Its
