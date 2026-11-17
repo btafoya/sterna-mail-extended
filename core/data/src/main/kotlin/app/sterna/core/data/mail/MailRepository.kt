@@ -1118,12 +1118,14 @@ data class SavedVacation(val response: VacationResponse, val script: ScriptSnaps
 
 /** Outcome of loading an account's server-side vacation responder. */
 sealed interface VacationState {
-    /** The server was asked and has no vacation-responder support: a JMAP server without the
-     *  capability, or a ManageSieve server that does not list `vacation`, `date` and `relational`. */
+    /** The server has no vacation-responder support: a JMAP server without the capability, a
+     *  ManageSieve server that does not list `vacation`, `date` and `relational`, or, not asked, a
+     *  password IMAP account on a host known to have no ManageSieve. */
     data object Unsupported : VacationState
 
-    /** Not offered to this account, whose server is never asked: IMAP signed in with OAuth or
-     *  without an IMAP host. Kept apart from [Unsupported] so the screen does not blame the server. */
+    /** Not offered to this account because of how it is set up, its server never asked: IMAP signed
+     *  in with OAuth or without an IMAP host. Kept apart from [Unsupported] so the screen does not
+     *  blame the server. */
     data object AccountUnsupported : VacationState
 
     data class Loaded(

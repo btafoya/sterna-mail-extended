@@ -240,6 +240,28 @@ class FiltersOverManageSieveTest {
         assertNull("no IMAP endpoint", manageSieveHost(imapAccount.copy(imap = null)))
     }
 
+    @Test fun `a Gmail IMAP host has no ManageSieve host, whatever its case or final dot`() {
+        fun on(host: String) = imapAccount.copy(imap = MailEndpoint(host, 993, ConnectionSecurity.TLS))
+        for (host in listOf("imap.gmail.com", "IMAP.Gmail.com.", "imap.googlemail.com")) {
+            assertNull(host, manageSieveHost(on(host)))
+            assertTrue(host, hostWithoutManageSieve(host))
+        }
+        for (host in listOf("imap.example.test", "gmail.com.example.test", "imap.example.com", "imap.mail.gmail.com")) {
+            assertEquals(host, manageSieveHost(on(host)))
+            assertFalse(host, hostWithoutManageSieve(host))
+        }
+    }
+
+    @Test fun `a password IMAP account on Gmail loads as Unsupported, without a connection`() {
+        val gmail = imapAccount.copy(imap = MailEndpoint("imap.gmail.com", 993, ConnectionSecurity.TLS))
+        val sieve = FakeSieve(scripts = mapOf("sterna" to SieveCodec.generate(rules)), active = "sterna")
+        val accounts = accounts(sieve)
+
+        assertSame(FilterRulesState.Unsupported, runBlocking { accounts.loadFilterRules(gmail) })
+        assertEquals(emptyList<List<Any>>(), sieve.logins)
+        assertEquals(0, host.jmapSessions)
+    }
+
     /** The script as the filters screen reads it when it opens. */
     private fun MailAccounts.opening(account: AccountCredentials = imapAccount) =
         runBlocking { loadFilterRules(account) } as FilterRulesState.Loaded
@@ -873,6 +895,24 @@ class FiltersOverManageSieveTest {
             val thrown = thrownBy<IllegalStateException> { runBlocking { accounts.saveVacation(account, away, read = null) } }
 
             assertEquals("Automatic replies are not available for this account", thrown.message)
+            assertEquals(emptyList<List<Any>>(), sieve.logins)
+            assertEquals(0, host.jmapSessions)
+        }
+    }
+
+    @Test fun `a password IMAP account on Gmail has a server without auto-reply, an OAuth one keeps its sign-in as the reason`() {
+        fun on(host: String) = imapAccount.copy(imap = MailEndpoint(host, 993, ConnectionSecurity.TLS))
+        val gmail = on("imap.gmail.com")
+        for ((account, expected) in listOf(
+            gmail to VacationState.Unsupported,
+            on("imap.googlemail.com") to VacationState.Unsupported,
+            on("IMAP.Gmail.com.") to VacationState.Unsupported,
+            gmail.copy(oauth = oauth, authType = AuthType.OAUTH) to VacationState.AccountUnsupported,
+            gmail.copy(authType = AuthType.OAUTH) to VacationState.AccountUnsupported,
+        )) {
+            val sieve = FakeSieve()
+
+            assertSame("${account.imap?.host} ${account.authType}", expected, runBlocking { accounts(sieve).loadVacation(account) })
             assertEquals(emptyList<List<Any>>(), sieve.logins)
             assertEquals(0, host.jmapSessions)
         }

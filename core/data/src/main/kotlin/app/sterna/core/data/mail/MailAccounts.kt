@@ -2,6 +2,7 @@ package app.sterna.core.data.mail
 
 import app.sterna.core.data.account.AccountCredentials
 import app.sterna.core.data.account.AccountStorage
+import app.sterna.core.data.account.AuthType
 import app.sterna.core.data.account.DiscoveredMailAccount
 import app.sterna.core.data.account.MailEndpoint
 import app.sterna.core.data.account.MailProtocol
@@ -573,7 +574,8 @@ class MailAccounts(
 
     /**
      * What the script [script] says, or without a name the one the filters open, see [chosenScriptName];
-     * Unsupported for an IMAP account on OAuth or without an IMAP host, and for JMAP without the capability.
+     * Unsupported for an IMAP account on OAuth, without an IMAP host or on a host [hostWithoutManageSieve]
+     * names, and for JMAP without the capability.
      * A failed ManageSieve read throws.
      */
     suspend fun loadFilterRules(credentials: AccountCredentials, script: String? = null): FilterRulesState {
@@ -725,9 +727,20 @@ class MailAccounts(
         return scripts to activated
     }
 
+    /**
+     * The responder of an IMAP account [manageSieveHost] gives no host, nothing asked. The OAuth guard
+     * comes first: an OAuth account says its sign-in is the reason even on a host
+     * [hostWithoutManageSieve] names, where a password one says its server is.
+     */
+    private fun vacationWithoutSieveHost(credentials: AccountCredentials): VacationState = when {
+        credentials.oauth != null || credentials.authType == AuthType.OAUTH -> VacationState.AccountUnsupported
+        credentials.imap?.host?.let(::hostWithoutManageSieve) == true -> VacationState.Unsupported
+        else -> VacationState.AccountUnsupported
+    }
+
     /** [loadVacation] over ManageSieve: the capability gate, one listing, then the script [openedScriptName] picks. */
     private suspend fun loadVacationBySieve(credentials: AccountCredentials): VacationState {
-        val sieveHost = manageSieveHost(credentials) ?: return VacationState.AccountUnsupported
+        val sieveHost = manageSieveHost(credentials) ?: return vacationWithoutSieveHost(credentials)
         return sieveSession(sieveHost, credentials) {
             if (!sieveExtensions.map { it.lowercase() }.containsAll(VACATION_SIEVE_EXTENSIONS)) {
                 return@sieveSession VacationState.Unsupported

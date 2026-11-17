@@ -15,19 +15,20 @@ import java.io.IOException
 /**
  * Which sentence the responder and filters screens show when they cannot offer their form, or when
  * a filters or responder load or save fails (#211). `loadVacation` answers `AccountUnsupported` for an IMAP
- * account ManageSieve is never tried on, and `Unsupported` for a server that was asked and lacks the
- * support, on either protocol, so the state tells the causes apart. The filters of a password IMAP
- * account go through ManageSieve, so their `Unsupported` no longer depends on the protocol, and a failed ManageSieve
- * dialogue is worded by the kind of its `ManageSieveException`. The first half of this class executes
- * those decisions. The second half is a source lint, same instrument and same disclaimer as
- * [SettingsScreenHonestyTest]: it only proves the ViewModels and screens call the decisions with
- * the right arguments, since neither is instantiable in this module.
+ * account on OAuth or without an IMAP host, and `Unsupported` for a server that lacks the support, asked
+ * on either protocol or, unasked, a host known to have no ManageSieve, so the state tells the causes
+ * apart. The filters of a password IMAP account go through ManageSieve, so their `Unsupported` no
+ * longer depends on the protocol, and a failed ManageSieve dialogue is worded by the kind of its
+ * `ManageSieveException`. The first half of this class executes those decisions. The second half is
+ * a source lint, same instrument and same disclaimer as [SettingsScreenHonestyTest]: it only proves
+ * the ViewModels and screens call the decisions with the right arguments, since neither is
+ * instantiable in this module.
  */
 class FeatureUnavailableTest {
 
     // -- the decision, executed ---------------------------------------------------------------
 
-    @Test fun `an IMAP account ManageSieve is never tried on is told it depends on the account type`() {
+    @Test fun `an IMAP account on OAuth or without a host is told it depends on the account type`() {
         val state = vacationUnavailableState(VacationState.AccountUnsupported, accountLabel = "alex@example.org")
         assertFalse("no form, so no Save, on an IMAP account", state.supported)
         assertEquals(
@@ -38,12 +39,12 @@ class FeatureUnavailableTest {
         assertEquals("alex@example.org", state.accountLabel)
     }
 
-    @Test fun `a server that was asked and lacks the support keeps the server sentence, on IMAP too`() {
+    @Test fun `a server that lacks the support keeps the server sentence, on IMAP too`() {
         val state = vacationUnavailableState(VacationState.Unsupported, accountLabel = "alex@example.org")
         assertFalse(state.supported)
         assertEquals(
-            "a JMAP server without the capability and a ManageSieve server without vacation, date or " +
-                "relational are the same fact: the server said no",
+            "a JMAP server without the capability, a ManageSieve server without vacation, date or " +
+                "relational and a host known to have no ManageSieve are the same fact: the server lacks it",
             UnavailableCause.SERVER, state.unavailableCause,
         )
         assertEquals(R.string.settings_vacation_unsupported, vacationUnavailableText(state.unavailableCause))

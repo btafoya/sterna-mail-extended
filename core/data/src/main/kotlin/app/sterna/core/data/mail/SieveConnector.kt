@@ -56,10 +56,20 @@ internal class ManageSieveConnector(private val client: ManageSieveClient = Mana
  * The host an account's filters are reached on over ManageSieve: its IMAP host. Null for a JMAP
  * account, for an IMAP account without an IMAP host, and for an OAuth one, refused without trying:
  * Outlook, the one OAuth IMAP provider, has no ManageSieve, and the client authenticates with
- * `PLAIN` only.
+ * `PLAIN` only. Null too for a password account on a host [hostWithoutManageSieve] names: Gmail
+ * answers nothing on 4190, so trying would only end, after the timeout, as an unreachable server.
  */
 internal fun manageSieveHost(credentials: AccountCredentials): String? = when {
     credentials.protocol != MailProtocol.IMAP -> null
     credentials.oauth != null || credentials.authType == AuthType.OAUTH -> null
-    else -> credentials.imap?.host
+    else -> credentials.imap?.host?.takeUnless { hostWithoutManageSieve(it) }
 }
+
+/**
+ * An IMAP host known to serve no ManageSieve. A closed list, matched whole: a provider whose 4190
+ * merely failed once stays out, since an unreachable server is retried and an unsupported one is not.
+ */
+internal fun hostWithoutManageSieve(host: String): Boolean =
+    host.lowercase().removeSuffix(".") in HOSTS_WITHOUT_MANAGESIEVE
+
+private val HOSTS_WITHOUT_MANAGESIEVE = setOf("imap.gmail.com", "imap.googlemail.com")

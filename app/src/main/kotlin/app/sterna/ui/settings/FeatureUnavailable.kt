@@ -7,10 +7,10 @@ import app.sterna.core.imap.ManageSieveException
 
 /** Why the responder screen shows a note instead of its form. */
 enum class UnavailableCause {
-    /** An IMAP account ManageSieve is never tried on: signed in with OAuth, or without an IMAP host. */
+    /** An IMAP account signed in with OAuth, or without an IMAP host: ManageSieve is never tried. */
     IMAP_ACCOUNT,
 
-    /** The server was asked and lacks the support, over JMAP or ManageSieve. */
+    /** The server lacks the support: asked over JMAP or ManageSieve, or a host known to have no ManageSieve, not asked. */
     SERVER,
 }
 
@@ -31,7 +31,8 @@ internal fun vacationUnavailableState(state: VacationState, accountLabel: String
 
 /**
  * No protocol here: an IMAP account reaches its filters over ManageSieve, so `Unsupported` means an
- * account no transport serves (IMAP on OAuth or without a host, JMAP without Sieve), whichever it is.
+ * account no transport serves (IMAP on OAuth, without a host or on a host known to have no ManageSieve,
+ * JMAP without Sieve), whichever it is.
  */
 internal fun filtersUnavailableState(accountLabel: String): FiltersUiState =
     FiltersUiState(
