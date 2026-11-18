@@ -200,7 +200,8 @@ class OpenKeychainPgpEngine(
         intent.putExtra(OpenPgpApi.EXTRA_USER_IDS, emails.toTypedArray())
         return mapResult(execute(intent, input = null, collectOutput = false)) { result, _ ->
             val ids = result.getLongArrayExtra(OpenPgpApi.RESULT_KEY_IDS)
-            if (ids != null && ids.size >= emails.size) PgpResult.Success(ids)
+            val picked = interactionResult?.hasExtra(OpenPgpApi.EXTRA_KEY_IDS_SELECTED) == true
+            if (ids != null && recipientKeyIdsAccepted(ids, emails.size, picked)) PgpResult.Success(ids)
             else PgpResult.Error("Missing public keys")
         }
     }

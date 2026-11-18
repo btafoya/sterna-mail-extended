@@ -272,8 +272,8 @@ class PgpModeWiringTest {
     }
 
     @Test fun `the compose screen asks whether the mode encrypts, never which mode it is`() {
-        // Three sites in that file read it: the Send gate (keysReady), the per-recipient red flag
-        // (missingKeyFor) and the "the subject is not encrypted" note.
+        // Two sites in that file read it: the per-recipient red flag (missingKeyFor) and the "the
+        // subject is not encrypted" note. The Send gate goes through `sendKeysReady`.
         //
         // This is an absence over the whole file, so it says nothing about a site that stops
         // reading the mode at all. It is the cheapest guard that survives a lengthened line.

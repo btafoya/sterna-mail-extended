@@ -126,11 +126,12 @@ straight back to **Off**, not on to another encrypting mode.
 | key (long press only) | **Encrypt without signing** | Encrypted, not signed: only the recipient can read it, but it doesn't prove it comes from you. |
 
 To **encrypt**, Sterna needs a public key for every recipient. A recipient
-without a known key is flagged, and you will not be able to send encrypted until
-their key is in your OpenPGP app. It can get there three ways: you ask them for
-it, you fetch it from a key server, or it simply arrives with one of their
-messages (see below). **Signing** has no such requirement: you can sign to
-anyone.
+without a known key is flagged. If you encrypt anyway, at send time your OpenPGP
+app can ask you to choose their key; Sterna does not remember that choice for the
+next message. For the address to be recognised without a choice, their key has to be
+in your OpenPGP app, and it can get there three ways: you ask them for it, you
+fetch it from a key server, or it simply arrives with one of their messages (see
+below). **Signing** has no such requirement: you can sign to anyone.
 
 Once an account has OpenPGP turned on and a key chosen, Sterna attaches that
 key's public half to the messages that account sends, in a header. Nothing is

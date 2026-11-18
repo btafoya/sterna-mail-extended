@@ -690,9 +690,7 @@ fun ComposeScreen(
     val recipientCount = listOf(to, cc, bcc).sumOf { field -> field.split(',', ';').count { it.isNotBlank() } }
     // Can send only with at least one To recipient and every entered address valid.
     val allRecipients = listOf(to, cc, bcc).flatMap { recipientTokens(it) }
-    // When encrypting, every recipient must have a resolvable key (false = known-missing; absent = not
-    // yet checked, allowed, the send resolves keys and reports precisely).
-    val keysReady = !pgpMode.encrypts || allRecipients.none { recipientKeys[it] == false }
+    val keysReady = sendKeysReady(pgpMode, allRecipients, recipientKeys)
     val canSend = recipientTokens(to).isNotEmpty() && allRecipients.all(::isValidEmail) && keysReady
     val sendNow = { viewModel.send(to, cc, bcc, subject.text, rich, requestReceipt) }
     val proceedAfterAttachment = {
