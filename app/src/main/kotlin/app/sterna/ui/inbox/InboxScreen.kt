@@ -204,7 +204,7 @@ import app.sterna.ui.components.LocalStarredInDrawer
 import app.sterna.ui.components.PickInstantDialogs
 import app.sterna.ui.components.PickInstantOpen
 import app.sterna.ui.components.TernRefreshIndicator
-import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.AccountAvatar
 import app.sterna.ui.components.accountColorOf
 import app.sterna.ui.components.verticalScrollbar
 import app.sterna.ui.isOutgoingFolder
@@ -1546,6 +1546,7 @@ private fun DrawerContent(
                         AccountChip(
                             label = currentLabel,
                             color = accountColorOf(currentAccount?.color),
+                            photo = currentAccount?.photo,
                             modifier = Modifier
                                 .graphicsLayer { translationX = accountOffset.value }
                                 // With one account there is nothing to unfold, and a chip that
@@ -1567,6 +1568,7 @@ private fun DrawerContent(
                             AccountChip(
                                 label = peek.label(),
                                 color = accountColorOf(peek.color),
+                                photo = peek.photo,
                                 modifier = Modifier.graphicsLayer {
                                     translationX = accountOffset.value +
                                         if (accountOffset.value < 0f) chipWidth.toFloat() else -chipWidth.toFloat()
@@ -1598,7 +1600,7 @@ private fun DrawerContent(
                                 }
                                 .padding(start = 28.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
                         ) {
-                            Monogram(seed = label, label = label, color = accountColorOf(account.color))
+                            AccountAvatar(photo = account.photo, seed = label, label = label, color = accountColorOf(account.color))
                             Column {
                                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 // A delegated account switches like any other, so it keeps its row
@@ -1849,15 +1851,15 @@ private fun PullableCenter(onClick: (() -> Unit)? = null, content: @Composable B
     }
 }
 
-/** The account drawer header's monogram + name, reused for the current and peeking accounts. */
+/** The account drawer header's avatar + name, reused for the current and peeking accounts. */
 @Composable
-private fun AccountChip(label: String, color: Color?, modifier: Modifier = Modifier) {
+private fun AccountChip(label: String, color: Color?, photo: String?, modifier: Modifier = Modifier) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp),
     ) {
-        Monogram(seed = label, label = label, color = color)
+        AccountAvatar(photo = photo, seed = label, label = label, color = color)
         Text(
             text = label,
             style = MaterialTheme.typography.titleMedium,

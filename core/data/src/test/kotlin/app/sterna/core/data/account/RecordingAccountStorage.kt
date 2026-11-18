@@ -228,4 +228,9 @@ internal open class RecordingAccountStorage : AccountStorage {
             "unread" to unread,
         )
     }
+
+    override fun sweepOrphanedPhotos(): List<String> {
+        record("sweepOrphanedPhotos")
+        return emptyList()
+    }
 }

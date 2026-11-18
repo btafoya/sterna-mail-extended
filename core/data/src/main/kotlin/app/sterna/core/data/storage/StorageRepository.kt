@@ -52,6 +52,7 @@ class StorageRepository(
     private val localDraftFilesDir: File,
     private val serverContactDao: ServerContactDao,
     private val attachmentStore: AttachmentStore,
+    private val sweepAccountPhotos: () -> List<String>,
 ) {
     private val moveMemory: MoveMemory get() = MoveMemory.of(context)
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
@@ -134,7 +135,7 @@ class StorageRepository(
     /**
      * Sweep the cached mail of accounts that no longer exist, given the accounts that do.
      */
-    suspend fun purgeOrphanedAccounts(knownAccountIds: () -> Collection<String>): List<String> =
+    suspend fun purgeOrphanedAccounts(knownAccountIds: () -> Collection<String>): OrphanSweep =
         withContext(Dispatchers.IO) {
             // The inventory first: everything written after this snapshot belongs to an account the
             // list read below is guaranteed to contain.
@@ -155,7 +156,7 @@ class StorageRepository(
                 runCatching { moveMemory.forget(listOf(accountId)) }
                 runCatching { attachmentStore.clearAccount(accountId) }
             }
-            orphans
+            OrphanSweep(orphans, runCatching { sweepAccountPhotos() }.getOrDefault(emptyList()))
         }
 
     /** A copy handed to another app, then the size/age cap, which binds these alone, never [attachmentStore]. */

@@ -1,6 +1,7 @@
 package app.sterna.core.data.account
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -77,6 +78,32 @@ class AccountBackupTest {
             "a file written with the alias in it must not bring it back",
             "",
             importedCopy(withAlias, "new-id").smimeCertAlias,
+        )
+    }
+
+    private val withPhoto = StoredAccount(
+        id = "basic",
+        server = "imap.example.test",
+        username = "a@example.test",
+        photo = "0b7c4a2e-photo-of-this-phone.png",
+    )
+
+    @Test fun `the account photo does not leave in a backup`() {
+        assertEquals(
+            "the photo file stays on this phone; on another the name points at nothing, or at another account's file",
+            listOf<String?>(null),
+            backupSnapshotOf(listOf(withPhoto)).map { it.photo },
+        )
+        val text = app.sterna.core.data.settings.SettingsBackupCodec.encode(
+            app.sterna.core.data.settings.SettingsBackup(accounts = backupSnapshotOf(listOf(withPhoto))),
+        )
+        assertEquals("the backup file names no photo: PRIVACY.md says it is not in it", false, "photo-of-this-phone" in text)
+    }
+
+    @Test fun `an account photo in a backup file does not come back from it`() {
+        assertNull(
+            "a file holding a photo name must not bring it back: the imported account would show another's photo",
+            importedCopy(withPhoto, "new-id").photo,
         )
     }
 }

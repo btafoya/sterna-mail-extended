@@ -36,6 +36,7 @@ data class StoredAccount(
     val folderOrder: List<String> = emptyList(),
     /** User-chosen accent colour (ARGB); null = auto (derived from the address). */
     val color: Int? = null,
+    val photo: String? = null,
     /** Legacy account-level signature; seeds the default identity when none are set. */
     val signature: String = "",
     /** Sending identities; empty means use a default derived from the account. */

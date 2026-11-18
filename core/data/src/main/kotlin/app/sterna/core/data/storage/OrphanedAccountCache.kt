@@ -14,7 +14,13 @@ object OrphanedAccountCache {
         return cachedAccountIds.distinct().filterNot { it in known }
     }
 
-    fun sweptLine(accountIds: List<String>): String? =
-        if (accountIds.isEmpty()) null
-        else "Orphaned-cache sweep removed the cached data of account(s) ${accountIds.joinToString(", ")}"
+    fun sweptLine(swept: OrphanSweep): String? {
+        val parts = listOfNotNull(
+            swept.accountIds.takeIf { it.isNotEmpty() }
+                ?.let { "the cached data of account(s) ${it.joinToString(", ")}" },
+            swept.photos.takeIf { it.isNotEmpty() }
+                ?.let { "${it.size} account photo file(s) no account names" },
+        )
+        return if (parts.isEmpty()) null else "Orphaned-cache sweep removed ${parts.joinToString(" and ")}"
+    }
 }

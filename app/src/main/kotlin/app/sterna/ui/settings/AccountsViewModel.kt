@@ -287,6 +287,17 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    suspend fun choosePhoto(id: String, uri: android.net.Uri): Boolean = withContext(Dispatchers.IO) {
+        val resolver = getApplication<Application>().contentResolver
+        val png = runCatching { app.sterna.ui.components.accountPhotoPng(resolver, uri) }.getOrNull()
+            ?: return@withContext false
+        runCatching { store.setPhoto(id, png) }.getOrDefault(false)
+    }
+
+    fun removePhoto(id: String) {
+        store.setPhoto(id, null)
+    }
+
     /** Enable/disable new-mail notifications for an account; re-arm push to apply. */
     fun setNotificationsEnabled(id: String, enabled: Boolean) {
         store.setNotificationsEnabled(id, enabled)

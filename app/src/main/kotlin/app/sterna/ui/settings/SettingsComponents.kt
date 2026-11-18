@@ -65,7 +65,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.ui.components.AccountPalette
-import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.AccountAvatar
 import app.sterna.ui.components.onAccentColor
 
 /** Shared settings component kit (DESIGN.md → "Settings & secondary screens"): no cards, 16dp
@@ -327,7 +327,7 @@ fun <T> SettingMultiChoiceDialog(
     )
 }
 
-/** Account list row: monogram · label · email, with a check on the current one. [indented] is the
+/** Account list row: avatar · label · email, with a check on the current one. [indented] is the
  *  only thing on screen saying a delegated (shared) mailbox hangs under the login above it, and so
  *  whose credential reaches it (#31). It changes the start padding and nothing else. */
 @Composable
@@ -339,6 +339,7 @@ fun AccountRow(
     onClick: () -> Unit,
     color: Color? = null,
     indented: Boolean = false,
+    photo: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -353,7 +354,7 @@ fun AccountRow(
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Monogram(seed = seed, label = label, color = color)
+        AccountAvatar(photo = photo, seed = seed, label = label, color = color)
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.titleMedium)

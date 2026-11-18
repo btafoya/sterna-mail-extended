@@ -39,8 +39,8 @@ internal fun settingsRouteFor(accountId: String, accounts: List<StoredAccount>):
     if (sharedAccountFor(accountId, accounts) != null) "sharedAccount/$accountId" else "account/$accountId"
 
 /**
- * Settings for a delegated (shared) account, the two it genuinely owns (#31): accent colour and
- * notifications.
+ * Settings for a delegated (shared) account, the three it genuinely owns (#31): accent colour, photo
+ * and notifications.
  */
 @Composable
 internal fun SharedAccountScreen(
@@ -97,6 +97,9 @@ internal fun SharedAccountScreen(
                         }
                     }
                 }
+            }
+            SettingsSection(stringResource(R.string.settings_account_photo_section)) {
+                AccountPhotoSetting(account, colorArgb, viewModel, onAccountsChanged)
             }
             SettingsSection(stringResource(R.string.settings_account_notifications_section)) {
                 SettingSwitch(

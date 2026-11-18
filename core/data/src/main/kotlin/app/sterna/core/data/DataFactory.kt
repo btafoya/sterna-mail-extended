@@ -118,6 +118,7 @@ object DataFactory {
                 localDraftFilesDir = localDraftFiles,
                 serverContactDao = database.serverContactDao(),
                 attachmentStore = attachmentStore,
+                sweepAccountPhotos = accountStore::sweepOrphanedPhotos,
             ),
             smimeCertificates = smimeCertificates,
         )

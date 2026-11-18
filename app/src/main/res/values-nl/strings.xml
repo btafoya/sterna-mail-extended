@@ -650,6 +650,11 @@
     <string name="settings_account_section">Account</string>
     <string name="settings_display_name_label">Weergavenaam</string>
     <string name="settings_account_colour_section">Kleur</string>
+    <string name="settings_account_photo_section">Foto</string>
+    <string name="settings_account_photo_choose">Foto kiezen</string>
+    <string name="settings_account_photo_remove">Foto verwijderen</string>
+    <string name="settings_account_photo_note">De foto blijft in de app: je ontvangers en de server zien hem niet.</string>
+    <string name="settings_account_photo_unreadable">Deze afbeelding kon niet worden gelezen. Het account houdt zijn letter.</string>
     <string name="settings_account_colour_auto">Auto</string>
     <string name="settings_account_colour_n">Kleur %1$d van %2$d</string>
     <string name="settings_server_settings_section">Serverinstellingen</string>

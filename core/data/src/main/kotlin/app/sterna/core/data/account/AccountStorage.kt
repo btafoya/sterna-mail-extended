@@ -133,4 +133,9 @@ interface AccountStorage {
 
     /** Record a specific account's inbox id, name and unread count. */
     fun saveInboxMetaFor(accountId: String, mailboxId: String, mailboxName: String, accountName: String, unread: Int)
+
+    /** Delete the account photo files no account and no remembered share names, and return their
+     *  names. Under the lock `AccountStore.setPhoto` writes and names a photo in, so a photo written
+     *  and not yet named is never seen; an unreadable account list sweeps nothing. */
+    fun sweepOrphanedPhotos(): List<String>
 }

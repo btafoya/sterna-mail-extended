@@ -174,6 +174,7 @@ class SettingsSearchTest {
         val expected = mapOf(
             "image_allowlist" to R.string.settings_image_allowlist_section,
             "account_colour" to R.string.settings_account_colour_section,
+            "account_photo" to R.string.settings_account_photo_section,
             "identities" to R.string.settings_identities_section,
             "signature" to R.string.settings_identities_section,
         )

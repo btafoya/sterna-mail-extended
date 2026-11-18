@@ -171,6 +171,7 @@ class AccountStore(context: Context) : AccountStorage {
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
     private val moveMemory = MoveMemory.of(context)
+    private val photoFiles = AccountPhotoFiles(java.io.File(context.applicationContext.filesDir, ACCOUNT_PHOTO_DIR))
 
     // Tells an empty account list apart from a list that would not decode, and blocks writes in the
     // second case. Declared before [live] because the seeding read below already goes through it.
@@ -486,6 +487,14 @@ class AccountStore(context: Context) : AccountStorage {
         saveAccounts(accounts().map { if (it.id == id) it.copy(color = color) else it })
     }
 
+    @Synchronized
+    fun setPhoto(id: String, png: ByteArray?): Boolean {
+        val current = accounts()
+        if (current.none { it.id == id }) return false
+        photoFiles.repoint(current, linkedMemory(), id, png?.let(photoFiles::write), ::saveAccounts)
+        return true
+    }
+
     /** Whether new-mail notifications fire for an account (defaults to true). */
     fun notificationsEnabled(id: String): Boolean = account(id)?.notificationsEnabled ?: true
 
@@ -724,12 +733,14 @@ class AccountStore(context: Context) : AccountStorage {
         val list = accounts()
         if (list.none { it.id == id }) return
         prefs.edit().remove(passwordKey(id)).remove(smtpPasswordKey(id)).apply()
+        val memoryBefore = linkedMemory()
         val remaining = list.filterNot { it.id == id }
         // The third removal path, and it forgets what it removes like [removeCascading]: a linked
         // share can reach here, and PRIVACY.md promises that removing an account removes what it
         // left behind.
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))
         saveAccounts(remaining)
+        photoFiles.delete(photosLeftBehind(list, memoryBefore, remaining, linkedMemory()))
         moveMemory.forget(listOf(id))
         if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
@@ -747,6 +758,7 @@ class AccountStore(context: Context) : AccountStorage {
         gate.onStorageWiped()
         // Not a [saveAccounts] path (the whole file goes), so publish the emptied list by hand.
         live.publish(emptyList())
+        photoFiles.deleteAll()
     }
 
     // ---- current-account convenience (used by existing callers) ----
@@ -848,15 +860,24 @@ class AccountStore(context: Context) : AccountStorage {
         // Read the removed records before the list is filtered: `remaining` holds what survives and
         // can never name what is going away. Deleting an account IS the user's decision, and the
         // memory must not resurrect its settings on a later re-grant.
+        val memoryBefore = linkedMemory()
         val before = accounts()
         val remaining = before.filterNot { it.id in ids }
         saveLinkedMemory(forgetRemovedLinked(linkedMemory(), before.filter { it.id in ids }))
         saveAccounts(remaining)
+        photoFiles.delete(photosLeftBehind(before, memoryBefore, remaining, linkedMemory()))
         moveMemory.forget(ids)
         if (currentId() in ids || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {
             prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()
         }
         return ids
+    }
+
+    @Synchronized
+    override fun sweepOrphanedPhotos(): List<String> {
+        val accounts = accounts()
+        if (gate.blobUnreadable) return emptyList()
+        return app.sterna.core.data.storage.OrphanedAccountPhotos.sweep(photoFiles, accounts, linkedMemory())
     }
 
     // ---- backup export / import (configuration only, never secrets) ----

@@ -650,6 +650,11 @@
     <string name="settings_account_section">Konto</string>
     <string name="settings_display_name_label">Anzeigename</string>
     <string name="settings_account_colour_section">Farbe</string>
+    <string name="settings_account_photo_section">Foto</string>
+    <string name="settings_account_photo_choose">Foto auswählen</string>
+    <string name="settings_account_photo_remove">Foto entfernen</string>
+    <string name="settings_account_photo_note">Das Foto bleibt in der App: Weder die Empfänger deiner E-Mails noch der Server sehen es.</string>
+    <string name="settings_account_photo_unreadable">Dieses Bild konnte nicht gelesen werden. Das Konto behält seinen Buchstaben.</string>
     <string name="settings_account_colour_auto">Auto</string>
     <string name="settings_account_colour_n">Farbe %1$d von %2$d</string>
     <string name="settings_server_settings_section">Servereinstellungen</string>

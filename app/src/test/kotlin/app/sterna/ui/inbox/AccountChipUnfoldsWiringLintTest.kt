@@ -37,6 +37,7 @@ class AccountChipUnfoldsWiringLintTest {
                 "AccountChip(",
                 "label = currentLabel,",
                 "color = accountColorOf(currentAccount?.color),",
+                "photo = currentAccount?.photo,",
                 "modifier = Modifier",
                 ".graphicsLayer { translationX = accountOffset.value }",
                 ".then(",

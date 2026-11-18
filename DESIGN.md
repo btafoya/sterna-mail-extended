@@ -52,6 +52,10 @@ Three principles:
 - No remote photos by default (consistent with blocking remote content).
 - Use **coloured monograms**: initial plus a colour derived from a hash of the
   address. Sober, and no network leak.
+- An account, and only an account, may show a photo instead: one the user picks on
+  the phone, which the app reduces to a small square copy and keeps to itself. It
+  replaces that account's monogram in the drawer, the account switcher and the
+  account list, and the monogram comes back when it is removed or cannot be read.
 
 ## Components
 
@@ -128,7 +132,7 @@ changes which server its two screens write to.
 
 | Per-account (Accounts → detail) | Global (top-level categories) |
 |---|---|
-| Display name, account colour, signature override, per-account notifications, server info, **Sign out** | Theme, density, dynamic colour, signature behaviour, swipe actions, remote-image policy, read receipts, link safety, app lock, cache/sync, about |
+| Display name, account colour, account photo, signature override, per-account notifications, server info, **Sign out** | Theme, density, dynamic colour, signature behaviour, swipe actions, remote-image policy, read receipts, link safety, app lock, cache/sync, about |
 
 Sign out lives in the per-account detail (not the inbox top bar), consistent with
 the hub model.
@@ -143,7 +147,7 @@ Reuse the existing `SettingSwitch`; add a small, consistent kit:
 | `SettingsSection` | Accent-tinted header grouping rows in a detail screen. |
 | `SettingSwitch` *(existing)* | Boolean toggle. |
 | `SettingChoiceRow` + `SettingChoiceDialog` | Single choice (theme, image policy, app lock). |
-| `AccountRow` | Monogram + label + email (reuses the monogram avatar). |
+| `AccountRow` | Account avatar + label + email: the account's photo when it has one, the monogram otherwise. |
 
 The full kit lives in `SettingsComponents.kt`; this table lists only the main pieces.
 

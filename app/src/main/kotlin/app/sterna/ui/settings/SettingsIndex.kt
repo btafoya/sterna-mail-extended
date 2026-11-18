@@ -236,6 +236,7 @@ internal val SETTINGS_INDEX: List<SettingEntry> = listOf(
 
     SettingEntry("display_name", ACCOUNT, R.string.settings_display_name_label),
     SettingEntry("account_colour", ACCOUNT, R.string.settings_account_colour_section, anchorKind = SECTION),
+    SettingEntry("account_photo", ACCOUNT, R.string.settings_account_photo_section, anchorKind = SECTION),
     SettingEntry(
         "account_notifications", ACCOUNT, R.string.settings_account_notifications_title,
         R.string.settings_account_notifications_subtitle,

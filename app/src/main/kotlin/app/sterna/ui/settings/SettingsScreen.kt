@@ -1448,6 +1448,7 @@ private fun AccountsScreen(
                     isCurrent = account.id == currentId,
                     color = accountColorOf(account.color),
                     indented = row.underLogin,
+                    photo = account.photo,
                     onClick = {
                         // Never switch to an inert (not-yet-signed-in) account: no credentials,
                         // and it would break the current-account inbox. Still opened, so it can be
@@ -1722,6 +1723,9 @@ private fun AccountDetailScreen(
                         }
                     }
                 }
+            }
+            SettingsSection(stringResource(R.string.settings_account_photo_section)) {
+                AccountPhotoSetting(account, colorArgb, viewModel, onAccountsChanged)
             }
             SettingsSection(stringResource(R.string.settings_account_notifications_section)) {
                 // An account neither current nor covered by "Push for all accounts" is watched by

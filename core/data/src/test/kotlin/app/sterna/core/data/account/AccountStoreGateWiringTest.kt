@@ -81,9 +81,10 @@ class AccountStoreGateWiringTest {
                 "KeystoreCrypto.deleteKey()",
                 "gate.onStorageWiped()",
                 "live.publish(emptyList())",
+                "photoFiles.deleteAll()",
                 "}",
             ),
-            accountStoreBlock("fun clear() {", 6),
+            accountStoreBlock("fun clear() {", 7),
         )
     }
 
@@ -100,16 +101,18 @@ class AccountStoreGateWiringTest {
                 "val list = accounts()",
                 "if (list.none { it.id == id }) return",
                 "prefs.edit().remove(passwordKey(id)).remove(smtpPasswordKey(id)).apply()",
+                "val memoryBefore = linkedMemory()",
                 "val remaining = list.filterNot { it.id == id }",
                 "saveLinkedMemory(forgetRemovedLinked(linkedMemory(), list.filter { it.id == id }))",
                 "saveAccounts(remaining)",
+                "photoFiles.delete(photosLeftBehind(list, memoryBefore, remaining, linkedMemory()))",
                 "moveMemory.forget(listOf(id))",
                 "if (currentId() == id || remaining.none { it.id == prefs.getString(KEY_CURRENT, null) }) {",
                 "prefs.edit().putString(KEY_CURRENT, remaining.firstOrNull()?.id).apply()",
                 "}",
                 "}",
             ),
-            accountStoreBlock("fun remove(id: String) {", 12),
+            accountStoreBlock("fun remove(id: String) {", 14),
         )
     }
 

@@ -1,6 +1,6 @@
 # Privacy
 
-Last updated: 2026-11-05.
+Last updated: 2026-11-19.
 
 **Sterna collects nothing and has no server of its own.** It is free software (GPLv3): no account, no analytics, no ads, no trackers, no crash reporting, no Google services (no Firebase, no FCM, no Play Services), and only free/open-source libraries. Your mail never passes through anything run by the Sterna project.
 
@@ -12,6 +12,7 @@ Last updated: 2026-11-05.
 - **Drafts and messages waiting to go out**, until your server has them.
 - **A photo you take from the composer** stays in the app's cache while it is being attached, then it is handled like any other attachment. If the app is closed while the camera is open, the photo stays there until Settings → Storage → **Clear cache**.
 - **Settings**, the **addresses you have written to** (for autocomplete) and the **senders you allow to load images**.
+- **The photo you choose for an account**, as a small copy the app makes of the picture you picked. It stays in the app: neither the people you write to nor your server see it.
 - **Your correspondents' S/MIME certificates**, each kept from a signed message they sent you, so that a message to them can be encrypted. Only the certificate is kept, with the address it is for.
 - **A copy of your JMAP server's address book**, names and addresses only, for autocomplete, when the server publishes one. A shared or delegated mailbox gets none.
 - **Your recent searches**, the words only, to suggest them again. The list never leaves the device, though the words of a search still go to your mail server when it searches there. Settings → Privacy & security → **Remember searches** stops keeping new ones, and **Clear search history** empties the list. Signing out of any account empties it too, since a search belongs to no account.
@@ -22,7 +23,7 @@ Everything is removed when you remove the account or uninstall the app, except:
 - A message in the **Outbox** or **Scheduled** is not deleted with its account, because it may be the only copy. Delete it from those screens.
 - Files you save yourself (an attachment, a `.eml`, a PDF) belong to the folder you picked. Sterna never deletes them, even when uninstalled. Attachments and PDFs of encrypted messages are saved decrypted; a `.eml` is saved as it arrived.
 
-Settings → **Backup & restore** writes a file wherever you choose, and reads one back. It is plain JSON, not encrypted, and it holds your preferences, your account setup (server, identities, signatures, folder choices and the like) and the senders you allow to load images. It holds whether searches are remembered, never the searches themselves, and none of your correspondents' S/MIME certificates. Accounts that sign in with Microsoft, with OAuth or with an API token, and shared accounts, are not part of it. Passwords are not in it, so imported accounts have to be signed in again.
+Settings → **Backup & restore** writes a file wherever you choose, and reads one back. It is plain JSON, not encrypted, and it holds your preferences, your account setup (server, identities, signatures, folder choices and the like) and the senders you allow to load images. Account photos are not in it. It holds whether searches are remembered, never the searches themselves, and none of your correspondents' S/MIME certificates. Accounts that sign in with Microsoft, with OAuth or with an API token, and shared accounts, are not part of it. Passwords are not in it, so imported accounts have to be signed in again.
 
 ## Network connections
 

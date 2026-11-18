@@ -13,6 +13,7 @@ import app.sterna.core.data.text.AttachmentKind
 import app.sterna.core.jmap.model.EmailBodyPart
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.InputStream
 
 /*
  * Small square previews of image attachments, decoded from bytes or a file already on the phone.
@@ -69,6 +70,14 @@ internal fun decodeThumbnail(bytes: ByteArray, maxPx: Int): ImageBitmap? = decod
 internal fun decodeThumbnail(file: File, maxPx: Int): ImageBitmap? = decodedOrNull {
     val orientation = exifOrientation { ExifInterface(file.path) }
     decodeTwice(maxPx, orientation) { options -> BitmapFactory.decodeFile(file.path, options) }
+}
+
+/** The picture [open] streams, as a [maxPx]-square thumbnail, or null when it is not one this phone
+ *  can read. [open] is called once per read, three times, and must hand a fresh stream each time; the
+ *  file is never held whole in memory, the EXIF reader and the decoder both stream it. */
+internal fun decodeThumbnail(maxPx: Int, open: () -> InputStream?): ImageBitmap? = decodedOrNull {
+    val orientation = exifOrientation { checkNotNull(open()).use { ExifInterface(it) } }
+    decodeTwice(maxPx, orientation) { options -> open()?.use { BitmapFactory.decodeStream(it, null, options) } }
 }
 
 /** How far a picture stored sideways must turn, and whether it is mirrored, to stand as it was taken. */

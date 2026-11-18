@@ -139,7 +139,8 @@ Running your own server, with a free certificate or one you issued yourself? See
   grant with PKCE through the browser where a server has no device endpoint or
   asks clients to register, Sterna then registering itself at each sign-in), or
   manual IMAP/SMTP with provider presets; a "test connection" button before saving
-- Per-account colour, sync window, and a "Sync new mail" switch governing that
+- Per-account colour, a photo picked on the phone that stays in the app, sync
+  window, and a "Sync new mail" switch governing that
   account's background fetch and its notifications; encrypted credential
   storage (AndroidKeyStore); app lock (biometric / PIN)
 

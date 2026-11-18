@@ -165,10 +165,11 @@ class AttachmentThumbnailWiringTest {
             decoder.filter { "inSampleSize" in it },
         )
         assertEquals(
-            "both sources must read the EXIF orientation of the same bytes. Lines found:",
+            "every source must read the EXIF orientation of the same bytes. Lines found:",
             listOf(
                 "val orientation = exifOrientation { ExifInterface(ByteArrayInputStream(bytes)) }",
                 "val orientation = exifOrientation { ExifInterface(file.path) }",
+                "val orientation = exifOrientation { checkNotNull(open()).use { ExifInterface(it) } }",
             ),
             decoder.filter { "val orientation" in it },
         )

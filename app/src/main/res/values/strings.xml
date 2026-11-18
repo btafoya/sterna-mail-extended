@@ -840,6 +840,11 @@
     <string name="settings_account_section">Account</string>
     <string name="settings_display_name_label">Display name</string>
     <string name="settings_account_colour_section">Colour</string>
+    <string name="settings_account_photo_section">Photo</string>
+    <string name="settings_account_photo_choose">Choose a photo</string>
+    <string name="settings_account_photo_remove">Remove photo</string>
+    <string name="settings_account_photo_note">The photo stays in the app: neither the people you write to nor the server see it.</string>
+    <string name="settings_account_photo_unreadable">This image could not be read. The account keeps its letter.</string>
     <string name="settings_account_notifications_section">Notifications</string>
     <string name="settings_account_notifications_title">Sync new mail</string>
     <string name="settings_account_notifications_subtitle">Fetches this account\'s new mail in the background and notifies you. When off, its mail arrives only when you open the app or pull to refresh.</string>

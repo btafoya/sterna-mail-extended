@@ -829,6 +829,11 @@
     <string name="settings_account_section">Fiók</string>
     <string name="settings_display_name_label">Megjelenített név</string>
     <string name="settings_account_colour_section">Szín</string>
+    <string name="settings_account_photo_section">Fénykép</string>
+    <string name="settings_account_photo_choose">Fénykép kiválasztása</string>
+    <string name="settings_account_photo_remove">Fénykép eltávolítása</string>
+    <string name="settings_account_photo_note">A fénykép az alkalmazásban marad: sem a címzettjei, sem a szerver nem látja.</string>
+    <string name="settings_account_photo_unreadable">Ezt a képet nem sikerült beolvasni. A fiók megtartja a betűjét.</string>
     <string name="settings_account_notifications_section">Értesítések</string>
     <string name="settings_account_notifications_title">Új levelek szinkronizálása</string>
     <string name="settings_account_notifications_subtitle">Letölti a fiók új leveleit a háttérben, és értesíti Önt. Kikapcsolva a levelek csak akkor érkeznek meg, amikor megnyitja az alkalmazást, vagy lehúzással frissít.</string>

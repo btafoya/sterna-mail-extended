@@ -3,7 +3,7 @@
   Auto Backup rules (Android 11 and below). Backups are disabled outright via
   android:allowBackup="false"; this file is a defensive backstop so that, should backup
   ever be re-enabled, the account credentials, the Room cache (cached mail), and the
-  settings DataStore are never copied off the device. See PRIVACY.md.
+  settings DataStore and the account photos are never copied off the device. See PRIVACY.md.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="sterna_account.xml" />
@@ -13,4 +13,5 @@
     <exclude domain="database" path="sterna.db-shm" />
     <exclude domain="file" path="datastore/" />
     <exclude domain="file" path="attachment-store/" />
+    <exclude domain="file" path="account-photos/" />
 </full-backup-content>

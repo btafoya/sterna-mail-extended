@@ -825,6 +825,11 @@
     <string name="settings_account_section">账户</string>
     <string name="settings_display_name_label">显示名称</string>
     <string name="settings_account_colour_section">颜色</string>
+    <string name="settings_account_photo_section">照片</string>
+    <string name="settings_account_photo_choose">选择照片</string>
+    <string name="settings_account_photo_remove">移除照片</string>
+    <string name="settings_account_photo_note">照片仅保留在应用内：收件人和服务器都看不到它。</string>
+    <string name="settings_account_photo_unreadable">无法读取此图片。账户将继续显示字母。</string>
     <string name="settings_account_notifications_section">通知</string>
     <string name="settings_account_notifications_title">同步新邮件</string>
     <string name="settings_account_notifications_subtitle">在后台获取此账户的新邮件并通知您。关闭后，只有在打开应用或下拉刷新时才会收到新邮件。</string>

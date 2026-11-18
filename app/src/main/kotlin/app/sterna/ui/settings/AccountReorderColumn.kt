@@ -22,7 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
-import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.AccountAvatar
 import app.sterna.ui.components.ReorderableColumn
 import app.sterna.ui.components.accountColorOf
 
@@ -75,7 +75,8 @@ private fun AccountReorderLine(row: AccountReorderRow, handle: Modifier, onMove:
         ) {
             // Seed and second line as on the list outside the mode, so a row keeps its colour and
             // what it says across the button.
-            Monogram(
+            AccountAvatar(
+                photo = account.photo,
                 seed = if (account.isShared) name else account.username,
                 label = name,
                 color = accountColorOf(account.color),

@@ -22,7 +22,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import app.sterna.R
 import app.sterna.core.data.account.StoredAccount
-import app.sterna.ui.components.Monogram
+import app.sterna.ui.components.AccountAvatar
 import app.sterna.ui.components.accountColorOf
 
 /** The list's title made a button that drops down [others] to switch to (#215). With no other
@@ -51,7 +51,9 @@ internal fun AccountSwitchTitle(
             others.forEach { account ->
                 val label = account.label()
                 DropdownMenuItem(
-                    leadingIcon = { Monogram(seed = label, label = label, color = accountColorOf(account.color)) },
+                    leadingIcon = {
+                        AccountAvatar(photo = account.photo, seed = label, label = label, color = accountColorOf(account.color))
+                    },
                     text = {
                         Column {
                             Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)

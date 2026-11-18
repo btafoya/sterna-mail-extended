@@ -660,6 +660,11 @@
     <string name="settings_account_section">Konto</string>
     <string name="settings_display_name_label">Wyświetlana nazwa</string>
     <string name="settings_account_colour_section">Kolor</string>
+    <string name="settings_account_photo_section">Zdjęcie</string>
+    <string name="settings_account_photo_choose">Wybierz zdjęcie</string>
+    <string name="settings_account_photo_remove">Usuń zdjęcie</string>
+    <string name="settings_account_photo_note">Zdjęcie zostaje w aplikacji: nie widzą go ani odbiorcy, ani serwer.</string>
+    <string name="settings_account_photo_unreadable">Nie udało się odczytać tego obrazu. Konto zachowuje swoją literę.</string>
     <string name="settings_account_colour_auto">Auto</string>
     <string name="settings_account_colour_n">Kolor %1$d z %2$d</string>
     <string name="settings_server_settings_section">Ustawienia serwera</string>

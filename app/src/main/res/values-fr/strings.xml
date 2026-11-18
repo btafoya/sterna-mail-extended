@@ -654,6 +654,11 @@
     <string name="settings_account_section">Compte</string>
     <string name="settings_display_name_label">Nom affiché</string>
     <string name="settings_account_colour_section">Couleur</string>
+    <string name="settings_account_photo_section">Photo</string>
+    <string name="settings_account_photo_choose">Choisir une photo</string>
+    <string name="settings_account_photo_remove">Retirer la photo</string>
+    <string name="settings_account_photo_note">La photo reste dans l’app : ni vos destinataires ni le serveur ne la voient.</string>
+    <string name="settings_account_photo_unreadable">Cette image n’a pas pu être lue. Le compte garde sa lettre.</string>
     <string name="settings_account_colour_auto">Auto</string>
     <string name="settings_account_colour_n">Couleur %1$d sur %2$d</string>
     <string name="settings_server_settings_section">Réglages du serveur</string>

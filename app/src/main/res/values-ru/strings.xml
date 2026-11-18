@@ -660,6 +660,11 @@
     <string name="settings_account_section">Аккаунт</string>
     <string name="settings_display_name_label">Отображаемое имя</string>
     <string name="settings_account_colour_section">Цвет</string>
+    <string name="settings_account_photo_section">Фото</string>
+    <string name="settings_account_photo_choose">Выбрать фото</string>
+    <string name="settings_account_photo_remove">Удалить фото</string>
+    <string name="settings_account_photo_note">Фото остаётся в приложении: его не видят ни ваши получатели, ни сервер.</string>
+    <string name="settings_account_photo_unreadable">Не удалось прочитать это изображение. У учётной записи остаётся буква.</string>
     <string name="settings_account_colour_auto">Авто</string>
     <string name="settings_account_colour_n">Цвет %1$d из %2$d</string>
     <string name="settings_server_settings_section">Настройки сервера</string>
