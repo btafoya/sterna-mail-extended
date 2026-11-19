@@ -1,6 +1,6 @@
 package app.sterna.ui.message
 
-import java.io.ByteArrayOutputStream
+import app.sterna.core.jmap.model.cidUrlContentId
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -188,36 +188,8 @@ internal class RequestBudget(private val limit: Int = MAX_RESOURCE_REQUESTS_PER_
 internal fun keepsResourceVerdict(verdictFor: String?, emailId: String, accountId: String?): Boolean =
     verdictFor != null && verdictFor == MessagePaging.entryKey(emailId, accountId)
 
-/**
- * The key a `cid:` request URL names in `inlineImages`: percent-decoded, since the WebView hands
- * `cid:<x>` over as `cid:%3Cx%3E`, then trimmed of spaces and angle brackets the way the map's keys
- * were when it was built. Null when [url] is not a `cid:` URL.
- */
-internal fun contentIdOf(url: String): String? {
-    if (!url.regionMatches(0, "cid:", 0, 4, ignoreCase = true)) return null
-    return percentDecode(url.substring(4)).trim().trim('<', '>')
-}
-
-/** `%XX` sequences decoded as UTF-8; a malformed escape is kept as written. `+` stays a `+`. */
-private fun percentDecode(s: String): String {
-    if ('%' !in s) return s
-    val out = ByteArrayOutputStream(s.length)
-    var i = 0
-    while (i < s.length) {
-        val c = s[i]
-        val hi = if (c == '%' && i + 2 < s.length) Character.digit(s[i + 1], 16) else -1
-        val lo = if (hi >= 0) Character.digit(s[i + 2], 16) else -1
-        if (hi >= 0 && lo >= 0) {
-            out.write(hi * 16 + lo)
-            i += 3
-        } else {
-            val bytes = c.toString().toByteArray(Charsets.UTF_8)
-            out.write(bytes, 0, bytes.size)
-            i++
-        }
-    }
-    return out.toString(Charsets.UTF_8.name())
-}
+/** The key a `cid:` request URL names in `inlineImages`, the same one [cidUrlContentId] reads a citation with. */
+internal fun contentIdOf(url: String): String? = cidUrlContentId(url)
 
 /** A `data:<mime>;base64,<b64>` URI as the image to serve, or null when it cannot be read. */
 private fun decodeDataUri(uri: String): ResourceDecision.Serve? {

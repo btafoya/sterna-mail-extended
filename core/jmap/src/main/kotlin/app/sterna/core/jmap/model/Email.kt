@@ -148,13 +148,18 @@ data class Email(
     fun textContent(): String? =
         textBody.firstOrNull()?.partId?.let { bodyValues[it]?.value }
 
-        /** Image parts referenced inline by a Content-ID (`cid:`), rendered in the body. JMAP parts
+    private fun mediaAndAttachmentParts(): List<EmailBodyPart> =
+        (attachments + textBody.filter(::isInlineMedia) + htmlBody.filter(::isInlineMedia))
+            .distinctBy { it.partId ?: it }
+
+        /** Image parts [htmlContent] cites by Content-ID ([isBodyImage]), none without HTML. JMAP parts
          *  carry a blobId, IMAP parts a partId (the MIME section); either is fetchable. */
-    fun inlineImageParts(): List<EmailBodyPart> =
-        attachments.filter {
-            (it.blobId != null || it.partId != null) &&
-                !it.cid.isNullOrBlank() && it.type?.startsWith("image/") == true
+    fun inlineImageParts(): List<EmailBodyPart> {
+        val cited = citedContentIds(htmlContent())
+        return mediaAndAttachmentParts().filter {
+            (it.blobId != null || it.partId != null) && isBodyImage(it.type, it.cid, cited)
         }
+    }
 
         /** Inline images past what we will load automatically (see
          *  [app.sterna.core.jmap.DownloadLimits]). Not fetched, so the reader has to say they are
@@ -176,14 +181,17 @@ data class Email(
     /** Attachments shown as downloadable files (everything that isn't an inline image or invite). */
     fun fileAttachmentParts(): List<EmailBodyPart> {
         val inline = inlineImageParts().toSet()
-        return attachments.filter { part ->
+        return mediaAndAttachmentParts().filter { part ->
             // A calendar invite shows only as the event card, never also as a redundant file row.
             if (part.type?.startsWith("text/calendar") == true) return@filter false
             if (isCryptoControlType(part.type)) return@filter false
-            // An inline image renders in the body, never also as a redundant file row.
             if (part in inline) return@filter false
-            // JMAP parts carry a blobId; IMAP parts a partId (the MIME section).
             part.blobId != null || part.partId != null
         }
     }
 }
+
+/** RFC 8621 §4.1.4 lists an image inline in a multipart/mixed in [Email.textBody] and [Email.htmlBody],
+ *  and a server may repeat it in [Email.attachments]. A part without a type is a synthetic text part. */
+private fun isInlineMedia(part: EmailBodyPart): Boolean =
+    part.type?.startsWith("text/", ignoreCase = true) == false

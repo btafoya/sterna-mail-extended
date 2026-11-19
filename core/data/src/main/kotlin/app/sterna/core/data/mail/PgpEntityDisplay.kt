@@ -5,6 +5,8 @@ import app.sterna.core.imap.MimeParser
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
 import app.sterna.core.jmap.model.EmailBodyValue
+import app.sterna.core.jmap.model.citedContentIds
+import app.sterna.core.jmap.model.isBodyImage
 
 internal class EntityDisplay(val email: Email, val inlineImages: Map<String, String>)
 
@@ -23,7 +25,7 @@ internal fun displayOfEntity(envelope: Email, entity: String): EntityDisplay {
     val display = bare.withBody(body).run {
         copy(
             attachments = attachments.map { part -> part.copy(partId = part.partId?.let { "pgp:$it" }) },
-            hasAttachment = body.attachments.any { it.cid == null },
+            hasAttachment = (attachments - inlineImageParts().toSet()).isNotEmpty(),
         )
     }
     val inline = display.inlineImageParts().mapNotNull { part ->
@@ -37,8 +39,9 @@ internal fun displayOfEntity(envelope: Email, entity: String): EntityDisplay {
 }
 
 internal fun Email.withBody(body: MimeBody): Email {
+    val cited = citedContentIds(body.html?.takeIf { it.isNotBlank() })
     val attachments = body.attachments.map {
-        val isInlineImage = !it.cid.isNullOrBlank() && it.type.startsWith("image/")
+        val isInlineImage = isBodyImage(it.type, it.cid, cited)
         EmailBodyPart(
             partId = it.section,
             name = it.name,

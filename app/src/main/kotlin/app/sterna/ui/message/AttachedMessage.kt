@@ -4,6 +4,8 @@ import app.sterna.core.data.text.htmlToText
 import app.sterna.core.imap.MimeAttachment
 import app.sterna.core.imap.MimeParser
 import app.sterna.core.jmap.ContentTooLargeException
+import app.sterna.core.jmap.model.citedContentIds
+import app.sterna.core.jmap.model.isBodyImage
 import app.sterna.core.jmap.model.isCryptoControlType
 
 /** What the sheet shows of a message/rfc822 attachment. */
@@ -42,15 +44,17 @@ internal fun attachedMessageOf(bytes: ByteArray): AttachedMessage {
         date = MimeParser.decodedHeaderOf(raw, "Date"),
         subject = MimeParser.decodedHeaderOf(raw, "Subject"),
         body = parsed.text ?: parsed.html?.let { htmlToText(it) } ?: "",
-        attachmentNames = parsed.attachments.filter { it.isFileAttachment() }.map { it.name },
+        attachmentNames = citedContentIds(parsed.html).let { cited ->
+            parsed.attachments.filter { it.isFileAttachment(cited) }.map { it.name }
+        },
     )
 }
 
 /**
  * The reader's own rule (`Email.fileAttachmentParts`), applied to what [MimeParser] collects.
  */
-private fun MimeAttachment.isFileAttachment(): Boolean = when {
-    cid != null && type.startsWith("image/") -> false
+private fun MimeAttachment.isFileAttachment(cited: Set<String>): Boolean = when {
+    isBodyImage(type, cid, cited) -> false
     type.startsWith("text/calendar") -> false
     isCryptoControlType(type) -> false
     else -> true

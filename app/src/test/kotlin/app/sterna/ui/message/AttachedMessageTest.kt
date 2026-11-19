@@ -127,6 +127,40 @@ class AttachedMessageTest {
         assertEquals(listOf("rapport.pdf"), m.attachmentNames)
     }
 
+    @Test fun `a photo whose content id its html never cites is listed as its attachment`() {
+        val jpg = Base64.getEncoder().encodeToString("jpg".toByteArray())
+        val m = attachedMessageOf(
+            eml(
+                "From: a@example.org",
+                "Subject: photos",
+                "Content-Type: multipart/mixed; boundary=\"xx\"",
+                "",
+                "--xx",
+                "Content-Type: multipart/alternative; boundary=\"alt\"",
+                "",
+                "--alt",
+                "Content-Type: text/plain; charset=utf-8",
+                "",
+                "Voici la photo",
+                "--alt",
+                "Content-Type: text/html; charset=utf-8",
+                "",
+                "<div dir=\"ltr\">Voici la photo</div>",
+                "--alt--",
+                "--xx",
+                "Content-Type: image/jpeg; name=\"IMG_0001.jpg\"",
+                "Content-Disposition: attachment; filename=\"IMG_0001.jpg\"",
+                "Content-ID: <ii_m3abc0>",
+                "Content-Transfer-Encoding: base64",
+                "",
+                jpg,
+                "--xx--",
+                "",
+            ),
+        )
+        assertEquals(listOf("IMG_0001.jpg"), m.attachmentNames)
+    }
+
     @Test fun `an S-MIME signature is not listed as its attachment, named or not`() {
         listOf(
             "Content-Type: application/pkcs7-signature; name=\"smime.p7s\"",

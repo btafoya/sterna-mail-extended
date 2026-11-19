@@ -131,6 +131,45 @@ class SignedEntityDisplayTest {
         assertEquals(mapOf("img1" to "data:image/png;base64,iVBORw0KGgo="), shown.inlineImages)
     }
 
+    @Test fun `a signed entity's photo the html never cites is listed, counted and not an inline part`() {
+        val entity = "Content-Type: multipart/mixed; boundary=\"in\"\r\n\r\n" +
+            "--in\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n\r\n<p>Voici la photo</p>\r\n" +
+            "--in\r\n" +
+            "Content-Type: image/jpeg; name=photo.jpg\r\n" +
+            "Content-Disposition: attachment; filename=photo.jpg\r\n" +
+            "Content-ID: <ii_m3abc0>\r\n" +
+            "Content-Transfer-Encoding: base64\r\n\r\n" +
+            "/9j/4AAQ\r\n" +
+            "--in--"
+
+        val shown = show(signed(entity))
+
+        val files = shown.email.fileAttachmentParts()
+        assertEquals(listOf("photo.jpg"), files.map { it.name })
+        assertEquals("attachment", files.single().disposition)
+        assertTrue("the paper clip misses the photo", shown.email.hasAttachment)
+        assertEquals(emptyMap<String, String>(), shown.inlineImages)
+    }
+
+    @Test fun `a signed related entity's cited image is no file and no paper clip`() {
+        val entity = "Content-Type: multipart/related; boundary=\"rel\"\r\n\r\n" +
+            "--rel\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n\r\n<img src=\"cid:img1\">\r\n" +
+            "--rel\r\n" +
+            "Content-Type: image/png\r\n" +
+            "Content-ID: <img1>\r\n" +
+            "Content-Transfer-Encoding: base64\r\n\r\n" +
+            "iVBORw0KGgo=\r\n" +
+            "--rel--"
+
+        val shown = show(signed(entity))
+
+        assertEquals(emptyList<String?>(), shown.email.fileAttachmentParts().map { it.name })
+        assertEquals("inline", shown.email.attachments.single().disposition)
+        assertFalse(shown.email.hasAttachment)
+    }
+
     private fun show(raw: String): EntityDisplay {
         val envelope = MimeParser.detectCrypto(raw)
         assertEquals(app.sterna.core.imap.CryptoKind.PGP_SIGNED, envelope?.kind)

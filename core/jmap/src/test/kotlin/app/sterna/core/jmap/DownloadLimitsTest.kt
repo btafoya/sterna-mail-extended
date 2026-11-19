@@ -2,6 +2,7 @@ package app.sterna.core.jmap
 
 import app.sterna.core.jmap.model.Email
 import app.sterna.core.jmap.model.EmailBodyPart
+import app.sterna.core.jmap.model.EmailBodyValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -92,9 +93,15 @@ class DownloadLimitsTest {
             type = "application/pdf",
             size = DownloadLimits.INLINE_IMAGE_MAX_BYTES + 1,
         )
-        val email = Email(id = "m1", attachments = listOf(small, huge, attachment))
-        // Only inline (cid:) images count, the attachment has its own, larger ceiling.
-        assertEquals(1, email.oversizedInlineImageCount())
-        assertEquals(0, Email(id = "m2", attachments = listOf(small)).oversizedInlineImageCount())
+        val uncited = huge.copy(blobId = "b4", cid = "orphan@x")
+        fun withHtml(vararg parts: EmailBodyPart) = Email(
+            id = "m1",
+            htmlBody = listOf(EmailBodyPart(partId = "h", type = "text/html")),
+            bodyValues = mapOf("h" to EmailBodyValue(value = "<img src=\"cid:small@x\"><img src=\"cid:huge@x\">")),
+            attachments = parts.toList(),
+        )
+        // Only images the body cites count; the attachment and the uncited image are files, with their own ceiling.
+        assertEquals(1, withHtml(small, huge, attachment, uncited).oversizedInlineImageCount())
+        assertEquals(0, withHtml(small).oversizedInlineImageCount())
     }
 }
