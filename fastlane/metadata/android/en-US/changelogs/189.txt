@@ -1,0 +1,5 @@
+An account can show a photo of your choice instead of its letter. Manage folders now creates, renames and deletes folders. The star on message list rows can be hidden in Appearance.
+
+OpenPGP: a recipient with no known key no longer blocks Send, the OpenPGP app lets you pick the key.
+
+Times follow the phone's 12 or 24 hour setting. A photo attached by Gmail now shows among the attachments. The app lock can be turned on under Android 9 and 10.

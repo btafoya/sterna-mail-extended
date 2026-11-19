@@ -1,0 +1,5 @@
+Un compte peut afficher une photo de votre choix à la place de sa lettre. Gérer les dossiers crée, renomme et supprime désormais des dossiers. L'étoile des lignes de la liste peut être masquée dans Apparence.
+
+OpenPGP : un destinataire sans clé connue ne bloque plus Envoyer, l'app OpenPGP laisse choisir la clé.
+
+Les heures suivent le réglage 12 ou 24 heures du téléphone. Une photo jointe par Gmail apparaît parmi les pièces jointes. Le verrouillage de l'app s'active sous Android 9 et 10.
