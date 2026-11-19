@@ -412,6 +412,8 @@
     <string name="settings_bold_unread_folders_subtitle">No painel de pastas, o nome de uma pasta fica a negrito enquanto tiver mensagens não lidas.</string>
     <string name="settings_starred_in_drawer_title">«Com estrela» no painel de pastas</string>
     <string name="settings_starred_in_drawer_subtitle">Adiciona ao painel de pastas a entrada «Com estrela». Abre uma pesquisa das mensagens com estrela, que consulta o servidor.</string>
+    <string name="settings_hide_list_star_title">Ocultar a estrela na lista de mensagens</string>
+    <string name="settings_hide_list_star_subtitle">Remove a estrela no fim de cada linha. Ainda pode adicionar estrela a uma mensagem deslizando-a, se um deslize estiver definido como «Adicionar/remover estrela», ou a partir da mensagem aberta.</string>
     <string name="settings_theme_auto">Automático</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Escuro</string>

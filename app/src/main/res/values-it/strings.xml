@@ -412,6 +412,8 @@
     <string name="settings_bold_unread_folders_subtitle">Nel pannello delle cartelle, il nome di una cartella è in grassetto finché contiene messaggi non letti.</string>
     <string name="settings_starred_in_drawer_title">«Speciali» nel pannello delle cartelle</string>
     <string name="settings_starred_in_drawer_subtitle">Aggiunge al pannello delle cartelle la voce «Speciali». Apre una ricerca dei messaggi speciali, che interroga il server.</string>
+    <string name="settings_hide_list_star_title">Nascondere il pulsante Speciali nell\'elenco dei messaggi</string>
+    <string name="settings_hide_list_star_subtitle">Toglie il pulsante Speciali alla fine di ogni riga. Puoi ancora aggiungere un messaggio a Speciali scorrendolo, se uno scorrimento è impostato su «Aggiungi/rimuovi da Speciali», o dal messaggio aperto.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Chiaro</string>
     <string name="settings_theme_dark">Scuro</string>

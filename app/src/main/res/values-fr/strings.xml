@@ -412,6 +412,8 @@
     <string name="settings_bold_unread_folders_subtitle">Dans le tiroir des dossiers, le nom d\'un dossier est en gras tant qu\'il contient des messages non lus.</string>
     <string name="settings_starred_in_drawer_title">« Suivis » dans le tiroir des dossiers</string>
     <string name="settings_starred_in_drawer_subtitle">Ajoute au tiroir des dossiers une entrée « Suivis ». Elle ouvre une recherche des messages suivis, qui interroge le serveur.</string>
+    <string name="settings_hide_list_star_title">Masquer le bouton Suivre dans la liste des messages</string>
+    <string name="settings_hide_list_star_subtitle">Retire le bouton Suivre au bout de chaque ligne. Vous pouvez toujours suivre un message en le balayant, si un balayage est réglé sur « Suivre/ne plus suivre », ou depuis le message ouvert.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Clair</string>
     <string name="settings_theme_dark">Sombre</string>

@@ -262,6 +262,10 @@ class SettingsWriteWiringTest {
                 "dataStore.edit { it[KEY_STARRED_IN_DRAWER] = enabled }",
             ),
             Write(
+                "suspend fun setHideListStar(enabled: Boolean) {",
+                "dataStore.edit { it[KEY_HIDE_LIST_STAR] = enabled }",
+            ),
+            Write(
                 "suspend fun setConversationView(enabled: Boolean) {",
                 "dataStore.edit { it[KEY_CONVERSATION_VIEW] = enabled }",
             ),
@@ -432,6 +436,8 @@ class SettingsWriteWiringTest {
                 "PLAIN, the rest of its wiring pinned by BoldUnreadFoldersWiringTest",
             "suspend fun setStarredInDrawer(enabled: Boolean) {" to
                 "PLAIN, the rest of its wiring pinned by StarredInDrawerWiringTest",
+            "suspend fun setHideListStar(enabled: Boolean) {" to
+                "PLAIN, the rest of its wiring pinned by HideListStarWiringTest",
             "suspend fun setSwipeRightAction(action: SwipeAction) {" to "ENUMS",
             "suspend fun setSwipeLeftAction(action: SwipeAction) {" to "ENUMS",
             "suspend fun setSortOrder(order: SortOrder) {" to "ENUMS",

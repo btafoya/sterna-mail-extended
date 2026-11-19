@@ -25,6 +25,7 @@ import app.sterna.core.data.settings.UNREAD_TINT_DEFAULT
 import app.sterna.core.data.settings.VOLUME_TEXT_SIZE_DEFAULT
 import app.sterna.core.data.settings.SEARCH_HISTORY_DEFAULT
 import app.sterna.core.data.settings.STARRED_IN_DRAWER_DEFAULT
+import app.sterna.core.data.settings.HIDE_LIST_STAR_DEFAULT
 import app.sterna.core.data.settings.SettingsBackup
 import app.sterna.core.data.settings.SettingsBackupCodec
 import app.sterna.core.data.settings.SwipeAction
@@ -195,6 +196,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setStarredInDrawer(enabled: Boolean) {
         viewModelScope.launch { settings.setStarredInDrawer(enabled) }
+    }
+
+    val hideListStar = settings.hideListStar.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = HIDE_LIST_STAR_DEFAULT,
+    )
+
+    fun setHideListStar(enabled: Boolean) {
+        viewModelScope.launch { settings.setHideListStar(enabled) }
     }
 
     val swipeRight = settings.swipeRightAction.stateIn(

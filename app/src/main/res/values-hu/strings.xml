@@ -574,6 +574,8 @@
     <string name="settings_bold_unread_folders_subtitle">A mappafiókban a mappa neve félkövér, amíg olvasatlan levelet tartalmaz.</string>
     <string name="settings_starred_in_drawer_title">„Csillagozott” a mappafiókban</string>
     <string name="settings_starred_in_drawer_subtitle">Hozzáad egy „Csillagozott” bejegyzést a mappafiókhoz. A csillagozott üzenetek keresését nyitja meg, amely a kiszolgálót kérdezi le.</string>
+    <string name="settings_hide_list_star_title">Csillag elrejtése az üzenetlistában</string>
+    <string name="settings_hide_list_star_subtitle">Eltávolítja a csillagot minden sor végéről. Az üzenet továbbra is megcsillagozható csúsztatással, ha egy csúsztatás „Csillag hozzáadása/eltávolítása” műveletre van állítva, vagy a megnyitott üzenetből.</string>
     <string name="settings_theme_auto">Automatikus</string>
     <string name="settings_theme_light">Világos</string>
     <string name="settings_theme_dark">Sötét</string>

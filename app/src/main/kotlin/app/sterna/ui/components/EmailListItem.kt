@@ -410,45 +410,53 @@ fun EmailListItem(
                 modifier = Modifier.size(18.dp),
             )
         }
+        // Starless, `StarlessEndGap` brings the 4 dp end padding up to the start's 16. Not in the padding:
+        // telling a draft row apart there takes a fourth line naming the callback, which `LocalDraftListWiringLintTest` forbids.
         if (onToggleFavourite != null) {
-            // The ★/☆ glyph is meaningless to a screen reader, so its semantics are replaced with
-            // a state-aware label and a button role.
-            val favLabel = stringResource(
-                if (email.isFlagged) R.string.a11y_unfavourite else R.string.a11y_favourite,
-            )
-            // Micro-pop: favouriting springs the star and pops it to coral, the one place vivid
-            // coral is earned.
-            val pop = remember { Animatable(1f) }
-            var firstPass by remember { mutableStateOf(true) }
-            LaunchedEffect(email.isFlagged) {
-                if (firstPass) { firstPass = false; return@LaunchedEffect }
-                if (email.isFlagged && motionOn) {
-                    pop.snapTo(1.4f)
-                    pop.animateTo(
-                        1f,
-                        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                    )
+            if (LocalHideListStar.current) {
+                Spacer(Modifier.width(StarlessEndGap))
+            } else {
+                // The ★/☆ glyph is meaningless to a screen reader: a state-aware label and a button role instead.
+                val favLabel = stringResource(
+                    if (email.isFlagged) R.string.a11y_unfavourite else R.string.a11y_favourite,
+                )
+                // Micro-pop: favouriting springs the star to coral, the one place vivid coral is earned.
+                val pop = remember { Animatable(1f) }
+                var firstPass by remember { mutableStateOf(true) }
+                LaunchedEffect(email.isFlagged) {
+                    if (firstPass) { firstPass = false; return@LaunchedEffect }
+                    if (email.isFlagged && motionOn) {
+                        pop.snapTo(1.4f)
+                        pop.animateTo(
+                            1f,
+                            spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                        )
+                    }
                 }
+                Text(
+                    text = if (email.isFlagged) "★" else "☆",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (email.isFlagged) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clip(CircleShape)
+                        .clickable(onClick = onToggleFavourite)
+                        .padding(8.dp)
+                        .scale(pop.value)
+                        .clearAndSetSemantics {
+                            contentDescription = favLabel
+                            role = Role.Button
+                        },
+                )
             }
-            Text(
-                text = if (email.isFlagged) "★" else "☆",
-                style = MaterialTheme.typography.titleLarge,
-                color = if (email.isFlagged) MaterialTheme.colorScheme.tertiary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .clip(CircleShape)
-                    .clickable(onClick = onToggleFavourite)
-                    .padding(8.dp)
-                    .scale(pop.value)
-                    .clearAndSetSemantics {
-                        contentDescription = favLabel
-                        role = Role.Button
-                    },
-            )
+        } else {
+            Spacer(Modifier.width(StarlessEndGap))
         }
     }
 }
+
+private val StarlessEndGap = 12.dp
 
 private val PillPaddingX = 8.dp
 private val PillPaddingY = 4.dp

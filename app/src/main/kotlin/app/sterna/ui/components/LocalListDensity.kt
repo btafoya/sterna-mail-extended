@@ -2,6 +2,7 @@ package app.sterna.ui.components
 
 import androidx.compose.runtime.compositionLocalOf
 import app.sterna.core.data.settings.BOLD_UNREAD_FOLDERS_DEFAULT
+import app.sterna.core.data.settings.HIDE_LIST_STAR_DEFAULT
 import app.sterna.core.data.settings.LIST_MONOGRAM_DEFAULT
 import app.sterna.core.data.settings.ListDensity
 import app.sterna.core.data.settings.PreviewLines
@@ -31,3 +32,5 @@ val LocalSenderNames = compositionLocalOf { emptyMap<String, String>() }
 val LocalBoldUnreadFolders = compositionLocalOf { BOLD_UNREAD_FOLDERS_DEFAULT }
 
 val LocalStarredInDrawer = compositionLocalOf { STARRED_IN_DRAWER_DEFAULT }
+
+val LocalHideListStar = compositionLocalOf { HIDE_LIST_STAR_DEFAULT }

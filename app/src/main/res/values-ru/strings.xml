@@ -414,6 +414,8 @@
     <string name="settings_bold_unread_folders_subtitle">В панели папок название папки выделяется жирным, пока в ней есть непрочитанные письма.</string>
     <string name="settings_starred_in_drawer_title">«Помеченные» в панели папок</string>
     <string name="settings_starred_in_drawer_subtitle">Добавляет в панель папок пункт «Помеченные». Он открывает поиск помеченных писем, который обращается к серверу.</string>
+    <string name="settings_hide_list_star_title">Скрыть кнопку пометки в списке писем</string>
+    <string name="settings_hide_list_star_subtitle">Убирает кнопку пометки в конце каждой строки. Пометить письмо по-прежнему можно смахиванием, если для смахивания выбрано «Пометить/снять пометку», или в открытом письме.</string>
     <string name="settings_theme_auto">Авто</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>

@@ -474,6 +474,7 @@ private fun AppearanceScreen(
     val unreadTint by viewModel.unreadTint.collectAsStateWithLifecycle()
     val pureBlack by viewModel.pureBlack.collectAsStateWithLifecycle()
     val listMonogram by viewModel.listMonogram.collectAsStateWithLifecycle()
+    val hideListStar by viewModel.hideListStar.collectAsStateWithLifecycle()
     val boldUnreadFolders by viewModel.boldUnreadFolders.collectAsStateWithLifecycle()
     val starredInDrawer by viewModel.starredInDrawer.collectAsStateWithLifecycle()
     val openOnView by viewModel.openOnView.collectAsStateWithLifecycle()
@@ -561,6 +562,12 @@ private fun AppearanceScreen(
                     subtitle = stringResource(R.string.settings_unread_tint_subtitle),
                     checked = unreadTint,
                     onCheckedChange = viewModel::setUnreadTint,
+                )
+                SettingSwitch(
+                    title = stringResource(R.string.settings_hide_list_star_title),
+                    subtitle = stringResource(R.string.settings_hide_list_star_subtitle),
+                    checked = hideListStar,
+                    onCheckedChange = viewModel::setHideListStar,
                 )
                 SettingSwitch(
                     title = stringResource(R.string.settings_list_monogram_title),

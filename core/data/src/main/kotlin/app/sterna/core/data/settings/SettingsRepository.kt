@@ -142,6 +142,12 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_STARRED_IN_DRAWER] = enabled }
     }
 
+    val hideListStar: Flow<Boolean> = dataStore.data.map(::hideListStarFrom)
+
+    suspend fun setHideListStar(enabled: Boolean) {
+        dataStore.edit { it[KEY_HIDE_LIST_STAR] = enabled }
+    }
+
     val swipeRightAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_RIGHT, SwipeAction.TOGGLE_READ)
     val swipeLeftAction: Flow<SwipeAction> = swipeFlow(KEY_SWIPE_LEFT, SwipeAction.DELETE)
 
@@ -399,6 +405,7 @@ class SettingsRepository(context: Context) {
         listMonogram = listMonogram.first(),
         boldUnreadFolders = boldUnreadFolders.first(),
         starredInDrawer = starredInDrawer.first(),
+        hideListStar = hideListStar.first(),
         searchHistory = searchHistory.first(),
         volumeTextSize = volumeTextSize.first(),
         deliveryMode = deliveryMode.first().name,
@@ -443,6 +450,7 @@ class SettingsRepository(context: Context) {
         backup.listMonogram?.let { setListMonogram(it) }
         backup.boldUnreadFolders?.let { setBoldUnreadFolders(it) }
         backup.starredInDrawer?.let { setStarredInDrawer(it) }
+        backup.hideListStar?.let { setHideListStar(it) }
         backup.searchHistory?.let { setSearchHistory(it) }
         backup.volumeTextSize?.let { setVolumeTextSize(it) }
         backup.deliveryMode?.let { v -> runCatching { DeliveryMode.valueOf(v) }.getOrNull()?.let { setDeliveryMode(it) } }
@@ -667,6 +675,13 @@ const val STARRED_IN_DRAWER_DEFAULT = false
 
 internal fun starredInDrawerFrom(prefs: Preferences): Boolean =
     prefs[KEY_STARRED_IN_DRAWER] ?: STARRED_IN_DRAWER_DEFAULT
+
+internal val KEY_HIDE_LIST_STAR = booleanPreferencesKey("hide_list_star")
+
+const val HIDE_LIST_STAR_DEFAULT = false
+
+internal fun hideListStarFrom(prefs: Preferences): Boolean =
+    prefs[KEY_HIDE_LIST_STAR] ?: HIDE_LIST_STAR_DEFAULT
 
 /** The key the plain-text reading switch is stored under. */
 internal val KEY_PLAIN_TEXT = booleanPreferencesKey("plain_text")

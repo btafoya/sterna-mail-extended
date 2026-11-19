@@ -89,6 +89,9 @@ Tiers 1 to 4 of the original roadmap are shipped. What is left:
   by default. It opens the search with the Starred filter set, which asks the
   server, for the account in hand, or for every account when opened from a view
   that covers them all.
+- ✅ A setting in Appearance, off by default, hides the star at the end of each
+  message list row. A message can still be starred from the opened message, or by
+  a swipe set to Star/unstar.
 - ✅ On an account with several addresses, the chip of a list row names the address
   a message arrived on, when its To or Cc says which. Where rows name their
   account, the address takes the place of the account's name. In the view of one

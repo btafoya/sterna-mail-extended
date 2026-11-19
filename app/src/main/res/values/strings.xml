@@ -585,6 +585,8 @@
     <string name="settings_bold_unread_folders_subtitle">In the folder drawer, a folder\'s name is bold while it holds unread mail.</string>
     <string name="settings_starred_in_drawer_title">Starred in the folder drawer</string>
     <string name="settings_starred_in_drawer_subtitle">Adds a Starred entry to the folder drawer. It opens a search for starred messages, which asks the server.</string>
+    <string name="settings_hide_list_star_title">Hide the star in the message list</string>
+    <string name="settings_hide_list_star_subtitle">Removes the star at the end of each row. You can still star a message by swiping it, if a swipe is set to Star/unstar, or from the opened message.</string>
     <string name="settings_theme_auto">Auto</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>

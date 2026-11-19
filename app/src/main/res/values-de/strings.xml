@@ -410,6 +410,8 @@
     <string name="settings_bold_unread_folders_subtitle">In der Ordnerleiste wird der Name eines Ordners fett angezeigt, solange er ungelesene Nachrichten enthält.</string>
     <string name="settings_starred_in_drawer_title">„Markiert“ in der Ordnerleiste</string>
     <string name="settings_starred_in_drawer_subtitle">Fügt der Ordnerleiste den Eintrag „Markiert“ hinzu. Er öffnet eine Suche nach markierten Nachrichten, die den Server abfragt.</string>
+    <string name="settings_hide_list_star_title">Markierungs-Schaltfläche in der Nachrichtenliste ausblenden</string>
+    <string name="settings_hide_list_star_subtitle">Entfernt die Markierungs-Schaltfläche am Ende jeder Zeile. Du kannst eine Nachricht weiterhin markieren, indem du sie wischst, wenn eine Wischgeste auf „Markieren/Markierung entfernen“ eingestellt ist, oder in der geöffneten Nachricht.</string>
     <string name="settings_theme_auto">Automatisch</string>
     <string name="settings_theme_light">Hell</string>
     <string name="settings_theme_dark">Dunkel</string>

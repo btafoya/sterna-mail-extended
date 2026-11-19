@@ -410,6 +410,8 @@
     <string name="settings_bold_unread_folders_subtitle">In de mappenlade staat de naam van een map vet zolang die ongelezen berichten bevat.</string>
     <string name="settings_starred_in_drawer_title">“Met ster” in de mappenlade</string>
     <string name="settings_starred_in_drawer_subtitle">Voegt het item “Met ster” toe aan de mappenlade. Het opent een zoekopdracht naar berichten met ster, die de server raadpleegt.</string>
+    <string name="settings_hide_list_star_title">Ster in de berichtenlijst verbergen</string>
+    <string name="settings_hide_list_star_subtitle">Verwijdert de ster aan het einde van elke rij. Je kunt een bericht nog steeds een ster geven door het te vegen, als een veegbeweging is ingesteld op “Ster toevoegen/verwijderen”, of vanuit het geopende bericht.</string>
     <string name="settings_theme_auto">Automatisch</string>
     <string name="settings_theme_light">Licht</string>
     <string name="settings_theme_dark">Donker</string>

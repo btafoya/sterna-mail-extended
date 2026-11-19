@@ -573,6 +573,8 @@
     <string name="settings_bold_unread_folders_subtitle">在文件夹抽屉中，文件夹有未读邮件时，其名称加粗显示。</string>
     <string name="settings_starred_in_drawer_title">在文件夹抽屉中显示“星标”</string>
     <string name="settings_starred_in_drawer_subtitle">在文件夹抽屉中添加“星标”入口。点按后会打开对星标邮件的搜索，并向服务器查询。</string>
+    <string name="settings_hide_list_star_title">在邮件列表中隐藏星标</string>
+    <string name="settings_hide_list_star_subtitle">移除每行末尾的星标。如果某个滑动操作设为“加星标/取消星标”，仍可通过滑动给邮件加星标，也可在打开的邮件中加星标。</string>
     <string name="settings_theme_auto">自动</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>

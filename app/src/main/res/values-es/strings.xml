@@ -412,6 +412,8 @@
     <string name="settings_bold_unread_folders_subtitle">En el panel de carpetas, el nombre de una carpeta aparece en negrita mientras contiene mensajes no leídos.</string>
     <string name="settings_starred_in_drawer_title">«Destacados» en el panel de carpetas</string>
     <string name="settings_starred_in_drawer_subtitle">Añade al panel de carpetas la entrada «Destacados». Abre una búsqueda de los mensajes destacados, que consulta al servidor.</string>
+    <string name="settings_hide_list_star_title">Ocultar el botón Destacar en la lista de mensajes</string>
+    <string name="settings_hide_list_star_subtitle">Quita el botón Destacar al final de cada fila. Puedes seguir destacando un mensaje deslizándolo, si un deslizamiento está configurado en «Destacar/quitar destacado», o desde el mensaje abierto.</string>
     <string name="settings_theme_auto">Automático</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Oscuro</string>
