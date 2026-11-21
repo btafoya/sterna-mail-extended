@@ -73,6 +73,10 @@ fun expand(event: JsonObject, fromMs: Long, toMs: Long, device: ZoneId = ZoneId.
         var dur = durationMs
         if (patch != null) {
             json = JsonObject(event + patch.filterKeys { "/" !in it })
+        }
+        // An occurrence starts at its own time, not the series': the editor and a later edit read it from here.
+        if (rules.isNotEmpty() && event["start"] != null && patch?.get("start") == null) json = JsonObject(json + ("start" to JsonPrimitive(key(local))))
+        if (patch != null) {
             (patch["start"] as? JsonPrimitive)?.contentOrNull?.let(::localDateTime)
                 ?.let { start = it.atZone(zone).toInstant().toEpochMilli() }
             (patch["duration"] as? JsonPrimitive)?.contentOrNull?.let(::parseDurationMs)?.let { dur = it }

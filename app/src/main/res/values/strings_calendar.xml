@@ -41,5 +41,10 @@
     <string name="cal_notes">Notes</string>
     <string name="cal_edit">Edit</string>
     <string name="cal_delete_confirm">Delete this from the server?</string>
+    <string name="cal_scope_edit_title">Change which events?</string>
+    <string name="cal_scope_delete_title">Delete which events?</string>
+    <string name="cal_scope_this">This event</string>
+    <string name="cal_scope_following">This and following events</string>
+    <string name="cal_scope_all">All events</string>
     <string name="cal_done">Completed</string>
 </resources>

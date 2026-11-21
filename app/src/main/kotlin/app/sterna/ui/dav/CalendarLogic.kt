@@ -151,8 +151,8 @@ fun parseIsoDuration(text: String): Long? {
 /**
  * The object to send for [f], over [base] when editing (so every property the editor does not know
  * survives). Repeat, alerts and attendees are rewritten only when the form changed them.
- * ponytail: editing a recurring event edits the whole series; one occurrence ("this and following")
- * needs recurrenceOverrides, add when asked.
+ * Over a stored series it edits the whole series; one occurrence, or this and the following, goes through
+ * the functions below.
  */
 fun applyForm(base: JsonObject?, f: EventForm, uid: String, deviceZone: String): JsonObject {
     val m = (base ?: JsonObject(emptyMap())).toMutableMap()
@@ -229,4 +229,84 @@ fun diffPatch(old: JsonObject, new: JsonObject): JsonObject {
     new.forEach { (k, v) -> if (old[k] != v) out[k] = v }
     old.keys.filter { it !in new }.forEach { out[it] = JsonNull }
     return JsonObject(out)
+}
+
+// ---- one occurrence of a series ----
+
+/** Which part of a recurring series an edit or a delete is for. */
+enum class Scope { THIS, FOLLOWING, ALL }
+
+private const val OVERRIDES = "recurrenceOverrides"
+
+/** Never inside an override (the server refuses them) and never copied by hand. */
+private val SERIES_ONLY = setOf("@type", "uid", "calendarIds", "recurrenceRule", "recurrenceRules", "excludedRecurrenceRule", "excludedRecurrenceRules", OVERRIDES)
+
+/** What a new series made from a cut one carries over from the old. */
+private val SERIES_KEYS = setOf(
+    "@type", "title", "description", "start", "duration", "timeZone", "showWithoutTime", "recurrenceRule", "recurrenceRules",
+    "excludedRecurrenceRules", "alerts", "useDefaultAlerts", "participants", "status", "freeBusyStatus", "privacy", "locations",
+    "calendarIds", "color", "keywords", "categories",
+)
+
+private fun JsonObject.overrides(): Map<String, JsonElement> = obj(OVERRIDES) ?: emptyMap()
+
+/** The patch that stores [map] as the whole `recurrenceOverrides` (the server cannot patch into one that is absent). */
+private fun overridesPatch(map: Map<String, JsonElement>): JsonObject = JsonObject(mapOf(OVERRIDES to if (map.isEmpty()) JsonNull else JsonObject(map)))
+
+/** [stored] with the override of [rid] applied and starting at its own time: the occurrence as one event. */
+fun occurrenceBase(stored: JsonObject, rid: String): JsonObject {
+    val patch = stored.overrides()[rid] as? JsonObject
+    val merged = if (patch == null) stored else JsonObject(stored + patch.filterKeys { "/" !in it })
+    return if (patch?.get("start") != null) merged else JsonObject(merged + ("start" to JsonPrimitive(rid)))
+}
+
+/** Drops only the occurrence [rid]. */
+fun excludePatch(stored: JsonObject, rid: String): JsonObject =
+    overridesPatch(stored.overrides() + (rid to buildJsonObject { put("excluded", true) }))
+
+/** Changes only the occurrence [rid] to [form]; empty when nothing differs. */
+fun editOccurrencePatch(stored: JsonObject, rid: String, form: EventForm, zone: String): JsonObject {
+    val base = occurrenceBase(stored, rid)
+    val changed = diffPatch(base, applyForm(base, form, "", zone)).filterKeys { it !in SERIES_ONLY }
+    if (changed.isEmpty()) return JsonObject(emptyMap())
+    val old = stored.overrides()[rid] as? JsonObject ?: JsonObject(emptyMap())
+    return overridesPatch(stored.overrides() + (rid to JsonObject(old + changed)))
+}
+
+/** [form] as the whole series' form: the editor shows an occurrence's date, the series keeps its own. */
+fun wholeSeriesForm(stored: JsonObject, rid: String, form: EventForm): EventForm {
+    val shift = Duration.between(parseLocal(rid) ?: return form, parseLocal(stored.str("start")) ?: return form)
+    return form.copy(start = form.start.plus(shift), end = form.end?.plus(shift))
+}
+
+/** True when [rid] is the series' first occurrence, so "this and following" is the whole series. */
+fun isFirstOccurrence(stored: JsonObject, rid: String): Boolean = parseLocal(stored.str("start")) == parseLocal(rid)
+
+/** Ends the series just before [rid]: a `count` becomes an `until`, and overrides from [rid] on go. */
+fun cutSeriesPatch(stored: JsonObject, rid: String): JsonObject {
+    val until = JsonPrimitive(localString((parseLocal(rid) ?: return JsonObject(emptyMap())).minusSeconds(1)))
+    fun cut(r: JsonElement) = JsonObject((r as? JsonObject ?: JsonObject(emptyMap())).filterKeys { it != "count" } + ("until" to until))
+    val out = mutableMapOf<String, JsonElement>()
+    (stored["recurrenceRules"] as? JsonArray)?.let { out["recurrenceRules"] = JsonArray(it.map(::cut)) }
+    stored.obj("recurrenceRule")?.let { out["recurrenceRule"] = cut(it) }
+    if (stored.overrides().keys.any { it >= rid }) out += overridesPatch(stored.overrides().filterKeys { it < rid })
+    return JsonObject(out)
+}
+
+/**
+ * The new series that takes over from [rid]: the old one's properties, the overrides from [rid] on, a
+ * `count` reduced by the [before] occurrences the old series keeps, and [form] on top.
+ */
+fun followingSeries(stored: JsonObject, rid: String, before: Int, form: EventForm, uid: String, zone: String): JsonObject {
+    val kept = occurrenceBase(stored, rid).filterKeys { it in SERIES_KEYS }.toMutableMap()
+    fun recount(r: JsonElement) = (r as? JsonObject)?.let { o ->
+        (o["count"] as? JsonPrimitive)?.intOrNull?.let { JsonObject(o + ("count" to JsonPrimitive(it - before))) } ?: o
+    } ?: r
+    (kept["recurrenceRules"] as? JsonArray)?.let { kept["recurrenceRules"] = JsonArray(it.map(::recount)) }
+    kept["recurrenceRule"]?.let { kept["recurrenceRule"] = recount(it) }
+    stored.overrides().filterKeys { it > rid }.takeIf { it.isNotEmpty() }?.let { kept[OVERRIDES] = JsonObject(it) }
+    kept["uid"] = JsonPrimitive(uid)
+    val oldCount = repeatOf(stored)?.second
+    val adjusted = if (oldCount != null && form.repeatCount == oldCount) form.copy(repeatCount = oldCount - before) else form
+    return applyForm(JsonObject(kept), adjusted, uid, zone)
 }

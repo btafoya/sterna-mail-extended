@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.sterna.container
 import app.sterna.core.data.dav.CalendarOccurrence
+import app.sterna.core.data.dav.expand
 import app.sterna.core.data.db.DavObjectEntity
 import app.sterna.core.data.db.DavPendingEntity
 import app.sterna.core.jmap.JmapType
@@ -39,7 +40,12 @@ enum class CalLayout { AGENDA, MONTH }
 class CalendarInfo(val id: String, val name: String, val visible: Boolean, val isDefault: Boolean)
 
 /** One thing to draw: an occurrence of an event, or a task. [rowId] is the DavRepository id. */
-class CalItem(val rowId: String, val calendarId: String, val json: JsonObject, val startMs: Long?, val endMs: Long?, val allDay: Boolean) {
+class CalItem(
+    val rowId: String, val calendarId: String, val json: JsonObject, val startMs: Long?, val endMs: Long?, val allDay: Boolean,
+    /** The local start the series gave this occurrence; empty for a one-off event and a task. */
+    val recurrenceId: String = "",
+) {
+    val recurring: Boolean get() = recurrenceId.isNotEmpty()
     val title: String get() = (json["title"] as? JsonPrimitive)?.contentOrNull.orEmpty()
     val completed: Boolean get() = (json["progress"] as? JsonPrimitive)?.contentOrNull == "completed"
 }
@@ -96,6 +102,7 @@ class CalendarViewModel(private val app: Application, private val accountId: Str
     private fun CalendarOccurrence.toItem() = CalItem(
         row.id, row.groupId, occurrence.json, occurrence.startMs, occurrence.endMs,
         (occurrence.json["showWithoutTime"] as? JsonPrimitive)?.booleanOrNull == true,
+        occurrence.recurrenceId,
     )
 
     private fun DavObjectEntity.toItem() = Json.parseToJsonElement(json).jsonObject.let {
@@ -129,7 +136,8 @@ class CalendarViewModel(private val app: Application, private val accountId: Str
 
     fun formFor(item: CalItem): EventForm = formOf(item.json, item.calendarId, LocalDateTime.now())
 
-    fun save(editing: CalItem?, form: EventForm) {
+    /** [scope] matters only for an occurrence of a series; anything else is saved as it is. */
+    fun save(editing: CalItem?, form: EventForm, scope: Scope = Scope.ALL) {
         val zone = ZoneId.systemDefault().id
         viewModelScope.launch {
             if (editing == null) {
@@ -137,16 +145,43 @@ class CalendarViewModel(private val app: Application, private val accountId: Str
             } else {
                 // The stored object, not the occurrence: an occurrence's json can carry a per-instance override.
                 val stored = repo.get(accountId, JmapType.CALENDAR_EVENT, editing.rowId)?.let { Json.parseToJsonElement(it.json).jsonObject } ?: return@launch
-                val patch = diffPatch(stored, applyForm(stored, form, "", zone))
-                if (patch.isNotEmpty()) repo.update(accountId, JmapType.CALENDAR_EVENT, editing.rowId, patch)
+                val rid = editing.recurrenceId
+                when {
+                    !editing.recurring || scope == Scope.ALL || (scope == Scope.FOLLOWING && isFirstOccurrence(stored, rid)) -> {
+                        val whole = if (editing.recurring) wholeSeriesForm(stored, rid, form) else form
+                        val patch = diffPatch(stored, applyForm(stored, whole, "", zone))
+                        if (patch.isNotEmpty()) repo.update(accountId, JmapType.CALENDAR_EVENT, editing.rowId, patch)
+                    }
+                    scope == Scope.THIS -> editOccurrencePatch(stored, rid, form, zone).takeIf { it.isNotEmpty() }
+                        ?.let { repo.update(accountId, JmapType.CALENDAR_EVENT, editing.rowId, it) }
+                    else -> {
+                        val next = followingSeries(stored, rid, occurrencesBefore(stored, rid, editing.startMs), form, UUID.randomUUID().toString(), zone)
+                        repo.update(accountId, JmapType.CALENDAR_EVENT, editing.rowId, cutSeriesPatch(stored, rid))
+                        repo.create(accountId, JmapType.CALENDAR_EVENT, next)
+                    }
+                }
             }
             Dav.enqueue(app)
         }
     }
 
-    fun delete(item: CalItem) {
+    /** How many occurrences the series' own rule makes before [rid]; excluded ones count, as `count` counts them. */
+    private fun occurrencesBefore(stored: JsonObject, rid: String, startMs: Long?): Int =
+        expand(JsonObject(stored - "recurrenceOverrides" - "excludedRecurrenceRules"), 0, (startMs ?: 0) + 366L * 86_400_000)
+            .occurrences.count { it.recurrenceId < rid }
+
+    /** [scope] matters only for an occurrence of a series. */
+    fun delete(item: CalItem, scope: Scope = Scope.ALL) {
         viewModelScope.launch {
-            repo.destroy(accountId, JmapType.CALENDAR_EVENT, item.rowId)
+            val stored = if (item.recurring && scope != Scope.ALL) {
+                repo.get(accountId, JmapType.CALENDAR_EVENT, item.rowId)?.let { Json.parseToJsonElement(it.json).jsonObject } ?: return@launch
+            } else null
+            when {
+                stored == null || (scope == Scope.FOLLOWING && isFirstOccurrence(stored, item.recurrenceId)) ->
+                    repo.destroy(accountId, JmapType.CALENDAR_EVENT, item.rowId)
+                scope == Scope.THIS -> repo.update(accountId, JmapType.CALENDAR_EVENT, item.rowId, excludePatch(stored, item.recurrenceId))
+                else -> repo.update(accountId, JmapType.CALENDAR_EVENT, item.rowId, cutSeriesPatch(stored, item.recurrenceId))
+            }
             Dav.enqueue(app)
         }
     }

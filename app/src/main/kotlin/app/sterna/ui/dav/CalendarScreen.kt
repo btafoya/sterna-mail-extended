@@ -87,6 +87,7 @@ fun CalendarScreen(accountId: String, onBack: () -> Unit) {
     var editor by remember { mutableStateOf<Pair<CalItem?, EventForm>?>(null) }
     var calendarsMenu by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CalItem?>(null) }
+    var scoping by remember { mutableStateOf<Pair<CalItem, EventForm>?>(null) }
     val tasksMode = mode == CalMode.TASKS
 
     Scaffold(
@@ -190,7 +191,10 @@ fun CalendarScreen(accountId: String, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { deleting = item }) { Text(stringResource(R.string.dav_delete)) } },
         )
     }
-    deleting?.let { item ->
+    deleting?.takeIf { it.recurring }?.let { item ->
+        ScopeDialog(R.string.cal_scope_delete_title, onPick = { vm.delete(item, it); deleting = null; detail = null; editor = null }, onDismiss = { deleting = null })
+    }
+    deleting?.takeIf { !it.recurring }?.let { item ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text(item.title.ifBlank { stringResource(R.string.dav_untitled) }) },
@@ -202,11 +206,32 @@ fun CalendarScreen(accountId: String, onBack: () -> Unit) {
     editor?.let { (editing, form) ->
         EventEditorDialog(
             initial = form, calendars = calendars,
-            onSave = { vm.save(editing, it); editor = null },
+            onSave = { f -> if (editing?.recurring == true) scoping = editing to f else { vm.save(editing, f); editor = null } },
             onDelete = editing?.let { e -> { deleting = e } },
             onDismiss = { editor = null },
         )
     }
+    scoping?.let { (item, f) ->
+        ScopeDialog(R.string.cal_scope_edit_title, onPick = { vm.save(item, f, it); scoping = null; editor = null }, onDismiss = { scoping = null })
+    }
+}
+
+/** Which part of a recurring series a change is for. */
+@Composable
+private fun ScopeDialog(title: Int, onPick: (Scope) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(title)) },
+        text = {
+            Column {
+                TextButton({ onPick(Scope.THIS) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.cal_scope_this)) }
+                TextButton({ onPick(Scope.FOLLOWING) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.cal_scope_following)) }
+                TextButton({ onPick(Scope.ALL) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.cal_scope_all)) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.dav_cancel)) } },
+    )
 }
 
 private fun dayOf(ms: Long?): LocalDate = Instant.ofEpochMilli(ms ?: 0).atZone(ZoneId.systemDefault()).toLocalDate()
