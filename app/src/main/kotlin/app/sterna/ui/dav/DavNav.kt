@@ -33,6 +33,9 @@ val LocalDavNav = staticCompositionLocalOf<(String) -> Unit> { {} }
 fun DavDrawerItems(accountId: String, onClose: () -> Unit) {
     val container = (LocalContext.current.applicationContext as Application).container
     val supported by container.davRepository.watchSupported(accountId).collectAsStateWithLifecycle(emptyList())
+    // An account added after the app started has had no pass yet, and these entries wait for one.
+    val context = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(accountId) { app.sterna.dav.Dav.enqueue(context.applicationContext) }
     val open = LocalDavNav.current
     val arg = Uri.encode(accountId)
     fun item(type: JmapType, route: String, label: Int, icon: androidx.compose.ui.graphics.vector.ImageVector) = type to Triple(route, label, icon)
