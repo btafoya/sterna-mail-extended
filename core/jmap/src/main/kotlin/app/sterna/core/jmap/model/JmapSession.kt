@@ -50,10 +50,14 @@ data class JmapSession(
         return ownOrSessionWide.containsKey(capability)
     }
 
-    fun contactsAccountId(): String? {
-        if (!capabilities.containsKey(Jmap.CONTACTS_CAPABILITY)) return null
-        return primaryAccounts[Jmap.CONTACTS_CAPABILITY]
-            ?: accounts.entries.firstOrNull { it.value.accountCapabilities.containsKey(Jmap.CONTACTS_CAPABILITY) }?.key
+    fun contactsAccountId(): String? = accountIdFor(Jmap.CONTACTS_CAPABILITY)
+
+    /** The account a non-mail capability lives on: the session must list it, then the primary
+     *  account for it, else the first account advertising it, never the mail account. */
+    fun accountIdFor(capability: String): String? {
+        if (!capabilities.containsKey(capability)) return null
+        return primaryAccounts[capability]
+            ?: accounts.entries.firstOrNull { it.value.accountCapabilities.containsKey(capability) }?.key
     }
 
         /** The server's VAPID application key (RFC 9749) when advertised, passed to the UnifiedPush

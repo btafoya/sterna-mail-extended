@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="contacts_title">Contacts</string>
+    <string name="contacts_search">Search contacts</string>
+    <string name="contacts_new">New contact</string>
+    <string name="contacts_edit">Edit contact</string>
+    <string name="contacts_delete">Delete contact</string>
+    <string name="contacts_delete_confirm">Delete this contact from the server?</string>
+    <string name="contacts_unnamed">(no name)</string>
+    <string name="contacts_empty">No contacts yet.</string>
+    <string name="contacts_no_match">No contact matches.</string>
+    <string name="contacts_name">Name</string>
+    <string name="contacts_email">Email</string>
+    <string name="contacts_phone">Phone</string>
+    <string name="contacts_address">Address</string>
+    <string name="contacts_add_email">Add email</string>
+    <string name="contacts_add_phone">Add phone</string>
+    <string name="contacts_add_address">Add address</string>
+    <string name="contacts_remove_line">Remove this line</string>
+    <string name="contacts_address_book">Address book</string>
+    <string name="contacts_clear_search">Clear search</string>
+</resources>

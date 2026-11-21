@@ -8,7 +8,7 @@ import androidx.room.migration.Migration
 
 /** Schema version Room opens, named since `@Database` isn't readable at runtime. Bumping
  *  without a step in [ALL_MIGRATIONS] drops every table. */
-internal const val SCHEMA_VERSION = 39
+internal const val SCHEMA_VERSION = 40
 
 @Database(
     entities = [
@@ -19,6 +19,7 @@ internal const val SCHEMA_VERSION = 39
         ServerContactEntity::class, ServerContactStateEntity::class,
         SmimeCertificateEntity::class,
         DownloadAheadSkipEntity::class,
+        DavObjectEntity::class, DavStateEntity::class, DavPendingEntity::class,
     ],
     version = SCHEMA_VERSION,
     exportSchema = false,
@@ -38,6 +39,7 @@ abstract class SternaDatabase : RoomDatabase() {
     abstract fun pendingExpungeDao(): PendingExpungeDao
     abstract fun serverContactDao(): ServerContactDao
     abstract fun smimeCertificateDao(): SmimeCertificateDao
+    abstract fun davDao(): DavDao
 
     companion object {
         /**
@@ -64,6 +66,7 @@ abstract class SternaDatabase : RoomDatabase() {
             MIGRATION_36_37,
             MIGRATION_37_38,
             MIGRATION_38_39,
+            MIGRATION_39_40,
         )
 
         fun build(context: Context): SternaDatabase =

@@ -2,6 +2,7 @@ package app.sterna.core.data.storage
 
 import android.content.Context
 import app.sterna.core.data.account.MoveMemory
+import app.sterna.core.data.db.DavDao
 import app.sterna.core.data.db.EmailBodyDao
 import app.sterna.core.data.db.EmailDao
 import app.sterna.core.data.db.EmailFtsDao
@@ -53,6 +54,8 @@ class StorageRepository(
     private val serverContactDao: ServerContactDao,
     private val attachmentStore: AttachmentStore,
     private val sweepAccountPhotos: () -> List<String>,
+    /** Calendars, contact cards, files and the writes queued on them. Null in tests that predate them. */
+    private val davDao: DavDao? = null,
 ) {
     private val moveMemory: MoveMemory get() = MoveMemory.of(context)
     private val attachmentsDir: File get() = File(context.cacheDir, "attachments")
@@ -119,6 +122,7 @@ class StorageRepository(
         runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }
         runCatching { pendingExpungeDao.deleteForAccount(accountId) }
         runCatching { serverContactDao.deleteForAccount(accountId) }
+        runCatching { davDao?.deleteForAccount(accountId) }
         // Every row of the account, editing and STAGING ones included, an upload queue read would
         // walk past exactly the draft whose composer was open when the user signed out.
         runCatching {
@@ -153,6 +157,7 @@ class StorageRepository(
                 runCatching { mailboxDao.deleteForAccount(accountId) }
                 runCatching { serverContactDao.deleteRowsOfAccount(accountId) }
                 runCatching { serverContactDao.deleteState(accountId) }
+                runCatching { davDao?.deleteForAccount(accountId) }
                 runCatching { moveMemory.forget(listOf(accountId)) }
                 runCatching { attachmentStore.clearAccount(accountId) }
             }

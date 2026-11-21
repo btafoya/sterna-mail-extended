@@ -109,6 +109,8 @@ class MailFetchWorker(context: Context, params: WorkerParameters) : CoroutineWor
                 .onFailure { Log.w(TAG, "Address book refresh failed for account ${credentials.id}", it) }
                 .onSuccess { outcome -> serverContactsLine(credentials.id, outcome)?.let { Log.i(TAG, it) } }
         }
+        // The same cadence carries calendars, files and the writes queued on the phone, and re-plans reminders.
+        app.sterna.dav.Dav.enqueue(applicationContext)
     }
 
     companion object {

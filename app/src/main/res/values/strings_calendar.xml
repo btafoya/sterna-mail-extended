@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cal_title">Calendar</string>
+    <string name="cal_events">Events</string>
+    <string name="cal_tasks">Tasks</string>
+    <string name="cal_agenda">Agenda</string>
+    <string name="cal_month">Month</string>
+    <string name="cal_today">Today</string>
+    <string name="cal_prev">Previous</string>
+    <string name="cal_next">Next</string>
+    <string name="cal_add_event">New event</string>
+    <string name="cal_add_task">New task</string>
+    <string name="cal_calendars">Calendars</string>
+    <string name="cal_no_events">Nothing in this period</string>
+    <string name="cal_no_tasks">No tasks</string>
+    <string name="cal_all_day">All day</string>
+    <string name="cal_title_hint">Title</string>
+    <string name="cal_start">Starts</string>
+    <string name="cal_end">Ends</string>
+    <string name="cal_due">Due</string>
+    <string name="cal_no_due">No due date</string>
+    <string name="cal_calendar">Calendar</string>
+    <string name="cal_repeat">Repeat</string>
+    <string name="cal_repeat_none">Does not repeat</string>
+    <string name="cal_repeat_daily">Daily</string>
+    <string name="cal_repeat_weekly">Weekly</string>
+    <string name="cal_repeat_monthly">Monthly</string>
+    <string name="cal_repeat_yearly">Yearly</string>
+    <string name="cal_repeat_custom">Custom (kept as it is)</string>
+    <string name="cal_repeat_count">Times (empty: forever)</string>
+    <string name="cal_series_note">Changes apply to the whole series</string>
+    <string name="cal_alert">Reminder</string>
+    <string name="cal_alert_none">None</string>
+    <string name="cal_alert_at_start">At the start</string>
+    <string name="cal_alert_10m">10 minutes before</string>
+    <string name="cal_alert_30m">30 minutes before</string>
+    <string name="cal_alert_1h">1 hour before</string>
+    <string name="cal_alert_1d">1 day before</string>
+    <string name="cal_alert_custom">Custom (kept as it is)</string>
+    <string name="cal_attendees">Attendees (email addresses)</string>
+    <string name="cal_notes">Notes</string>
+    <string name="cal_edit">Edit</string>
+    <string name="cal_done">Completed</string>
+</resources>

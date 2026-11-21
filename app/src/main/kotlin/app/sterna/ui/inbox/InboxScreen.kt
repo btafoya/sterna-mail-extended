@@ -1775,6 +1775,7 @@ private fun DrawerContent(
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
                 HorizontalDivider()
+                app.sterna.ui.dav.DavDrawerItems(accountId = currentAccountId, onClose = { scope.launch { drawerState.close() } })
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                     label = { Text(stringResource(R.string.inbox_settings)) },

@@ -129,7 +129,7 @@ class LabelsMigrationSqlTest {
     }
 
     @Test fun theChainReachesTheDeclaredVersionAndTheEntityNamesTheColumns() {
-        assertEquals(39, SCHEMA_VERSION)
+        assertEquals(40, SCHEMA_VERSION)
         assertEquals(
             "the step is written and not handed to Room: every install opening v37 loses its cache, its outbox and its local drafts",
             SCHEMA_VERSION,

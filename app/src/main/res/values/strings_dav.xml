@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared by calendar, contacts and files: drawer entries and the queued-write banner. -->
+    <string name="dav_calendar">Calendar</string>
+    <string name="dav_contacts">Contacts</string>
+    <string name="dav_files">Files</string>
+    <string name="dav_reminders_channel">Calendar reminders</string>
+    <string name="dav_untitled">(no title)</string>
+    <string name="dav_back">Back</string>
+    <string name="dav_save">Save</string>
+    <string name="dav_cancel">Cancel</string>
+    <string name="dav_delete">Delete</string>
+    <string name="dav_waiting_to_send">Waiting to reach the server</string>
+    <string name="dav_failed_title">The server refused a change</string>
+    <string name="dav_dismiss">Dismiss</string>
+</resources>

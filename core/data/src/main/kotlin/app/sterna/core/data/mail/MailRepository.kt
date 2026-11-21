@@ -4867,6 +4867,8 @@ class MailRepository(
         // The account ids whose Email state should wake [onChanged] (issue #31); Stalwart pushes
         // nothing for an ACL-shared one. Empty = this credential's own account.
         watchedJmapAccountIds: Set<String> = emptySet(),
+        /** A calendar, contact or file type changed on the server. */
+        onDavChanged: () -> Unit = {},
     ): Closeable {
         if (credentials.protocol == MailProtocol.IMAP) {
             return imap.openIdle(credentials, onChanged = onChanged, onClosed = onClosed)
@@ -4876,7 +4878,10 @@ class MailRepository(
         return client.openEventSource(
             session = resolved.session,
             auth = resolved.auth,
-            onStateChange = { change -> if (watched.any { change.emailChanged(it) }) onChanged() },
+            onStateChange = { change ->
+                if (watched.any { change.emailChanged(it) }) onChanged()
+                if (change.davChanged()) onDavChanged()
+            },
             onClosed = onClosed,
         )
     }

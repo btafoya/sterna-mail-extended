@@ -54,6 +54,10 @@ import app.sterna.ui.components.LoadingRing
 import app.sterna.ui.compose.ComposeScreen
 import app.sterna.ui.compose.IncognitoKeyboard
 import app.sterna.ui.connect.ConnectScreen
+import app.sterna.ui.dav.CalendarScreen
+import app.sterna.ui.dav.ContactsScreen
+import app.sterna.ui.dav.FilesScreen
+import app.sterna.ui.dav.LocalDavNav
 import app.sterna.core.jmap.model.Email
 import app.sterna.ui.inbox.InboxScreen
 import app.sterna.ui.inbox.InboxViewModel
@@ -429,6 +433,8 @@ private fun MainNavHost(
                     }
                 }
             }
+            // The drawer's calendar, contacts and files entries ask for a route here, so the guard stays in this file.
+            CompositionLocalProvider(LocalDavNav provides { route -> entry.navigateOnce { nav.navigate(route) } }) {
             InboxScreen(
                 onOpenEmail = { id, accountId, index, fromSearch ->
                     // Carry the tapped position and its context so the reader pages over the same
@@ -496,6 +502,34 @@ private fun MainNavHost(
                         )
                     }
                 },
+            )
+            }
+        }
+        composable(
+            route = "calendar?accountId={accountId}",
+            arguments = listOf(navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+        ) { entry ->
+            CalendarScreen(
+                accountId = entry.arguments?.getString("accountId")?.ifBlank { null } ?: currentAccountId,
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
+            )
+        }
+        composable(
+            route = "contacts?accountId={accountId}",
+            arguments = listOf(navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+        ) { entry ->
+            ContactsScreen(
+                accountId = entry.arguments?.getString("accountId")?.ifBlank { null } ?: currentAccountId,
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
+            )
+        }
+        composable(
+            route = "files?accountId={accountId}",
+            arguments = listOf(navArgument("accountId") { type = NavType.StringType; nullable = true; defaultValue = null }),
+        ) { entry ->
+            FilesScreen(
+                accountId = entry.arguments?.getString("accountId")?.ifBlank { null } ?: currentAccountId,
+                onBack = { entry.navigateOnce { nav.popBackStack() } },
             )
         }
         composable(

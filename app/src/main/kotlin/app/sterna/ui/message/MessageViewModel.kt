@@ -1736,6 +1736,12 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+                if (answerThroughServerCalendar(credentials, invite, partstat)) {
+                    if (_calendar.value?.ownerId == invite.ownerId) {
+                        _calendar.value = _calendar.value?.copy(response = InviteResponse.Sent(partstat))
+                    }
+                    return@launch
+                }
                 // The replying attendee is this account; reuse its CN from the invite if it lists us.
                 val accountEmail = credentials.username
                 val cn = event.attendees.firstOrNull { it.email.equals(accountEmail, true) }?.cn
@@ -1764,6 +1770,44 @@ class MessageViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    /**
+     * With a server that lists calendars the answer is a change to the event, and the server mails the
+     * reply (iMIP): the invitation is read by the server, kept as an event if it is not one yet, and the
+     * participation status patched and queued. False, nothing done, when it cannot be answered that way
+     * (no calendars, no blob, not a participant, no calendar to keep it in, server unreachable): the mailed
+     * reply then goes as it always has.
+     * ponytail: the event is looked up by scanning the account's cached events for the uid.
+     */
+    private suspend fun answerThroughServerCalendar(
+        credentials: app.sterna.core.data.account.AccountCredentials,
+        invite: CalendarInvite,
+        partstat: String,
+    ): Boolean = runCatching {
+        val dav = getApplication<Application>().container.davRepository
+        if ("CalendarEvent" !in dav.watchSupported(credentials.id).first()) return@runCatching false
+        val blobId = invite.part?.blobId ?: return@runCatching false
+        val parsed = dav.parseInvite(credentials, blobId).firstOrNull()?.json ?: return@runCatching false
+        val uid = (parsed["uid"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return@runCatching false
+        val type = app.sterna.core.jmap.JmapType.CALENDAR_EVENT
+        val stored = dav.watch(credentials.id, type).first().firstOrNull {
+            (kotlinx.serialization.json.Json.parseToJsonElement(it.json) as? kotlinx.serialization.json.JsonObject)
+                ?.get("uid")?.let { u -> (u as? kotlinx.serialization.json.JsonPrimitive)?.content } == uid
+        }
+        val participants = (stored?.let { kotlinx.serialization.json.Json.parseToJsonElement(it.json) } as? kotlinx.serialization.json.JsonObject ?: parsed)["participants"] as? kotlinx.serialization.json.JsonObject
+        val me = ownParticipantId(participants, listOf(credentials.username)) ?: return@runCatching false
+        val id = stored?.id ?: run {
+            val calendars = dav.watch(credentials.id, app.sterna.core.jmap.JmapType.CALENDAR).first()
+            val calendar = calendars.firstOrNull {
+                (kotlinx.serialization.json.Json.parseToJsonElement(it.json) as? kotlinx.serialization.json.JsonObject)
+                    ?.get("isDefault")?.let { d -> (d as? kotlinx.serialization.json.JsonPrimitive)?.content } == "true"
+            } ?: calendars.firstOrNull() ?: return@runCatching false
+            dav.create(credentials.id, type, inviteCreateBody(parsed, calendar.id))
+        }
+        dav.update(credentials.id, type, id, rsvpPatch(me, partstat))
+        app.sterna.dav.Dav.enqueue(getApplication<Application>())
+        true
+    }.getOrDefault(false)
 
     fun toggleFlag() {
         val current = (_state.value as? MessageState.Loaded)?.email ?: return

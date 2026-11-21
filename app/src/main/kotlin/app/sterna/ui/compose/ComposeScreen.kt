@@ -271,6 +271,18 @@ fun ComposeScreen(
         viewModel.attachAll(uris)
     }
     val takePhoto = rememberTakePhoto(viewModel)
+    // Attach from the account's Files, offered only when its server lists them.
+    val filesAvailable by viewModel.filesAvailable.collectAsStateWithLifecycle()
+    var showFilesPicker by rememberSaveable { mutableStateOf(false) }
+    if (showFilesPicker) {
+        viewModel.composingAccountId()?.let { filesAccount ->
+            app.sterna.ui.dav.FilesPicker(
+                accountId = filesAccount,
+                onPick = { row -> showFilesPicker = false; viewModel.attachFromFiles(row) },
+                onDismiss = { showFilesPicker = false },
+            )
+        } ?: run { showFilesPicker = false }
+    }
     // OpenKeychain's dialog round-trip: consume the pause, then launch, nothing between (`composeStateAfterPgpLaunch`).
     val pgpLauncher = rememberPgpInteractionLauncher { data -> viewModel.retryPgpSend(data) }
     LaunchedEffect(state) {
@@ -1084,6 +1096,12 @@ fun ComposeScreen(
                                 text = { Text(stringResource(R.string.compose_attach_take_photo)) },
                                 onClick = { attachMenu = false; takePhoto() },
                             )
+                            if (filesAvailable) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.files_attach_from)) },
+                                    onClick = { attachMenu = false; showFilesPicker = true },
+                                )
+                            }
                         }
                     }
                     IconButton(

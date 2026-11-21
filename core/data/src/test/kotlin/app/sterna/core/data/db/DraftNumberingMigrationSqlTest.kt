@@ -456,7 +456,7 @@ class DraftNumberingMigrationSqlTest {
             SCHEMA_VERSION,
             reached,
         )
-        assertEquals("the schema now declares v39 (`download_ahead_skips`)", 39, SCHEMA_VERSION)
+        assertEquals("the schema now declares v40 (`dav_objects`)", 40, SCHEMA_VERSION)
     }
 
     // --- v24 → v25: the numbering each cached row was read under ---------------------------------

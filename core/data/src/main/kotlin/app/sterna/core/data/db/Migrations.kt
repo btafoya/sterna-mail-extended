@@ -465,3 +465,21 @@ val MIGRATION_38_39 = object : Migration(38, 39) {
         db.execSQL(DOWNLOAD_AHEAD_SKIPS_CREATE_SQL)
     }
 }
+
+/** The three tables of calendars, contact cards and files, as Room's entities in [DavDao] declare them. */
+val DAV_CREATE_SQL: List<String> = listOf(
+    "CREATE TABLE IF NOT EXISTS `dav_objects` (`accountId` TEXT NOT NULL, `type` TEXT NOT NULL, `id` TEXT NOT NULL, " +
+        "`groupId` TEXT NOT NULL, `name` TEXT NOT NULL, `startMs` INTEGER, `endMs` INTEGER, `recurring` INTEGER NOT NULL, " +
+        "`isTask` INTEGER NOT NULL, `json` TEXT NOT NULL, PRIMARY KEY(`accountId`, `type`, `id`))",
+    "CREATE TABLE IF NOT EXISTS `dav_state` (`accountId` TEXT NOT NULL, `type` TEXT NOT NULL, `state` TEXT NOT NULL, " +
+        "PRIMARY KEY(`accountId`, `type`))",
+    "CREATE TABLE IF NOT EXISTS `dav_pending` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `accountId` TEXT NOT NULL, " +
+        "`type` TEXT NOT NULL, `op` TEXT NOT NULL, `objectId` TEXT NOT NULL, `patchJson` TEXT NOT NULL, " +
+        "`createdAt` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `lastError` TEXT, `failed` INTEGER NOT NULL)",
+)
+
+val MIGRATION_39_40 = object : Migration(39, 40) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        DAV_CREATE_SQL.forEach(db::execSQL)
+    }
+}

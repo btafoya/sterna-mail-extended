@@ -2,6 +2,7 @@ package app.sterna.core.data
 
 import android.content.Context
 import app.sterna.core.data.account.AccountStorage
+import app.sterna.core.data.dav.DavRepository
 import app.sterna.core.data.db.SternaDatabase
 import app.sterna.core.data.mail.FlightMarkerPrefs
 import app.sterna.core.data.mail.ImapMailService
@@ -34,6 +35,7 @@ object DataFactory {
         val mailRepository: MailRepository,
         val storageRepository: StorageRepository,
         val smimeCertificates: SmimeCertificates,
+        val davRepository: DavRepository,
     )
 
     fun create(
@@ -74,8 +76,7 @@ object DataFactory {
             outgoingDates = outgoingDates,
         )
         val smimeCertificates = database.smimeCertificateDao()
-        return DataLayer(
-            mailRepository = MailRepository(
+        val mailRepository = MailRepository(
                 client, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
                 database.mailboxDao(), imapService,
                 database.scheduledSendDao(), database.snoozedDao(), database.recentContactDao(),
@@ -106,7 +107,9 @@ object DataFactory {
                 outgoingDates = outgoingDates,
                 searchHistory = searchHistory,
                 attachmentStore = attachmentStore,
-            ),
+        )
+        return DataLayer(
+            mailRepository = mailRepository,
             storageRepository = StorageRepository(
                 appContext, database.emailDao(), database.emailFtsDao(), database.emailBodyDao(),
                 database.mailboxDao(), database.snoozedDao(), database.purgeSnapshotDao(),
@@ -119,8 +122,10 @@ object DataFactory {
                 serverContactDao = database.serverContactDao(),
                 attachmentStore = attachmentStore,
                 sweepAccountPhotos = accountStore::sweepOrphanedPhotos,
+                davDao = database.davDao(),
             ),
             smimeCertificates = smimeCertificates,
+            davRepository = DavRepository(client, database.davDao(), accountStore, mailRepository),
         )
     }
 }

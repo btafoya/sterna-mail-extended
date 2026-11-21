@@ -398,6 +398,7 @@ class LocalDraftUploadWiringTest {
                 "runCatching { mailboxUidValidityDao.deleteForAccount(accountId) }",
                 "runCatching { pendingExpungeDao.deleteForAccount(accountId) }",
                 "runCatching { serverContactDao.deleteForAccount(accountId) }",
+                "runCatching { davDao?.deleteForAccount(accountId) }",
                 "runCatching {",
                 "purgeLocalDraftsOfAccount(",
                 "ids = { localDraftDao.observeForAccount(accountId).first().map { it.id } },",

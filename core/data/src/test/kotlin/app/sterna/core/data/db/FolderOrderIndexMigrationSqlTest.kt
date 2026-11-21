@@ -476,8 +476,8 @@ class FolderOrderIndexMigrationSqlTest {
             reached,
         )
         assertEquals(
-            "the schema declares v39: `download_ahead_skips`",
-            39,
+            "the schema declares v40: `dav_objects`",
+            40,
             SCHEMA_VERSION,
         )
     }

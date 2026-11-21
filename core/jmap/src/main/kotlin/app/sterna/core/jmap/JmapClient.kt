@@ -2503,7 +2503,7 @@ class JmapClient internal constructor(
         val template = session.eventSourceUrl
             ?: throw JmapException("Server does not advertise an eventSourceUrl")
         val url = template
-            .replace("{types}", "Email,Mailbox")
+            .replace("{types}", eventSourceTypes(session))
             .replace("{closeafter}", "no")
             .replace("{ping}", PING_SECONDS.toString())
         val request = Request.Builder()
@@ -2631,7 +2631,7 @@ class JmapClient internal constructor(
     }
 
     /** POST a JMAP request body and return the response text, throwing on HTTP failure. */
-    private suspend fun postJmap(session: JmapSession, auth: JmapAuth, payload: JsonObject): String =
+    internal suspend fun postJmap(session: JmapSession, auth: JmapAuth, payload: JsonObject): String =
         postWithRetry(session.apiUrl, auth.authorizationHeader(), payload)
 
             /**
@@ -2668,6 +2668,14 @@ class JmapClient internal constructor(
         }
     }
 
+    /** Mail always; calendar, contact and file types only when the session lists them, so a server without them is asked what it always was. */
+    private fun eventSourceTypes(session: JmapSession): String = buildList {
+        add("Email"); add("Mailbox")
+        if (Jmap.CALENDARS_CAPABILITY in session.capabilities) { add("Calendar"); add("CalendarEvent") }
+        if (Jmap.CONTACTS_CAPABILITY in session.capabilities) { add("AddressBook"); add("ContactCard") }
+        if (Jmap.FILENODE_CAPABILITY in session.capabilities) add("FileNode")
+    }.joinToString(",")
+
     /** Like [methodResponseArgs] but returns null for an error/missing response instead of throwing. */
     private fun methodResponseArgsOrNull(body: String, expectedMethod: String): JsonObject? {
         val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: return null
@@ -2680,7 +2688,7 @@ class JmapClient internal constructor(
     }
 
     /** Find the args of a named method response, throwing on a JMAP-level error. */
-    private fun methodResponseArgs(body: String, expectedMethod: String): JsonObject {
+    internal fun methodResponseArgs(body: String, expectedMethod: String): JsonObject {
         val root = runCatching { json.parseToJsonElement(body).jsonObject }
             .getOrElse { throw JmapException("Could not parse JMAP response", it) }
         val responses = root["methodResponses"]?.jsonArray

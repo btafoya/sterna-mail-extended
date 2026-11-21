@@ -157,6 +157,7 @@ class PushService : Service() {
                     }
                 },
                 watchedJmapAccountIds = watchedJmapIds,
+                onDavChanged = { app.sterna.dav.Dav.enqueue(applicationContext) },
             )
             // Store first, check after, whoever writes last checks last. The baseline pass can run
             // for tens of seconds, and checking before the write only narrows the defect (#130).

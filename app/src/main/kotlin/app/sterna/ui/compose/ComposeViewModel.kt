@@ -85,6 +85,7 @@ import app.sterna.ui.newThumbnailCache
 import app.sterna.ui.thumbnailKeyToForget
 import app.sterna.ui.decodeThumbnail
 import app.sterna.ui.handAttachmentToViewer
+import app.sterna.ui.stageForSharing
 import app.sterna.ui.thumbnailKeyFor
 import app.sterna.util.MailDates
 import kotlinx.coroutines.CancellationException
@@ -102,7 +103,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -885,6 +889,38 @@ class ComposeViewModel(application: Application) : AndroidViewModel(application)
                 _attachmentStatus.value = app.getString(composedAttachFailure(t, online = hasUsableNetwork(app)), t.message ?: "error")
             } finally {
                 afterRead()
+            }
+        }
+    }
+
+    /** Whether the composing account's server lists Files: the "Attach from Files" entry is shown only then. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val filesAvailable: StateFlow<Boolean> = _selectedFrom
+        .flatMapLatest { from ->
+            val id = from?.accountId ?: accountId ?: store.load()?.id
+            if (id == null) flowOf(false)
+            else getApplication<Application>().container.davRepository.watchSupported(id).map { "FileNode" in it }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** The account the message is being written from: whose Files the picker browses. */
+    fun composingAccountId(): String? = credentials()?.id
+
+    /** Downloads a file of the account's Files and attaches it as a picked file would be. */
+    fun attachFromFiles(row: app.sterna.core.data.db.DavObjectEntity) {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            _attachmentStatus.value = app.getString(R.string.status_attaching)
+            try {
+                val credentials = credentials() ?: error(app.getString(R.string.status_no_saved_account))
+                val bytes = app.container.davRepository.downloadFile(credentials, row)
+                // Staged where the viewer hand-off stages: `attach` reads it like any picked document.
+                attach(stageForSharing(app, storage, row.name, bytes))
+            } catch (t: kotlinx.coroutines.CancellationException) {
+                throw t
+            } catch (t: Throwable) {
+                Log.w(TAG, "Attachment from Files failed", t)
+                _attachmentStatus.value = app.getString(composedAttachFailure(t, online = hasUsableNetwork(app)), t.message ?: "error")
             }
         }
     }

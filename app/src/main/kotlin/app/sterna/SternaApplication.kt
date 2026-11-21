@@ -87,6 +87,7 @@ class AppContainer(context: Context) {
             smimeKeys = smimeKeys,
         )
     val mailRepository: MailRepository = dataLayer.mailRepository
+    val davRepository: app.sterna.core.data.dav.DavRepository = dataLayer.davRepository
     val storageRepository: StorageRepository = dataLayer.storageRepository
     val smimeCertificates: SmimeCertificates = dataLayer.smimeCertificates
     val appLock: AppLock = AppLock(accountStore)

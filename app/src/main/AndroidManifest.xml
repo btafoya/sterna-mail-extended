@@ -13,6 +13,9 @@
     <!-- Normal permission (granted at install, nothing asked of the user): lets the app hear
          about a finished boot so the push connection comes back without opening the app (#98). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Calendar reminders on the minute. Denied by default from Android 13; without it they are
+         inexact (a few minutes late) and nothing else changes. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Package visibility (Android 11+): let Sterna see and bind the OpenKeychain
          OpenPGP provider for message encryption/signing. -->
@@ -152,6 +155,23 @@
         <receiver
             android:name=".push.NotificationActionReceiver"
             android:exported="false" />
+
+        <!-- Calendar reminders: the alarm raises the notification; the boot receiver plans them
+             again after a reboot, an update, or a clock or time-zone change (all protected
+             broadcasts, so no other app can trigger it). -->
+        <receiver
+            android:name=".dav.ReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".dav.DavBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
 
         <!-- Restarts the direct push connection after a reboot or an in-place app update
              (issue #98); does nothing when UnifiedPush, battery-saver delivery or no account

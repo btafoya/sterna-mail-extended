@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="files_root">Files</string>
+    <string name="files_up">Up one folder</string>
+    <string name="files_new_folder">New folder</string>
+    <string name="files_folder_name">Name</string>
+    <string name="files_create">Create</string>
+    <string name="files_upload">Upload files</string>
+    <string name="files_empty">This folder is empty</string>
+    <string name="files_more">More actions for %1$s</string>
+    <string name="files_rename">Rename</string>
+    <string name="files_rename_title">Rename</string>
+    <string name="files_delete_title">Delete %1$s?</string>
+    <string name="files_delete_folder_body">The folder and everything in it will be deleted from the server.</string>
+    <string name="files_delete_file_body">The file will be deleted from the server.</string>
+    <string name="files_folder_icon">Folder</string>
+    <string name="files_err_empty">Give it a name</string>
+    <string name="files_err_chars">A name cannot contain / or \\</string>
+    <string name="files_err_long">That name is too long</string>
+    <string name="files_err_taken">Something here already has that name</string>
+    <string name="files_open_failed">Could not open the file: %1$s</string>
+    <string name="files_upload_failed">Could not queue the upload: %1$s</string>
+    <string name="files_attach_from">Attach from Files</string>
+    <string name="files_pick_title">Choose a file</string>
+    <string name="files_pick_close">Close</string>
+</resources>
