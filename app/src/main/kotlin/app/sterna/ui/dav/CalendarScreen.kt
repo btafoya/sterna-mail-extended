@@ -86,6 +86,7 @@ fun CalendarScreen(accountId: String, onBack: () -> Unit) {
     var detail by remember { mutableStateOf<CalItem?>(null) }
     var editor by remember { mutableStateOf<Pair<CalItem?, EventForm>?>(null) }
     var calendarsMenu by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<CalItem?>(null) }
     val tasksMode = mode == CalMode.TASKS
 
     Scaffold(
@@ -186,14 +187,23 @@ fun CalendarScreen(accountId: String, onBack: () -> Unit) {
                 }
             },
             confirmButton = { TextButton(onClick = { editor = item to vm.formFor(item); detail = null }) { Text(stringResource(R.string.cal_edit)) } },
-            dismissButton = { TextButton(onClick = { vm.delete(item); detail = null }) { Text(stringResource(R.string.dav_delete)) } },
+            dismissButton = { TextButton(onClick = { deleting = item }) { Text(stringResource(R.string.dav_delete)) } },
+        )
+    }
+    deleting?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(item.title.ifBlank { stringResource(R.string.dav_untitled) }) },
+            text = { Text(stringResource(R.string.cal_delete_confirm)) },
+            confirmButton = { TextButton(onClick = { vm.delete(item); deleting = null; detail = null; editor = null }) { Text(stringResource(R.string.dav_delete)) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.dav_cancel)) } },
         )
     }
     editor?.let { (editing, form) ->
         EventEditorDialog(
             initial = form, calendars = calendars,
             onSave = { vm.save(editing, it); editor = null },
-            onDelete = editing?.let { e -> { vm.delete(e); editor = null } },
+            onDelete = editing?.let { e -> { deleting = e } },
             onDismiss = { editor = null },
         )
     }

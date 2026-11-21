@@ -40,5 +40,6 @@
     <string name="cal_attendees">Attendees (email addresses)</string>
     <string name="cal_notes">Notes</string>
     <string name="cal_edit">Edit</string>
+    <string name="cal_delete_confirm">Delete this from the server?</string>
     <string name="cal_done">Completed</string>
 </resources>
