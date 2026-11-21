@@ -10,7 +10,7 @@
     <string name="dav_save">Save</string>
     <string name="dav_cancel">Cancel</string>
     <string name="dav_delete">Delete</string>
-    <string name="dav_waiting_to_send">Waiting to reach the server</string>
+    <string name="dav_waiting_to_send">Sending to the server…</string>
     <string name="dav_failed_title">The server refused a change</string>
     <string name="dav_dismiss">Dismiss</string>
 </resources>

@@ -79,6 +79,13 @@ class JmapObjectsOnTheWireTest {
         assertEquals("s9", c.newState)
     }
 
+    @Test fun `set accepts null for the lists a server has nothing to report in`() = runBlocking {
+        respond("""{"methodResponses":[["CalendarEvent/set",{"newState":"s4","created":{"n":{"id":"f1"}},"updated":null,"destroyed":null,"notCreated":null},"s"]]}""")
+        val r = JmapClient().setObjects(session(), auth, JmapType.CALENDAR_EVENT, create = mapOf("n" to buildJsonObject { put("name", "a") }))
+        assertEquals("f1", r.created["n"]!!.id)
+        assertTrue(r.destroyed.isEmpty())
+    }
+
     @Test fun `set sends ifInState and patches, maps created and failures, and a stale state throws`() = runBlocking {
         respond("""{"methodResponses":[["CalendarEvent/set",{"newState":"s3","created":{"n":{"id":"x1"}},"updated":{"a":null},"notUpdated":{"b":{"type":"forbidden"}}},"s"]]}""")
         val r = JmapClient().setObjects(

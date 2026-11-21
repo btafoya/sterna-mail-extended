@@ -231,6 +231,8 @@ class AppContainer(context: Context) {
                     .forEach { ScheduledSends.enqueue(appContext, it.id, it.delayMillis, keepExisting = true) }
             }.onFailure { Log.w("Sterna", "scheduled-send re-arm failed; retried next start", it) }
         }
+        // Calendars, contacts and files sync at every start: the drawer entries only appear once a pass has run.
+        app.sterna.dav.Dav.enqueue(appContext)
         // The home-screen widget's number, pushed as the mail moves (#112). The widget polls
         // nothing, so without this it sits on a stale figure while the drawer decrements. One
         // collection covers every write, live push and foreground refresh; wiring those call sites

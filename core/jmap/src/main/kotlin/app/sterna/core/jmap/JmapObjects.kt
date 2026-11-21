@@ -76,7 +76,7 @@ private fun propsOf(type: JmapType): JsonElement =
     type.properties?.let { JsonArray(it.map(::JsonPrimitive)) } ?: JsonNull
 
 private fun objectsOf(args: JsonObject): List<JmapObject> =
-    args["list"]?.jsonArray.orEmpty().map { val o = it.jsonObject; JmapObject(o["id"]!!.jsonPrimitive.content, o) }
+    (args["list"] as? JsonArray).orEmpty().map { val o = it.jsonObject; JmapObject(o["id"]!!.jsonPrimitive.content, o) }
 
 private fun errors(args: JsonObject, key: String): Map<String, SetError> =
     (args[key] as? JsonObject).orEmpty().mapValues { (_, v) ->
@@ -123,7 +123,7 @@ suspend fun JmapClient.getAllObjects(
         val got = methodResponseArgs(body, "${type.name}/get")
         if (state == null) state = got["state"]?.jsonPrimitive?.contentOrNull
         all += objectsOf(got)
-        val listed = query["ids"]?.jsonArray?.size ?: 0
+        val listed = (query["ids"] as? JsonArray)?.size ?: 0
         position += listed
         val total = query["total"]?.jsonPrimitive?.intOrNull
         if (listed == 0 || (total != null && position >= total)) break
@@ -156,7 +156,7 @@ suspend fun JmapClient.objectChanges(
             val all = getAllObjects(session, auth, type, paged) ?: return null
             return ObjectChanges(all.objects, emptyList(), all.state, replacesAll = true)
         }
-        fun ids(key: String) = args[key]?.jsonArray.orEmpty().map { it.jsonPrimitive.content }
+        fun ids(key: String) = (args[key] as? JsonArray).orEmpty().map { it.jsonPrimitive.content }
         changed += ids("created") + ids("updated")
         ids("destroyed").forEach { changed -= it; destroyed += it }
         val newState = args["newState"]?.jsonPrimitive?.contentOrNull
@@ -211,7 +211,7 @@ suspend fun JmapClient.setObjects(
         newState = args["newState"]?.jsonPrimitive?.contentOrNull,
         created = made,
         updated = (args["updated"] as? JsonObject).orEmpty().keys,
-        destroyed = args["destroyed"]?.jsonArray.orEmpty().map { it.jsonPrimitive.content }.toSet(),
+        destroyed = (args["destroyed"] as? JsonArray).orEmpty().map { it.jsonPrimitive.content }.toSet(),
         failed = errors(args, "notCreated") + errors(args, "notUpdated") + errors(args, "notDestroyed"),
     )
 }
@@ -226,7 +226,7 @@ suspend fun JmapClient.parseCalendarBlob(session: JmapSession, auth: JmapAuth, b
         }))),
         "CalendarEvent/parse",
     )
-    val events = (args["parsed"] as? JsonObject)?.get(blobId)?.jsonArray.orEmpty()
+    val events = ((args["parsed"] as? JsonObject)?.get(blobId) as? JsonArray).orEmpty()
     return events.map { val o = it.jsonObject; JmapObject(o["id"]?.jsonPrimitive?.contentOrNull ?: "", o) }
 }
 

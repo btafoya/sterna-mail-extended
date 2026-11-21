@@ -260,6 +260,10 @@ class DavRepository(
         val path = (patch[LOCAL_FILE] as? JsonPrimitive)?.contentOrNull ?: return patch
         val accountId = session.accountIdFor(type.capability) ?: throw JmapException("Server has no files account")
         val mime = (patch["type"] as? JsonPrimitive)?.contentOrNull
+        // Waiting cannot make it fit: fail it now with the limit named (errorType is what the failed list shows).
+        session.maxSizeUpload()?.takeIf { File(path).length() > it }?.let {
+            throw JmapException("File over the upload limit", errorType = "File is larger than the server's ${it / (1 shl 20)} MB upload limit")
+        }
         // ponytail: whole file in memory, as the attachment download is; stream when files past DownloadLimits matter.
         val blob = client.uploadBlob(session, accountId, File(path).readBytes(), mime, auth)
         return JsonObject(patch.withoutLocal() + ("blobId" to JsonPrimitive(blob.blobId)))

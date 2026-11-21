@@ -112,9 +112,12 @@ class DavRepositoryTest {
     @After fun stop() = server.shutdown()
 
     private fun session() = JmapSession(
-        capabilities = mapOf(Jmap.CORE_CAPABILITY to JsonObject(emptyMap()), Jmap.MAIL_CAPABILITY to JsonObject(emptyMap()), Jmap.CALENDARS_CAPABILITY to JsonObject(emptyMap())),
+        capabilities = mapOf(
+            Jmap.CORE_CAPABILITY to buildJsonObject { put("maxSizeUpload", 10) }, Jmap.MAIL_CAPABILITY to JsonObject(emptyMap()),
+            Jmap.CALENDARS_CAPABILITY to JsonObject(emptyMap()), Jmap.FILENODE_CAPABILITY to JsonObject(emptyMap()),
+        ),
         accounts = mapOf("m" to JmapAccount("me", mapOf(Jmap.MAIL_CAPABILITY to JsonObject(emptyMap())))),
-        primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "m", Jmap.CALENDARS_CAPABILITY to "cal"),
+        primaryAccounts = mapOf(Jmap.MAIL_CAPABILITY to "m", Jmap.CALENDARS_CAPABILITY to "cal", Jmap.FILENODE_CAPABILITY to "fil"),
         apiUrl = server.url("/api").toString(),
     )
 
@@ -180,6 +183,18 @@ class DavRepositoryTest {
         assertEquals(1, r.failed)
         assertTrue(dao.queue.single().failed)
         assertEquals("forbidden", dao.queue.single().lastError)
+    }
+
+    @Test fun `a file over the server's upload limit is failed at once and nothing is sent`() = runBlocking {
+        val f = java.io.File.createTempFile("big", ".bin").apply { writeBytes(ByteArray(50)); deleteOnExit() }
+        repo.uploadFile("acc", null, "big.bin", "application/octet-stream", f.path, 50)
+
+        val r = repo.drain(creds)
+
+        assertEquals(1, r.failed)
+        assertTrue(dao.queue.single().failed)
+        assertTrue(dao.queue.single().lastError!!.contains("limit"))
+        assertTrue(posted.isEmpty())
     }
 
     @Test fun `a destroy of a never-sent object sends nothing`() = runBlocking {
