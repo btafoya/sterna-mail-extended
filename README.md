@@ -2,7 +2,7 @@
   <img src="docs/logo.png" width="112" alt="Sterna Mail logo">
 </p>
 
-<h1 align="center">Sterna Mail</h1>
+<h1 align="center">Sterna Mail Extended</h1>
 
 <p align="center">
   <b>All your mail. None of the baggage.</b><br>
@@ -11,18 +11,46 @@
 </p>
 
 <p align="center">
-  <a href="https://sternamail.org"><b>sternamail.org</b></a>
+  A fork of <a href="https://codeberg.org/emon/sterna-mail">Sterna Mail</a> by emon
+  (<a href="https://sternamail.org">sternamail.org</a>)
 </p>
 
 <p align="center">
-  <a href="https://sternamail.org"><img alt="Website" src="https://img.shields.io/badge/website-sternamail.org-2F5E59"></a>
-  <a href="https://codeberg.org/emon/sterna-mail/actions"><img alt="CI" src="https://codeberg.org/emon/sterna-mail/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="https://f-droid.org/packages/app.sterna/"><img alt="F-Droid" src="https://img.shields.io/f-droid/v/app.sterna?logo=fdroid&color=1976D2"></a>
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.sterna%22%2C%22url%22%3A%22https%3A%2F%2Fcodeberg.org%2Femon%2Fsterna-mail%22%2C%22author%22%3A%22emon%22%2C%22name%22%3A%22Sterna%20Mail%22%7D"><img alt="Obtainium" src="https://img.shields.io/badge/Obtainium-add-43A047"></a>
-  <a href="https://codeberg.org/emon/sterna-mail/releases/latest"><img alt="Latest release" src="https://img.shields.io/badge/download-latest%20APK-2F5E59"></a>
+  <a href="https://github.com/btafoya/sterna-mail-extended"><img alt="Sterna Mail Extended" src="https://img.shields.io/badge/fork-sterna--mail--extended-2F5E59?logo=github"></a>
+  <a href="https://codeberg.org/emon/sterna-mail"><img alt="Upstream: emon/sterna-mail" src="https://img.shields.io/badge/upstream-emon%2Fsterna--mail-2185D0?logo=codeberg&logoColor=white"></a>
+  <a href="https://sternamail.org"><img alt="Original website" src="https://img.shields.io/badge/original-sternamail.org-2F5E59"></a>
+  <img alt="JMAP calendars, contacts and files" src="https://img.shields.io/badge/JMAP-calendars%20%C2%B7%20contacts%20%C2%B7%20files-43A047">
   <a href="LICENSE"><img alt="License: GPLv3" src="https://img.shields.io/badge/license-GPLv3-blue"></a>
-  <a href="https://ko-fi.com/emoncode"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-FF6A4D?logo=ko-fi&logoColor=white"></a>
+  <a href="https://ko-fi.com/emoncode"><img alt="Support the original author on Ko-fi" src="https://img.shields.io/badge/Ko--fi-support%20the%20original-FF6A4D?logo=ko-fi&logoColor=white"></a>
 </p>
+
+> ### 🍴 Sterna Mail Extended: a fork
+>
+> This repository is a **fork of [Sterna Mail](https://codeberg.org/emon/sterna-mail)
+> by [emon](https://codeberg.org/emon)**, who designed, wrote and maintains the
+> original app. All credit for the client, its design and its privacy-first
+> approach belongs to the original project and its author; this fork keeps the
+> GPLv3 licence and the full upstream history. Please support the original at
+> [sternamail.org](https://sternamail.org) and [Ko-fi](https://ko-fi.com/emoncode).
+>
+> **What the fork adds**, for JMAP servers that offer them (each entry appears in
+> the drawer only when the account's server lists the capability):
+>
+> - **Calendars and tasks**: events and tasks, agenda and month views, an editor,
+>   recurring events, and local reminders.
+> - **Calendar invites**: RSVP from the invite card through `CalendarEvent/set`, so
+>   the server sends the reply.
+> - **Contacts**: browse and edit contact cards, not just autocomplete.
+> - **Files**: browse, upload and download files on the server, and attach one
+>   from the composer.
+> - **Offline writes**: changes are queued on the phone and sent when the server
+>   is reachable; a write the server refuses stays visible instead of vanishing.
+>
+> The fork is not distributed through F-Droid, Obtainium or the original's
+> releases: build it from source ([CONTRIBUTING.md](CONTRIBUTING.md)). Features
+> that are not listed above are the original's. Bugs in the fork's additions
+> belong in [this repository's issues](https://github.com/btafoya/sterna-mail-extended/issues),
+> not the upstream tracker.
 
 Sterna Mail is open-source and built for **JMAP**, the new and faster internet
 standard for email, with full support for classic **IMAP/SMTP** too. Just your
@@ -48,37 +76,24 @@ mail, on the server *you* choose.
 *Light "Arctic" and dark "Pelagic" themes, a calm sea-teal accent with a warm
 coral touch, the tern's beak. 🪸*
 
-## 📲 Download & install
+## 📲 Install
 
-**The easy way, [get it on F-Droid](https://f-droid.org/packages/app.sterna/)** 🎉
-Install it from the F-Droid app (or its website) and updates arrive automatically.
+This fork is **not** published on F-Droid, Obtainium or the original's release
+page, and has no release APKs of its own yet: **build it from source** with
+[CONTRIBUTING.md](CONTRIBUTING.md), or install a debug build straight to a phone:
 
-Using [Obtainium](https://github.com/ImranR98/Obtainium)? [Add Sterna in one tap](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.sterna%22%2C%22url%22%3A%22https%3A%2F%2Fcodeberg.org%2Femon%2Fsterna-mail%22%2C%22author%22%3A%22emon%22%2C%22name%22%3A%22Sterna%20Mail%22%7D)
-and it tracks your Codeberg releases, updating as soon as a new one lands.
+```
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-Prefer a direct download? Grab the **latest APK** yourself:
-
-1. **[⬇️ Download the latest APK](https://codeberg.org/emon/sterna-mail/releases/latest)** (under *Assets*).
-2. Open the downloaded `.apk` on your phone. Android will ask whether to **allow
-   installing apps from this source**, accept it for your browser or file manager.
-3. Tap **Install**, then open Sterna and add your account.
-
-To keep Sterna's footprint on Codeberg small, only the ten most recent releases carry an APK. Older ones are available on request: open an issue.
-
-> ℹ️ Sterna's builds are **reproducible**, and F-Droid verifies them: the APK it
-> distributes is byte-for-byte the one released here, signed with Sterna's own
-> key, so the two install sources update cleanly over each other. No Google
-> account or app store needed, ever.
-
-> 🔑 **Verify the signature.** Every release APK is signed with Sterna's own key.
-> Its SHA-256 certificate fingerprint is:
->
-> ```
-> CF:2D:00:7F:7B:FA:44:E0:8E:20:94:3D:E4:FE:17:FB:08:73:70:7F:D7:59:D6:DB:9C:AD:B1:F4:B2:AA:ED:C4
-> ```
->
-> Obtainium (verify signature) and [AppVerifier](https://github.com/soupslurpr/AppVerifier)
-> can check a downloaded APK against it before you install.
+Just want the original, unmodified app? Get it from
+[F-Droid](https://f-droid.org/packages/app.sterna/) or the
+[original releases](https://codeberg.org/emon/sterna-mail/releases/latest); those
+builds are reproducible and signed with the original author's key, **not** this
+fork's. The two share the package name `app.sterna`, so Android will not install
+one over the other unless they are signed with the same key: uninstall first when
+switching.
 
 Prefer to build it yourself? See [CONTRIBUTING.md](CONTRIBUTING.md).
 
