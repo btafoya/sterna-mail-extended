@@ -1,0 +1,13 @@
+version: 2
+
+secret:
+  # Test sources and fixtures hold fake credentials ("secret", "imap-secret") and throwaway
+  # keys: the "Sterna Test CA" / "Reader" S/MIME keys and the localhost ManageSieve .p12.
+  ignored-paths:
+    - "**/src/test/**"
+    - "**/src/androidTest/**"
+
+  ignored-matches:
+    # Android's public default debug keystore password (app/build.gradle.kts, debugSigned).
+    - name: Android debug keystore password
+      match: android
